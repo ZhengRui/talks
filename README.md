@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Presentation Hub
+
+A centralized web application for creating, hosting, and presenting interactive slides. Built with Next.js, Reveal.js, and Three.js.
+
+## Features
+
+- **Centralized Presentation Repository**: Single platform for all presentations
+- **Multiple Content Creation Methods**:
+  - Server-side rendered MDX slides with React components
+  - Client-side rendered Markdown via Reveal.js plugin
+  - Custom React component slides
+- **Interactive Elements**: Support for embedding 3D graphics with Three.js
+- **Modern Stack**: Next.js, TypeScript, Tailwind CSS
+
+## Project Structure
+
+```
+src/
+├── app/                    # Next.js App Router
+│   ├── page.tsx            # Home page with presentation listing
+│   └── [slug]/             # Dynamic routes for presentations
+│       └── page.tsx        # Individual presentation pages
+├── components/             # Reusable components
+│   ├── MdxSlide.tsx        # Server-rendered MDX slides
+│   ├── MarkdownSlide.tsx   # Client-rendered Markdown slides
+│   └── RevealPresentation.tsx # Core presentation component
+└── utils/                  # Utility functions
+    └── mdxUtils.ts         # MDX processing utilities
+```
 
 ## Getting Started
 
-First, run the development server:
+1. **Installation**
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. **Development Server**
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+bun run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The application will be available at [http://localhost:3000](http://localhost:3000).
 
-## Learn More
+## Creating a New Presentation
 
-To learn more about Next.js, take a look at the following resources:
+1. Create a new directory in `src/app/[your-presentation-slug]/`
+2. Add your presentation content:
+   - `advanced.mdx` for MDX content with React components
+   - Markdown files in `public/[your-presentation-slug]/` for client-side rendering
+   - Custom React components as needed
+3. Create a `page.tsx` file using the components:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```tsx
+import RevealPresentation from "@/components/RevealPresentation";
+import { MdxSlide } from "@/components/MdxSlide";
+import { MarkdownSlide } from "@/components/MarkdownSlide";
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+export default function PresentationPage() {
+  const slug = "your-presentation-slug";
+  
+  return (
+    <main className="min-h-screen h-screen">
+      <RevealPresentation>
+        <MdxSlide filePath="advanced.mdx" slug={slug} />
+        <MarkdownSlide filePath="simple.md" slug={slug} />
+        <section>
+          <h1>React Component Slide</h1>
+          <p>Custom slide content goes here</p>
+        </section>
+      </RevealPresentation>
+    </main>
+  );
+}
+```
 
-## Deploy on Vercel
+## Project Status
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+See [status.md](./status.md) for current development status and roadmap.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+MIT
