@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "sync-content": "bash scripts/sync-content.sh",
+    "predev": "bash scripts/sync-content.sh",
     "dev": "next dev",
+    "prebuild": "bash scripts/sync-content.sh",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

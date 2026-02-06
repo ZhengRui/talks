@@ -45,6 +45,5 @@ next-env.d.ts
 # claude code session plans
 /plans
 
-# presentation content (data, not framework)
-/content
+# presentation content (synced images — generated, do not edit)
 /public/*/
