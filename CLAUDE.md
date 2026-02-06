@@ -42,7 +42,9 @@ YAML + template-driven presentation hub. See `docs/design.md` for full details.
 
 ### Recipes
 
-**New presentation:** Create `content/my-talk/slides.yaml`, put images in `public/my-talk/`. Auto-discovered.
+**New presentation:** Create `content/my-talk/slides.yaml`, put images in `content/my-talk/images/`. Run `bun run sync-content` to copy to `public/`. Auto-discovered.
+
+**Preview all templates:** Visit `/example` — one slide per template with sample content.
 
 **New template:** Add interface to `types.ts` → create `templates/Foo.tsx` → add to registry in `templates/index.ts`.
 

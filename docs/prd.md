@@ -27,7 +27,8 @@ A web application serving as a central repository for hosting and presenting tal
 ### Template System
 - Each template is a pure React component returning a Reveal.js `<section>`
 - Adding a template is a 3-file change (type, component, registry)
-- Templates available at launch: `cover`, `bullets`, `image-text`, `full-image`
+- 35 built-in templates across 6 categories: text, image, layout, data, storytelling, special
+- Preview all templates at `/example`
 
 ### Discovery & Routing
 - Home page auto-discovers all presentations by scanning `content/`

@@ -27,26 +27,72 @@ YAML references images by filename (e.g. `image: cover.jpg`). The page component
 
 ## Type System
 
-Discriminated union on the `template` field:
-
-```typescript
-type SlideData = CoverSlideData | BulletSlideData | ImageTextSlideData | FullImageSlideData;
-```
-
-Each variant has its own interface with required/optional fields. `TemplateProps<T>` bundles `slide: T` and `imageBase: string`.
+Discriminated union on the `template` field. 35 template variants, each with its own interface. `TemplateProps<T>` bundles `slide: T` and `imageBase: string`.
 
 ## Template Registry
 
-A plain `Record<string, SlideComponent>` in `src/components/templates/index.ts`. The `getTemplate(name)` function returns the component or `null`.
+A plain `Record<string, SlideComponent>` in `src/components/templates/index.ts`. The `getTemplate(name)` function returns the component or `null`. Preview all templates at `/example`.
 
-### Available Templates
+### Available Templates (35)
 
-| Template | Required Fields | Optional Fields | Key Feature |
-|----------|----------------|-----------------|-------------|
-| `cover` | title | subtitle, image, author | Background image with opacity |
-| `bullets` | title, bullets | image | Fragment animation for progressive reveal |
-| `image-text` | title, image | imagePosition, bullets, body | Side-by-side layout |
-| `full-image` | image | title, body, overlay | Dark/light overlay for readability |
+**Text-focused:**
+| Template | Required | Optional |
+|----------|----------|----------|
+| `cover` | title | subtitle, image, author |
+| `bullets` | title, bullets | image |
+| `section-divider` | title | subtitle, image |
+| `quote` | quote | attribution, image |
+| `statement` | statement | subtitle, image |
+| `numbered-list` | title, items | — |
+| `definition` | title, definitions | — |
+| `agenda` | title, items | activeIndex |
+
+**Image-focused:**
+| Template | Required | Optional |
+|----------|----------|----------|
+| `full-image` | image | title, body, overlay |
+| `image-text` | title, image | imagePosition, bullets, body |
+| `image-grid` | images | title, columns |
+| `image-comparison` | before, after | title |
+| `image-caption` | image, caption | title |
+| `image-gallery` | images | title |
+
+**Layout:**
+| Template | Required | Optional |
+|----------|----------|----------|
+| `two-column` | left, right | title |
+| `three-column` | columns | title |
+| `top-bottom` | top, bottom | title |
+| `sidebar` | sidebar, main | title, sidebarPosition |
+
+**Data & Technical:**
+| Template | Required | Optional |
+|----------|----------|----------|
+| `code` | code | title, language |
+| `code-comparison` | before, after | title |
+| `table` | headers, rows | title |
+| `timeline` | events | title |
+| `stats` | stats | title |
+| `chart-placeholder` | title, image | caption |
+| `diagram` | image | title, caption |
+
+**Storytelling:**
+| Template | Required | Optional |
+|----------|----------|----------|
+| `comparison` | left, right | title |
+| `steps` | steps | title |
+| `profile` | name | title, image, bio |
+| `icon-grid` | items | title, columns |
+| `highlight-box` | body | title, variant |
+| `qa` | question, answer | — |
+
+**Special:**
+| Template | Required | Optional |
+|----------|----------|----------|
+| `video` | src | title |
+| `iframe` | src | title |
+| `blank` | — | image |
+| `end` | — | title, subtitle, image |
 
 ### Adding a New Template
 
