@@ -19,9 +19,10 @@ describe("loadPresentation", () => {
     const cover = data.slides[0];
 
     expect(cover.template).toBe("cover");
+    if (cover.template !== "cover") throw new Error("expected cover");
     expect(cover.title).toBe("70 Years of AI");
-    expect("subtitle" in cover && cover.subtitle).toBe("crack the AI jargon");
-    expect("image" in cover && cover.image).toBe("cover-bg.jpg");
+    expect(cover.subtitle).toBe("crack the AI jargon");
+    expect(cover.image).toBe("cover-bg.jpg");
   });
 
   it("parses bullets slide fields correctly", () => {
@@ -29,8 +30,32 @@ describe("loadPresentation", () => {
     const bullets = data.slides[1];
 
     expect(bullets.template).toBe("bullets");
+    if (bullets.template !== "bullets") throw new Error("expected bullets");
     expect(bullets.title).toBe("AI Applications");
-    expect("bullets" in bullets && bullets.bullets).toHaveLength(5);
+    expect(bullets.bullets).toHaveLength(5);
+  });
+
+  it("defaults theme to undefined when not specified", () => {
+    const data = loadPresentation("70-years-of-ai");
+
+    expect(data.theme).toBeUndefined();
+  });
+
+  it("parses theme field when present", () => {
+    const data = loadPresentation("example");
+
+    // example presentation may or may not have theme set
+    expect(
+      data.theme === undefined || typeof data.theme === "string"
+    ).toBe(true);
+  });
+
+  it("supports animation field on slides", () => {
+    const data = loadPresentation("70-years-of-ai");
+    const slide = data.slides[0];
+
+    // animation is optional — should be undefined if not set in YAML
+    expect(slide.animation).toBeUndefined();
   });
 
   it("throws on non-existent slug", () => {

@@ -19,7 +19,7 @@ bun run test             # Vitest — unit + integration tests
 bun run test:e2e         # Playwright — end-to-end tests
 ```
 
-- **Vitest** — unit tests (`loadPresentation`, parser) + integration tests (template rendering via React Testing Library)
+- **Vitest** — unit tests (`loadPresentation`, parser) + integration tests (template rendering, SlideEngine)
 - **Playwright** (separate test runner) — E2E tests (full page: slide layout, navigation, images, keyboard). Committable, CI-ready.
 - **`claude --chrome`** — ad-hoc visual debugging only, not a substitute for tests
 
@@ -27,16 +27,20 @@ Follow TDD: write failing test → implement → green. Enforced by Superpowers 
 
 ## Architecture
 
-YAML + template-driven presentation hub. See `docs/design.md` for full details.
+YAML + template-driven presentation hub. See `docs/design-v2.md` for full details.
 
-**Data flow:** `content/[slug]/slides.yaml` → server component → template registry → `<section>` elements → Reveal.js.
+**Data flow:** `content/[slug]/slides.yaml` → server component → template registry → `<section>` elements → custom SlideEngine.
 
 ### Key Files
 
-- `src/lib/types.ts` — `SlideData` discriminated union, `PresentationData`, `PresentationSummary`
+- `src/lib/types.ts` — `SlideData` discriminated union, `PresentationData`, `ThemeName`, `AnimationOverride`
 - `src/lib/loadPresentation.ts` — `loadPresentation()`, `discoverPresentations()`, `getAllSlugs()`
-- `src/components/Presentation.tsx` — Reveal.js client wrapper
+- `src/components/SlideEngine.tsx` — custom presentation engine (keyboard nav, scaling, themes)
 - `src/components/templates/` — one component per template, registry in `index.ts`
+- `src/styles/engine.css` — slide engine base styles (scaling, layout, transitions)
+- `src/styles/animations.css` — CSS keyframes and animation utility classes
+- `src/styles/components.css` — shared CSS component classes (cards, badges, etc.)
+- `src/styles/themes/` — 4 theme CSS files (modern, bold, elegant, dark-tech)
 - `src/app/[slug]/page.tsx` — dynamic route with `generateStaticParams`
 - `src/app/page.tsx` — home page, auto-discovers from `content/`
 
@@ -48,10 +52,13 @@ YAML + template-driven presentation hub. See `docs/design.md` for full details.
 
 **New template:** Add interface to `types.ts` → create `templates/Foo.tsx` → add to registry in `templates/index.ts`.
 
+**New theme:** Create `src/styles/themes/my-theme.css` with `.theme-my-theme` class defining `--sl-*` variables → import in `layout.tsx` → add to `ThemeName` union in `types.ts`.
+
 ### Tech Stack
 
 - Next.js 15 (App Router), React 19, TypeScript (strict)
-- Reveal.js 5, Tailwind CSS 4, Bun
+- Custom slide engine (no Reveal.js), Tailwind CSS 4, Bun
+- 4 themes via CSS custom properties, CSS-only animations
 - Vitest for unit/integration tests, Playwright for E2E
 - Superpowers plugin for TDD/SDD workflow
 - `@/*` path alias → `src/*`

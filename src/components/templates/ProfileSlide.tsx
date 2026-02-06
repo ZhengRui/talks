@@ -5,27 +5,32 @@ export const ProfileSlide: React.FC<TemplateProps<ProfileSlideData>> = ({
   imageBase,
 }) => (
   <section>
-    <div
-      className="flex flex-col items-center"
-      style={{ gap: "0.5em" }}
-    >
+    <div className="sl-section">
       {slide.image && (
         <img
+          className="sl-img-circle anim-scale-up"
           src={`${imageBase}/${slide.image}`}
           alt={slide.name}
-          style={{
-            width: "200px",
-            height: "200px",
-            borderRadius: "50%",
-            objectFit: "cover",
-          }}
+          style={{ width: '200px', height: '200px' }}
         />
       )}
-      <h2 style={{ marginBottom: 0 }}>{slide.name}</h2>
+      <h2 className="anim-fade-up" style={{ '--delay': '200ms' } as React.CSSProperties}>
+        {slide.name}
+      </h2>
       {slide.title && (
-        <h4 style={{ marginTop: "0.2em", opacity: 0.8 }}>{slide.title}</h4>
+        <p className="sl-text-accent anim-fade-up" style={{ fontSize: '32px', '--delay': '300ms' } as React.CSSProperties}>
+          {slide.title}
+        </p>
       )}
-      {slide.bio && <p style={{ maxWidth: "600px" }}>{slide.bio}</p>}
+      <div className="sl-accent-line anim-fade-up" style={{ '--delay': '350ms' } as React.CSSProperties} />
+      {slide.bio && (
+        <p
+          className="sl-text-muted anim-fade-up"
+          style={{ maxWidth: '700px', textAlign: 'center', '--delay': '400ms' } as React.CSSProperties}
+        >
+          {slide.bio}
+        </p>
+      )}
     </div>
   </section>
 );

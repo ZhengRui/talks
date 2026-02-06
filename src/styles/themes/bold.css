@@ -1,0 +1,33 @@
+/* Theme: Bold — High contrast, saturated colors, large type */
+
+.theme-bold {
+  --sl-bg: #0a0a0a;
+  --sl-bg-secondary: #1a1a1a;
+  --sl-bg-tertiary: #252525;
+  --sl-text: #f5f5f5;
+  --sl-text-muted: #a0a0a0;
+  --sl-heading: #ffffff;
+  --sl-accent: #ff6b35;
+  --sl-accent-2: #00d4ff;
+  --sl-accent-gradient: linear-gradient(135deg, #ff6b35, #ff3366);
+  --sl-font-heading: var(--font-inter), system-ui, sans-serif;
+  --sl-font-body: var(--font-inter), system-ui, sans-serif;
+  --sl-font-mono: var(--font-jetbrains), "Fira Code", monospace;
+  --sl-radius: 4px;
+  --sl-radius-sm: 2px;
+  --sl-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  --sl-shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.5);
+  --sl-border: 1px solid rgba(255, 255, 255, 0.08);
+  --sl-card-bg: #1a1a1a;
+  --sl-card-border: 1px solid rgba(255, 255, 255, 0.08);
+  --sl-code-bg: #111111;
+  --sl-code-text: #e0e0e0;
+  --sl-overlay-bg: rgba(0, 0, 0, 0.7);
+  --sl-progress-bg: rgba(255, 255, 255, 0.08);
+  --sl-highlight-info-bg: rgba(0, 212, 255, 0.1);
+  --sl-highlight-info-border: #00d4ff;
+  --sl-highlight-warning-bg: rgba(255, 107, 53, 0.1);
+  --sl-highlight-warning-border: #ff6b35;
+  --sl-highlight-success-bg: rgba(0, 255, 136, 0.1);
+  --sl-highlight-success-border: #00ff88;
+}

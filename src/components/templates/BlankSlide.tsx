@@ -5,9 +5,14 @@ export const BlankSlide: React.FC<TemplateProps<BlankSlideData>> = ({
   imageBase,
 }) => (
   <section
-    data-background-image={
-      slide.image ? `${imageBase}/${slide.image}` : undefined
+    style={
+      slide.image
+        ? {
+            backgroundImage: `url(${imageBase}/${slide.image})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }
+        : { background: 'var(--sl-bg)' }
     }
-    data-background-size={slide.image ? "cover" : undefined}
   />
 );

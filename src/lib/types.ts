@@ -247,7 +247,7 @@ export interface EndSlideData {
 
 // --- Discriminated union ---
 
-export type SlideData =
+export type SlideData = (
   | CoverSlideData
   | BulletSlideData
   | SectionDividerSlideData
@@ -282,12 +282,13 @@ export type SlideData =
   | VideoSlideData
   | IframeSlideData
   | BlankSlideData
-  | EndSlideData;
+  | EndSlideData
+) & SlideBaseFields;
 
 // --- Template component props ---
 
 export type TemplateProps<T extends SlideData = SlideData> = {
-  slide: T;
+  slide: T & SlideBaseFields;
   imageBase: string;
 };
 
@@ -295,12 +296,24 @@ export type TemplateProps<T extends SlideData = SlideData> = {
 
 export type SlideComponent<T extends SlideData = SlideData> = React.FC<TemplateProps<T>>;
 
+// --- Animation override ---
+
+export type AnimationOverride = "stagger" | "fade" | "counter" | "none";
+
+// --- Base slide fields (mixed into each template via YAML) ---
+
+export interface SlideBaseFields {
+  animation?: AnimationOverride;
+}
+
 // --- Top-level YAML shape ---
+
+export type ThemeName = "modern" | "bold" | "elegant" | "dark-tech";
 
 export interface PresentationData {
   title: string;
   author?: string;
-  theme?: string;
+  theme?: ThemeName;
   slides: SlideData[];
 }
 

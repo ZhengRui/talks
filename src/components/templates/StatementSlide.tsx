@@ -5,14 +5,53 @@ export const StatementSlide: React.FC<TemplateProps<StatementSlideData>> = ({
   imageBase,
 }) => (
   <section
-    data-background-image={
-      slide.image ? `${imageBase}/${slide.image}` : undefined
-    }
-    data-background-size={slide.image ? "cover" : undefined}
-    data-background-opacity={slide.image ? "0.3" : undefined}
-    data-background-color={slide.image ? "#000000" : undefined}
+    className={slide.animation === "none" ? "anim-none" : undefined}
+    style={{ background: "var(--sl-bg)" }}
   >
-    <h2 className="r-fit-text">{slide.statement}</h2>
-    {slide.subtitle && <h3>{slide.subtitle}</h3>}
+    {slide.image && (
+      <>
+        <img
+          src={`${imageBase}/${slide.image}`}
+          alt=""
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            zIndex: 0,
+          }}
+        />
+        <div className="sl-overlay sl-overlay-dark" />
+      </>
+    )}
+    <div className="sl-content-over sl-section">
+      <h1
+        className="anim-fade-up"
+        style={{
+          fontSize: "72px",
+          fontWeight: 700,
+          textAlign: "center",
+          maxWidth: "1400px",
+          lineHeight: 1.15,
+        }}
+      >
+        {slide.statement}
+      </h1>
+      <div className="sl-accent-line-wide anim-fade-up" style={{ "--delay": "150ms" } as React.CSSProperties} />
+      {slide.subtitle && (
+        <h3
+          className="sl-text-muted anim-fade-up"
+          style={{
+            "--delay": "300ms",
+            fontWeight: 400,
+            textAlign: "center",
+            maxWidth: "1200px",
+          } as React.CSSProperties}
+        >
+          {slide.subtitle}
+        </h3>
+      )}
+    </div>
   </section>
 );

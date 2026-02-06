@@ -1,4 +1,6 @@
-# Design: YAML + Template-Driven Presentation System
+# Design v1: YAML + Template-Driven Presentation System
+
+> **Superseded by [design-v2.md](./design-v2.md)** — v2 replaces Reveal.js with a custom slide engine, adds 4 themes, CSS animations, and polished templates.
 
 ## Architecture
 

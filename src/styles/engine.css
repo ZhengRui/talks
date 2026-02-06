@@ -1,0 +1,146 @@
+/* Slide Engine — base styles */
+
+.slide-engine {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--sl-bg, #000);
+  color: var(--sl-text, #fff);
+  font-family: var(--sl-font-body, system-ui, sans-serif);
+}
+
+.slide-engine:focus {
+  outline: none;
+}
+
+/* 1920x1080 fixed canvas, scaled to fit viewport */
+.slide-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: top left;
+}
+
+/* Individual slide — full canvas, stacked via absolute positioning */
+.slide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.slide.active {
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 1;
+}
+
+.slide.inactive {
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Slide section — the template root element */
+.slide > section {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 80px;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Progress bar */
+.slide-progress {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: var(--sl-progress-bg, rgba(255, 255, 255, 0.1));
+  z-index: 10;
+}
+
+.slide-progress-bar {
+  height: 100%;
+  background: var(--sl-accent, #4f8eff);
+  transition: width 0.3s ease;
+}
+
+/* Typography base — headings use theme font */
+.slide h1,
+.slide h2,
+.slide h3,
+.slide h4 {
+  font-family: var(--sl-font-heading, system-ui, sans-serif);
+  color: var(--sl-heading, #fff);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.slide h1 {
+  font-size: 72px;
+  font-weight: 700;
+}
+
+.slide h2 {
+  font-size: 56px;
+  font-weight: 600;
+}
+
+.slide h3 {
+  font-size: 42px;
+  font-weight: 600;
+}
+
+.slide h4 {
+  font-size: 32px;
+  font-weight: 500;
+}
+
+.slide p {
+  font-size: 28px;
+  line-height: 1.6;
+  margin: 0;
+  color: var(--sl-text, #e0e0e0);
+}
+
+.slide ul,
+.slide ol {
+  font-size: 28px;
+  line-height: 1.6;
+  color: var(--sl-text, #e0e0e0);
+  margin: 0;
+  padding-left: 1.2em;
+}
+
+.slide li {
+  margin-bottom: 0.3em;
+}
+
+.slide code,
+.slide pre {
+  font-family: var(--sl-font-mono, "Courier New", monospace);
+}
+
+/* Utility: fit text to container width */
+.fit-text {
+  white-space: nowrap;
+  width: 100%;
+  text-align: center;
+}

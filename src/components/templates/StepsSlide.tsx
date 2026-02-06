@@ -3,37 +3,34 @@ import type { StepsSlideData, TemplateProps } from "@/lib/types";
 export const StepsSlide: React.FC<TemplateProps<StepsSlideData>> = ({
   slide,
 }) => (
-  <section>
-    {slide.title && <h2>{slide.title}</h2>}
-    <div style={{ marginTop: "1em", textAlign: "left" }}>
-      {slide.steps.map((step, i) => (
-        <div
-          key={i}
-          className="fragment fade-in flex items-start gap-4"
-          style={{ marginBottom: "0.75em" }}
-        >
-          <span
-            className="font-bold"
-            style={{
-              fontSize: "2em",
-              lineHeight: 1,
-              minWidth: "1.5em",
-              textAlign: "center",
-              opacity: 0.5,
-            }}
-          >
-            {i + 1}
-          </span>
-          <div>
-            <strong style={{ fontSize: "1.1em" }}>{step.label}</strong>
-            {step.description && (
-              <p style={{ margin: "0.2em 0 0", opacity: 0.8 }}>
-                {step.description}
-              </p>
-            )}
+  <section className={slide.animation === "none" ? "anim-none" : undefined}>
+    <div className="sl-section">
+      {slide.title && (
+        <>
+          <h2 className="anim-fade-up">{slide.title}</h2>
+          <div className="sl-accent-line anim-fade-up" style={{ '--delay': '100ms' } as React.CSSProperties} />
+        </>
+      )}
+      <div className="sl-steps anim-stagger">
+        {slide.steps.map((step, i) => (
+          <div key={i} style={{ '--i': i } as React.CSSProperties}>
+            <div className="sl-step">
+              <div className="sl-step-connector">
+                <div className="sl-badge">{i + 1}</div>
+                {i < slide.steps.length - 1 && <div className="sl-step-line" />}
+              </div>
+              <div className="sl-card" style={{ flex: 1 }}>
+                <strong style={{ fontSize: '28px' }}>{step.label}</strong>
+                {step.description && (
+                  <p className="sl-text-muted" style={{ marginTop: '8px' }}>
+                    {step.description}
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   </section>
 );

@@ -1,0 +1,183 @@
+/* Animation System — CSS-only, triggered by .active class on slides */
+
+/* ==============================
+   Keyframes
+   ============================== */
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-60px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(60px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes blurIn {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes countUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ==============================
+   Animation Utilities
+   ============================== */
+
+/* --- Stagger: children animate in sequence --- */
+.anim-stagger > * {
+  opacity: 0;
+}
+
+.slide.active .anim-stagger > * {
+  animation: fadeUp 0.5s ease both;
+  animation-delay: calc(var(--i, 0) * 120ms);
+}
+
+/* --- Fade Up: single element fades up --- */
+.anim-fade-up {
+  opacity: 0;
+}
+
+.slide.active .anim-fade-up {
+  animation: fadeUp 0.6s ease both;
+  animation-delay: var(--delay, 0ms);
+}
+
+/* --- Fade In: single element fades in --- */
+.anim-fade-in {
+  opacity: 0;
+}
+
+.slide.active .anim-fade-in {
+  animation: fadeIn 0.6s ease both;
+  animation-delay: var(--delay, 0ms);
+}
+
+/* --- Slide In Left --- */
+.anim-slide-left {
+  opacity: 0;
+}
+
+.slide.active .anim-slide-left {
+  animation: slideInLeft 0.6s ease both;
+  animation-delay: var(--delay, 0ms);
+}
+
+/* --- Slide In Right --- */
+.anim-slide-right {
+  opacity: 0;
+}
+
+.slide.active .anim-slide-right {
+  animation: slideInRight 0.6s ease both;
+  animation-delay: var(--delay, 0ms);
+}
+
+/* --- Scale Up --- */
+.anim-scale-up {
+  opacity: 0;
+}
+
+.slide.active .anim-scale-up {
+  animation: scaleUp 0.6s ease both;
+  animation-delay: var(--delay, 0ms);
+}
+
+/* --- Blur In --- */
+.anim-blur-in {
+  opacity: 0;
+}
+
+.slide.active .anim-blur-in {
+  animation: blurIn 0.6s ease both;
+  animation-delay: var(--delay, 0ms);
+}
+
+/* --- Counter: stat values animate in --- */
+.anim-counter > * {
+  opacity: 0;
+}
+
+.slide.active .anim-counter > * {
+  animation: countUp 0.7s ease both;
+  animation-delay: calc(var(--i, 0) * 200ms);
+}
+
+/* ==============================
+   Animation: none override
+   ============================== */
+
+/* When animation="none" is set on a slide, disable all animations */
+.anim-none .anim-stagger > *,
+.anim-none .anim-fade-up,
+.anim-none .anim-fade-in,
+.anim-none .anim-slide-left,
+.anim-none .anim-slide-right,
+.anim-none .anim-scale-up,
+.anim-none .anim-blur-in,
+.anim-none .anim-counter > * {
+  opacity: 1;
+  animation: none;
+  transform: none;
+  filter: none;
+}

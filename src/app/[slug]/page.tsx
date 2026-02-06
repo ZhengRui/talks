@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { loadPresentation, getAllSlugs } from "@/lib/loadPresentation";
 import { getTemplate } from "@/components/templates";
-import Presentation from "@/components/Presentation";
+import SlideEngine from "@/components/SlideEngine";
 
 export function generateStaticParams() {
   return getAllSlugs().map((slug) => ({ slug }));
@@ -39,7 +39,7 @@ export default async function PresentationPage({
 
   return (
     <main className="min-h-screen h-screen">
-      <Presentation>
+      <SlideEngine theme={data.theme}>
         {data.slides.map((slide, i) => {
           const Template = getTemplate(slide.template);
           if (!Template) {
@@ -51,7 +51,7 @@ export default async function PresentationPage({
           }
           return <Template key={i} slide={slide} imageBase={imageBase} />;
         })}
-      </Presentation>
+      </SlideEngine>
     </main>
   );
 }

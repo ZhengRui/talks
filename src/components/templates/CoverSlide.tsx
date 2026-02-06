@@ -5,15 +5,61 @@ export const CoverSlide: React.FC<TemplateProps<CoverSlideData>> = ({
   imageBase,
 }) => (
   <section
-    data-background-image={
-      slide.image ? `${imageBase}/${slide.image}` : undefined
-    }
-    data-background-size="cover"
-    data-background-opacity={slide.image ? "0.3" : undefined}
-    data-background-color="#000000"
+    className={slide.animation === "none" ? "anim-none" : undefined}
+    style={{ background: "var(--sl-bg)" }}
   >
-    <h1 className="r-fit-text">{slide.title}</h1>
-    {slide.subtitle && <h3>{slide.subtitle}</h3>}
-    {slide.author && <p className="text-2xl">{slide.author}</p>}
+    {slide.image && (
+      <>
+        <img
+          src={`${imageBase}/${slide.image}`}
+          alt=""
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            zIndex: 0,
+          }}
+        />
+        <div className="sl-overlay sl-overlay-dark" />
+      </>
+    )}
+    <div className="sl-content-over sl-section">
+      <h1
+        className="anim-fade-up"
+        style={{
+          fontSize: "80px",
+          fontWeight: 700,
+          textAlign: "center",
+          maxWidth: "1400px",
+          lineHeight: 1.1,
+        }}
+      >
+        {slide.title}
+      </h1>
+      <div className="sl-accent-line-wide anim-fade-up" style={{ "--delay": "150ms" } as React.CSSProperties} />
+      {slide.subtitle && (
+        <h3
+          className="sl-text-muted anim-fade-up"
+          style={{
+            "--delay": "300ms",
+            fontWeight: 400,
+            textAlign: "center",
+            maxWidth: "1200px",
+          } as React.CSSProperties}
+        >
+          {slide.subtitle}
+        </h3>
+      )}
+      {slide.author && (
+        <span
+          className="sl-pill anim-fade-up"
+          style={{ "--delay": "450ms" } as React.CSSProperties}
+        >
+          {slide.author}
+        </span>
+      )}
+    </div>
   </section>
 );

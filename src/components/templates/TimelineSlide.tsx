@@ -3,26 +3,31 @@ import type { TimelineSlideData, TemplateProps } from "@/lib/types";
 export const TimelineSlide: React.FC<TemplateProps<TimelineSlideData>> = ({
   slide,
 }) => (
-  <section>
-    {slide.title && <h2>{slide.title}</h2>}
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-around",
-        alignItems: "flex-start",
-        gap: "1rem",
-      }}
-    >
+  <section className={slide.animation === "none" ? "anim-none" : undefined}>
+    {slide.title && (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", marginBottom: "40px" }}>
+        <h2>{slide.title}</h2>
+        <div className="sl-accent-line" />
+      </div>
+    )}
+    <div className="sl-timeline anim-stagger">
       {slide.events.map((event, i) => (
         <div
           key={i}
-          className="fragment fade-in"
-          style={{ flex: 1, textAlign: "center" }}
+          className="sl-timeline-item"
+          style={{ '--i': i } as React.CSSProperties}
         >
-          <strong style={{ fontSize: "1.2em" }}>{event.date}</strong>
-          <p style={{ margin: "0.5rem 0 0.25rem" }}>{event.label}</p>
+          <div className="sl-timeline-dot" />
+          <strong style={{ fontSize: "24px", color: "var(--sl-accent)", marginBottom: "8px" }}>
+            {event.date}
+          </strong>
+          <p style={{ fontWeight: 700, margin: "8px 0 4px", fontSize: "24px" }}>
+            {event.label}
+          </p>
           {event.description && (
-            <small style={{ opacity: 0.7 }}>{event.description}</small>
+            <p className="sl-text-muted" style={{ fontSize: "20px" }}>
+              {event.description}
+            </p>
           )}
         </div>
       ))}
