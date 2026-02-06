@@ -53,3 +53,16 @@ YAML + template-driven presentation hub. See `docs/design.md` for full details.
 - Vitest for unit/integration tests, Playwright for E2E
 - Superpowers plugin for TDD/SDD workflow
 - `@/*` path alias → `src/*`
+
+## Git Commit Format
+
+Use conventional commits with scope. Body is a bullet list (no indentation). End with co-author line.
+
+```
+feat(scope): short summary
+
+- Bullet point describing a change
+- Another change
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+```
