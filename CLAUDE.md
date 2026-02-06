@@ -12,7 +12,18 @@ bun run start        # Start production server
 bun run lint         # Run ESLint
 ```
 
-No test framework is configured yet.
+### Testing
+
+```bash
+bun run test             # Vitest — unit + integration tests
+bun run test:e2e         # Playwright — end-to-end tests
+```
+
+- **Vitest** — unit tests (`loadPresentation`, parser) + integration tests (template rendering via React Testing Library)
+- **Playwright** (separate test runner) — E2E tests (full page: slide layout, navigation, images, keyboard). Committable, CI-ready.
+- **`claude --chrome`** — ad-hoc visual debugging only, not a substitute for tests
+
+Follow TDD: write failing test → implement → green. Enforced by Superpowers plugin.
 
 ## Architecture
 
@@ -39,4 +50,6 @@ YAML + template-driven presentation hub. See `docs/design.md` for full details.
 
 - Next.js 15 (App Router), React 19, TypeScript (strict)
 - Reveal.js 5, Tailwind CSS 4, Bun
+- Vitest for unit/integration tests, Playwright for E2E
+- Superpowers plugin for TDD/SDD workflow
 - `@/*` path alias → `src/*`

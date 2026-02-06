@@ -66,6 +66,24 @@ A plain `Record<string, SlideComponent>` in `src/components/templates/index.ts`.
 
 `discoverPresentations()` scans `content/` for directories containing `slides.yaml`, parses each to extract title/author/slide count, and returns `PresentationSummary[]` for the home page.
 
+## Testing Strategy
+
+Two test runners, each with a distinct role:
+
+| Layer | Tool | What it tests |
+|-------|------|---------------|
+| **Unit** | Vitest | `loadPresentation()`, `discoverPresentations()`, parser edge cases |
+| **Integration** | Vitest + React Testing Library | Template rendering → correct HTML structure, props validation |
+| **E2E** | Playwright (own test runner) | Full pages: slide layout, navigation, image loading, keyboard controls |
+
+**`claude --chrome`** is for ad-hoc visual debugging during development — quick "does this look right?" checks. It is ephemeral and not a substitute for repeatable tests.
+
+Key config files:
+- `vitest.config.ts` — Vitest config with Next.js plugin and path aliases
+- `playwright.config.ts` — Playwright config with dev server auto-start
+
+Development follows TDD (red-green-refactor) enforced by the Superpowers plugin. All tests are committable and runnable in CI.
+
 ## Design Decisions
 
 - **YAML over MDX/Markdown** — Separates content from layout. Authors only choose a template name; all styling lives in code. Prevents drift between presentations.
