@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# claude code session plans
+/plans
+
+# presentation content (data, not framework)
+/content
+/public/*/
