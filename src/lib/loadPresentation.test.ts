@@ -58,6 +58,23 @@ describe("loadPresentation", () => {
     expect(slide.animation).toBeUndefined();
   });
 
+  it("parses per-slide theme override from YAML", () => {
+    const data = loadPresentation("example");
+    const boldSlides = data.slides.filter((s) => s.theme === "bold");
+    const elegantSlides = data.slides.filter((s) => s.theme === "elegant");
+    const darkTechSlides = data.slides.filter((s) => s.theme === "dark-tech");
+
+    expect(boldSlides.length).toBeGreaterThan(0);
+    expect(elegantSlides.length).toBeGreaterThan(0);
+    expect(darkTechSlides.length).toBeGreaterThan(0);
+  });
+
+  it("leaves theme undefined on slides without override", () => {
+    const data = loadPresentation("example");
+    // First slide (cover) has no per-slide theme
+    expect(data.slides[0].theme).toBeUndefined();
+  });
+
   it("throws on non-existent slug", () => {
     expect(() => loadPresentation("does-not-exist")).toThrow();
   });

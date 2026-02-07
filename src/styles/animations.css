@@ -90,7 +90,7 @@
 
 .slide.active .anim-stagger > * {
   animation: fadeUp 0.5s ease both;
-  animation-delay: calc(var(--i, 0) * 120ms);
+  animation-delay: calc(var(--i, 0) * 100ms);
 }
 
 /* --- Fade Up: single element fades up --- */
@@ -160,7 +160,7 @@
 
 .slide.active .anim-counter > * {
   animation: countUp 0.7s ease both;
-  animation-delay: calc(var(--i, 0) * 200ms);
+  animation-delay: calc(var(--i, 0) * 150ms);
 }
 
 /* ==============================

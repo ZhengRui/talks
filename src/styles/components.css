@@ -218,7 +218,7 @@
 }
 
 .sl-overlay-dark {
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--sl-overlay-bg, rgba(0, 0, 0, 0.7));
 }
 
 .sl-overlay-light {

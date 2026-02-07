@@ -14,7 +14,8 @@ export const StatsSlide: React.FC<TemplateProps<StatsSlideData>> = ({
       className="anim-counter"
       style={{
         display: "flex",
-        justifyContent: "space-evenly",
+        flexWrap: "wrap",
+        justifyContent: "center",
         alignItems: "stretch",
         gap: "32px",
         width: "100%",
@@ -26,7 +27,8 @@ export const StatsSlide: React.FC<TemplateProps<StatsSlideData>> = ({
           className="sl-card-accent"
           style={{
             textAlign: "center",
-            flex: 1,
+            flex: "1 1 300px",
+            maxWidth: "380px",
             '--i': i,
             display: "flex",
             flexDirection: "column",

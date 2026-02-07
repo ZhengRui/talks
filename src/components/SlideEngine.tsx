@@ -6,11 +6,13 @@ import React from "react";
 interface SlideEngineProps {
   children: React.ReactNode;
   theme?: string;
+  slideThemes?: (string | undefined)[];
 }
 
 const SlideEngine: React.FC<SlideEngineProps> = ({
   children,
   theme = "modern",
+  slideThemes,
 }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [animKey, setAnimKey] = useState(0);
@@ -73,7 +75,7 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
 
       const { clientWidth, clientHeight } = container;
       const scale = Math.min(clientWidth / 1920, clientHeight / 1080);
-      canvas.style.transform = `scale(${scale})`;
+      canvas.style.transform = `translate(-50%, -50%) scale(${scale})`;
     }
 
     updateScale();
@@ -91,13 +93,16 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
         {slides.map((slide, i) => (
           <div
             key={i === currentSlide ? `slide-${i}-${animKey}` : `slide-${i}`}
-            className={`slide ${i === currentSlide ? "active" : "inactive"}`}
+            className={`slide ${i === currentSlide ? "active" : "inactive"} theme-${slideThemes?.[i] ?? theme}`}
           >
             {slide}
           </div>
         ))}
       </div>
-      <div className="slide-progress">
+      <div className="slide-counter">
+          {currentSlide + 1} / {totalSlides}
+        </div>
+        <div className="slide-progress">
         <div
           className="slide-progress-bar"
           style={{ width: `${((currentSlide + 1) / totalSlides) * 100}%` }}

@@ -34,6 +34,8 @@ export const CoverSlide: React.FC<TemplateProps<CoverSlideData>> = ({
           textAlign: "center",
           maxWidth: "1400px",
           lineHeight: 1.1,
+          textShadow: "0 2px 20px rgba(0,0,0,0.5)",
+          ...(slide.image ? { color: "#fff" } : {}),
         }}
       >
         {slide.title}
@@ -41,12 +43,14 @@ export const CoverSlide: React.FC<TemplateProps<CoverSlideData>> = ({
       <div className="sl-accent-line-wide anim-fade-up" style={{ "--delay": "150ms" } as React.CSSProperties} />
       {slide.subtitle && (
         <h3
-          className="sl-text-muted anim-fade-up"
+          className={`${slide.image ? "" : "sl-text-muted "}anim-fade-up`}
           style={{
             "--delay": "300ms",
             fontWeight: 400,
             textAlign: "center",
             maxWidth: "1200px",
+            textShadow: "0 2px 12px rgba(0,0,0,0.4)",
+            ...(slide.image ? { color: "rgba(255,255,255,0.85)" } : {}),
           } as React.CSSProperties}
         >
           {slide.subtitle}
@@ -55,7 +59,10 @@ export const CoverSlide: React.FC<TemplateProps<CoverSlideData>> = ({
       {slide.author && (
         <span
           className="sl-pill anim-fade-up"
-          style={{ "--delay": "450ms" } as React.CSSProperties}
+          style={{
+            "--delay": "450ms",
+            ...(slide.image ? { color: "rgba(255,255,255,0.9)", background: "rgba(255,255,255,0.15)", borderColor: "rgba(255,255,255,0.2)" } : {}),
+          } as React.CSSProperties}
         >
           {slide.author}
         </span>

@@ -76,4 +76,32 @@ describe("SlideEngine", () => {
     const canvas = container.querySelector(".slide-canvas");
     expect(canvas).not.toBeNull();
   });
+
+  it("applies default theme class on each slide when no slideThemes given", () => {
+    const { container } = render(
+      <SlideEngine theme="bold">
+        <section>One</section>
+        <section>Two</section>
+      </SlideEngine>
+    );
+
+    const slides = container.querySelectorAll(".slide");
+    expect(slides[0].classList.contains("theme-bold")).toBe(true);
+    expect(slides[1].classList.contains("theme-bold")).toBe(true);
+  });
+
+  it("applies per-slide theme class when slideThemes provided", () => {
+    const { container } = render(
+      <SlideEngine theme="modern" slideThemes={[undefined, "elegant", "dark-tech"]}>
+        <section>One</section>
+        <section>Two</section>
+        <section>Three</section>
+      </SlideEngine>
+    );
+
+    const slides = container.querySelectorAll(".slide");
+    expect(slides[0].classList.contains("theme-modern")).toBe(true);
+    expect(slides[1].classList.contains("theme-elegant")).toBe(true);
+    expect(slides[2].classList.contains("theme-dark-tech")).toBe(true);
+  });
 });

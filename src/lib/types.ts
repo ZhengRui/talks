@@ -304,6 +304,7 @@ export type AnimationOverride = "stagger" | "fade" | "counter" | "none";
 
 export interface SlideBaseFields {
   animation?: AnimationOverride;
+  theme?: ThemeName;
 }
 
 // --- Top-level YAML shape ---

@@ -3,7 +3,8 @@ import type { IconGridSlideData, TemplateProps } from "@/lib/types";
 export const IconGridSlide: React.FC<TemplateProps<IconGridSlideData>> = ({
   slide,
 }) => {
-  const columns = slide.columns ?? 3;
+  const itemCount = slide.items.length;
+  const cols = slide.columns ?? (itemCount <= 4 ? itemCount : 3);
 
   return (
     <section className={slide.animation === "none" ? "anim-none" : undefined}>
@@ -18,7 +19,7 @@ export const IconGridSlide: React.FC<TemplateProps<IconGridSlideData>> = ({
           className="anim-stagger"
           style={{
             display: 'grid',
-            gridTemplateColumns: `repeat(${columns}, 1fr)`,
+            gridTemplateColumns: `repeat(${cols}, 1fr)`,
             gap: '32px',
             width: '100%',
           }}

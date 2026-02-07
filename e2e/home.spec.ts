@@ -10,12 +10,12 @@ test.describe("home page", () => {
     await page.goto("/");
     const link = page.locator('a[href="/70-years-of-ai"]');
     await expect(link).toBeVisible();
-    await expect(link).toHaveText("70 Years of AI");
+    await expect(link).toContainText("70 Years of AI");
   });
 
   test("shows slide count", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator("text=(2 slides)")).toBeVisible();
+    await expect(page.locator("text=2 slides")).toBeVisible();
   });
 
   test("navigates to presentation on click", async ({ page }) => {

@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+
+# build output
+.next/
+out/
+build/
+
+# test artifacts
+coverage/
+test-results/
+playwright-report/
+
+# lock files
+bun.lockb
+
+# generated
+*.tsbuildinfo
+next-env.d.ts
+
+# synced public content (images copied by sync-content script)
+public/*/
+
+# misc
+.DS_Store
+.env*
+.vercel

@@ -32,7 +32,7 @@ export const CodeComparisonSlide: React.FC<
           </code>
         </div>
       </div>
-      <div className="anim-slide-right" style={{ flex: 1, '--delay': '400ms' } as React.CSSProperties}>
+      <div className="anim-slide-right" style={{ flex: 1, '--delay': '200ms' } as React.CSSProperties}>
         {slide.after.label && (
           <p className="sl-text-muted" style={{ marginBottom: "12px", fontSize: "22px", textAlign: "center" }}>
             {slide.after.label}

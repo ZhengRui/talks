@@ -26,7 +26,7 @@ export const ProfileSlide: React.FC<TemplateProps<ProfileSlideData>> = ({
       {slide.bio && (
         <p
           className="sl-text-muted anim-fade-up"
-          style={{ maxWidth: '700px', textAlign: 'center', '--delay': '400ms' } as React.CSSProperties}
+          style={{ maxWidth: '700px', textAlign: 'center', '--delay': '300ms' } as React.CSSProperties}
         >
           {slide.bio}
         </p>

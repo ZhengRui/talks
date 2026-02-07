@@ -39,7 +39,7 @@ export default async function PresentationPage({
 
   return (
     <main className="min-h-screen h-screen">
-      <SlideEngine theme={data.theme}>
+      <SlideEngine theme={data.theme} slideThemes={data.slides.map(s => s.theme)}>
         {data.slides.map((slide, i) => {
           const Template = getTemplate(slide.template);
           if (!Template) {
