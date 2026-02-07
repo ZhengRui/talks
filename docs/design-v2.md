@@ -1,5 +1,7 @@
 # Design v2: Custom Slide Engine, Themes & Animations
 
+> **Superseded by [design-v3.md](./design-v3.md)** — v3 replaces the 35 React template components with a unified layout model, adds a single `LayoutRenderer`, and adds PPTX export via PptxGenJS.
+
 ## Motivation
 
 The v1 system uses Reveal.js as the presentation runtime. While functional, Reveal.js imposes constraints that limit visual polish and animation control:
