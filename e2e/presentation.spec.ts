@@ -15,14 +15,14 @@ test.describe("presentation page", () => {
 
   test("cover slide shows title", async ({ page }) => {
     await page.goto("/70-years-of-ai");
-    await expect(page.locator("h1")).toContainText("70 Years of AI");
+    await expect(page.locator(".slide.active")).toContainText("70 Years of AI");
   });
 
   test("navigates to next slide with arrow key", async ({ page }) => {
     await page.goto("/70-years-of-ai");
     await page.waitForSelector(".slide-engine");
     await page.keyboard.press("ArrowRight");
-    await expect(page.locator(".slide.active h2")).toContainText(
+    await expect(page.locator(".slide.active")).toContainText(
       "AI Applications"
     );
   });

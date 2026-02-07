@@ -1,0 +1,148 @@
+import type { ThemeName } from "@/lib/types";
+import type { ResolvedTheme, GradientDef, BoxShadow, BorderDef } from "./types";
+
+function gradient(angle: number, from: string, to: string): GradientDef {
+  return { type: "linear", angle, stops: [{ color: from, position: 0 }, { color: to, position: 1 }] };
+}
+
+function shadow(ox: number, oy: number, blur: number, color: string, spread = 0): BoxShadow {
+  return { offsetX: ox, offsetY: oy, blur, spread, color };
+}
+
+function border(width: number, color: string): BorderDef {
+  return { width, color };
+}
+
+export const THEMES: Record<ThemeName, ResolvedTheme> = {
+  modern: {
+    bg: "#f8f9fc",
+    bgSecondary: "#ffffff",
+    bgTertiary: "#f0f2f8",
+    text: "#1a1a2e",
+    textMuted: "#64648c",
+    heading: "#0f0f23",
+    accent: "#4f6df5",
+    accent2: "#a855f7",
+    accentGradient: gradient(135, "#4f6df5", "#a855f7"),
+    fontHeading: "Inter, system-ui, sans-serif",
+    fontBody: "Inter, system-ui, sans-serif",
+    fontMono: "JetBrains Mono, Fira Code, monospace",
+    radius: 12,
+    radiusSm: 8,
+    shadow: shadow(0, 4, 24, "rgba(0, 0, 0, 0.06)"),
+    shadowLg: shadow(0, 8, 40, "rgba(0, 0, 0, 0.1)"),
+    border: border(1, "rgba(0, 0, 0, 0.06)"),
+    cardBg: "#ffffff",
+    cardBorder: border(1, "rgba(0, 0, 0, 0.06)"),
+    codeBg: "#1e1e2e",
+    codeText: "#cdd6f4",
+    overlayBg: "rgba(0, 0, 0, 0.6)",
+    progressBg: "rgba(0, 0, 0, 0.08)",
+    highlightInfoBg: "rgba(79, 109, 245, 0.08)",
+    highlightInfoBorder: "#4f6df5",
+    highlightWarningBg: "rgba(234, 179, 8, 0.08)",
+    highlightWarningBorder: "#eab308",
+    highlightSuccessBg: "rgba(34, 197, 94, 0.08)",
+    highlightSuccessBorder: "#22c55e",
+  },
+
+  bold: {
+    bg: "#0a0a0a",
+    bgSecondary: "#1a1a1a",
+    bgTertiary: "#252525",
+    text: "#f5f5f5",
+    textMuted: "#a0a0a0",
+    heading: "#ffffff",
+    accent: "#ff6b35",
+    accent2: "#00d4ff",
+    accentGradient: gradient(135, "#ff6b35", "#ff3366"),
+    fontHeading: "Inter, system-ui, sans-serif",
+    fontBody: "Inter, system-ui, sans-serif",
+    fontMono: "JetBrains Mono, Fira Code, monospace",
+    radius: 4,
+    radiusSm: 2,
+    shadow: shadow(0, 4, 20, "rgba(0, 0, 0, 0.3)"),
+    shadowLg: shadow(0, 8, 40, "rgba(0, 0, 0, 0.5)"),
+    border: border(1, "rgba(255, 255, 255, 0.08)"),
+    cardBg: "#1a1a1a",
+    cardBorder: border(1, "rgba(255, 255, 255, 0.08)"),
+    codeBg: "#111111",
+    codeText: "#e0e0e0",
+    overlayBg: "rgba(0, 0, 0, 0.7)",
+    progressBg: "rgba(255, 255, 255, 0.08)",
+    highlightInfoBg: "rgba(0, 212, 255, 0.1)",
+    highlightInfoBorder: "#00d4ff",
+    highlightWarningBg: "rgba(255, 107, 53, 0.1)",
+    highlightWarningBorder: "#ff6b35",
+    highlightSuccessBg: "rgba(0, 255, 136, 0.1)",
+    highlightSuccessBorder: "#00ff88",
+  },
+
+  elegant: {
+    bg: "#faf8f5",
+    bgSecondary: "#ffffff",
+    bgTertiary: "#f3efe9",
+    text: "#2d2a26",
+    textMuted: "#7a756e",
+    heading: "#1a1815",
+    accent: "#b8860b",
+    accent2: "#6b4c8a",
+    accentGradient: gradient(135, "#b8860b", "#d4a843"),
+    fontHeading: "Playfair Display, Georgia, serif",
+    fontBody: "Inter, system-ui, sans-serif",
+    fontMono: "JetBrains Mono, Fira Code, monospace",
+    radius: 6,
+    radiusSm: 4,
+    shadow: shadow(0, 2, 16, "rgba(0, 0, 0, 0.04)"),
+    shadowLg: shadow(0, 6, 32, "rgba(0, 0, 0, 0.08)"),
+    border: border(1, "rgba(0, 0, 0, 0.08)"),
+    cardBg: "#ffffff",
+    cardBorder: border(1, "rgba(0, 0, 0, 0.08)"),
+    codeBg: "#2d2a26",
+    codeText: "#e8e0d4",
+    overlayBg: "rgba(26, 24, 21, 0.65)",
+    progressBg: "rgba(0, 0, 0, 0.06)",
+    highlightInfoBg: "rgba(107, 76, 138, 0.06)",
+    highlightInfoBorder: "#6b4c8a",
+    highlightWarningBg: "rgba(184, 134, 11, 0.06)",
+    highlightWarningBorder: "#b8860b",
+    highlightSuccessBg: "rgba(76, 138, 88, 0.06)",
+    highlightSuccessBorder: "#4c8a58",
+  },
+
+  "dark-tech": {
+    bg: "#0a0a12",
+    bgSecondary: "#12121f",
+    bgTertiary: "#1a1a2e",
+    text: "#e0e0e0",
+    textMuted: "#8888a0",
+    heading: "#00ffc8",
+    accent: "#00ffc8",
+    accent2: "#7b61ff",
+    accentGradient: gradient(135, "#00ffc8", "#7b61ff"),
+    fontHeading: "JetBrains Mono, Fira Code, monospace",
+    fontBody: "Inter, system-ui, sans-serif",
+    fontMono: "JetBrains Mono, Fira Code, monospace",
+    radius: 8,
+    radiusSm: 4,
+    shadow: shadow(0, 4, 24, "rgba(0, 255, 200, 0.08)"),
+    shadowLg: shadow(0, 0, 40, "rgba(0, 255, 200, 0.12)"),
+    border: border(1, "rgba(0, 255, 200, 0.1)"),
+    cardBg: "#12121f",
+    cardBorder: border(1, "rgba(0, 255, 200, 0.1)"),
+    codeBg: "#0d0d18",
+    codeText: "#00ffc8",
+    overlayBg: "rgba(10, 10, 18, 0.8)",
+    progressBg: "rgba(0, 255, 200, 0.08)",
+    highlightInfoBg: "rgba(123, 97, 255, 0.1)",
+    highlightInfoBorder: "#7b61ff",
+    highlightWarningBg: "rgba(255, 200, 0, 0.1)",
+    highlightWarningBorder: "#ffc800",
+    highlightSuccessBg: "rgba(0, 255, 200, 0.1)",
+    highlightSuccessBorder: "#00ffc8",
+  },
+};
+
+export function resolveTheme(name?: ThemeName): ResolvedTheme {
+  return THEMES[name ?? "modern"];
+}

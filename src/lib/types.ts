@@ -285,17 +285,6 @@ export type SlideData = (
   | EndSlideData
 ) & SlideBaseFields;
 
-// --- Template component props ---
-
-export type TemplateProps<T extends SlideData = SlideData> = {
-  slide: T & SlideBaseFields;
-  imageBase: string;
-};
-
-// --- What the registry stores ---
-
-export type SlideComponent<T extends SlideData = SlideData> = React.FC<TemplateProps<T>>;
-
 // --- Animation override ---
 
 export type AnimationOverride = "stagger" | "fade" | "counter" | "none";

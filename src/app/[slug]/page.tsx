@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { loadPresentation, getAllSlugs } from "@/lib/loadPresentation";
-import { getTemplate } from "@/components/templates";
+import { LayoutSlideRenderer } from "@/components/LayoutRenderer";
+import { layoutSlide } from "@/lib/layout";
 import SlideEngine from "@/components/SlideEngine";
 
 export function generateStaticParams() {
@@ -39,17 +40,16 @@ export default async function PresentationPage({
 
   return (
     <main className="min-h-screen h-screen">
-      <SlideEngine theme={data.theme} slideThemes={data.slides.map(s => s.theme)}>
+      <SlideEngine theme={data.theme} slideThemes={data.slides.map(s => s.theme)} slug={slug}>
         {data.slides.map((slide, i) => {
-          const Template = getTemplate(slide.template);
-          if (!Template) {
-            return (
-              <section key={i}>
-                <h2>Unknown template: {slide.template}</h2>
-              </section>
-            );
-          }
-          return <Template key={i} slide={slide} imageBase={imageBase} />;
+          const layout = layoutSlide(slide, data.theme, imageBase);
+          return (
+            <LayoutSlideRenderer
+              key={i}
+              slide={layout}
+              animationNone={slide.animation === "none"}
+            />
+          );
         })}
       </SlideEngine>
     </main>

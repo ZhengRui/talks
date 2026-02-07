@@ -7,15 +7,18 @@ interface SlideEngineProps {
   children: React.ReactNode;
   theme?: string;
   slideThemes?: (string | undefined)[];
+  slug?: string;
 }
 
 const SlideEngine: React.FC<SlideEngineProps> = ({
   children,
   theme = "modern",
   slideThemes,
+  slug,
 }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [animKey, setAnimKey] = useState(0);
+  const [exporting, setExporting] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const slides = React.Children.toArray(children);
@@ -99,6 +102,39 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
           </div>
         ))}
       </div>
+      {slug && (
+        <button
+          className="slide-export-btn"
+          disabled={exporting}
+          onClick={async () => {
+            setExporting(true);
+            try {
+              const layoutRes = await fetch(`/api/layout?slug=${slug}`);
+              if (!layoutRes.ok) throw new Error("Failed to fetch layout");
+              const layoutJson = await layoutRes.json();
+              const pptxRes = await fetch("/api/export_pptx", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(layoutJson),
+              });
+              if (!pptxRes.ok) throw new Error("Failed to generate PPTX");
+              const blob = await pptxRes.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `${slug}.pptx`;
+              a.click();
+              URL.revokeObjectURL(url);
+            } catch (err) {
+              console.error("Export failed:", err);
+            } finally {
+              setExporting(false);
+            }
+          }}
+        >
+          {exporting ? "Exporting..." : "Export PPTX"}
+        </button>
+      )}
       <div className="slide-counter">
           {currentSlide + 1} / {totalSlides}
         </div>
