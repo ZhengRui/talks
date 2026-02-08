@@ -51,7 +51,7 @@ describe("resolveTheme", () => {
       expect(theme.fontHeading, `${name}.fontHeading`).toBeTruthy();
       expect(theme.fontBody, `${name}.fontBody`).toBeTruthy();
       expect(theme.accentGradient.stops.length, `${name}.accentGradient`).toBe(2);
-      expect(theme.radius, `${name}.radius`).toBeGreaterThan(0);
+      expect(theme.radius, `${name}.radius`).toBeGreaterThanOrEqual(0);
     }
   });
 });

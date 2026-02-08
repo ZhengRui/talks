@@ -1,0 +1,33 @@
+/* Theme: Pastel Geometry — Soft blue-gray with muted green and pink accents */
+
+.theme-pastel-geometry {
+  --sl-bg: #c8d9e6;
+  --sl-bg-secondary: #faf9f7;
+  --sl-bg-tertiary: #d8e5ef;
+  --sl-text: #2a2a2a;
+  --sl-text-muted: #5a5a5a;
+  --sl-heading: #1a1a1a;
+  --sl-accent: #5a7c6a;
+  --sl-accent-2: #f0b4d4;
+  --sl-accent-gradient: linear-gradient(135deg, #5a7c6a, #f0b4d4);
+  --sl-font-heading: var(--font-plus-jakarta-sans), var(--font-inter), system-ui, sans-serif;
+  --sl-font-body: var(--font-plus-jakarta-sans), var(--font-inter), system-ui, sans-serif;
+  --sl-font-mono: var(--font-jetbrains), "Fira Code", monospace;
+  --sl-radius: 16px;
+  --sl-radius-sm: 10px;
+  --sl-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  --sl-shadow-lg: 0 8px 36px rgba(0, 0, 0, 0.1);
+  --sl-border: 1px solid rgba(0, 0, 0, 0.06);
+  --sl-card-bg: #faf9f7;
+  --sl-card-border: 1px solid rgba(0, 0, 0, 0.06);
+  --sl-code-bg: #2a2a3a;
+  --sl-code-text: #e0e0e0;
+  --sl-overlay-bg: rgba(0, 0, 0, 0.5);
+  --sl-progress-bg: rgba(0, 0, 0, 0.08);
+  --sl-highlight-info-bg: rgba(90, 124, 106, 0.1);
+  --sl-highlight-info-border: #5a7c6a;
+  --sl-highlight-warning-bg: rgba(240, 180, 212, 0.15);
+  --sl-highlight-warning-border: #f0b4d4;
+  --sl-highlight-success-bg: rgba(168, 212, 196, 0.2);
+  --sl-highlight-success-border: #a8d4c4;
+}

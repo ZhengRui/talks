@@ -224,7 +224,15 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
       <div className="slide-counter">
           {currentSlide + 1} / {totalSlides}
         </div>
-        <div className="slide-progress">
+        <div
+          className="slide-progress"
+          onClick={(e) => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const ratio = (e.clientX - rect.left) / rect.width;
+            const target = Math.min(Math.floor(ratio * totalSlides), totalSlides - 1);
+            setCurrentSlide(target);
+          }}
+        >
         <div
           className="slide-progress-bar"
           style={{ width: `${((currentSlide + 1) / totalSlides) * 100}%` }}

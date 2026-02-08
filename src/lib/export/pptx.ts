@@ -67,7 +67,7 @@ const SHAPES = {
 
 /** Read the current object count from a PptxGenJS slide. */
 function slideObjectCount(slide: Slide): number {
-  return ((slide as Record<string, unknown>)._slideObjects as unknown[])
+  return ((slide as unknown as Record<string, unknown>)._slideObjects as unknown[])
     .length;
 }
 

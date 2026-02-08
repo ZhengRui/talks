@@ -113,18 +113,26 @@ describe("colorAlpha", () => {
 });
 
 describe("parseFontFamily", () => {
-  it("extracts first font family", () => {
-    expect(parseFontFamily("Inter, system-ui, sans-serif")).toBe("Inter");
+  it("maps web fonts to PPTX-safe equivalents", () => {
+    expect(parseFontFamily("Inter, system-ui, sans-serif")).toBe("Calibri");
+    expect(parseFontFamily("'Playfair Display', Georgia, serif")).toBe("Georgia");
+    expect(parseFontFamily("JetBrains Mono, Fira Code, monospace")).toBe("Consolas");
+    expect(parseFontFamily("Archivo Black, Arial Black, sans-serif")).toBe("Arial Black");
   });
 
-  it("strips quotes", () => {
-    expect(parseFontFamily("'Playfair Display', Georgia, serif")).toBe(
-      "Playfair Display",
-    );
-  });
-
-  it("handles single font", () => {
+  it("passes through unknown fonts as-is", () => {
     expect(parseFontFamily("Helvetica")).toBe("Helvetica");
+  });
+
+  it("maps all new theme fonts", () => {
+    expect(parseFontFamily("Manrope, Inter, sans-serif")).toBe("Calibri");
+    expect(parseFontFamily("Syne, Inter, sans-serif")).toBe("Arial");
+    expect(parseFontFamily("Cormorant, Georgia, serif")).toBe("Garamond");
+    expect(parseFontFamily("Bodoni Moda, Georgia, serif")).toBe("Bodoni MT");
+    expect(parseFontFamily("Fraunces, Georgia, serif")).toBe("Georgia");
+    expect(parseFontFamily("Outfit, Inter, sans-serif")).toBe("Calibri");
+    expect(parseFontFamily("Source Serif 4, Georgia, serif")).toBe("Georgia");
+    expect(parseFontFamily("Space Mono, monospace")).toBe("Consolas");
   });
 });
 

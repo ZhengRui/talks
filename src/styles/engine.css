@@ -77,6 +77,12 @@
   height: 4px;
   background: var(--sl-progress-bg, rgba(255, 255, 255, 0.1));
   z-index: 10;
+  cursor: pointer;
+  transition: height 0.15s ease;
+}
+
+.slide-progress:hover {
+  height: 10px;
 }
 
 .slide-progress-bar {

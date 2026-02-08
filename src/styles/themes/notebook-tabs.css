@@ -1,0 +1,33 @@
+/* Theme: Notebook Tabs — Warm paper-like background with soft pastel accents */
+
+.theme-notebook-tabs {
+  --sl-bg: #f8f6f1;
+  --sl-bg-secondary: #ffffff;
+  --sl-bg-tertiary: #eee9e0;
+  --sl-text: #1a1a1a;
+  --sl-text-muted: #666666;
+  --sl-heading: #1a1a1a;
+  --sl-accent: #c7b8ea;
+  --sl-accent-2: #f4b8c5;
+  --sl-accent-gradient: linear-gradient(135deg, #c7b8ea, #f4b8c5);
+  --sl-font-heading: var(--font-bodoni-moda), Georgia, serif;
+  --sl-font-body: var(--font-dm-sans), var(--font-inter), system-ui, sans-serif;
+  --sl-font-mono: var(--font-jetbrains), "Fira Code", monospace;
+  --sl-radius: 6px;
+  --sl-radius-sm: 3px;
+  --sl-shadow: 0 2px 16px rgba(0, 0, 0, 0.06);
+  --sl-shadow-lg: 0 6px 32px rgba(0, 0, 0, 0.1);
+  --sl-border: 1px solid rgba(0, 0, 0, 0.08);
+  --sl-card-bg: #ffffff;
+  --sl-card-border: 1px solid rgba(0, 0, 0, 0.08);
+  --sl-code-bg: #2d2d2d;
+  --sl-code-text: #e0e0e0;
+  --sl-overlay-bg: rgba(0, 0, 0, 0.6);
+  --sl-progress-bg: rgba(0, 0, 0, 0.08);
+  --sl-highlight-info-bg: rgba(199, 184, 234, 0.15);
+  --sl-highlight-info-border: #c7b8ea;
+  --sl-highlight-warning-bg: rgba(255, 230, 167, 0.2);
+  --sl-highlight-warning-border: #ffe6a7;
+  --sl-highlight-success-bg: rgba(152, 212, 187, 0.15);
+  --sl-highlight-success-border: #98d4bb;
+}

@@ -1,0 +1,33 @@
+/* Theme: Paper Ink — Classic paper texture with crimson ink accents and serif fonts */
+
+.theme-paper-ink {
+  --sl-bg: #faf9f7;
+  --sl-bg-secondary: #ffffff;
+  --sl-bg-tertiary: #f0ece5;
+  --sl-text: #1a1a1a;
+  --sl-text-muted: #555555;
+  --sl-heading: #1a1a1a;
+  --sl-accent: #c41e3a;
+  --sl-accent-2: #8b0000;
+  --sl-accent-gradient: linear-gradient(135deg, #c41e3a, #8b0000);
+  --sl-font-heading: var(--font-cormorant-garamond), Georgia, serif;
+  --sl-font-body: var(--font-source-serif-4), Georgia, serif;
+  --sl-font-mono: var(--font-jetbrains), "Fira Code", monospace;
+  --sl-radius: 2px;
+  --sl-radius-sm: 1px;
+  --sl-shadow: 0 1px 8px rgba(0, 0, 0, 0.04);
+  --sl-shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.08);
+  --sl-border: 1px solid rgba(0, 0, 0, 0.1);
+  --sl-card-bg: #ffffff;
+  --sl-card-border: 1px solid rgba(0, 0, 0, 0.1);
+  --sl-code-bg: #1a1a1a;
+  --sl-code-text: #faf9f7;
+  --sl-overlay-bg: rgba(26, 26, 26, 0.6);
+  --sl-progress-bg: rgba(0, 0, 0, 0.06);
+  --sl-highlight-info-bg: rgba(196, 30, 58, 0.06);
+  --sl-highlight-info-border: #c41e3a;
+  --sl-highlight-warning-bg: rgba(184, 134, 11, 0.06);
+  --sl-highlight-warning-border: #b8860b;
+  --sl-highlight-success-bg: rgba(34, 139, 34, 0.06);
+  --sl-highlight-success-border: #228b22;
+}

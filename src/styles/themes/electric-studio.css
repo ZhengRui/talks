@@ -1,0 +1,33 @@
+/* Theme: Electric Studio — Dark minimal with bold blue accent, clean studio feel */
+
+.theme-electric-studio {
+  --sl-bg: #0a0a0a;
+  --sl-bg-secondary: #ffffff;
+  --sl-bg-tertiary: #1a1a1a;
+  --sl-text: #ffffff;
+  --sl-text-muted: #a0a0a0;
+  --sl-heading: #ffffff;
+  --sl-accent: #4361ee;
+  --sl-accent-2: #6b83f2;
+  --sl-accent-gradient: linear-gradient(135deg, #4361ee, #6b83f2);
+  --sl-font-heading: var(--font-manrope), var(--font-inter), system-ui, sans-serif;
+  --sl-font-body: var(--font-manrope), var(--font-inter), system-ui, sans-serif;
+  --sl-font-mono: var(--font-jetbrains), "Fira Code", monospace;
+  --sl-radius: 8px;
+  --sl-radius-sm: 4px;
+  --sl-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --sl-shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.6);
+  --sl-border: 1px solid rgba(255, 255, 255, 0.1);
+  --sl-card-bg: #1a1a1a;
+  --sl-card-border: 1px solid rgba(255, 255, 255, 0.1);
+  --sl-code-bg: #0d0d0d;
+  --sl-code-text: #e0e0e0;
+  --sl-overlay-bg: rgba(0, 0, 0, 0.75);
+  --sl-progress-bg: rgba(67, 97, 238, 0.2);
+  --sl-highlight-info-bg: rgba(67, 97, 238, 0.1);
+  --sl-highlight-info-border: #4361ee;
+  --sl-highlight-warning-bg: rgba(255, 193, 7, 0.1);
+  --sl-highlight-warning-border: #FFC107;
+  --sl-highlight-success-bg: rgba(76, 175, 80, 0.1);
+  --sl-highlight-success-border: #4CAF50;
+}

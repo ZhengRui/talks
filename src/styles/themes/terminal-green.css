@@ -1,0 +1,33 @@
+/* Theme: Terminal Green — GitHub-dark inspired with green terminal accent */
+
+.theme-terminal-green {
+  --sl-bg: #0d1117;
+  --sl-bg-secondary: #161b22;
+  --sl-bg-tertiary: #21262d;
+  --sl-text: #c9d1d9;
+  --sl-text-muted: #8b949e;
+  --sl-heading: #39d353;
+  --sl-accent: #39d353;
+  --sl-accent-2: #58a6ff;
+  --sl-accent-gradient: linear-gradient(135deg, #39d353, #58a6ff);
+  --sl-font-heading: var(--font-jetbrains), "Fira Code", monospace;
+  --sl-font-body: var(--font-jetbrains), "Fira Code", monospace;
+  --sl-font-mono: var(--font-jetbrains), "Fira Code", monospace;
+  --sl-radius: 6px;
+  --sl-radius-sm: 3px;
+  --sl-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --sl-shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.6);
+  --sl-border: 1px solid rgba(48, 54, 61, 0.8);
+  --sl-card-bg: #161b22;
+  --sl-card-border: 1px solid rgba(48, 54, 61, 0.8);
+  --sl-code-bg: #0d1117;
+  --sl-code-text: #39d353;
+  --sl-overlay-bg: rgba(13, 17, 23, 0.85);
+  --sl-progress-bg: rgba(57, 211, 83, 0.12);
+  --sl-highlight-info-bg: rgba(88, 166, 255, 0.1);
+  --sl-highlight-info-border: #58a6ff;
+  --sl-highlight-warning-bg: rgba(210, 153, 34, 0.1);
+  --sl-highlight-warning-border: #d29922;
+  --sl-highlight-success-bg: rgba(57, 211, 83, 0.1);
+  --sl-highlight-success-border: #39d353;
+}

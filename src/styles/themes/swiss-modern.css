@@ -1,0 +1,33 @@
+/* Theme: Swiss Modern — Pure white with red accent, zero radius, bold borders */
+
+.theme-swiss-modern {
+  --sl-bg: #ffffff;
+  --sl-bg-secondary: #f5f5f5;
+  --sl-bg-tertiary: #ebebeb;
+  --sl-text: #1a1a1a;
+  --sl-text-muted: #666666;
+  --sl-heading: #000000;
+  --sl-accent: #ff3300;
+  --sl-accent-2: #000000;
+  --sl-accent-gradient: linear-gradient(135deg, #ff3300, #cc2900);
+  --sl-font-heading: var(--font-archivo), var(--font-inter), system-ui, sans-serif;
+  --sl-font-body: var(--font-nunito), var(--font-inter), system-ui, sans-serif;
+  --sl-font-mono: var(--font-jetbrains), "Fira Code", monospace;
+  --sl-radius: 0px;
+  --sl-radius-sm: 0px;
+  --sl-shadow: 0 0 0 rgba(0, 0, 0, 0);
+  --sl-shadow-lg: 0 0 0 rgba(0, 0, 0, 0);
+  --sl-border: 2px solid #000000;
+  --sl-card-bg: #f5f5f5;
+  --sl-card-border: 2px solid #000000;
+  --sl-code-bg: #1a1a1a;
+  --sl-code-text: #f5f5f5;
+  --sl-overlay-bg: rgba(0, 0, 0, 0.6);
+  --sl-progress-bg: rgba(0, 0, 0, 0.1);
+  --sl-highlight-info-bg: rgba(255, 51, 0, 0.06);
+  --sl-highlight-info-border: #ff3300;
+  --sl-highlight-warning-bg: rgba(255, 193, 7, 0.08);
+  --sl-highlight-warning-border: #FFC107;
+  --sl-highlight-success-bg: rgba(34, 197, 94, 0.06);
+  --sl-highlight-success-border: #22c55e;
+}

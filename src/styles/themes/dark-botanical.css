@@ -1,0 +1,33 @@
+/* Theme: Dark Botanical — Dark moody with warm earthy tones and serif headings */
+
+.theme-dark-botanical {
+  --sl-bg: #0f0f0f;
+  --sl-bg-secondary: #1a1a1a;
+  --sl-bg-tertiary: #252520;
+  --sl-text: #e8e4df;
+  --sl-text-muted: #9a9590;
+  --sl-heading: #e8e4df;
+  --sl-accent: #d4a574;
+  --sl-accent-2: #e8b4b8;
+  --sl-accent-gradient: linear-gradient(135deg, #d4a574, #e8b4b8);
+  --sl-font-heading: var(--font-cormorant), Georgia, serif;
+  --sl-font-body: var(--font-ibm-plex-sans), var(--font-inter), system-ui, sans-serif;
+  --sl-font-mono: var(--font-jetbrains), "Fira Code", monospace;
+  --sl-radius: 8px;
+  --sl-radius-sm: 4px;
+  --sl-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  --sl-shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.5);
+  --sl-border: 1px solid rgba(212, 165, 116, 0.12);
+  --sl-card-bg: #1a1a1a;
+  --sl-card-border: 1px solid rgba(212, 165, 116, 0.12);
+  --sl-code-bg: #0a0a0a;
+  --sl-code-text: #d4a574;
+  --sl-overlay-bg: rgba(15, 15, 15, 0.8);
+  --sl-progress-bg: rgba(212, 165, 116, 0.15);
+  --sl-highlight-info-bg: rgba(232, 180, 184, 0.1);
+  --sl-highlight-info-border: #e8b4b8;
+  --sl-highlight-warning-bg: rgba(212, 165, 116, 0.1);
+  --sl-highlight-warning-border: #d4a574;
+  --sl-highlight-success-bg: rgba(201, 184, 150, 0.1);
+  --sl-highlight-success-border: #c9b896;
+}

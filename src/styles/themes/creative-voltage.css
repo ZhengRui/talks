@@ -1,0 +1,33 @@
+/* Theme: Creative Voltage — Dark indigo with neon yellow-green and blue accents */
+
+.theme-creative-voltage {
+  --sl-bg: #1a1a2e;
+  --sl-bg-secondary: #0066ff;
+  --sl-bg-tertiary: #252545;
+  --sl-text: #ffffff;
+  --sl-text-muted: #b0b0cc;
+  --sl-heading: #ffffff;
+  --sl-accent: #d4ff00;
+  --sl-accent-2: #0066ff;
+  --sl-accent-gradient: linear-gradient(135deg, #d4ff00, #0066ff);
+  --sl-font-heading: var(--font-syne), var(--font-inter), system-ui, sans-serif;
+  --sl-font-body: var(--font-space-mono), var(--font-jetbrains), monospace;
+  --sl-font-mono: var(--font-space-mono), var(--font-jetbrains), monospace;
+  --sl-radius: 8px;
+  --sl-radius-sm: 4px;
+  --sl-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --sl-shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.6);
+  --sl-border: 1px solid rgba(212, 255, 0, 0.15);
+  --sl-card-bg: #252545;
+  --sl-card-border: 1px solid rgba(212, 255, 0, 0.15);
+  --sl-code-bg: #0d0d1a;
+  --sl-code-text: #d4ff00;
+  --sl-overlay-bg: rgba(26, 26, 46, 0.8);
+  --sl-progress-bg: rgba(212, 255, 0, 0.15);
+  --sl-highlight-info-bg: rgba(0, 102, 255, 0.1);
+  --sl-highlight-info-border: #0066ff;
+  --sl-highlight-warning-bg: rgba(212, 255, 0, 0.1);
+  --sl-highlight-warning-border: #d4ff00;
+  --sl-highlight-success-bg: rgba(0, 255, 136, 0.1);
+  --sl-highlight-success-border: #00ff88;
+}

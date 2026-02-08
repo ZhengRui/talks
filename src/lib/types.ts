@@ -298,7 +298,11 @@ export interface SlideBaseFields {
 
 // --- Top-level YAML shape ---
 
-export type ThemeName = "modern" | "bold" | "elegant" | "dark-tech";
+export type ThemeName =
+  | "modern" | "bold" | "elegant" | "dark-tech"
+  | "bold-signal" | "electric-studio" | "creative-voltage" | "dark-botanical"
+  | "notebook-tabs" | "pastel-geometry" | "split-pastel" | "vintage-editorial"
+  | "neon-cyber" | "terminal-green" | "swiss-modern" | "paper-ink";
 
 export interface PresentationData {
   title: string;

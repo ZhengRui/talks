@@ -119,15 +119,39 @@ export function colorAlpha(color: string): number | undefined {
   return undefined;
 }
 
+// Map web fonts to closest PowerPoint-safe equivalents.
+const PPTX_FONT_FALLBACK: Record<string, string> = {
+  "Archivo Black": "Arial Black",
+  "Cormorant": "Garamond",
+  "Cormorant Garamond": "Garamond",
+  "Bodoni Moda": "Bodoni MT",
+  "Fraunces": "Georgia",
+  "Playfair Display": "Georgia",
+  "Plus Jakarta Sans": "Calibri",
+  "Outfit": "Calibri",
+  "Manrope": "Calibri",
+  "DM Sans": "Calibri",
+  "IBM Plex Sans": "Calibri",
+  "Work Sans": "Calibri",
+  "Space Grotesk": "Calibri",
+  "Syne": "Arial",
+  "Archivo": "Arial",
+  "Nunito": "Calibri",
+  "Source Serif 4": "Georgia",
+  "Space Mono": "Consolas",
+  "JetBrains Mono": "Consolas",
+  "Inter": "Calibri",
+};
+
 /**
- * Extract the first font family name from a CSS font-family string.
- * "Inter, system-ui, sans-serif" → "Inter"
- * "'Playfair Display', Georgia, serif" → "Playfair Display"
+ * Extract the first font family name from a CSS font-family string,
+ * then map to closest PowerPoint-safe equivalent.
+ * "Inter, system-ui, sans-serif" → "Calibri"
+ * "'Playfair Display', Georgia, serif" → "Georgia"
  */
 export function parseFontFamily(fontFamily: string): string {
-  const first = fontFamily.split(",")[0].trim();
-  // Strip quotes
-  return first.replace(/^['"]|['"]$/g, "");
+  const first = fontFamily.split(",")[0].trim().replace(/^['"]|['"]$/g, "");
+  return PPTX_FONT_FALLBACK[first] ?? first;
 }
 
 /** Map fontWeight number to PptxGenJS bold boolean. */
