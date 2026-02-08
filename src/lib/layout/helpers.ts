@@ -32,7 +32,9 @@ export function estimateTextHeight(
   const avgCharWidth = fontSize * AVG_CHAR_WIDTH_RATIO;
   const charsPerLine = Math.floor(containerWidth / avgCharWidth);
   const lineCount = charsPerLine > 0 ? Math.max(1, Math.ceil(text.length / charsPerLine)) : 1;
-  return lineCount * fontSize * lineHeight;
+  // Extra space for descenders (g, y, p, q, j) — needed with tight lineHeight
+  const descenderPad = lineHeight < 1.3 ? fontSize * 0.15 : 0;
+  return lineCount * fontSize * lineHeight + descenderPad;
 }
 
 // --- Animation helpers ---
@@ -140,7 +142,11 @@ export function titleBlock(
     id: "title",
     rect: { x, y: startY, w: maxWidth, h: titleHeight },
     text: title,
-    style: headingStyle(theme, fontSize, { textAlign, color, textShadow }),
+    style: headingStyle(theme, fontSize, {
+      textAlign,
+      ...(color !== undefined ? { color } : {}),
+      ...(textShadow !== undefined ? { textShadow } : {}),
+    }),
     animation: makeAnimation("fade-up", 0),
   };
 

@@ -1,3 +1,5 @@
+import { resolve } from "path";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import type { SlideData, ThemeName } from "@/lib/types";
 import type { LayoutPresentation, LayoutSlide } from "./types";
 import { resolveTheme } from "./theme";
@@ -47,11 +49,35 @@ export function layoutPresentation(
   imageBase: string,
   author?: string,
 ): LayoutPresentation {
-  return {
+  const layout: LayoutPresentation = {
     title,
     author,
     slides: slides.map((slide) => layoutSlide(slide, theme, imageBase)),
   };
+
+  // Persist layout JSON for debugging/inspection (dev only)
+  // Only write when the content directory already exists (real presentations)
+  if (process.env.NODE_ENV !== "production") {
+    try {
+      const slug = imageBase.replace(/^\//, "");
+      const contentDir = resolve(process.cwd(), "content", slug);
+      const slidesYaml = resolve(contentDir, "slides.yaml");
+      // Only write if this is a real presentation (has slides.yaml)
+      // Skip write if content unchanged to avoid triggering Next.js fast refresh loop
+      if (existsSync(slidesYaml)) {
+        const outPath = resolve(contentDir, "layout.json");
+        const json = JSON.stringify(layout, null, 2);
+        const existing = existsSync(outPath) ? readFileSync(outPath, "utf8") : "";
+        if (json !== existing) {
+          writeFileSync(outPath, json);
+        }
+      }
+    } catch {
+      // Silently ignore — non-critical debug artifact
+    }
+  }
+
+  return layout;
 }
 
 export { resolveTheme } from "./theme";

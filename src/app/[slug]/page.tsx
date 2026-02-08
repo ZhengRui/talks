@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { loadPresentation, getAllSlugs } from "@/lib/loadPresentation";
 import { LayoutSlideRenderer } from "@/components/LayoutRenderer";
-import { layoutSlide } from "@/lib/layout";
+import { layoutPresentation } from "@/lib/layout";
 import SlideEngine from "@/components/SlideEngine";
 
 export function generateStaticParams() {
@@ -37,20 +37,18 @@ export default async function PresentationPage({
   }
 
   const imageBase = `/${slug}`;
+  const layout = layoutPresentation(data.title, data.slides, data.theme, imageBase, data.author);
 
   return (
     <main className="min-h-screen h-screen">
       <SlideEngine theme={data.theme} slideThemes={data.slides.map(s => s.theme)} slug={slug}>
-        {data.slides.map((slide, i) => {
-          const layout = layoutSlide(slide, data.theme, imageBase);
-          return (
-            <LayoutSlideRenderer
-              key={i}
-              slide={layout}
-              animationNone={slide.animation === "none"}
-            />
-          );
-        })}
+        {layout.slides.map((slide, i) => (
+          <LayoutSlideRenderer
+            key={i}
+            slide={slide}
+            animationNone={data.slides[i].animation === "none"}
+          />
+        ))}
       </SlideEngine>
     </main>
   );

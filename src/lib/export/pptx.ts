@@ -1,4 +1,4 @@
-import { join, resolve } from "path";
+import { resolve } from "path";
 import PptxGenJS from "pptxgenjs";
 import type {
   LayoutPresentation,
@@ -245,8 +245,11 @@ function makeFill(
 ): PptxGenJS.ShapeFillProps | undefined {
   // Solid fill
   if (style.fill) {
-    const fill: PptxGenJS.ShapeFillProps = { color: hexColor(style.fill) };
+    // Fully transparent fill → no fill at all
     const alpha = colorAlpha(style.fill);
+    if (alpha !== undefined && alpha >= 100) return undefined;
+
+    const fill: PptxGenJS.ShapeFillProps = { color: hexColor(style.fill) };
     if (alpha !== undefined) fill.transparency = alpha;
     if (style.opacity !== undefined && style.opacity < 1) {
       fill.transparency = Math.round((1 - style.opacity) * 100);
@@ -270,16 +273,25 @@ function makeLine(
   border?: BorderDef,
 ): PptxGenJS.ShapeLineProps | undefined {
   if (border) {
-    return {
+    // Skip nearly invisible borders — PowerPoint renders them more visibly than CSS
+    const alpha = colorAlpha(border.color);
+    if (alpha !== undefined && alpha >= 80) return undefined;
+
+    const line: PptxGenJS.ShapeLineProps = {
       color: hexColor(border.color),
       width: pxToPoints(border.width),
     };
+    if (alpha !== undefined) line.transparency = alpha;
+    return line;
   }
   if (style.stroke) {
-    return {
+    const line: PptxGenJS.ShapeLineProps = {
       color: hexColor(style.stroke),
       width: pxToPoints(style.strokeWidth ?? 1),
     };
+    const alpha = colorAlpha(style.stroke);
+    if (alpha !== undefined) line.transparency = alpha;
+    return line;
   }
   return undefined;
 }
@@ -382,41 +394,84 @@ function renderGroup(
   slide: Slide,
   el: GroupElement,
 ): void {
-  // Render background shape if the group has fill or border
-  if (el.style?.fill || el.style?.gradient || el.border) {
+  // Render background shape if the group has visible fill or border
+  const fillVisible = !!(el.style?.fill && colorAlpha(el.style.fill) !== 100)
+    || !!el.style?.gradient;
+  const borderVisible = !!(el.border && colorAlpha(el.border.color) !== 100);
+
+  if (fillVisible || borderVisible) {
     const r = rectToInches(el.rect);
-    const bgOpts: PptxGenJS.ShapeProps = {
-      x: r.x,
-      y: r.y,
-      w: r.w,
-      h: r.h,
-    };
+    const hasRadius = !!el.style?.borderRadius;
+    const hasSideBorders = !!el.border?.sides?.length;
 
-    const fill = el.style ? makeFill(el.style) : undefined;
-    if (fill) bgOpts.fill = fill;
+    // For visible side borders on rounded groups, use "backing shape" technique:
+    // 1. Draw accent-colored rounded rect (full size) — the border color shows through
+    // 2. Draw card fill rounded rect inset by border width — covers accent except at borders
+    // This makes borders follow the rounded corners instead of overflowing.
+    if (hasSideBorders && hasRadius && borderVisible && fillVisible) {
+      const bw = pxToInchesY(el.border!.width);
+      const radius = radiusToInches(el.style!.borderRadius!);
+      const sides = el.border!.sides!;
 
-    // Handle borders: side-specific borders rendered separately
-    if (el.border && !el.border.sides?.length) {
-      const line = el.style ? makeLine(el.style, el.border) : undefined;
-      if (line) bgOpts.line = line;
-    }
+      const shadow = el.style?.shadow ? makeShadow(el.style.shadow) : undefined;
 
-    if (el.style?.borderRadius) {
-      bgOpts.rectRadius = radiusToInches(el.style.borderRadius);
-    }
+      // Step 1: Accent-colored backing shape (full size)
+      slide.addShape(SHAPES.ROUNDED_RECTANGLE, {
+        x: r.x, y: r.y, w: r.w, h: r.h,
+        fill: { color: hexColor(el.border!.color) },
+        rectRadius: radius,
+        ...(shadow ? { shadow } : {}),
+      });
 
-    const shadow = el.style?.shadow ? makeShadow(el.style.shadow) : undefined;
-    if (shadow) bgOpts.shadow = shadow;
+      // Step 2: Card fill shape inset by border width on bordered sides
+      // Extend slightly beyond outer rect on non-bordered sides to prevent
+      // corner bleed where the two rounded rects don't perfectly align
+      const extend = pxToInchesY(2);
+      const inset = {
+        top: sides.includes("top") ? bw : -extend,
+        right: sides.includes("right") ? bw : -extend,
+        bottom: sides.includes("bottom") ? bw : -extend,
+        left: sides.includes("left") ? bw : -extend,
+      };
 
-    const shapeType =
-      el.style?.borderRadius
-        ? SHAPES.ROUNDED_RECTANGLE
-        : SHAPES.RECTANGLE;
-    slide.addShape(shapeType, bgOpts);
+      const fill = makeFill(el.style!);
+      slide.addShape(SHAPES.ROUNDED_RECTANGLE, {
+        x: r.x + inset.left,
+        y: r.y + inset.top,
+        w: r.w - inset.left - inset.right,
+        h: r.h - inset.top - inset.bottom,
+        fill: fill ?? { color: "FFFFFF" },
+        rectRadius: radius,
+      });
+    } else {
+      // Standard rendering: single background shape
+      const bgOpts: PptxGenJS.ShapeProps = {
+        x: r.x, y: r.y, w: r.w, h: r.h,
+      };
 
-    // Render side borders as thin overlay rectangles
-    if (el.border?.sides?.length) {
-      renderSideBorders(slide, el.rect, el.border);
+      const fill = el.style ? makeFill(el.style) : undefined;
+      if (fill) bgOpts.fill = fill;
+
+      // Handle borders: full-border uses line property
+      if (el.border && !hasSideBorders) {
+        const line = el.style ? makeLine(el.style, el.border) : undefined;
+        if (line) bgOpts.line = line;
+      }
+
+      if (hasRadius) {
+        bgOpts.rectRadius = radiusToInches(el.style!.borderRadius!);
+      }
+
+      const shadow = el.style?.shadow ? makeShadow(el.style.shadow) : undefined;
+      if (shadow) bgOpts.shadow = shadow;
+
+      const shapeType = hasRadius ? SHAPES.ROUNDED_RECTANGLE : SHAPES.RECTANGLE;
+      slide.addShape(shapeType, bgOpts);
+
+      // Flat side borders (no radius — plain overlay rectangles are fine)
+      if (hasSideBorders) {
+        renderSideBorders(slide, el.rect, el.border!);
+      }
     }
   }
 
@@ -480,51 +535,102 @@ function renderTable(slide: Slide, el: TableElement): void {
   const colCount = el.headers.length || (el.rows[0]?.length ?? 1);
   const colW = r.w / colCount;
 
-  // Build rows: header row + data rows
-  const headerRow: PptxGenJS.TableCell[] = el.headers.map((h) => ({
-    text: h,
-    options: {
-      bold: true,
+  // Row heights — proportional to template constants (72px header, 68px data)
+  const nominalTotal = 72 + el.rows.length * 68;
+  const headerH = r.h * (72 / nominalTotal);
+  const dataRowH = el.rows.length > 0 ? (r.h - headerH) / el.rows.length : 0;
+  const radius = radiusToInches(12);
+
+  // Border transparency
+  const borderAlpha = colorAlpha(el.borderColor);
+  const borderVisible = borderAlpha === undefined || borderAlpha < 80;
+
+  // --- Background layers (shapes instead of addTable) ---
+
+  // Layer 1: Full-size rounded rect with header accent fill
+  // Provides rounded outer corners + header background color
+  slide.addShape(SHAPES.ROUNDED_RECTANGLE, {
+    x: r.x, y: r.y, w: r.w, h: r.h,
+    fill: { color: hexColor(el.headerStyle.background) },
+    rectRadius: radius,
+  });
+
+  // Layer 2: Data area rounded rect with default cell background
+  // Rounded bottom corners match outer frame
+  if (el.rows.length > 0) {
+    slide.addShape(SHAPES.ROUNDED_RECTANGLE, {
+      x: r.x, y: r.y + headerH, w: r.w, h: r.h - headerH,
+      fill: { color: hexColor(el.cellStyle.background) },
+      rectRadius: radius,
+    });
+
+    // Layer 3: Alternating row backgrounds (match web: ri % 2 === 0 is alt)
+    const lastRowIdx = el.rows.length - 1;
+    el.rows.forEach((_, ri) => {
+      if (ri % 2 === 0) {
+        const y = r.y + headerH + ri * dataRowH;
+        // Use rounded rect for last row to preserve bottom corners
+        const shape = ri === lastRowIdx
+          ? SHAPES.ROUNDED_RECTANGLE
+          : SHAPES.RECTANGLE;
+        const opts: PptxGenJS.ShapeProps = {
+          x: r.x, y, w: r.w, h: dataRowH,
+          fill: { color: hexColor(el.cellStyle.altBackground) },
+        };
+        if (ri === lastRowIdx) opts.rectRadius = radius;
+        slide.addShape(shape, opts);
+      }
+    });
+  }
+
+  // --- Border lines between data rows (with transparency support) ---
+  if (borderVisible) {
+    const line: PptxGenJS.ShapeLineProps = {
+      color: hexColor(el.borderColor),
+      width: 0.75,
+    };
+    if (borderAlpha !== undefined) line.transparency = borderAlpha;
+
+    el.rows.forEach((_, ri) => {
+      const y = r.y + headerH + ri * dataRowH;
+      slide.addShape(SHAPES.LINE, {
+        x: r.x, y, w: r.w, h: 0,
+        line,
+      });
+    });
+  }
+
+  // --- Header text ---
+  el.headers.forEach((h, ci) => {
+    slide.addText(h, {
+      x: r.x + ci * colW, y: r.y, w: colW, h: headerH,
       fontSize: pxToPoints(el.headerStyle.fontSize),
       fontFace: parseFontFamily(el.headerStyle.fontFamily),
       color: hexColor(el.headerStyle.color),
-      fill: { color: hexColor(el.headerStyle.background) },
+      bold: isBold(el.headerStyle.fontWeight),
       align: el.headerStyle.textAlign ?? "left",
-      valign: "middle" as const,
-      margin: [2, 4, 2, 4] as [number, number, number, number],
-    },
-  }));
+      valign: "middle",
+      margin: [12, 18, 12, 18],
+      isTextBox: true,
+    });
+  });
 
-  const dataRows: PptxGenJS.TableCell[][] = el.rows.map((row, rowIdx) =>
-    row.map((cell) => ({
-      text: cell,
-      options: {
+  // --- Data cell text ---
+  el.rows.forEach((row, ri) => {
+    const y = r.y + headerH + ri * dataRowH;
+    row.forEach((cell, ci) => {
+      slide.addText(cell, {
+        x: r.x + ci * colW, y, w: colW, h: dataRowH,
         fontSize: pxToPoints(el.cellStyle.fontSize),
         fontFace: parseFontFamily(el.cellStyle.fontFamily),
         color: hexColor(el.cellStyle.color),
-        fill: {
-          color: hexColor(
-            rowIdx % 2 === 1
-              ? el.cellStyle.altBackground
-              : el.cellStyle.background,
-          ),
-        },
+        bold: isBold(el.cellStyle.fontWeight),
         align: el.cellStyle.textAlign ?? "left",
-        valign: "middle" as const,
-        margin: [2, 4, 2, 4] as [number, number, number, number],
-      },
-    })),
-  );
-
-  const allRows = [headerRow, ...dataRows];
-
-  slide.addTable(allRows, {
-    x: r.x,
-    y: r.y,
-    w: r.w,
-    colW: Array(colCount).fill(colW),
-    border: { pt: 1, color: hexColor(el.borderColor) },
-    autoPage: false,
+        valign: "middle",
+        margin: [11, 18, 11, 18],
+        isTextBox: true,
+      });
+    });
   });
 }
 

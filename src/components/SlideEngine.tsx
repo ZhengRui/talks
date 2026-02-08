@@ -3,6 +3,56 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import React from "react";
 
+function NavDots({ total, current, goTo }: { total: number; current: number; goTo: (i: number) => void }) {
+  const maxVisible = 32;
+  const half = maxVisible / 2; // 16
+  const dotSize = 8;
+  const dotGap = 6;
+  const dotUnit = dotSize + dotGap;
+
+  // Container shows at most 32 dots; all dots are rendered, overflow clipped
+  const visibleH = Math.min(total, maxVisible) * dotUnit - dotGap;
+
+  // Scroll offset — keeps active dot centered in the middle range
+  let offset = 0;
+  if (total > maxVisible) {
+    const activeTop = current * dotUnit;
+    const maxOffset = total * dotUnit - dotGap - visibleH;
+    if (current < half) {
+      offset = 0; // first 16: dot moves top→middle
+    } else if (current >= total - half) {
+      offset = maxOffset; // last 16: dot moves middle→bottom
+    } else {
+      offset = activeTop - half * dotUnit + dotSize / 2 + dotGap / 2;
+    }
+  }
+
+  return (
+    <nav
+      className="slide-nav-dots"
+      aria-label="Slide navigation"
+      style={{ height: visibleH }}
+    >
+      <div
+        className="slide-nav-track"
+        style={{ transform: `translateY(-${offset}px)` }}
+      >
+        {Array.from({ length: total }, (_, i) => (
+          <button
+            key={i}
+            className={`slide-nav-dot${i === current ? " active" : ""}`}
+            onClick={() => goTo(i)}
+            aria-label={`Go to slide ${i + 1}`}
+            aria-current={i === current ? "step" : undefined}
+          >
+            <span className="slide-nav-hint">{i + 1}</span>
+          </button>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 interface SlideEngineProps {
   children: React.ReactNode;
   theme?: string;
@@ -68,6 +118,41 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [next, prev, goTo, totalSlides]);
+
+  // Scroll / wheel navigation — accumulate delta, trigger at threshold
+  useEffect(() => {
+    let accum = 0;
+    let cooldown = false;
+    let resetTimer: ReturnType<typeof setTimeout>;
+
+    function handleWheel(e: WheelEvent) {
+      e.preventDefault();
+      if (cooldown) return;
+
+      accum += e.deltaY;
+
+      // Reset accumulator after a pause (new scroll gesture)
+      clearTimeout(resetTimer);
+      resetTimer = setTimeout(() => { accum = 0; }, 200);
+
+      const threshold = 80;
+      if (Math.abs(accum) >= threshold) {
+        if (accum > 0) next();
+        else prev();
+        accum = 0;
+        cooldown = true;
+        setTimeout(() => { cooldown = false; }, 500);
+      }
+    }
+    const container = containerRef.current;
+    if (container) {
+      container.addEventListener("wheel", handleWheel, { passive: false });
+      return () => {
+        container.removeEventListener("wheel", handleWheel);
+        clearTimeout(resetTimer);
+      };
+    }
+  }, [next, prev]);
 
   // Viewport scaling
   useEffect(() => {
@@ -135,6 +220,7 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
           {exporting ? "Exporting..." : "Export PPTX"}
         </button>
       )}
+      <NavDots total={totalSlides} current={currentSlide} goTo={goTo} />
       <div className="slide-counter">
           {currentSlide + 1} / {totalSlides}
         </div>

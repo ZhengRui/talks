@@ -2,11 +2,11 @@
 
 ## Motivation
 
-The v3 unified layout model successfully drives both web and PPTX rendering from a single `LayoutPresentation` JSON. However, the PPTX renderer has accumulated fidelity gaps — properties that the web renderer handles correctly but the PPTX renderer ignores or approximates. Side-by-side comparison reveals visible differences in line spacing, text casing, gradients, padding, and clipping.
+The v3 unified layout model successfully drives both web and PPTX rendering from a single `LayoutPresentation` JSON. However, the PPTX renderer had accumulated fidelity gaps — properties that the web renderer handled correctly but the PPTX renderer ignored or approximated.
 
-Meanwhile, an alternative approach (HTML → hand-written `generate_pptx.py`) produces higher-fidelity PPTX output because each element is manually tuned to match the visual result. The v4 goal is to close that gap by tightening the PPTX renderer to faithfully interpret the same layout JSON the web renderer already handles correctly.
+Meanwhile, an alternative approach (HTML → hand-written `generate_pptx.py`) produced higher-fidelity PPTX output because each element is manually tuned. The v4 goal was to close that gap. **Result**: aside from font family substitution, PPTX output is now near pixel-perfect alignment with web slides.
 
-## Current Architecture (unchanged)
+## Architecture (unchanged)
 
 ```
 slides.yaml → loadPresentation() → layoutPresentation() → LayoutPresentation (JSON)
@@ -14,123 +14,104 @@ slides.yaml → loadPresentation() → layoutPresentation() → LayoutPresentati
     └── PPTX: exportPptx()         (PptxGenJS)
 ```
 
-The layout JSON is the ground truth. Both renderers consume it. v4 does not change the layout model — it fixes the PPTX renderer's interpretation of it.
+The layout JSON is the ground truth. Both renderers consume it. v4 fixed the PPTX renderer's interpretation without changing the layout model.
 
-## Fidelity Gaps
+## Methodology
 
-### 1. lineHeight not mapped to PPTX lineSpacing
+1. Initial code review identified 11 theoretical gaps
+2. Side-by-side visual comparison (web vs PPTX) revealed the **actual priority order** — card styling gaps were far more visible than text spacing issues
+3. Fixes applied one at a time with visual testing after each change
+4. Several fixes were reverted or revised based on visual feedback (e.g., shadow opacity was already correct, rounded corner issue was actually border overflow)
 
-**Web** (`LayoutRenderer.tsx:89`):
-```tsx
-lineHeight: el.style.lineHeight,   // e.g. 1.4
-```
+## Completed Fixes
 
-**PPTX** (`pptx.ts:144-167`): `textOpts()` does not set `lineSpacingMultiple`. PptxGenJS defaults to PowerPoint's ~1.15 line spacing. Layout model specifies 1.3–1.6 for most text. Every multi-line text block is vertically compressed in PPTX.
+### 1. SLIDE_W precision
+- `pptx-helpers.ts`: Changed `13.3` → `40 / 3` to match PptxGenJS `LAYOUT_WIDE` (13.333...)
+- Eliminated ~6px drift at right edge
 
-**Fix**: Map `style.lineHeight` → `lineSpacingMultiple` in `textOpts()`.
+### 2. Transparent fill/border handling
+- `makeFill()`: Returns `undefined` for fully transparent fills instead of `{ color: "000000", transparency: 100 }`
+- `makeLine()`: Skips borders with >= 80% transparency (PowerPoint renders them more visibly than CSS)
+- `renderGroup()`: Checks `fillVisible`/`borderVisible` before rendering shapes — prevents black backgrounds on transparent groups (e.g., inactive agenda items)
 
-### 2. textTransform ignored in PPTX
+### 3. Border transparency passthrough
+- `makeLine()`: Passes `transparency` from `colorAlpha()` to `ShapeLineProps`
+- PptxGenJS shape borders support `line.transparency` (PR #889)
+- Table borders do NOT support transparency (PptxGenJS TODO) — handled by skipping
 
-**Web** (`LayoutRenderer.tsx:93`):
-```tsx
-textTransform: el.style.textTransform,   // "uppercase"
-```
+### 4. Rounded corner border overflow (backing shape technique)
+- Problem: Side accent borders (e.g., blue top bar on stats cards) overflowed outside rounded corners
+- Solution: Two-shape approach in `renderGroup()`:
+  1. Full-size rounded rect filled with border color
+  2. Inner rounded rect filled with card color, inset by border width on bordered sides
+  3. Inner rect extends 2px beyond outer on non-bordered sides to prevent corner bleed
 
-**PPTX**: Not mapped. Uppercase headings in web render as mixed-case in PPTX.
+### 5. Table rendering — shapes instead of `addTable()`
+- Replaced `addTable()` with individual shapes + text boxes
+- Benefits: rounded corners, border transparency, proper padding, consistent rendering
+- Structure: outer rounded rect (header bg) → data area rounded rect → alt-row fills → border lines → text boxes
+- Header padding: 12pt/18pt, cell padding: 11pt/18pt (matching web's 16px/24px and 14px/24px)
 
-**Fix**: Apply `textTransform` to the string before passing to PptxGenJS:
-- `"uppercase"` → `text.toUpperCase()`
-- `"lowercase"` → `text.toLowerCase()`
-- `"capitalize"` → capitalize first letter of each word
+### 6. Title text descender clipping
+- `estimateTextHeight()`: Added descender padding (`fontSize * 0.15`) when `lineHeight < 1.3`
+- Prevents bottom clipping on letters like 'g', 'y' in titles
 
-### 3. Gradients fall back to solid color
+### 7. Title color override bug
+- `titleBlock()` in `helpers.ts`: Destructuring `color` from opts as `undefined` was overriding `theme.heading` via spread
+- Fix: Only include `color` and `textShadow` in spread when explicitly defined
+- This fixed invisible titles on all dark themes (bold, dark-tech)
 
-**Web** (`LayoutRenderer.tsx:165`):
-```tsx
-style.background = gradientToCSS(el.style.gradient);  // full CSS gradient
-```
+### 8. Layout JSON persistence
+- `layoutPresentation()` writes `layout.json` to `content/[slug]/` in dev mode
+- Only writes when content changes (prevents Next.js fast refresh loop)
+- Gitignored via `content/.gitignore`
 
-**PPTX** (`pptx.ts:257-264`):
-```ts
-// Gradient fallback — use last stop color
-const lastStop = style.gradient.stops[style.gradient.stops.length - 1];
-```
+## Web Slide Engine Improvements
 
-PptxGenJS does support gradients via `fill.type: 'solid'` replacement with gradient stops.
+### Vertical navigation dots
+- Fixed 32-dot maximum with sliding window behavior
+- First/last 16 slides: dot moves top↔middle↔bottom
+- Middle slides: track scrolls, active dot stays centered
+- Smooth CSS transition on track transform
+- Number hint on active dot and on hover
 
-**Fix**: Use PptxGenJS gradient fill API with proper angle and color stop mapping.
+### Scroll navigation
+- Wheel/trackpad support with accumulator threshold (80px) + cooldown (500ms)
+- Prevents over-scrolling on sensitive trackpads
 
-### 4. SLIDE_W precision error
+## Known Remaining Gaps
 
-**Current** (`pptx-helpers.ts:7`):
-```ts
-const SLIDE_W = 13.3;
-```
+### Font family substitution
+- Layout model specifies "Inter, system-ui, sans-serif" — PowerPoint doesn't have Inter
+- `parseFontFamily()` extracts first font; PowerPoint falls back to its own default
+- Titles appear slightly thinner due to different font metrics
+- **Not fixable** without font embedding (which PptxGenJS doesn't support)
 
-PptxGenJS `LAYOUT_WIDE` is 13.333... inches (10"/0.75). The 0.033" error causes ~6px drift at the right edge of the canvas.
+### Gradients fall back to solid color
+- `makeFill()` uses last gradient stop color as fallback
+- PptxGenJS does support gradients — could use the actual API
 
-**Fix**: Change to `13 + 1/3` or `13.333333` to match PptxGenJS's actual layout width.
+### lineHeight not mapped
+- Low visual impact on short text (single-line bullets, titles)
+- Would need `lineSpacingMultiple` in `textOpts()`
 
-### 5. Table padding mismatch
+### textTransform ignored
+- `uppercase` headings not applied in PPTX
+- Simple string transform before passing to PptxGenJS
 
-**Web** (`LayoutRenderer.tsx:301`):
-```tsx
-padding: "16px 24px"    // headers
-padding: "14px 24px"    // cells
-```
+### Group clipping not preserved
+- PPTX flattens groups — children not clipped to group bounds
 
-**PPTX** (`pptx.ts:494`):
-```ts
-margin: [2, 4, 2, 4]   // ~3px vertical, ~5.5px horizontal
-```
-
-The PPTX table cells are dramatically tighter than the web version.
-
-**Fix**: Convert the web padding values through `pxToPoints()` for consistent cell margins.
-
-### 6. Group clipping not preserved
-
-**Web** (`LayoutRenderer.tsx:196`):
-```tsx
-overflow: el.clipContent ? "hidden" : undefined,
-borderRadius: el.style?.borderRadius  // clips children to rounded corners
-```
-
-**PPTX** (`pptx.ts:381-428`): Flattens group to background shape + offset children. Children are **not clipped** to the group's bounds or border radius. Content that should be hidden overflows visibly.
-
-**Fix**: Constrain child element rects to not exceed the parent group's bounds when `clipContent` is true. For border radius clipping, this is a known PptxGenJS limitation — document it as a known gap, but at minimum clamp child positions/sizes to the group rect.
-
-### 7. Code block lineHeight mismatch
-
-**Web** (`LayoutRenderer.tsx:236`): `lineHeight: 1.6`
-**PPTX**: No `lineSpacingMultiple` set (defaults to ~1.15).
-
-**Fix**: Same as gap #1 — set `lineSpacingMultiple: 1.6` in `renderCode()`.
-
-## Additional Improvement: Persist Layout JSON
-
-Currently the layout JSON is computed in-memory and never written to disk. Persisting it to `content/[slug]/layout.json` would enable:
-
-- Visual inspection and diffing of layout output
-- Debugging fidelity issues without running the app
-- Snapshot testing (compare layout JSON against expected output)
-- Decoupling layout computation from rendering (pre-compute once, render many)
-
-## Implementation Order
-
-1. **SLIDE_W precision** — one-line fix, eliminates cumulative drift
-2. **lineHeight → lineSpacingMultiple** — highest visual impact, affects all multi-line text
-3. **textTransform** — simple string transform before passing to PptxGenJS
-4. **Table padding** — use pxToPoints conversion instead of hardcoded values
-5. **Gradient support** — use PptxGenJS gradient API
-6. **Group clipping** — rect clamping for clipContent groups
-7. **Persist layout JSON** — tooling improvement for debugging all of the above
-
-## Files to Modify
+## Files Modified
 
 | File | Changes |
 |------|---------|
-| `src/lib/export/pptx-helpers.ts` | Fix SLIDE_W to 13.333... |
-| `src/lib/export/pptx.ts` | lineHeight mapping, textTransform, gradient fills, table padding, group clipping, code lineHeight |
-| `src/lib/layout/index.ts` | Optional: persist layout JSON to disk |
-| `src/app/api/layout/route.ts` | Optional: write layout.json alongside response |
+| `src/lib/export/pptx.ts` | Transparent fill/border handling, backing shape technique, table as shapes, border transparency skip |
+| `src/lib/export/pptx-helpers.ts` | SLIDE_W precision fix |
+| `src/lib/layout/helpers.ts` | Descender padding in estimateTextHeight, title color override fix in titleBlock |
+| `src/lib/layout/index.ts` | Layout JSON persistence with change detection |
+| `src/lib/layout/templates/icon-grid.ts` | Icon/label sizing adjustments |
+| `src/components/SlideEngine.tsx` | Nav dots component, scroll navigation |
+| `src/styles/engine.css` | Nav dots styling |
+| `src/app/[slug]/page.tsx` | Use layoutPresentation() for JSON persistence |
+| `content/.gitignore` | Ignore layout.json artifacts |

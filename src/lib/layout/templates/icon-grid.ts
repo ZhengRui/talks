@@ -52,9 +52,11 @@ export function layoutIconGrid(
   const gridY = contentY + (availableH - totalGridH) / 2;
 
   // Icon and label heights within card
-  const iconH = 64;
-  const labelH = 32;
-  const innerGap = 16;
+  const iconFontSize = 48;
+  const iconH = 72;
+  const labelFontSize = 26;
+  const labelH = 42;
+  const innerGap = 4;
 
   slide.items.forEach((item, i) => {
     const row = Math.floor(i / perRow);
@@ -63,16 +65,21 @@ export function layoutIconGrid(
     const y = gridY + row * (cardH + gap);
     const delay = staggerDelay(i, 200, 100);
 
+    // Center icon+label block vertically within card (after padding)
+    const innerH = cardH - 24 * 2; // padding on both sides
+    const contentH = iconH + innerGap + labelH;
+    const offsetY = Math.max(0, (innerH - contentH) / 2);
+
     const cardChildren: LayoutElement[] = [
       // Icon (emoji text, large)
       {
         kind: "text",
         id: `icon-${i}`,
-        rect: { x: 0, y: 0, w: cardW, h: iconH },
+        rect: { x: 0, y: offsetY, w: cardW, h: iconH },
         text: item.icon,
         style: {
           fontFamily: theme.fontBody,
-          fontSize: 64,
+          fontSize: iconFontSize,
           fontWeight: 400,
           color: theme.text,
           lineHeight: 1,
@@ -84,9 +91,9 @@ export function layoutIconGrid(
       {
         kind: "text",
         id: `label-${i}`,
-        rect: { x: 0, y: iconH + innerGap, w: cardW, h: labelH },
+        rect: { x: 0, y: offsetY + iconH + innerGap, w: cardW, h: labelH },
         text: item.label,
-        style: bodyStyle(theme, 26, { fontWeight: 500, textAlign: "center" }),
+        style: bodyStyle(theme, labelFontSize, { fontWeight: 500, textAlign: "center" }),
       },
     ];
 
