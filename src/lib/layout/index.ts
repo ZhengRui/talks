@@ -4,12 +4,14 @@ import type { SlideData, ThemeName } from "@/lib/types";
 import type { LayoutPresentation, LayoutSlide } from "./types";
 import { resolveTheme } from "./theme";
 import { getLayoutFunction } from "./templates";
+import { applyDecorators } from "./decorators";
 import { CANVAS_W, CANVAS_H } from "./helpers";
 
 export function layoutSlide(
   slide: SlideData,
   theme: ThemeName | undefined,
   imageBase: string,
+  slideIndex = 0,
 ): LayoutSlide {
   const resolved = resolveTheme(slide.theme ?? theme);
   const layoutFn = getLayoutFunction(slide.template);
@@ -39,7 +41,15 @@ export function layoutSlide(
     };
   }
 
-  return layoutFn(slide, resolved, imageBase);
+  const result = layoutFn(slide, resolved, imageBase);
+
+  // Apply theme decorators (background elements go first, foreground last)
+  const { background, foreground } = applyDecorators(resolved, slideIndex);
+  if (background.length > 0 || foreground.length > 0) {
+    result.elements = [...background, ...result.elements, ...foreground];
+  }
+
+  return result;
 }
 
 export function layoutPresentation(
@@ -52,7 +62,7 @@ export function layoutPresentation(
   const layout: LayoutPresentation = {
     title,
     author,
-    slides: slides.map((slide) => layoutSlide(slide, theme, imageBase)),
+    slides: slides.map((slide, i) => layoutSlide(slide, theme, imageBase, i)),
   };
 
   // Persist layout JSON for debugging/inspection (dev only)

@@ -178,6 +178,17 @@ export interface LayoutPresentation {
   slides: LayoutSlide[];
 }
 
+// --- Decorator IDs for theme signature elements ---
+
+export type DecoratorId =
+  | "split-bg"
+  | "edge-tabs"
+  | "section-number"
+  | "geometric-accent"
+  | "accent-line"
+  | "binder-holes"
+  | "bordered-box";
+
 // --- Resolved theme (concrete values, no CSS vars) ---
 
 export interface ResolvedTheme {
@@ -210,4 +221,5 @@ export interface ResolvedTheme {
   highlightWarningBorder: string;
   highlightSuccessBg: string;
   highlightSuccessBorder: string;
+  decorators?: DecoratorId[];
 }
