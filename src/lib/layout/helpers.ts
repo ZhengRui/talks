@@ -22,6 +22,9 @@ export const CONTENT_X = (CANVAS_W - CONTENT_W) / 2; // 160
 // --- Text height estimation ---
 
 const AVG_CHAR_WIDTH_RATIO = 0.52; // average character width as fraction of fontSize
+const CJK_CHAR_WIDTH_RATIO = 1.0; // CJK characters are full-width
+// CJK Unified Ideographs, Radicals, Symbols/Punctuation, Hiragana, Katakana, Fullwidth Forms
+const CJK_RE = /[\u2E80-\u9FFF\uF900-\uFAFF\uFE30-\uFE4F\uFF01-\uFF60\uFFE0-\uFFEF]/;
 
 export function estimateTextHeight(
   text: string,
@@ -29,9 +32,12 @@ export function estimateTextHeight(
   lineHeight: number,
   containerWidth: number,
 ): number {
-  const avgCharWidth = fontSize * AVG_CHAR_WIDTH_RATIO;
-  const charsPerLine = Math.floor(containerWidth / avgCharWidth);
-  const lineCount = charsPerLine > 0 ? Math.max(1, Math.ceil(text.length / charsPerLine)) : 1;
+  // Calculate total text width accounting for CJK full-width characters
+  let totalTextWidth = 0;
+  for (const ch of text) {
+    totalTextWidth += fontSize * (CJK_RE.test(ch) ? CJK_CHAR_WIDTH_RATIO : AVG_CHAR_WIDTH_RATIO);
+  }
+  const lineCount = containerWidth > 0 ? Math.max(1, Math.ceil(totalTextWidth / containerWidth)) : 1;
   // Extra space for descenders (g, y, p, q, j) — needed with tight lineHeight
   const descenderPad = lineHeight < 1.3 ? fontSize * 0.15 : 0;
   return lineCount * fontSize * lineHeight + descenderPad;
