@@ -39,7 +39,8 @@ YAML + layout-model-driven presentation hub. See `docs/design-v3.md` for full de
 - `src/lib/layout/theme.ts` — 4 resolved theme definitions, `resolveTheme()`
 - `src/lib/layout/helpers.ts` — shared layout utilities (`titleBlock`, `stackVertical`, etc.)
 - `src/lib/layout/templates/` — 35 layout functions (one per template), registry in `index.ts`
-- `src/lib/export/pptx.ts` — `exportPptx()` via PptxGenJS
+- `src/lib/export/pptx.ts` — `exportPptx()` via PptxGenJS, spid tracking + JSZip post-processing for animations
+- `src/lib/export/pptx-animations.ts` — OOXML `<p:timing>` XML builder for entrance animations
 - `src/lib/export/pptx-helpers.ts` — coordinate/color/font conversion utilities
 - `src/components/SlideEngine.tsx` — custom presentation engine (keyboard nav, scaling, themes, export button)
 - `src/components/LayoutRenderer.tsx` — unified web renderer (layout model → absolute-positioned divs)
@@ -68,7 +69,7 @@ YAML + layout-model-driven presentation hub. See `docs/design-v3.md` for full de
 - Next.js 15 (App Router), React 19, TypeScript (strict)
 - Custom slide engine (no Reveal.js), Tailwind CSS 4, Bun
 - Unified layout model (1920×1080 canvas) for web + PPTX
-- PptxGenJS for PowerPoint export
+- PptxGenJS for PowerPoint export, JSZip for OOXML post-processing (animations)
 - 4 themes via resolved concrete values, CSS-only animations
 - Vitest for unit/integration tests, Playwright for E2E
 - Superpowers plugin for TDD/SDD workflow

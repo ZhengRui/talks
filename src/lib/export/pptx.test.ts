@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import JSZip from "jszip";
 import { exportPptx } from "./pptx";
 import type { LayoutPresentation } from "@/lib/layout/types";
 
@@ -162,5 +163,163 @@ describe("exportPptx", () => {
 
     const buffer = await exportPptx(layout);
     expect(buffer.length).toBeGreaterThan(0);
+  });
+
+  it("injects timing XML for animated elements", async () => {
+    const layout: LayoutPresentation = {
+      title: "Animated",
+      slides: [
+        {
+          width: 1920,
+          height: 1080,
+          background: "#ffffff",
+          elements: [
+            {
+              kind: "text",
+              id: "title",
+              rect: { x: 100, y: 100, w: 600, h: 80 },
+              text: "Animated Title",
+              style: {
+                fontFamily: "Inter, sans-serif",
+                fontSize: 48,
+                fontWeight: 700,
+                color: "#1a1a2e",
+                lineHeight: 1.2,
+              },
+              animation: { type: "fade-in", delay: 0, duration: 600 },
+            },
+          ],
+        },
+      ],
+    };
+
+    const buffer = await exportPptx(layout);
+    // Valid ZIP
+    expect(buffer[0]).toBe(0x50);
+    expect(buffer[1]).toBe(0x4b);
+
+    // Extract and verify timing XML was injected
+    const zip = await JSZip.loadAsync(buffer);
+    const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string");
+    expect(slideXml).toBeDefined();
+    expect(slideXml).toContain("<p:timing>");
+    expect(slideXml).toContain("p:animEffect");
+    expect(slideXml).toContain('filter="fade"');
+  });
+
+  it("does not inject timing XML for non-animated slides", async () => {
+    const buffer = await exportPptx(minimalLayout);
+
+    const zip = await JSZip.loadAsync(buffer);
+    const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string");
+    expect(slideXml).toBeDefined();
+    expect(slideXml).not.toContain("<p:timing>");
+  });
+
+  it("handles mixed animated and non-animated slides", async () => {
+    const layout: LayoutPresentation = {
+      title: "Mixed",
+      slides: [
+        {
+          width: 1920,
+          height: 1080,
+          background: "#ffffff",
+          elements: [
+            {
+              kind: "text",
+              id: "static-title",
+              rect: { x: 100, y: 100, w: 600, h: 80 },
+              text: "No animation",
+              style: {
+                fontFamily: "Inter, sans-serif",
+                fontSize: 48,
+                fontWeight: 700,
+                color: "#1a1a2e",
+                lineHeight: 1.2,
+              },
+            },
+          ],
+        },
+        {
+          width: 1920,
+          height: 1080,
+          background: "#ffffff",
+          elements: [
+            {
+              kind: "text",
+              id: "animated-title",
+              rect: { x: 100, y: 100, w: 600, h: 80 },
+              text: "Animated",
+              style: {
+                fontFamily: "Inter, sans-serif",
+                fontSize: 48,
+                fontWeight: 700,
+                color: "#1a1a2e",
+                lineHeight: 1.2,
+              },
+              animation: { type: "fade-up", delay: 200, duration: 600 },
+            },
+          ],
+        },
+      ],
+    };
+
+    const buffer = await exportPptx(layout);
+    const zip = await JSZip.loadAsync(buffer);
+
+    // Slide 1: no animations
+    const slide1 = await zip.file("ppt/slides/slide1.xml")?.async("string");
+    expect(slide1).not.toContain("<p:timing>");
+
+    // Slide 2: has animations
+    const slide2 = await zip.file("ppt/slides/slide2.xml")?.async("string");
+    expect(slide2).toContain("<p:timing>");
+    expect(slide2).toContain("ppt_y");
+  });
+
+  it("tracks correct spids for group elements", async () => {
+    const layout: LayoutPresentation = {
+      title: "Group Animation",
+      slides: [
+        {
+          width: 1920,
+          height: 1080,
+          background: "#ffffff",
+          elements: [
+            {
+              kind: "group",
+              id: "card",
+              rect: { x: 100, y: 200, w: 800, h: 100 },
+              style: { fill: "#ffffff", borderRadius: 12 },
+              children: [
+                {
+                  kind: "text",
+                  id: "card-text",
+                  rect: { x: 24, y: 16, w: 752, h: 48 },
+                  text: "Card content",
+                  style: {
+                    fontFamily: "Inter, sans-serif",
+                    fontSize: 28,
+                    fontWeight: 400,
+                    color: "#1a1a2e",
+                    lineHeight: 1.4,
+                  },
+                },
+              ],
+              animation: { type: "scale-up", delay: 100, duration: 500 },
+            },
+          ],
+        },
+      ],
+    };
+
+    const buffer = await exportPptx(layout);
+    const zip = await JSZip.loadAsync(buffer);
+    const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string");
+    expect(slideXml).toContain("<p:timing>");
+    expect(slideXml).toContain("p:animScale");
+    // Group renders bg shape + text child = 2 objects → spids 2 and 3
+    expect(slideXml).toContain('spid="2"');
+    expect(slideXml).toContain('spid="3"');
   });
 });

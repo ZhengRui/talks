@@ -1,5 +1,6 @@
 import { resolve } from "path";
 import PptxGenJS from "pptxgenjs";
+import JSZip from "jszip";
 import type {
   LayoutPresentation,
   LayoutSlide,
@@ -27,6 +28,7 @@ import {
   parseFontFamily,
   isBold,
 } from "./pptx-helpers";
+import { buildTimingXml, type AnimationEntry } from "./pptx-animations";
 
 /** Offset a child rect by the parent group's origin (children are relative to group). */
 function offsetRect(child: Rect, parent: Rect): Rect {
@@ -63,6 +65,12 @@ const SHAPES = {
   LINE: "line" as PptxGenJS.ShapeType,
 };
 
+/** Read the current object count from a PptxGenJS slide. */
+function slideObjectCount(slide: Slide): number {
+  return ((slide as Record<string, unknown>)._slideObjects as unknown[])
+    .length;
+}
+
 /** Export a LayoutPresentation to a .pptx Buffer. */
 export async function exportPptx(
   layout: LayoutPresentation,
@@ -72,16 +80,59 @@ export async function exportPptx(
   pres.title = layout.title;
   if (layout.author) pres.author = layout.author;
 
+  // Phase 1: Render shapes, tracking spid-to-animation mapping per slide
+  const slideAnimations: AnimationEntry[][] = [];
+
   for (const layoutSlide of layout.slides) {
     const slide = pres.addSlide();
     renderSlideBackground(slide, layoutSlide);
+
+    const animations: AnimationEntry[] = [];
     for (const el of layoutSlide.elements) {
+      const before = slideObjectCount(slide);
       renderElement(slide, el);
+      const after = slideObjectCount(slide);
+
+      if (el.animation && el.animation.type !== "none") {
+        const spids: number[] = [];
+        for (let i = before; i < after; i++) {
+          spids.push(i + 2); // PptxGenJS: spid = idx + 2
+        }
+        if (spids.length > 0) {
+          animations.push({ spids, animation: el.animation });
+        }
+      }
     }
+    slideAnimations.push(animations);
   }
 
+  // Phase 2: Generate PPTX buffer
   const output = (await pres.write({ outputType: "nodebuffer" })) as Buffer;
-  return Buffer.from(output);
+
+  // Phase 3: Post-process with JSZip to inject animation timing XML
+  const hasAnimations = slideAnimations.some((a) => a.length > 0);
+  if (!hasAnimations) {
+    return Buffer.from(output);
+  }
+
+  const zip = await JSZip.loadAsync(output);
+
+  for (let i = 0; i < slideAnimations.length; i++) {
+    const animations = slideAnimations[i];
+    const timingXml = buildTimingXml(animations);
+    if (!timingXml) continue;
+
+    const slidePath = `ppt/slides/slide${i + 1}.xml`;
+    const slideXml = await zip.file(slidePath)?.async("string");
+    if (!slideXml) continue;
+
+    // Inject <p:timing> before closing </p:sld>
+    const injected = slideXml.replace("</p:sld>", `${timingXml}</p:sld>`);
+    zip.file(slidePath, injected);
+  }
+
+  const result = await zip.generateAsync({ type: "nodebuffer" });
+  return Buffer.from(result);
 }
 
 // ---------------------------------------------------------------------------

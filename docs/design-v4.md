@@ -79,6 +79,96 @@ The layout JSON is the ground truth. Both renderers consume it. v4 fixed the PPT
 - Wheel/trackpad support with accumulator threshold (80px) + cooldown (500ms)
 - Prevents over-scrolling on sensitive trackpads
 
+## PPTX Entrance Animations
+
+### Goal
+Match the web slide engine's CSS entrance animations in PPTX export. All animations auto-play on slide entry with staggered delays — no clicks required.
+
+### Architecture
+
+```
+exportPptx()
+  ├── Phase 1: Render shapes (PptxGenJS) + track spid-to-animation mapping
+  ├── Phase 2: pres.write() → Buffer
+  └── Phase 3: JSZip post-process → inject <p:timing> XML per slide
+```
+
+During Phase 1, each `renderElement()` call is bracketed by reading `slide._slideObjects.length` to compute the spid range. Spids for animated elements (including all shapes in a group) are collected into `AnimationEntry` objects.
+
+### Animation Type Mapping
+
+All types use `presetID=10` (Fade) as the base preset — Keynote needs a recognized preset, and Fade won't add unwanted built-in motion. Custom `<p:anim>` elements add subtle motion on top.
+
+| Layout `AnimationType` | OOXML Behavior |
+|---|---|
+| `fade-in` | `<p:animEffect filter="fade">` |
+| `fade-up` | fade + `<p:anim ppt_y>` (offset 0.028 ≈ 30px/1080) |
+| `slide-left` | fade + `<p:anim ppt_x>` (offset 0.031 ≈ 60px/1920) |
+| `slide-right` | fade + `<p:anim ppt_x>` (offset -0.031) |
+| `scale-up` | fade + `<p:animScale>` (85000→100000 EMU) |
+| `none` / `count-up` | Skipped |
+
+### Delay Compression
+
+Layout model delays (0–950ms across 8+ groups on busy slides) are compressed for snappy PPTX playback:
+
+- **MAX_PPTX_DELAY = 100ms** — total stagger budget
+- **MAX_PPTX_DURATION = 200ms** — per-animation cap
+- Uniform relative step between delay groups, delay=0 within the same group
+
+**Critical insight**: OOXML `nodeType="withEffect"` delays are **cumulative** — each entry's delay is relative to the previous sibling's start, not the parent container. Setting absolute delays [0, S, 2S, 3S...] produces actual start times [0, S, 3S, 6S...] (accelerating gaps). The fix: use uniform RELATIVE delays — constant step S between groups — producing actual start times [0, S, 2S, 3S...] with perfectly equal spacing.
+
+### WPS Office Compatibility
+
+**Wrapper par**: WPS Office (Mac) requires an extra wrapper `<p:par>` layer between the click-group and entry-pars:
+
+```
+click-group → wrapper-par → entry-par (WPS-compatible, also works in Keynote)
+click-group → entry-par              (only works in Keynote)
+```
+
+This was discovered by creating a minimal PPTX, adding an animation via WPS UI, and comparing the generated XML against ours.
+
+**Delay interpretation difference**: WPS appears to interpret `withEffect` delays as **absolute** (from the slide trigger), while the OOXML spec and PowerPoint/Keynote treat them as **cumulative** (relative to the previous sibling's start). With our small uniform relative delays (~14ms), WPS shows all items appearing nearly simultaneously instead of staggered. We prioritize spec-correct cumulative behavior since Keynote renders it correctly. This is a known WPS limitation with no workaround that satisfies both apps — absolute delays fix WPS but cause accelerating gaps on Keynote.
+
+### XML Structure
+
+```xml
+<p:timing>
+  <p:tnLst>
+    <p:par>                                          <!-- tmRoot -->
+      <p:cTn nodeType="tmRoot">
+        <p:seq nodeType="mainSeq">
+          <p:par>                                    <!-- click-group -->
+            <p:cTn fill="hold">
+              <p:par>                                <!-- wrapper-par (WPS requires this) -->
+                <p:cTn fill="hold">
+                  <p:par>                            <!-- entry-par per animated element -->
+                    <p:cTn grpId="0" presetID="10" presetClass="entr"
+                           nodeType="withEffect">
+                      <p:set>...</p:set>             <!-- visibility toggle -->
+                      <p:animEffect>...</p:animEffect> <!-- fade -->
+                      <p:anim>...</p:anim>           <!-- motion (optional) -->
+                    </p:cTn>
+                  </p:par>
+                </p:cTn>
+              </p:par>
+            </p:cTn>
+          </p:par>
+        </p:seq>
+      </p:cTn>
+    </p:par>
+  </p:tnLst>
+</p:timing>
+```
+
+All `<p:cTn>` nodes get sequentially incrementing `id` attributes. Elements use `nodeType="withEffect"` for auto-play. Each animated shape gets a `<p:set>` visibility toggle (hidden → visible) plus type-specific behavior elements.
+
+### Tested On
+- Apple Keynote (Mac) — auto-play works, correct motion
+- WPS Office (Mac) — auto-play works after wrapper-par fix
+- Microsoft PowerPoint — expected to work (standard OOXML)
+
 ## Known Remaining Gaps
 
 ### Font family substitution
@@ -106,7 +196,9 @@ The layout JSON is the ground truth. Both renderers consume it. v4 fixed the PPT
 
 | File | Changes |
 |------|---------|
-| `src/lib/export/pptx.ts` | Transparent fill/border handling, backing shape technique, table as shapes, border transparency skip |
+| `src/lib/export/pptx.ts` | Transparent fill/border handling, backing shape technique, table as shapes, border transparency skip, spid tracking + JSZip animation post-processing |
+| `src/lib/export/pptx-animations.ts` | **New** — OOXML timing XML builder with delay compression and WPS-compatible structure |
+| `src/lib/export/pptx-animations.test.ts` | **New** — 17 unit tests for timing XML builder |
 | `src/lib/export/pptx-helpers.ts` | SLIDE_W precision fix |
 | `src/lib/layout/helpers.ts` | Descender padding in estimateTextHeight, title color override fix in titleBlock |
 | `src/lib/layout/index.ts` | Layout JSON persistence with change detection |

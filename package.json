@@ -16,6 +16,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "jszip": "^3.10.1",
     "next": "15.2.5",
     "pptxgenjs": "^4.0.1",
     "react": "^19.0.0",
