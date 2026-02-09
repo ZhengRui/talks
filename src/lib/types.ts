@@ -1,3 +1,5 @@
+import type { LayoutElement } from "./layout/types";
+
 // --- Per-template slide data ---
 
 // Text-focused
@@ -245,6 +247,15 @@ export interface EndSlideData {
   image?: string;
 }
 
+// Freeform (v6 — direct Level 2 IR passthrough)
+export interface FreeformSlideData {
+  template: "freeform";
+  background?: string;
+  backgroundImage?: string;
+  overlay?: string;
+  elements: LayoutElement[];
+}
+
 // --- Discriminated union ---
 
 export type SlideData = (
@@ -283,6 +294,7 @@ export type SlideData = (
   | IframeSlideData
   | BlankSlideData
   | EndSlideData
+  | FreeformSlideData
 ) & SlideBaseFields;
 
 // --- Animation override ---

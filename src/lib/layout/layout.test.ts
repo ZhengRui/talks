@@ -309,6 +309,87 @@ describe("layoutPresentation - table", () => {
   });
 });
 
+// --- Freeform template ---
+
+describe("layoutPresentation - freeform", () => {
+  const textEl = {
+    kind: "text" as const,
+    id: "t1",
+    rect: { x: 100, y: 200, w: 760, h: 60 },
+    text: "Hello freeform",
+    style: {
+      fontFamily: "Inter, sans-serif",
+      fontSize: 32,
+      fontWeight: 700,
+      color: "#1a1a2e",
+      lineHeight: 1.2,
+    },
+  };
+
+  const shapeEl = {
+    kind: "shape" as const,
+    id: "s1",
+    rect: { x: 960, y: 0, w: 960, h: 1080 },
+    shape: "rect" as const,
+    style: { fill: "#0d0b09" },
+  };
+
+  const freeformSlide: SlideData = {
+    template: "freeform",
+    elements: [textEl, shapeEl],
+  };
+
+  it("passes through elements unchanged", () => {
+    const result = layoutPresentation("Test", [freeformSlide], "modern", "/img");
+    const slide = result.slides[0];
+    // Elements should be in the output as-is
+    const text = slide.elements.find((e) => e.id === "t1");
+    const shape = slide.elements.find((e) => e.id === "s1");
+    expect(text).toBeDefined();
+    expect(shape).toBeDefined();
+    if (text?.kind === "text") {
+      expect(text.text).toBe("Hello freeform");
+      expect(text.rect).toEqual({ x: 100, y: 200, w: 760, h: 60 });
+    }
+  });
+
+  it("uses theme background when none specified", () => {
+    const result = layoutPresentation("Test", [freeformSlide], "modern", "/img");
+    const slide = result.slides[0];
+    expect(slide.background).toBe("#f8f9fc"); // modern theme bg
+  });
+
+  it("uses custom background when specified", () => {
+    const slide: SlideData = {
+      template: "freeform",
+      background: "#1a1714",
+      elements: [textEl],
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img");
+    expect(result.slides[0].background).toBe("#1a1714");
+  });
+
+  it("handles empty elements array", () => {
+    const slide: SlideData = {
+      template: "freeform",
+      elements: [],
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img");
+    expect(result.slides[0].elements).toHaveLength(0);
+  });
+
+  it("respects per-slide theme override", () => {
+    const slide: SlideData = {
+      template: "freeform",
+      theme: "bold",
+      elements: [],
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img");
+    // bold theme bg since no custom background and slide theme is bold
+    expect(result.slides[0].background).toBe("#0a0a0a");
+  });
+});
+
 // --- Per-slide theme override ---
 
 describe("per-slide theme override", () => {

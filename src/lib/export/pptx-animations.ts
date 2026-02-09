@@ -94,10 +94,13 @@ export function buildTimingXml(entries: AnimationEntry[]): string {
   const id3 = id(); // click-group
   const id4 = id(); // inner wrapper (WPS requires this extra par layer)
 
-  // Build one animation par per AnimationEntry (not per spid).
+  // Build one animation par per spid (not per entry).
+  // Standard PowerPoint XML gives each shape its own <p:par> with presetClass="entr".
+  // Apps use this to auto-hide each shape before its entrance animation.
+  // Putting multiple spids in one <p:par> causes some apps to only hide the first.
   const elementPars: string[] = [];
   for (const entry of compressed) {
-    elementPars.push(buildEntryPar(entry, id));
+    elementPars.push(...buildEntryPars(entry, id));
   }
 
   // Structure matches WPS-generated XML: click-group → wrapper-par → entry-pars.
@@ -106,31 +109,30 @@ export function buildTimingXml(entries: AnimationEntry[]): string {
 }
 
 /**
- * Build one `<p:par>` for an entire AnimationEntry.
- * All spids in the entry animate together inside one container.
- * Uses presetID=10 (Fade) for all types — Keynote needs a preset to
- * recognize the animation, and Fade won't add unwanted built-in motion.
+ * Build one `<p:par>` per spid in an AnimationEntry.
+ * Standard PowerPoint gives each shape its own `<p:par>` with `presetClass="entr"`.
+ * This ensures apps auto-hide each shape before its entrance animation.
+ * The first spid gets the entry's delay; subsequent spids get delay=0
+ * so all shapes in the group animate simultaneously.
  *
+ * Uses presetID=10 (Fade) as the base preset for all types.
  * Uses nodeType="withEffect" so everything auto-plays on slide entry.
  * grpId="0" matches the standard PowerPoint pattern.
  */
-function buildEntryPar(
+function buildEntryPars(
   entry: AnimationEntry,
   id: () => number,
-): string {
-  const parId = id();
+): string[] {
   const { animation, spids } = entry;
 
-  // Build visibility sets + behaviors for ALL spids in this entry
-  const children: string[] = [];
-  for (const spid of spids) {
+  return spids.map((spid, i) => {
+    const parId = id();
+    const delay = i === 0 ? animation.delay : 0;
+    const children: string[] = [];
     children.push(buildVisibilitySet(spid, id));
-  }
-  for (const spid of spids) {
     children.push(...buildBehaviorList(spid, animation, id));
-  }
-
-  return `<p:par><p:cTn id="${parId}" fill="hold" grpId="0" presetID="10" presetClass="entr" presetSubtype="0" nodeType="withEffect"><p:stCondLst><p:cond delay="${animation.delay}"/></p:stCondLst><p:childTnLst>${children.join("")}</p:childTnLst></p:cTn></p:par>`;
+    return `<p:par><p:cTn id="${parId}" fill="hold" grpId="0" presetID="10" presetClass="entr" presetSubtype="0" nodeType="withEffect"><p:stCondLst><p:cond delay="${delay}"/></p:stCondLst><p:childTnLst>${children.join("")}</p:childTnLst></p:cTn></p:par>`;
+  });
 }
 
 function buildVisibilitySet(spid: number, id: () => number): string {
