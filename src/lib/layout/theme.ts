@@ -238,7 +238,7 @@ export const THEMES: Record<ThemeName, ResolvedTheme> = {
     highlightWarningBorder: "#d4ff00",
     highlightSuccessBg: "rgba(0, 255, 136, 0.1)",
     highlightSuccessBorder: "#00ff88",
-    decorators: ["split-bg"],
+    decorators: ["split-bg", "glow-accent", "halftone-dots"],
   },
 
   "dark-botanical": {
@@ -271,7 +271,7 @@ export const THEMES: Record<ThemeName, ResolvedTheme> = {
     highlightWarningBorder: "#d4a574",
     highlightSuccessBg: "rgba(201, 184, 150, 0.1)",
     highlightSuccessBorder: "#c9b896",
-    decorators: ["accent-line"],
+    decorators: ["accent-line", "soft-gradient-circles"],
   },
 
   "notebook-tabs": {
@@ -436,6 +436,7 @@ export const THEMES: Record<ThemeName, ResolvedTheme> = {
     highlightWarningBorder: "#ffc800",
     highlightSuccessBg: "rgba(0, 255, 204, 0.1)",
     highlightSuccessBorder: "#00ffcc",
+    decorators: ["glow-accent", "grid-overlay"],
   },
 
   "terminal-green": {
@@ -468,6 +469,7 @@ export const THEMES: Record<ThemeName, ResolvedTheme> = {
     highlightWarningBorder: "#d29922",
     highlightSuccessBg: "rgba(57, 211, 83, 0.1)",
     highlightSuccessBorder: "#39d353",
+    decorators: ["scan-lines"],
   },
 
   "swiss-modern": {
@@ -500,7 +502,7 @@ export const THEMES: Record<ThemeName, ResolvedTheme> = {
     highlightWarningBorder: "#FFC107",
     highlightSuccessBg: "rgba(34, 197, 94, 0.06)",
     highlightSuccessBorder: "#22c55e",
-    decorators: ["bordered-box"],
+    decorators: ["bordered-box", "grid-overlay"],
   },
 
   "paper-ink": {

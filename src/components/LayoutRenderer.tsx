@@ -12,6 +12,8 @@ import type {
   GradientDef,
   BoxShadow,
   BorderDef,
+  PatternFillDef,
+  ElementEffects,
 } from "@/lib/layout/types";
 import React from "react";
 
@@ -48,6 +50,114 @@ function gradientToCSS(g: GradientDef): string {
 
 function shadowToCSS(s: BoxShadow): string {
   return `${s.offsetX}px ${s.offsetY}px ${s.blur}px ${s.spread ?? 0}px ${s.color}`;
+}
+
+/** Map PatternFillDef to a CSS background-image (repeating-linear-gradient). */
+function patternFillToCSS(p: PatternFillDef): React.CSSProperties {
+  const fg = p.fgColor;
+  const fgA = p.fgOpacity ?? 1;
+  // Build rgba string
+  const fgRgba = fg === "transparent" ? "transparent" : hexToRgba(fg, fgA);
+  const bgRgba = !p.bgColor || p.bgColor === "transparent"
+    ? "transparent"
+    : hexToRgba(p.bgColor, p.bgOpacity ?? 0);
+
+  switch (p.preset) {
+    case "narHorz": // scan lines
+      return {
+        backgroundImage: `repeating-linear-gradient(0deg, ${bgRgba} 0px, ${bgRgba} 2px, ${fgRgba} 2px, ${fgRgba} 4px)`,
+      };
+    case "narVert":
+      return {
+        backgroundImage: `repeating-linear-gradient(90deg, ${bgRgba} 0px, ${bgRgba} 2px, ${fgRgba} 2px, ${fgRgba} 4px)`,
+      };
+    case "smGrid":
+      return {
+        backgroundImage: [
+          `repeating-linear-gradient(0deg, ${fgRgba} 0px, ${fgRgba} 1px, transparent 1px, transparent 40px)`,
+          `repeating-linear-gradient(90deg, ${fgRgba} 0px, ${fgRgba} 1px, transparent 1px, transparent 40px)`,
+        ].join(", "),
+      };
+    case "lgGrid":
+      return {
+        backgroundImage: [
+          `repeating-linear-gradient(0deg, ${fgRgba} 0px, ${fgRgba} 1px, transparent 1px, transparent 80px)`,
+          `repeating-linear-gradient(90deg, ${fgRgba} 0px, ${fgRgba} 1px, transparent 1px, transparent 80px)`,
+        ].join(", "),
+      };
+    case "dotGrid":
+      return {
+        backgroundImage: `radial-gradient(circle, ${fgRgba} 1px, transparent 1px)`,
+        backgroundSize: "20px 20px",
+      };
+    case "pct5":
+      return {
+        backgroundImage: `radial-gradient(circle, ${fgRgba} 0.5px, transparent 0.5px)`,
+        backgroundSize: "12px 12px",
+      };
+    case "pct10":
+      return {
+        backgroundImage: `radial-gradient(circle, ${fgRgba} 1px, transparent 1px)`,
+        backgroundSize: "10px 10px",
+      };
+    case "dnDiag":
+      return {
+        backgroundImage: `repeating-linear-gradient(45deg, transparent 0px, transparent 4px, ${fgRgba} 4px, ${fgRgba} 5px)`,
+      };
+    case "upDiag":
+      return {
+        backgroundImage: `repeating-linear-gradient(-45deg, transparent 0px, transparent 4px, ${fgRgba} 4px, ${fgRgba} 5px)`,
+      };
+    case "diagCross":
+      return {
+        backgroundImage: [
+          `repeating-linear-gradient(45deg, transparent 0px, transparent 4px, ${fgRgba} 4px, ${fgRgba} 5px)`,
+          `repeating-linear-gradient(-45deg, transparent 0px, transparent 4px, ${fgRgba} 4px, ${fgRgba} 5px)`,
+        ].join(", "),
+      };
+    default:
+      return {};
+  }
+}
+
+/** Convert hex color + opacity to rgba string. */
+function hexToRgba(hex: string, opacity: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return hex;
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
+/** Map ElementEffects to CSS properties. */
+function effectsToCSS(effects?: ElementEffects): React.CSSProperties {
+  if (!effects) return {};
+  const style: React.CSSProperties = {};
+  const filters: string[] = [];
+
+  if (effects.glow) {
+    const { color, radius, opacity = 0.6 } = effects.glow;
+    const glowColor = hexToRgba(color.replace("#", "").length === 6 ? color : color, opacity);
+    // Combine with existing boxShadow if needed
+    style.boxShadow = `0 0 ${radius}px ${radius / 2}px ${glowColor}`;
+  }
+
+  if (effects.blur) {
+    filters.push(`blur(${effects.blur}px)`);
+  }
+
+  if (effects.softEdge) {
+    // softEdge feathers the edges — approximate with a combination of blur on a wrapper
+    // or use mask-image for edge feathering
+    filters.push(`blur(${effects.softEdge}px)`);
+  }
+
+  if (filters.length > 0) {
+    style.filter = filters.join(" ");
+  }
+
+  return style;
 }
 
 function borderToCSS(b: BorderDef, sides?: string[]): React.CSSProperties {
@@ -97,6 +207,7 @@ function renderText(el: TextElement): React.ReactNode {
           alignItems: vAlign === "middle" ? "center" : vAlign === "bottom" ? "flex-end" : "flex-start",
           justifyContent: el.style.textAlign === "center" ? "center" : el.style.textAlign === "right" ? "flex-end" : "flex-start",
         } : {}),
+        ...effectsToCSS(el.effects),
         ...anim.style,
       }}
     >
@@ -163,6 +274,8 @@ function renderShape(el: ShapeElement): React.ReactNode {
   // Fill
   if (el.style.gradient) {
     style.background = gradientToCSS(el.style.gradient);
+  } else if (el.style.patternFill) {
+    Object.assign(style, patternFillToCSS(el.style.patternFill));
   } else if (el.style.fill) {
     style.background = el.style.fill;
   }
@@ -181,6 +294,15 @@ function renderShape(el: ShapeElement): React.ReactNode {
   if (el.border) {
     Object.assign(style, borderToCSS(el.border, el.border.sides));
   }
+
+  // Effects (glow, blur, softEdge)
+  const fx = effectsToCSS(el.effects);
+  if (fx.boxShadow) {
+    style.boxShadow = style.boxShadow
+      ? `${style.boxShadow}, ${fx.boxShadow}`
+      : fx.boxShadow;
+  }
+  if (fx.filter) style.filter = fx.filter;
 
   return <div key={el.id} className={anim.className} style={style} />;
 }
@@ -208,6 +330,9 @@ function renderGroup(el: GroupElement): React.ReactNode {
   if (el.border) {
     Object.assign(style, borderToCSS(el.border, el.border.sides));
   }
+
+  // Effects (glow, blur, softEdge)
+  Object.assign(style, effectsToCSS(el.effects));
 
   return (
     <div key={el.id} className={anim.className} style={style}>

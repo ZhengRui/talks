@@ -29,6 +29,7 @@ import {
   isBold,
 } from "./pptx-helpers";
 import { buildTimingXml, type AnimationEntry } from "./pptx-animations";
+import { applyEffectsToSlideXml, type EffectsEntry } from "./pptx-effects";
 
 /** Offset a child rect by the parent group's origin (children are relative to group). */
 function offsetRect(child: Rect, parent: Rect): Rect {
@@ -80,55 +81,83 @@ export async function exportPptx(
   pres.title = layout.title;
   if (layout.author) pres.author = layout.author;
 
-  // Phase 1: Render shapes, tracking spid-to-animation mapping per slide
+  // Phase 1: Render shapes, tracking spid-to-animation and spid-to-effects mappings
   const slideAnimations: AnimationEntry[][] = [];
+  const slideEffects: EffectsEntry[][] = [];
 
   for (const layoutSlide of layout.slides) {
     const slide = pres.addSlide();
     renderSlideBackground(slide, layoutSlide);
 
     const animations: AnimationEntry[] = [];
+    const effects: EffectsEntry[] = [];
     for (const el of layoutSlide.elements) {
       const before = slideObjectCount(slide);
       renderElement(slide, el);
       const after = slideObjectCount(slide);
 
-      if (el.animation && el.animation.type !== "none") {
-        const spids: number[] = [];
-        for (let i = before; i < after; i++) {
-          spids.push(i + 2); // PptxGenJS: spid = idx + 2
-        }
-        if (spids.length > 0) {
+      const spids: number[] = [];
+      for (let i = before; i < after; i++) {
+        spids.push(i + 2); // PptxGenJS: spid = idx + 2
+      }
+
+      if (spids.length > 0) {
+        if (el.animation && el.animation.type !== "none") {
           animations.push({ spids, animation: el.animation });
+        }
+
+        // Track effects and pattern fills for post-processing
+        // Skip patternFill for presets already rendered as actual shapes
+        const elEffects = "effects" in el ? el.effects : undefined;
+        const elPatternFill = "style" in el && el.kind === "shape"
+          && el.style.patternFill
+          && !SHAPE_RENDERED_PATTERNS.has(el.style.patternFill.preset)
+          ? el.style.patternFill
+          : undefined;
+        if (elEffects || elPatternFill) {
+          effects.push({ spids, effects: elEffects, patternFill: elPatternFill });
         }
       }
     }
     slideAnimations.push(animations);
+    slideEffects.push(effects);
   }
 
   // Phase 2: Generate PPTX buffer
   const output = (await pres.write({ outputType: "nodebuffer" })) as Buffer;
 
-  // Phase 3: Post-process with JSZip to inject animation timing XML
+  // Phase 3: Post-process with JSZip to inject animation timing + effects XML
   const hasAnimations = slideAnimations.some((a) => a.length > 0);
-  if (!hasAnimations) {
+  const hasEffects = slideEffects.some((e) => e.length > 0);
+  if (!hasAnimations && !hasEffects) {
     return Buffer.from(output);
   }
 
   const zip = await JSZip.loadAsync(output);
 
-  for (let i = 0; i < slideAnimations.length; i++) {
-    const animations = slideAnimations[i];
-    const timingXml = buildTimingXml(animations);
-    if (!timingXml) continue;
-
+  for (let i = 0; i < layout.slides.length; i++) {
     const slidePath = `ppt/slides/slide${i + 1}.xml`;
-    const slideXml = await zip.file(slidePath)?.async("string");
+    let slideXml = await zip.file(slidePath)?.async("string");
     if (!slideXml) continue;
 
-    // Inject <p:timing> before closing </p:sld>
-    const injected = slideXml.replace("</p:sld>", `${timingXml}</p:sld>`);
-    zip.file(slidePath, injected);
+    let modified = false;
+
+    // Inject effects (glow, softEdge, blur, patternFill)
+    if (slideEffects[i]?.length > 0) {
+      slideXml = applyEffectsToSlideXml(slideXml, slideEffects[i]);
+      modified = true;
+    }
+
+    // Inject animation timing XML
+    const timingXml = buildTimingXml(slideAnimations[i] ?? []);
+    if (timingXml) {
+      slideXml = slideXml.replace("</p:sld>", `${timingXml}</p:sld>`);
+      modified = true;
+    }
+
+    if (modified) {
+      zip.file(slidePath, slideXml);
+    }
   }
 
   const result = await zip.generateAsync({ type: "nodebuffer" });
@@ -391,10 +420,101 @@ function renderSideBorders(
   }
 }
 
+/** Pattern presets that are rendered as actual line/dot shapes instead of <a:pattFill>. */
+const SHAPE_RENDERED_PATTERNS = new Set(["narHorz", "narVert", "smGrid", "lgGrid"]);
+
+/**
+ * Render a pattern fill as actual shapes (lines/grid) in PPTX.
+ * OOXML pattern presets have fixed tiny cell sizes that can't be scaled,
+ * so we draw actual shapes with spacing matching the CSS rendering.
+ */
+function renderPatternAsShapes(slide: Slide, el: ShapeElement): void {
+  const pf = el.style.patternFill!;
+  const color = hexColor(pf.fgColor === "transparent" ? "000000" : pf.fgColor);
+  const transparency = pf.fgOpacity !== undefined
+    ? Math.round((1 - pf.fgOpacity) * 100)
+    : 0;
+  const fill: PptxGenJS.ShapeFillProps = { color, transparency };
+
+  switch (pf.preset) {
+    case "narHorz": {
+      // Horizontal scan lines — CSS uses 4px period with 2px lines
+      // Use 6px spacing in PPTX for ~180 lines (balances fidelity vs shape count)
+      const spacingPx = 6;
+      const lineH = pxToInchesY(1);
+      const count = Math.floor(el.rect.h / spacingPx);
+      const r = rectToInches(el.rect);
+      for (let i = 0; i < count; i++) {
+        slide.addShape(SHAPES.RECTANGLE, {
+          x: r.x,
+          y: r.y + pxToInchesY(i * spacingPx),
+          w: r.w,
+          h: lineH,
+          fill,
+        });
+      }
+      break;
+    }
+    case "narVert": {
+      const spacingPx = 6;
+      const lineW = pxToInchesX(1);
+      const count = Math.floor(el.rect.w / spacingPx);
+      const r = rectToInches(el.rect);
+      for (let i = 0; i < count; i++) {
+        slide.addShape(SHAPES.RECTANGLE, {
+          x: r.x + pxToInchesX(i * spacingPx),
+          y: r.y,
+          w: lineW,
+          h: r.h,
+          fill,
+        });
+      }
+      break;
+    }
+    case "smGrid":
+    case "lgGrid": {
+      // Grid lines — CSS uses 40px period with 1px lines
+      const spacingPx = pf.preset === "smGrid" ? 40 : 60;
+      const lineW = pxToInchesX(1);
+      const lineH = pxToInchesY(1);
+      const r = rectToInches(el.rect);
+      // Horizontal lines
+      const hCount = Math.floor(el.rect.h / spacingPx);
+      for (let i = 0; i < hCount; i++) {
+        slide.addShape(SHAPES.RECTANGLE, {
+          x: r.x,
+          y: r.y + pxToInchesY(i * spacingPx),
+          w: r.w,
+          h: lineH,
+          fill,
+        });
+      }
+      // Vertical lines
+      const vCount = Math.floor(el.rect.w / spacingPx);
+      for (let i = 0; i < vCount; i++) {
+        slide.addShape(SHAPES.RECTANGLE, {
+          x: r.x + pxToInchesX(i * spacingPx),
+          y: r.y,
+          w: lineW,
+          h: r.h,
+          fill,
+        });
+      }
+      break;
+    }
+  }
+}
+
 function renderShape(
   slide: Slide,
   el: ShapeElement,
 ): void {
+  // Pattern fills with line/grid presets: render as actual shapes
+  if (el.style.patternFill && SHAPE_RENDERED_PATTERNS.has(el.style.patternFill.preset)) {
+    renderPatternAsShapes(slide, el);
+    return;
+  }
+
   const r = rectToInches(el.rect);
   const shapeType = getShapeType(el.shape, el.style);
 

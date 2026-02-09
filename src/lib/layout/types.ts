@@ -36,6 +36,27 @@ export interface TextStyle {
   verticalAlign?: "top" | "middle" | "bottom";
 }
 
+/** OOXML pattern fill presets supported for both web and PPTX. */
+export type PatternPreset =
+  | "narHorz"    // scan lines (narrow horizontal)
+  | "narVert"    // narrow vertical lines
+  | "smGrid"     // small grid
+  | "lgGrid"     // large grid
+  | "dotGrid"    // dot grid
+  | "pct5"       // 5% dots (subtle halftone)
+  | "pct10"      // 10% dots
+  | "dnDiag"     // diagonal lines (down)
+  | "upDiag"     // diagonal lines (up)
+  | "diagCross"; // diagonal crosshatch
+
+export interface PatternFillDef {
+  preset: PatternPreset;
+  fgColor: string;
+  fgOpacity?: number; // 0-1, default 1
+  bgColor?: string;   // default: transparent
+  bgOpacity?: number; // 0-1, default 0
+}
+
 export interface ShapeStyle {
   fill?: string;
   stroke?: string;
@@ -43,7 +64,22 @@ export interface ShapeStyle {
   borderRadius?: number;
   opacity?: number;
   gradient?: GradientDef;
+  patternFill?: PatternFillDef;
   shadow?: BoxShadow;
+}
+
+// --- Effects (glow, softEdge, blur) — applied via OOXML post-processing + CSS ---
+
+export interface GlowEffect {
+  color: string;
+  radius: number;   // blur radius in px (mapped to EMU for OOXML)
+  opacity?: number;  // 0-1, default 0.6
+}
+
+export interface ElementEffects {
+  glow?: GlowEffect;
+  softEdge?: number; // feather radius in px
+  blur?: number;     // Gaussian blur radius in px
 }
 
 export interface BorderDef {
@@ -75,6 +111,7 @@ export interface TextElement {
   rect: Rect;
   text: string;
   style: TextStyle;
+  effects?: ElementEffects;
   animation?: AnimationDef;
 }
 
@@ -97,6 +134,7 @@ export interface ShapeElement {
   shape: "rect" | "circle" | "line" | "pill";
   style: ShapeStyle;
   border?: BorderDef;
+  effects?: ElementEffects;
   animation?: AnimationDef;
 }
 
@@ -108,6 +146,7 @@ export interface GroupElement {
   style?: ShapeStyle;
   border?: BorderDef;
   clipContent?: boolean;
+  effects?: ElementEffects;
   animation?: AnimationDef;
 }
 
@@ -181,13 +220,20 @@ export interface LayoutPresentation {
 // --- Decorator IDs for theme signature elements ---
 
 export type DecoratorId =
+  // Tier 1A — standard shapes
   | "split-bg"
   | "edge-tabs"
   | "section-number"
   | "geometric-accent"
   | "accent-line"
   | "binder-holes"
-  | "bordered-box";
+  | "bordered-box"
+  // Tier 1B — effects shapes (glow, softEdge, patternFill)
+  | "glow-accent"
+  | "soft-gradient-circles"
+  | "scan-lines"
+  | "grid-overlay"
+  | "halftone-dots";
 
 // --- Resolved theme (concrete values, no CSS vars) ---
 

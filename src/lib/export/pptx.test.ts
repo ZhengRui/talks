@@ -277,6 +277,115 @@ describe("exportPptx", () => {
     expect(slide2).toContain("ppt_y");
   });
 
+  it("injects effects XML for shapes with glow/softEdge", async () => {
+    const layout: LayoutPresentation = {
+      title: "Effects Test",
+      slides: [
+        {
+          width: 1920,
+          height: 1080,
+          background: "#1a1a2e",
+          elements: [
+            {
+              kind: "shape",
+              id: "glow-circle",
+              rect: { x: 100, y: 100, w: 400, h: 400 },
+              shape: "circle",
+              style: { fill: "#00ffcc", opacity: 0.18 },
+              effects: {
+                glow: { color: "#00ffcc", radius: 100, opacity: 0.7 },
+                softEdge: 20,
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const buffer = await exportPptx(layout);
+    const zip = await JSZip.loadAsync(buffer);
+    const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string");
+    expect(slideXml).toBeDefined();
+    expect(slideXml).toContain("<a:effectLst>");
+    expect(slideXml).toContain("<a:glow");
+    expect(slideXml).toContain("<a:softEdge");
+  });
+
+  it("renders narHorz pattern as actual line shapes", async () => {
+    const layout: LayoutPresentation = {
+      title: "Pattern Test",
+      slides: [
+        {
+          width: 1920,
+          height: 1080,
+          background: "#0a0a0a",
+          elements: [
+            {
+              kind: "shape",
+              id: "scan-lines",
+              rect: { x: 0, y: 0, w: 1920, h: 1080 },
+              shape: "rect",
+              style: {
+                patternFill: {
+                  preset: "narHorz",
+                  fgColor: "#00ff00",
+                  fgOpacity: 0.06,
+                  bgColor: "transparent",
+                  bgOpacity: 0,
+                },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const buffer = await exportPptx(layout);
+    const zip = await JSZip.loadAsync(buffer);
+    const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string");
+    expect(slideXml).toBeDefined();
+    // Should contain many rectangle shapes with the green fill, not a pattFill
+    expect(slideXml).not.toContain("<a:pattFill");
+    const shapeCount = (slideXml!.match(/<p:sp>/g) ?? []).length;
+    expect(shapeCount).toBeGreaterThan(100); // ~180 scan lines
+    expect(slideXml).toContain('val="00FF00"');
+  });
+
+  it("injects pattFill for dot pattern presets", async () => {
+    const layout: LayoutPresentation = {
+      title: "Dot Pattern Test",
+      slides: [
+        {
+          width: 1920,
+          height: 1080,
+          background: "#0a0a0a",
+          elements: [
+            {
+              kind: "shape",
+              id: "halftone",
+              rect: { x: 0, y: 0, w: 1920, h: 1080 },
+              shape: "rect",
+              style: {
+                patternFill: {
+                  preset: "pct10",
+                  fgColor: "#ff0000",
+                  fgOpacity: 0.25,
+                  bgColor: "transparent",
+                },
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const buffer = await exportPptx(layout);
+    const zip = await JSZip.loadAsync(buffer);
+    const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string");
+    expect(slideXml).toBeDefined();
+    expect(slideXml).toContain('<a:pattFill prst="pct10">');
+  });
+
   it("tracks correct spids for group elements", async () => {
     const layout: LayoutPresentation = {
       title: "Group Animation",
