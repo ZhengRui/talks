@@ -83,22 +83,48 @@ describe("buildTimingXml", () => {
     expect(xml).toContain('x="100000"');
   });
 
-  it("groups multiple spids into one animation par", () => {
+  it("reverses multi-spid pars (foreground first), no fade, unique grpIds", () => {
     const entries: AnimationEntry[] = [
-      { spids: [3, 4, 5], animation: { type: "fade-in", delay: 0, duration: 600 } },
+      { spids: [3, 4, 5], animation: { type: "fade-up", delay: 0, duration: 600 } },
     ];
     const xml = buildTimingXml(entries);
     expect(xml).toContain('spid="3"');
     expect(xml).toContain('spid="4"');
     expect(xml).toContain('spid="5"');
-    // 3 fade effects (one per spid), all inside one entry par
+    // No fade for multi-shape entries — prevents color blending flash
     const fadeEffects = xml.match(/<p:animEffect /g) || [];
-    expect(fadeEffects.length).toBe(3);
-    // Only one entry par (id=3), not three separate ones
-    // With single entry, there should be exactly 3 cTn with delay:
-    // auto-play container + 1 entry + 3 visibility sets
-    // The entry par cTn has id="3"
-    expect(xml).toContain('id="3"');
+    expect(fadeEffects.length).toBe(0);
+    // Motion still applied to all shapes
+    const motionEffects = xml.match(/<p:anim /g) || [];
+    expect(motionEffects.length).toBe(3);
+    // Each spid gets unique grpId (required for bldLst auto-hiding)
+    expect(xml).toContain('grpId="0"');
+    expect(xml).toContain('grpId="1"');
+    expect(xml).toContain('grpId="2"');
+    // Reversed order: spid 5 (foreground) appears before spid 3 (backing) in XML
+    const idx5 = xml.indexOf('spid="5"');
+    const idx3 = xml.indexOf('spid="3"');
+    expect(idx5).toBeLessThan(idx3);
+  });
+
+  it("generates bldLst with one bldP per animated shape", () => {
+    const entries: AnimationEntry[] = [
+      { spids: [3, 4, 5], animation: { type: "fade-in", delay: 0, duration: 600 } },
+    ];
+    const xml = buildTimingXml(entries);
+    // bldLst tells apps which shapes to auto-hide before entrance animations
+    expect(xml).toContain("<p:bldLst>");
+    // Each shape gets unique grpId
+    expect(xml).toContain("<p:bldP");
+    // All 3 shapes present in bldLst
+    const bldEntries = xml.match(/<p:bldP /g) || [];
+    expect(bldEntries.length).toBe(3);
+    // bldLst should be after tnLst, before closing timing
+    const bldIdx = xml.indexOf("<p:bldLst>");
+    const tnEndIdx = xml.indexOf("</p:tnLst>");
+    const timingEndIdx = xml.indexOf("</p:timing>");
+    expect(bldIdx).toBeGreaterThan(tnEndIdx);
+    expect(bldIdx).toBeLessThan(timingEndIdx);
   });
 
   it("handles multiple animation entries with staggered delays", () => {

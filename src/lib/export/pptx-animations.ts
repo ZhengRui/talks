@@ -72,12 +72,25 @@ function compressForPptx(entries: AnimationEntry[]): AnimationEntry[] {
   });
 }
 
+/** Tracks a shape's participation in the build list for auto-hiding. */
+interface BuildEntry {
+  spid: number;
+  grpId: number;
+}
+
 /**
  * Build OOXML `<p:timing>` XML for a slide's animations.
  * All animations use nodeType="withEffect" so they auto-play on slide entry
  * without requiring clicks. Uses presetID=10 (Fade) as the base preset
  * for all types — custom <p:anim> elements add subtle motion on top.
  * Delays are compressed to equal spacing (max 500ms) for snappy playback.
+ *
+ * Includes `<p:bldLst>` with one `<p:bldP>` per animated shape so that
+ * presentation apps auto-hide each shape before its entrance animation.
+ * Each shape gets a unique `grpId` matching its entry-par — without this,
+ * apps only auto-hide the first shape in a group (backing shapes animate
+ * but foreground shapes like text remain visible from the start).
+ *
  * Returns empty string if no animatable entries exist.
  */
 export function buildTimingXml(entries: AnimationEntry[]): string {
@@ -89,6 +102,9 @@ export function buildTimingXml(entries: AnimationEntry[]): string {
   let nextId = 1;
   const id = () => nextId++;
 
+  let nextGrpId = 0;
+  const grpId = () => nextGrpId++;
+
   const id1 = id(); // tmRoot
   const id2 = id(); // mainSeq
   const id3 = id(); // click-group
@@ -99,40 +115,68 @@ export function buildTimingXml(entries: AnimationEntry[]): string {
   // Apps use this to auto-hide each shape before its entrance animation.
   // Putting multiple spids in one <p:par> causes some apps to only hide the first.
   const elementPars: string[] = [];
+  const buildEntries: BuildEntry[] = [];
   for (const entry of compressed) {
-    elementPars.push(...buildEntryPars(entry, id));
+    const result = buildEntryPars(entry, id, grpId);
+    elementPars.push(...result.pars);
+    buildEntries.push(...result.builds);
   }
+
+  // <p:bldLst> tells the app which shapes participate in entrance animations
+  // and should be auto-hidden before their animation plays.
+  const bldLst = `<p:bldLst>${buildEntries.map((e) => `<p:bldP spid="${e.spid}" grpId="${e.grpId}"/>`).join("")}</p:bldLst>`;
 
   // Structure matches WPS-generated XML: click-group → wrapper-par → entry-pars.
   // WPS requires the extra wrapper <p:par> between click-group and entry-pars.
-  return `<p:timing><p:tnLst><p:par><p:cTn id="${id1}" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst><p:seq concurrent="1" nextAc="seek"><p:cTn id="${id2}" dur="indefinite" nodeType="mainSeq"><p:childTnLst><p:par><p:cTn id="${id3}" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst><p:par><p:cTn id="${id4}" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>${elementPars.join("")}</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn><p:prevCondLst><p:cond evt="onPrev" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:prevCondLst><p:nextCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:nextCondLst></p:seq></p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>`;
+  return `<p:timing><p:tnLst><p:par><p:cTn id="${id1}" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst><p:seq concurrent="1" nextAc="seek"><p:cTn id="${id2}" dur="indefinite" nodeType="mainSeq"><p:childTnLst><p:par><p:cTn id="${id3}" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst><p:par><p:cTn id="${id4}" fill="hold"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>${elementPars.join("")}</p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn></p:par></p:childTnLst></p:cTn><p:prevCondLst><p:cond evt="onPrev" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:prevCondLst><p:nextCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:nextCondLst></p:seq></p:childTnLst></p:cTn></p:par></p:tnLst>${bldLst}</p:timing>`;
 }
 
 /**
  * Build one `<p:par>` per spid in an AnimationEntry.
- * Standard PowerPoint gives each shape its own `<p:par>` with `presetClass="entr"`.
- * This ensures apps auto-hide each shape before its entrance animation.
- * The first spid gets the entry's delay; subsequent spids get delay=0
- * so all shapes in the group animate simultaneously.
+ *
+ * Each shape needs its own par with a unique grpId so that `<p:bldLst>`
+ * auto-hiding works for all shapes (shared grpId only hides the first).
+ *
+ * For multi-shape entries (groups using the backing-shape technique):
+ * - Pars are emitted in REVERSE order (foreground first, backing last).
+ *   Apps process pars sequentially — if the backing par triggers first,
+ *   the accent color is briefly visible before the foreground covers it.
+ *   Reversing ensures the opaque foreground appears first, so the backing
+ *   is never visible to the user.
+ * - Fade is skipped — overlapping shapes cause color blending when they
+ *   fade independently. Motion (slide-up) is still applied to all shapes.
+ *
+ * For single-shape entries: full animation (fade + motion).
  *
  * Uses presetID=10 (Fade) as the base preset for all types.
  * Uses nodeType="withEffect" so everything auto-plays on slide entry.
- * grpId="0" matches the standard PowerPoint pattern.
  */
 function buildEntryPars(
   entry: AnimationEntry,
   id: () => number,
-): string[] {
+  grpId: () => number,
+): { pars: string[]; builds: BuildEntry[] } {
   const { animation, spids } = entry;
+  const pars: string[] = [];
+  const builds: BuildEntry[] = [];
+  const isMultiShape = spids.length > 1;
 
-  return spids.map((spid, i) => {
+  // Reverse for multi-shape: foreground (text, inset) first, backing last.
+  const ordered = isMultiShape ? [...spids].reverse() : spids;
+
+  for (let i = 0; i < ordered.length; i++) {
+    const spid = ordered[i];
     const parId = id();
+    const gid = grpId();
     const delay = i === 0 ? animation.delay : 0;
     const children: string[] = [];
     children.push(buildVisibilitySet(spid, id));
-    children.push(...buildBehaviorList(spid, animation, id));
-    return `<p:par><p:cTn id="${parId}" fill="hold" grpId="0" presetID="10" presetClass="entr" presetSubtype="0" nodeType="withEffect"><p:stCondLst><p:cond delay="${delay}"/></p:stCondLst><p:childTnLst>${children.join("")}</p:childTnLst></p:cTn></p:par>`;
-  });
+    children.push(...buildBehaviorList(spid, animation, id, !isMultiShape));
+    pars.push(`<p:par><p:cTn id="${parId}" fill="hold" grpId="${gid}" presetID="10" presetClass="entr" presetSubtype="0" nodeType="withEffect"><p:stCondLst><p:cond delay="${delay}"/></p:stCondLst><p:childTnLst>${children.join("")}</p:childTnLst></p:cTn></p:par>`);
+    builds.push({ spid, grpId: gid });
+  }
+
+  return { pars, builds };
 }
 
 function buildVisibilitySet(spid: number, id: () => number): string {
@@ -147,23 +191,29 @@ function buildVisibilitySet(spid: number, id: () => number): string {
  *   slide-left:  translateX(-60px) → 60/1920 ≈ 0.031
  *   slide-right: translateX(60px)  → 60/1920 ≈ 0.031
  *   scale-up:    scale(0.85→1)     → 85000→100000 EMU
+ *
+ * When `includeFade` is false, only motion/scale behaviors are returned
+ * (no opacity transition). Used for foreground shapes in multi-shape groups
+ * to prevent color blending flash during simultaneous independent fades.
  */
 function buildBehaviorList(
   spid: number,
   anim: AnimationDef,
   id: () => number,
+  includeFade: boolean,
 ): string[] {
+  const fade = includeFade ? [buildFade(spid, anim, id)] : [];
   switch (anim.type) {
     case "fade-in":
-      return [buildFade(spid, anim, id)];
+      return fade;
     case "fade-up":
-      return [buildFade(spid, anim, id), buildPositionY(spid, anim, id, 0.028)];
+      return [...fade, buildPositionY(spid, anim, id, 0.028)];
     case "slide-left":
-      return [buildFade(spid, anim, id), buildPositionX(spid, anim, id, 0.031)];
+      return [...fade, buildPositionX(spid, anim, id, 0.031)];
     case "slide-right":
-      return [buildFade(spid, anim, id), buildPositionX(spid, anim, id, -0.031)];
+      return [...fade, buildPositionX(spid, anim, id, -0.031)];
     case "scale-up":
-      return [buildFade(spid, anim, id), buildScale(spid, anim, id)];
+      return [...fade, buildScale(spid, anim, id)];
     default:
       return [];
   }
