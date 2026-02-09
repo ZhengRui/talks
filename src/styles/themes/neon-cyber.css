@@ -31,3 +31,11 @@
   --sl-highlight-success-bg: rgba(0, 255, 204, 0.1);
   --sl-highlight-success-border: #00ffcc;
 }
+
+/* Web-only: neon text glow on headings */
+.slide.theme-neon-cyber [style*="font-weight: 700"] {
+  text-shadow:
+    0 0 10px rgba(0, 255, 204, 0.6),
+    0 0 30px rgba(0, 255, 204, 0.4),
+    0 0 60px rgba(0, 255, 204, 0.15);
+}
