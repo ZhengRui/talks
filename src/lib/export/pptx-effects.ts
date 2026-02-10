@@ -2,14 +2,16 @@
 // Injects <a:effectLst> (glow, softEdge, blur) and <a:pattFill> into shape XML
 // after PptxGenJS generates the file.
 
-import type { ElementEffects, PatternFillDef } from "@/lib/layout/types";
-import { hexColor } from "./pptx-helpers";
+import type { ElementEffects, PatternFillDef, GradientDef } from "@/lib/layout/types";
+import { hexColor, colorAlpha } from "./pptx-helpers";
 
 /** Entry mapping PptxGenJS shape indices to their effects. */
 export interface EffectsEntry {
   spids: number[];
   effects?: ElementEffects;
   patternFill?: PatternFillDef;
+  gradient?: GradientDef;
+  textAlpha?: number; // OOXML alpha: 0 (transparent) to 100000 (opaque)
 }
 
 /** Convert px to EMU (English Metric Units). 1 inch = 914400 EMU, slide = 13.33 in = 1920 px. */
@@ -78,9 +80,74 @@ function buildPattFillXml(pf: PatternFillDef): string {
 }
 
 /**
+ * Build <a:gradFill> XML to replace <a:solidFill> placeholder in shape properties.
+ * CSS angle → OOXML: CSS 0° = bottom-to-top, OOXML 0° = left-to-right.
+ * OOXML angle unit = 60000ths of a degree.
+ */
+function buildGradFillXml(gradient: GradientDef): string {
+  const ooxmlDeg = (gradient.angle + 270) % 360;
+  const ooxmlAngle = Math.round(ooxmlDeg * 60000);
+
+  const stops = gradient.stops
+    .map((stop) => {
+      const pos = Math.round(stop.position * 100000);
+      const hex = hexColor(stop.color);
+      const alpha = colorAlpha(stop.color);
+
+      if (alpha !== undefined) {
+        // colorAlpha: 0 = opaque, 100 = transparent → OOXML: 100000 = opaque, 0 = transparent
+        const ooxmlAlpha = Math.round((100 - alpha) * 1000);
+        return `<a:gs pos="${pos}"><a:srgbClr val="${hex}"><a:alpha val="${ooxmlAlpha}"/></a:srgbClr></a:gs>`;
+      }
+      return `<a:gs pos="${pos}"><a:srgbClr val="${hex}"/></a:gs>`;
+    })
+    .join("");
+
+  return (
+    `<a:gradFill>` +
+      `<a:gsLst>${stops}</a:gsLst>` +
+      `<a:lin ang="${ooxmlAngle}" scaled="0"/>` +
+    `</a:gradFill>`
+  );
+}
+
+/**
  * Apply effects to a slide XML string.
  * Finds <p:sp> elements by spid and injects effectLst / replaces solidFill.
  */
+/** Entry for fixing cover image srcRect (PptxGenJS doesn't compute crop correctly). */
+export interface CoverImageEntry {
+  spid: number;
+  /** OOXML srcRect percentages in 1000ths of percent. */
+  l: number;
+  r: number;
+  t: number;
+  b: number;
+}
+
+/**
+ * Fix <a:srcRect> for cover images. PptxGenJS uses box dimensions as image
+ * dimensions, so srcRect is always zero (no crop). We replace with correct
+ * values computed from actual intrinsic image dimensions.
+ */
+export function applyCoverImagesToSlideXml(
+  slideXml: string,
+  entries: CoverImageEntry[],
+): string {
+  let xml = slideXml;
+  for (const entry of entries) {
+    // Match <p:cNvPr id="SPID"...> within <p:pic> and find its <a:srcRect>
+    const pattern = new RegExp(
+      `(<p:cNvPr\\s+id="${entry.spid}"[\\s\\S]*?)<a:srcRect[^/]*/>`,
+    );
+    xml = xml.replace(
+      pattern,
+      `$1<a:srcRect l="${entry.l}" r="${entry.r}" t="${entry.t}" b="${entry.b}"/>`,
+    );
+  }
+  return xml;
+}
+
 export function applyEffectsToSlideXml(
   slideXml: string,
   entries: EffectsEntry[],
@@ -125,7 +192,45 @@ export function applyEffectsToSlideXml(
         }
       }
 
+      // Replace solid fill placeholder with <a:gradFill>
+      if (entry.gradient) {
+        const gradFillXml = buildGradFillXml(entry.gradient);
+        if (/<a:solidFill>[\s\S]*?<\/a:solidFill>/.test(shapeXml)) {
+          shapeXml = shapeXml.replace(
+            /<a:solidFill>[\s\S]*?<\/a:solidFill>/,
+            gradFillXml,
+          );
+        } else if (shapeXml.includes("<a:noFill/>")) {
+          shapeXml = shapeXml.replace("<a:noFill/>", gradFillXml);
+        } else {
+          shapeXml = shapeXml.replace("</p:spPr>", `${gradFillXml}</p:spPr>`);
+        }
+      }
+
       xml = xml.replace(match[1], shapeXml);
+
+      // Inject text color alpha into <p:txBody> run properties
+      if (entry.textAlpha !== undefined) {
+        const fullSpPattern = new RegExp(
+          `(<p:cNvPr\\s+id="${spid}"[\\s\\S]*?</p:sp>)`,
+        );
+        const fullMatch = xml.match(fullSpPattern);
+        if (fullMatch) {
+          let fullXml = fullMatch[1];
+          const txIdx = fullXml.indexOf("<p:txBody");
+          if (txIdx >= 0) {
+            const before = fullXml.substring(0, txIdx);
+            let txPart = fullXml.substring(txIdx);
+            // Replace self-closing <a:srgbClr/> with alpha child
+            txPart = txPart.replace(
+              /<a:srgbClr val="([A-F0-9]{6})"\/>/g,
+              `<a:srgbClr val="$1"><a:alpha val="${entry.textAlpha}"/></a:srgbClr>`,
+            );
+            fullXml = before + txPart;
+          }
+          xml = xml.replace(fullMatch[1], fullXml);
+        }
+      }
     }
   }
 

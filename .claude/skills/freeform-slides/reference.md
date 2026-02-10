@@ -200,22 +200,96 @@ All elements support an optional `animation` property:
 
 **Stagger pattern**: Increment `delay` by 100-150ms between sequential elements for a cascading reveal effect. Start at delay: 0 for the first element.
 
-## Common Themes (quick reference)
+## Theme Palettes
 
-Use the `theme` field at presentation level. The theme determines default background, colors, and fonts.
+Use the `theme` field at presentation level. You can also override individual colors per-slide via custom `background` and element styles. **Don't just use defaults — adapt and combine.**
 
-| Theme | Background | Text | Accent | Heading Font |
-|-------|-----------|------|--------|-------------|
-| `modern` | #f8f9fc | #1a1a2e | #4f6df5 | Inter |
-| `bold` | #0a0a0a | #f5f5f5 | #ff6b35 | Inter |
-| `elegant` | #faf8f5 | #2d2a26 | #b8860b | Playfair Display |
-| `dark-tech` | #0a0a12 | #e0e0e0 | #00ffc8 | JetBrains Mono |
-| `paper-ink` | #faf9f7 | #1a1a1a | #c41e3a | Cormorant Garamond |
-| `swiss-modern` | #ffffff | #1a1a1a | #e63946 | Helvetica Neue |
-| `neon-cyber` | #0a0014 | #e0e0ff | #ff00ff | Orbitron |
-| `terminal-green` | #0a0a0a | #00ff41 | #00ff41 | VT323 |
+### Light Themes
 
-Each theme also provides: `bgSecondary`, `bgTertiary`, `textMuted`, `accent2`, `fontBody`, `fontMono`, `radius`, `radiusSm`, `cardBg`, `codeBg`, `codeText`.
+**`modern`** — Clean, professional. Blue accent on near-white.
+- bg: `#f8f9fc`, text: `#1a1a2e`, accent: `#4f6df5`, accent2: `#a855f7`
+- Fonts: Inter (heading + body), JetBrains Mono (code)
+- Radius: 12. Feel: Corporate but friendly.
+
+**`elegant`** — Warm, refined. Gold on parchment.
+- bg: `#faf8f5`, text: `#2d2a26`, accent: `#b8860b`, accent2: `#6b4c8a`
+- Fonts: Playfair Display (heading), Inter (body)
+- Radius: 6. Feel: Bookish, luxurious.
+
+**`paper-ink`** — Literary, thoughtful. Crimson on warm paper.
+- bg: `#faf9f7`, text: `#1a1a1a`, accent: `#c41e3a`, accent2: `#8b0000`
+- Fonts: Cormorant Garamond (heading), Source Serif 4 (body)
+- Radius: 2. Feel: Manuscript, editorial.
+
+**`swiss-modern`** — Precise, minimal. Red on pure white.
+- bg: `#ffffff`, text: `#1a1a1a`, accent: `#e63946`, accent2: `#1d3557`
+- Fonts: Helvetica Neue (heading + body)
+- Radius: 0. Feel: Bauhaus, grid-driven.
+
+**`split-pastel`** — Playful, friendly. Soft peach + lavender.
+- bg: `#fef7f0`, text: `#2d2a3e`, accent: `#e8937a`, accent2: `#9b8ec4`
+- Fonts: Outfit (heading + body)
+- Radius: 16. Feel: Startup, approachable.
+
+### Dark Themes
+
+**`bold`** — High-impact, confident. Orange on black.
+- bg: `#0a0a0a`, text: `#f5f5f5`, accent: `#ff6b35`, accent2: `#00d4ff`
+- Fonts: Inter (heading + body)
+- Radius: 4. Feel: Keynote energy, punchy.
+
+**`dark-tech`** — Futuristic. Cyan-green on deep navy.
+- bg: `#0a0a12`, text: `#e0e0e0`, accent: `#00ffc8`, accent2: `#7b61ff`
+- Fonts: JetBrains Mono (heading), Inter (body)
+- Radius: 8. Feel: Terminal meets design.
+
+**`bold-signal`** — Vibrant, modern dark. Coral + electric blue.
+- bg: `#1a1a1a`, text: `#f5f5f5`, accent: `#ff6b6b`, accent2: `#4ecdc4`
+- Fonts: Inter (heading + body)
+- Radius: 8. Feel: Confident tech pitch.
+
+**`neon-cyber`** — Futuristic, glowing. Magenta on deep purple.
+- bg: `#0a0014`, text: `#e0e0ff`, accent: `#ff00ff`, accent2: `#00ffff`
+- Fonts: Orbitron (heading), Inter (body)
+- Radius: 4. Feel: Sci-fi, cyberpunk.
+
+**`terminal-green`** — Hacker aesthetic. Green phosphor on black.
+- bg: `#0a0a0a`, text: `#00ff41`, accent: `#00ff41`, accent2: `#00cc33`
+- Fonts: VT323 (heading + body + code)
+- Radius: 0. Feel: Retro terminal, developer.
+
+Each theme also provides: `bgSecondary`, `bgTertiary`, `textMuted`, `fontMono`, `cardBg`, `codeBg`, `codeText`, `shadow`, `shadowLg`.
+
+### Using Custom Colors
+
+You can ignore themes entirely and use custom colors per element. Good for matching a brand or creating a unique palette:
+```yaml
+title: "Custom Palette Deck"
+theme: modern  # base theme for fallback
+slides:
+  - template: freeform
+    background: "#1b1f3b"  # custom deep navy
+    elements:
+      - kind: text
+        id: title
+        rect: { x: 160, y: 400, w: 1200, h: 120 }
+        text: "Think Different"
+        style: { fontFamily: "SF Pro Display, Inter, sans-serif", fontSize: 72, fontWeight: 700, color: "#e8c547", lineHeight: 1.1 }
+```
+
+## Content Density Limits
+
+| Slide Type | Maximum Content |
+|------------|----------------|
+| Hero / Title | 1 heading + 1 subtitle + optional accent element |
+| Statement | 1 sentence (max 15 words), huge text |
+| Split | 1 heading + 4-5 bullets per panel, or 1 heading + 2-3 stats |
+| Grid | 1 heading + 4-6 cards (2x2 or 2x3) |
+| Data | 1 heading + 3-4 stat blocks, or 1 table |
+| Code | 1 heading + 8-10 lines of code |
+| Quote | 1 quote (max 3 lines) + attribution |
+
+**Rule:** If content exceeds limits, split into multiple slides. Never cram.
 
 ## Component Recipes
 
@@ -331,14 +405,20 @@ Each theme also provides: `bgSecondary`, `bgTertiary`, `textMuted`, `accent2`, `
   animation: { type: fade-in, delay: 100, duration: 500 }
 ```
 
-## Tips
+## Sizing & Positioning Tips
 
-- **IDs must be unique** across all elements in a slide.
-- **Group children** use coordinates relative to the group's `rect` origin, not the canvas.
-- **Estimate text height**: `lines * fontSize * lineHeight`. One line of 42px text at lineHeight 1.2 = 50px. Add padding.
+- **Estimate text height**: `lines * fontSize * lineHeight`. One line of 42px at 1.2 = 50px. Add padding.
 - **Estimate text width**: ~0.55 * fontSize * characterCount for proportional fonts. Measure generously.
-- **Vertical centering**: To vertically center text in a box, use `verticalAlign: middle` or calculate `y = boxY + (boxH - textH) / 2`.
-- **z-order**: Elements later in the array render on top. Put background shapes first, text last.
-- **Animations on groups**: Animate the group, not individual children. All children animate together.
-- **Dark panels**: Use a full-height shape as the first element, then place light-colored text on top.
-- **PPTX export**: All elements export to PowerPoint. Avoid `count-up` (web-only). Keep animation durations 400-600ms.
+- **Vertical centering**: Use `verticalAlign: middle` or calculate `y = boxY + (boxH - textH) / 2`.
+- **Group children**: Coordinates relative to the group's `rect` origin, not the canvas.
+- **z-order**: Later elements render on top. Decorative shapes first, then content, text last.
+
+## Design Anti-Patterns (avoid these)
+
+- **The AI Grid**: 3 equal-width cards centered on every slide. Vary your layouts.
+- **Blue everything**: Using the accent color on every element. Restraint creates impact.
+- **Uniform animation**: Every element with fade-up at 100ms stagger. Use different types. Leave some static.
+- **Centered symmetry**: Everything centered, everything balanced. Off-center creates energy.
+- **Wall of text**: More than 6-8 text elements per slide. Split into multiple slides.
+- **Tiny elements**: Don't make decorative elements too small to notice. If it's worth adding, make it visible.
+- **Same layout twice**: Two consecutive slides with identical composition. Alternate between types.

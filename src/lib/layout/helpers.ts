@@ -306,6 +306,15 @@ export function backgroundImage(
       shape: "rect",
       style: { fill: "rgba(255, 255, 255, 0.7)" },
     });
+  } else if (overlay && overlay !== "none") {
+    // Custom rgba/CSS color overlay (e.g. "rgba(0,0,0,0.72)")
+    elements.push({
+      kind: "shape",
+      id: "bg-overlay",
+      rect: { x: 0, y: 0, w: CANVAS_W, h: CANVAS_H },
+      shape: "rect",
+      style: { fill: overlay },
+    });
   }
 
   return elements;

@@ -1,6 +1,7 @@
 import { resolve } from "path";
 import PptxGenJS from "pptxgenjs";
 import JSZip from "jszip";
+import sizeOf from "image-size";
 import type {
   LayoutPresentation,
   LayoutSlide,
@@ -15,6 +16,7 @@ import type {
   TextStyle,
   ShapeStyle,
   BorderDef,
+  GradientDef,
   Rect,
 } from "@/lib/layout/types";
 import {
@@ -29,7 +31,7 @@ import {
   isBold,
 } from "./pptx-helpers";
 import { buildTimingXml, type AnimationEntry } from "./pptx-animations";
-import { applyEffectsToSlideXml, type EffectsEntry } from "./pptx-effects";
+import { applyEffectsToSlideXml, applyCoverImagesToSlideXml, type EffectsEntry, type CoverImageEntry } from "./pptx-effects";
 
 /** Offset a child rect by the parent group's origin (children are relative to group). */
 function offsetRect(child: Rect, parent: Rect): Rect {
@@ -66,6 +68,11 @@ const SHAPES = {
   LINE: "line" as PptxGenJS.ShapeType,
 };
 
+// Per-slide accumulators for OOXML post-processing (reset each slide in exportPptx)
+let slideGradientEntries: { spid: number; gradient: GradientDef }[] = [];
+let slideTextAlphaEntries: { spid: number; alpha: number }[] = [];
+let slideCoverImages: { spid: number; imagePath: string; containerW: number; containerH: number }[] = [];
+
 /** Read the current object count from a PptxGenJS slide. */
 function slideObjectCount(slide: Slide): number {
   return ((slide as unknown as Record<string, unknown>)._slideObjects as unknown[])
@@ -84,10 +91,16 @@ export async function exportPptx(
   // Phase 1: Render shapes, tracking spid-to-animation and spid-to-effects mappings
   const slideAnimations: AnimationEntry[][] = [];
   const slideEffects: EffectsEntry[][] = [];
+  const slideCoverImageEntries: CoverImageEntry[][] = [];
 
   for (const layoutSlide of layout.slides) {
     const slide = pres.addSlide();
     renderSlideBackground(slide, layoutSlide);
+
+    // Reset per-slide post-processing accumulators
+    slideGradientEntries = [];
+    slideTextAlphaEntries = [];
+    slideCoverImages = [];
 
     const animations: AnimationEntry[] = [];
     const effects: EffectsEntry[] = [];
@@ -119,17 +132,59 @@ export async function exportPptx(
         }
       }
     }
+
+    // Fold render-time gradient and text alpha entries into effects
+    for (const g of slideGradientEntries) {
+      effects.push({ spids: [g.spid], gradient: g.gradient });
+    }
+    for (const t of slideTextAlphaEntries) {
+      effects.push({ spids: [t.spid], textAlpha: t.alpha });
+    }
+
+    // Calculate cover image srcRect from intrinsic image dimensions
+    const coverImages: CoverImageEntry[] = [];
+    for (const img of slideCoverImages) {
+      try {
+        const dims = sizeOf(img.imagePath);
+        if (dims.width && dims.height) {
+          const imgRatio = dims.height / dims.width;
+          const boxRatio = img.containerH / img.containerW;
+          let l = 0, r = 0, t = 0, b = 0;
+          if (boxRatio > imgRatio) {
+            // Box taller than image → fit by height, crop width
+            const scaledW = img.containerH / imgRatio;
+            const perc = Math.round(100000 * 0.5 * (1 - img.containerW / scaledW));
+            l = perc;
+            r = perc;
+          } else {
+            // Box wider than image → fit by width, crop height
+            const scaledH = img.containerW * imgRatio;
+            const perc = Math.round(100000 * 0.5 * (1 - img.containerH / scaledH));
+            t = perc;
+            b = perc;
+          }
+          if (l > 0 || r > 0 || t > 0 || b > 0) {
+            coverImages.push({ spid: img.spid, l, r, t, b });
+          }
+        }
+      } catch {
+        // Skip if image dimensions can't be read
+      }
+    }
+
     slideAnimations.push(animations);
     slideEffects.push(effects);
+    slideCoverImageEntries.push(coverImages);
   }
 
   // Phase 2: Generate PPTX buffer
   const output = (await pres.write({ outputType: "nodebuffer" })) as Buffer;
 
-  // Phase 3: Post-process with JSZip to inject animation timing + effects XML
+  // Phase 3: Post-process with JSZip to inject animation timing + effects + cover images
   const hasAnimations = slideAnimations.some((a) => a.length > 0);
   const hasEffects = slideEffects.some((e) => e.length > 0);
-  if (!hasAnimations && !hasEffects) {
+  const hasCoverImages = slideCoverImageEntries.some((c) => c.length > 0);
+  if (!hasAnimations && !hasEffects && !hasCoverImages) {
     return Buffer.from(output);
   }
 
@@ -141,6 +196,12 @@ export async function exportPptx(
     if (!slideXml) continue;
 
     let modified = false;
+
+    // Fix cover image srcRect (PptxGenJS doesn't compute crop correctly)
+    if (slideCoverImageEntries[i]?.length > 0) {
+      slideXml = applyCoverImagesToSlideXml(slideXml, slideCoverImageEntries[i]);
+      modified = true;
+    }
 
     // Inject effects (glow, softEdge, blur, patternFill)
     if (slideEffects[i]?.length > 0) {
@@ -247,8 +308,19 @@ function textOpts(
 }
 
 function renderText(slide: Slide, el: TextElement): void {
+  const spid = slideObjectCount(slide) + 2;
   const opts = textOpts(el.style, el.rect);
   slide.addText(el.text, opts);
+
+  // Track text color alpha for OOXML post-processing
+  const alpha = colorAlpha(el.style.color);
+  if (alpha !== undefined && alpha > 0) {
+    // colorAlpha: 0 = opaque, 100 = transparent → OOXML: 100000 = opaque, 0 = transparent
+    slideTextAlphaEntries.push({
+      spid,
+      alpha: Math.round((100 - alpha) * 1000),
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -271,6 +343,7 @@ function resolveImagePath(src: string): string {
 
 function renderImage(slide: Slide, el: ImageElement): void {
   const r = rectToInches(el.rect);
+  const spid = slideObjectCount(slide) + 2;
   const imgOpts: PptxGenJS.ImageProps = {
     x: r.x,
     y: r.y,
@@ -295,6 +368,12 @@ function renderImage(slide: Slide, el: ImageElement): void {
   }
 
   slide.addImage(imgOpts);
+
+  // Track cover images for OOXML post-processing (PptxGenJS doesn't compute
+  // srcRect correctly — it uses box dimensions instead of intrinsic image dims)
+  if (el.objectFit === "cover" && !resolved.startsWith("data:") && !resolved.startsWith("http")) {
+    slideCoverImages.push({ spid, imagePath: resolved, containerW: r.w, containerH: r.h });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -549,7 +628,13 @@ function renderShape(
   const shadow = makeShadow(el.style.shadow);
   if (shadow) opts.shadow = shadow;
 
+  const spid = slideObjectCount(slide) + 2;
   slide.addShape(shapeType, opts);
+
+  // Track gradient for OOXML post-processing (replaces solid fill placeholder)
+  if (el.style.gradient?.stops?.length) {
+    slideGradientEntries.push({ spid, gradient: el.style.gradient });
+  }
 
   // Render side borders as thin overlay rectangles
   if (el.border?.sides?.length) {
@@ -579,7 +664,10 @@ function renderGroup(
     // 1. Draw accent-colored rounded rect (full size) — the border color shows through
     // 2. Draw card fill rounded rect inset by border width — covers accent except at borders
     // This makes borders follow the rounded corners instead of overflowing.
-    if (hasSideBorders && hasRadius && borderVisible && fillVisible) {
+    // Skip for semi-transparent fills: border color bleeds through the transparent inset.
+    const fillAlpha = el.style?.fill ? (colorAlpha(el.style.fill) ?? 0) : 0;
+    const fillMostlyOpaque = fillAlpha < 5;
+    if (hasSideBorders && hasRadius && borderVisible && fillVisible && fillMostlyOpaque) {
       const bw = pxToInchesY(el.border!.width);
       const radius = radiusToInches(el.style!.borderRadius!);
       const sides = el.border!.sides!;
@@ -637,7 +725,13 @@ function renderGroup(
       if (shadow) bgOpts.shadow = shadow;
 
       const shapeType = hasRadius ? SHAPES.ROUNDED_RECTANGLE : SHAPES.RECTANGLE;
+      const bgSpid = slideObjectCount(slide) + 2;
       slide.addShape(shapeType, bgOpts);
+
+      // Track group background gradient for OOXML post-processing
+      if (el.style?.gradient?.stops?.length) {
+        slideGradientEntries.push({ spid: bgSpid, gradient: el.style.gradient });
+      }
 
       // Flat side borders (no radius — plain overlay rectangles are fine)
       if (hasSideBorders) {
