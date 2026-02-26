@@ -36,6 +36,8 @@ import { layoutIconGrid } from "./icon-grid";
 import { layoutVideo } from "./video";
 import { layoutIframe } from "./iframe";
 import { layoutFreeform } from "./freeform";
+import { layoutSplitCompose } from "./split-compose";
+import { layoutFullCompose } from "./full-compose";
 
 export type LayoutFunction = (
   slide: SlideData,
@@ -80,6 +82,8 @@ const layoutRegistry: Record<string, LayoutFunction> = {
   video: layoutVideo as LayoutFunction,
   iframe: layoutIframe as LayoutFunction,
   freeform: layoutFreeform as LayoutFunction,
+  "split-compose": layoutSplitCompose as LayoutFunction,
+  "full-compose": layoutFullCompose as LayoutFunction,
 };
 
 export function getLayoutFunction(template: string): LayoutFunction | null {

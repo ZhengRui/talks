@@ -107,6 +107,17 @@ describe("colorAlpha", () => {
     expect(colorAlpha("transparent")).toBe(100);
   });
 
+  it("extracts transparency from 8-digit hex (#RRGGBBAA)", () => {
+    // #...22 → alpha byte 0x22 = 34 → opacity 34/255 ≈ 13% → transparency 87%
+    expect(colorAlpha("#b8860b22")).toBe(87);
+    // #...80 → alpha byte 0x80 = 128 → opacity ~50% → transparency 50%
+    expect(colorAlpha("#ff000080")).toBe(50);
+    // #...FF → fully opaque
+    expect(colorAlpha("#ff0000ff")).toBeUndefined();
+    // #...00 → fully transparent
+    expect(colorAlpha("#ff000000")).toBe(100);
+  });
+
   it("returns undefined for empty string", () => {
     expect(colorAlpha("")).toBeUndefined();
   });

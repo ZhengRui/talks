@@ -102,6 +102,14 @@ export function colorAlpha(color: string): number | undefined {
 
   const s = color.trim();
 
+  // #RRGGBBAA (8-digit hex)
+  if (s.startsWith("#") && s.length === 9) {
+    const aa = parseInt(s.slice(7, 9), 16);
+    if (aa >= 255) return undefined; // fully opaque
+    if (aa <= 0) return 100; // fully transparent
+    return Math.round((1 - aa / 255) * 100);
+  }
+
   // rgba(r,g,b,a)
   const rgbaMatch = s.match(
     /rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*([\d.]+)\s*\)/,

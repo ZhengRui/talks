@@ -1,4 +1,5 @@
 import type { LayoutElement } from "./layout/types";
+import type { SlideComponent, PanelDef } from "./layout/components/types";
 
 // --- Per-template slide data ---
 
@@ -256,6 +257,24 @@ export interface FreeformSlideData {
   elements: LayoutElement[];
 }
 
+// Composable (v6 — component tree → vertical stacker → Level 2 IR)
+export interface SplitComposeSlideData {
+  template: "split-compose";
+  ratio?: number;
+  left: PanelDef;
+  right: PanelDef;
+}
+
+export interface FullComposeSlideData {
+  template: "full-compose";
+  background?: string;
+  align?: "left" | "center";
+  children: SlideComponent[];
+}
+
+// Re-export for convenience
+export type { SlideComponent, PanelDef };
+
 // --- Discriminated union ---
 
 export type SlideData = (
@@ -295,6 +314,8 @@ export type SlideData = (
   | BlankSlideData
   | EndSlideData
   | FreeformSlideData
+  | SplitComposeSlideData
+  | FullComposeSlideData
 ) & SlideBaseFields;
 
 // --- Animation override ---

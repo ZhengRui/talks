@@ -27,7 +27,7 @@ Follow TDD: write failing test → implement → green. Enforced by Superpowers 
 
 ## Architecture
 
-YAML + layout-model-driven presentation hub. See `docs/design-v3.md` for full details.
+YAML + layout-model-driven presentation hub. See `docs/design-v3.md` for base architecture, `docs/design-v6.md` for the composable component layer.
 
 **Data flow:** `content/[slug]/slides.yaml` → `loadPresentation()` → `layoutPresentation()` → `LayoutPresentation` JSON → `LayoutRenderer` (web) or `exportPptx()` (PPTX)
 
@@ -38,7 +38,8 @@ YAML + layout-model-driven presentation hub. See `docs/design-v3.md` for full de
 - `src/lib/layout/types.ts` — `LayoutSlide`, `LayoutElement`, `ResolvedTheme`, `AnimationDef`
 - `src/lib/layout/theme.ts` — 4 resolved theme definitions, `resolveTheme()`
 - `src/lib/layout/helpers.ts` — shared layout utilities (`titleBlock`, `stackVertical`, etc.)
-- `src/lib/layout/templates/` — 35 layout functions (one per template), registry in `index.ts`
+- `src/lib/layout/components/` — composable component layer (v6): types, resolvers, stacker, theme tokens
+- `src/lib/layout/templates/` — 38 layout functions (35 rigid + freeform + split-compose + full-compose), registry in `index.ts`
 - `src/lib/export/pptx.ts` — `exportPptx()` via PptxGenJS, spid tracking + JSZip post-processing for animations
 - `src/lib/export/pptx-animations.ts` — OOXML `<p:timing>` XML builder for entrance animations
 - `src/lib/export/pptx-helpers.ts` — coordinate/color/font conversion utilities

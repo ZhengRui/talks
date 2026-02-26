@@ -13,7 +13,6 @@ body {
   background: var(--sl-bg, #000);
   color: var(--sl-text, #fff);
   font-family: var(--sl-font-body, system-ui, sans-serif);
-  overflow: hidden;
 }
 
 *,

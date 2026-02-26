@@ -13,20 +13,20 @@ v6 adds a **component layer**: new composable templates that accept typed compon
 ```
 content/[slug]/slides.yaml
     |
-loadPresentation()                        [unchanged]
+loadPresentation()
     |
-PresentationData                          [extended — new slide types]
+PresentationData
     |
-layoutPresentation()                      [extended — dispatches to new templates]
-  |-- resolveTheme(themeName)             [unchanged]
+layoutPresentation()
+  |-- resolveTheme(themeName)
   |-- layoutSlide(slide, theme)
-  |     |-- rigid templates (35 existing)     → LayoutSlide  [unchanged]
-  |     |-- split-compose / full-compose      → component resolver → LayoutSlide  [NEW]
-  |     |-- freeform                          → passthrough → LayoutSlide  [NEW]
+  |     |-- rigid templates (35 existing)     → LayoutSlide
+  |     |-- split-compose / full-compose      → component resolver → LayoutSlide
+  |     |-- freeform                          → passthrough → LayoutSlide
     |
-LayoutPresentation (JSON)                 [unchanged schema]
-    |-- Web:  LayoutRenderer.tsx          [unchanged]
-    |-- PPTX: exportPptx()               [unchanged]
+LayoutPresentation (JSON)
+    |-- Web:  LayoutRenderer.tsx
+    |-- PPTX: exportPptx()
 ```
 
 ## Composable Templates
@@ -44,17 +44,25 @@ Two-panel layout. Each panel has a `children` list of typed components.
     background: theme.bgSecondary
     textColor: theme.text
     children:
-      - tag: { text: "总览", color: theme.accent }
-      - heading: "何为五代十国？"
-      - divider: gradient
-      - bullets: ["唐朝灭亡...", "中原先后..."]
+      - type: tag
+        text: "总览"
+        color: theme.accent
+      - type: heading
+        text: "何为五代十国？"
+      - type: divider
+        variant: gradient
+      - type: bullets
+        items: ["唐朝灭亡...", "中原先后..."]
   right:
     background: "#1a1714"
     textColor: "#e8e0d0"
     children:
-      - stat: { value: "72", label: "年（907-979）" }
-      - stat: { value: "5", label: "中原王朝" }
-      - seal: { char: "史" }
+      - type: stat
+        value: "72"
+        label: "年（907-979）"
+      - type: stat
+        value: "5"
+        label: "中原王朝"
 ```
 
 The resolver splits the 1920×1080 canvas into left (0..960) and right (960..1920) panels at the given ratio, then stacks each panel's children vertically.
@@ -68,10 +76,15 @@ Single centered content area.
   background: theme.bg
   align: center                       # optional: left | center (default)
   children:
-    - heading: "时代背景"
-    - divider: solid
-    - bullets: ["安史之乱后...", "地方藩镇..."]
-    - quote: { text: "天子，兵强马壮者当为之", attribution: "安重荣" }
+    - type: heading
+      text: "时代背景"
+    - type: divider
+      variant: solid
+    - type: bullets
+      items: ["安史之乱后...", "地方藩镇..."]
+    - type: quote
+      text: "天子，兵强马壮者当为之"
+      attribution: "安重荣"
 ```
 
 Content area uses standard margins (CONTENT_X=160, CONTENT_W=1600, PADDING_Y=60).
@@ -111,7 +124,7 @@ Each component resolves to `LayoutElement[]`:
 | `spacer` | No elements — advances vertical position only |
 | `raw` | Passthrough — LayoutElement[] with coordinates offset to bounding box |
 
-This vocabulary will grow as recurring `raw` patterns are promoted to named components.
+This vocabulary grows as recurring `raw` patterns are promoted to named components (see Phase 3 in implementation plan).
 
 ## Component Resolver
 
@@ -152,9 +165,9 @@ Hardcoded hex values (e.g., `"#1a1714"`) pass through unchanged.
 For visual elements not in the component menu, `raw` embeds `LayoutElement[]` directly:
 
 ```yaml
-- raw:
-    height: 65
-    elements:
+- type: raw
+  height: 65
+  elements:
       - kind: shape
         rect: { x: 0, y: 0, w: 65, h: 65 }
         shape: rect
@@ -228,16 +241,16 @@ interface PanelDef {
 
 ```
 src/lib/layout/
-  components/                          [NEW directory]
+  components/
     types.ts                           -- SlideComponent union, PanelDef
     resolvers.ts                       -- one resolver function per component type
     stacker.ts                         -- vertical stacking engine
     theme-tokens.ts                    -- theme.* string → concrete value resolver
   templates/
-    index.ts                           -- registry (add 3 new entries)
-    freeform.ts                        -- NEW: passthrough layout function
-    split-compose.ts                   -- NEW: two-panel composable layout
-    full-compose.ts                    -- NEW: single-area composable layout
+    index.ts                           -- registry (38 templates)
+    freeform.ts                        -- passthrough layout function
+    split-compose.ts                   -- two-panel composable layout
+    full-compose.ts                    -- single-area composable layout
     ... (35 existing templates)        -- unchanged
 ```
 
@@ -257,3 +270,10 @@ src/lib/layout/
 - **Dual-target constraint maintained** — Everything resolves to `LayoutElement[]`. Composition freedom is the goal, not new visual capabilities beyond our 7 element types.
 - **Best-effort height estimation** — Perfect font metrics is impractical without a browser. Accept imprecision and warn on overflow rather than blocking on a hard problem.
 - **Freeform as escape valve** — When composable templates aren't enough, `template: freeform` provides full Level 2 IR access with no abstraction layer.
+- **Three rendering paths coexist** — Old templates produce IR directly (most expressive), compose templates use components + stacker (automated layout), freeform passes IR through (full manual control). No migration needed — each path serves a different use case.
+
+## Status
+
+- **Phase 1** (Freeform Passthrough): Complete. Skill: `freeform-slides`.
+- **Phase 2** (Composable Templates): Complete. Unified into `create-slides` skill (covers old templates, compose, and freeform).
+- **Phase 3** (Evolve Vocabulary): Not started. Data-driven — requires usage analysis before extending components.
