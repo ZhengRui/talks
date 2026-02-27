@@ -25,14 +25,17 @@ describe("loadPresentation", () => {
     expect(cover.image).toBe("cover-bg.jpg");
   });
 
-  it("parses bullets slide fields correctly", () => {
+  it("expands DSL bullets template into full-compose", () => {
     const data = loadPresentation("70-years-of-ai");
-    const bullets = data.slides[1];
+    const slide = data.slides[1];
 
-    expect(bullets.template).toBe("bullets");
-    if (bullets.template !== "bullets") throw new Error("expected bullets");
-    expect(bullets.title).toBe("AI Applications");
-    expect(bullets.bullets).toHaveLength(5);
+    // DSL expansion: template: bullets → template: full-compose
+    expect(slide.template).toBe("full-compose");
+    if (slide.template !== "full-compose") throw new Error("expected full-compose");
+    // heading + divider + bullets = 3 children
+    expect(slide.children).toHaveLength(3);
+    expect(slide.children[0]).toMatchObject({ type: "heading", text: "AI Applications" });
+    expect(slide.children[2]).toMatchObject({ type: "bullets" });
   });
 
   it("defaults theme to undefined when not specified", () => {

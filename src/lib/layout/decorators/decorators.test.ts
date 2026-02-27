@@ -186,9 +186,8 @@ describe("decorator integration", () => {
 
   it("electric-studio slides include split background", () => {
     const slide: SlideData = {
-      template: "bullets",
+      template: "cover",
       title: "Test",
-      bullets: ["A"],
     };
     const result = layoutPresentation("Test", [slide], "electric-studio", "/img");
     const layout = result.slides[0];
@@ -345,7 +344,7 @@ describe("Tier 1B integration", () => {
   });
 
   it("terminal-green slides include scan-lines", () => {
-    const slide: SlideData = { template: "bullets", title: "Test", bullets: ["A"] };
+    const slide: SlideData = { template: "cover", title: "Test" };
     const result = layoutPresentation("Test", [slide], "terminal-green", "/img");
     const layout = result.slides[0];
     const scanEl = layout.elements.find((e) => e.id === "deco-scan-lines");

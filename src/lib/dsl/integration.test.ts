@@ -33,7 +33,7 @@ function expandAndLayout(
 
 describe("DSL integration: template expansion + layout", () => {
   it("dsl-bullets: expands and lays out", () => {
-    const { slide, layout } = expandAndLayout("dsl-bullets", {
+    const { slide, layout } = expandAndLayout("bullets", {
       title: "Test Bullets",
       bullets: ["Point A", "Point B", "Point C"],
     });
@@ -50,7 +50,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-stats: expands with title and stats", () => {
-    const { slide, layout } = expandAndLayout("dsl-stats", {
+    const { slide, layout } = expandAndLayout("stats", {
       title: "Metrics",
       stats: [
         { value: "42", label: "Answer" },
@@ -69,7 +69,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-stats: expands without title", () => {
-    const { slide } = expandAndLayout("dsl-stats", {
+    const { slide } = expandAndLayout("stats", {
       stats: [{ value: "1", label: "One" }],
     });
 
@@ -81,7 +81,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-statement: expands with subtitle", () => {
-    const { slide, layout } = expandAndLayout("dsl-statement", {
+    const { slide, layout } = expandAndLayout("statement", {
       statement: "Big Idea",
       subtitle: "Supporting text",
     });
@@ -97,7 +97,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-statement: expands without subtitle", () => {
-    const { slide } = expandAndLayout("dsl-statement", {
+    const { slide } = expandAndLayout("statement", {
       statement: "Solo Statement",
     });
 
@@ -108,7 +108,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-quote: expands with attribution", () => {
-    const { slide, layout } = expandAndLayout("dsl-quote", {
+    const { slide, layout } = expandAndLayout("quote", {
       quote: "To be or not to be.",
       attribution: "Shakespeare",
     });
@@ -128,7 +128,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-quote: expands without attribution", () => {
-    const { slide } = expandAndLayout("dsl-quote", {
+    const { slide } = expandAndLayout("quote", {
       quote: "Just a quote.",
     });
 
@@ -138,7 +138,7 @@ describe("DSL integration: template expansion + layout", () => {
 
   it("dsl-code: expands with title and language", () => {
     const code = 'function greet() {\n  return "hello";\n}';
-    const { slide, layout } = expandAndLayout("dsl-code", {
+    const { slide, layout } = expandAndLayout("code", {
       title: "Code Example",
       language: "typescript",
       code,
@@ -159,7 +159,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-code: expands without title", () => {
-    const { slide } = expandAndLayout("dsl-code", {
+    const { slide } = expandAndLayout("code", {
       code: "x = 1",
     });
 
@@ -170,7 +170,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-numbered-list: expands and lays out", () => {
-    const { slide, layout } = expandAndLayout("dsl-numbered-list", {
+    const { slide, layout } = expandAndLayout("numbered-list", {
       title: "Steps",
       items: ["First", "Second", "Third"],
     });
@@ -189,7 +189,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-definition: expands with multiple definitions", () => {
-    const { slide, layout } = expandAndLayout("dsl-definition", {
+    const { slide, layout } = expandAndLayout("definition", {
       title: "Terms",
       definitions: [
         { term: "TDD", description: "Test-Driven Development" },
@@ -217,7 +217,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-blank: expands to empty compose slide", () => {
-    const { slide, layout } = expandAndLayout("dsl-blank", {});
+    const { slide, layout } = expandAndLayout("blank", {});
 
     expect(slide.template).toBe("full-compose");
     const fc = slide as FullComposeSlideData;
@@ -229,7 +229,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-end: expands with title and subtitle", () => {
-    const { slide, layout } = expandAndLayout("dsl-end", {
+    const { slide, layout } = expandAndLayout("end", {
       title: "Goodbye",
       subtitle: "Any questions?",
     });
@@ -245,7 +245,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-end: uses default title when none provided", () => {
-    const { slide } = expandAndLayout("dsl-end", {});
+    const { slide } = expandAndLayout("end", {});
 
     const fc = slide as FullComposeSlideData;
     expect(fc.children[0]).toMatchObject({ type: "heading", text: "Thank You" });
@@ -254,12 +254,12 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("style overrides propagate through layout", () => {
-    const def = findTemplate("dsl-bullets");
+    const def = findTemplate("bullets");
     expect(def).not.toBeNull();
 
     const slide = expandDslTemplate(
       {
-        template: "dsl-bullets",
+        template: "bullets",
         title: "Custom Size",
         bullets: ["A"],
         style: { titleSize: 72 },

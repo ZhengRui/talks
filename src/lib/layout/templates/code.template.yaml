@@ -1,4 +1,4 @@
-name: dsl-code
+name: code
 params:
   code: { type: string, required: true }
   title: { type: string }

@@ -1,4 +1,4 @@
-name: dsl-blank
+name: blank
 params: {}
 
 base: full-compose

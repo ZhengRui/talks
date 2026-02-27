@@ -1,4 +1,4 @@
-name: dsl-stats
+name: stats
 params:
   title: { type: string }
   stats: { type: array, required: true }

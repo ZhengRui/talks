@@ -1,22 +1,13 @@
 import type { SlideData } from "@/lib/types";
 import type { LayoutSlide, ResolvedTheme } from "../types";
 import { layoutCover } from "./cover";
-import { layoutBullets } from "./bullets";
-import { layoutStats } from "./stats";
 import { layoutComparison } from "./comparison";
 import { layoutTable } from "./table";
-import { layoutBlank } from "./blank";
-import { layoutEnd } from "./end";
-import { layoutStatement } from "./statement";
 import { layoutSectionDivider } from "./section-divider";
 import { layoutFullImage } from "./full-image";
-import { layoutQuote } from "./quote";
 import { layoutHighlightBox } from "./highlight-box";
 import { layoutQa } from "./qa";
-import { layoutNumberedList } from "./numbered-list";
-import { layoutDefinition } from "./definition";
 import { layoutAgenda } from "./agenda";
-import { layoutCode } from "./code";
 import { layoutCodeComparison } from "./code-comparison";
 import { layoutDiagram } from "./diagram";
 import { layoutChartPlaceholder } from "./chart-placeholder";
@@ -47,22 +38,13 @@ export type LayoutFunction = (
 
 const layoutRegistry: Record<string, LayoutFunction> = {
   cover: layoutCover as LayoutFunction,
-  bullets: layoutBullets as LayoutFunction,
-  stats: layoutStats as LayoutFunction,
   comparison: layoutComparison as LayoutFunction,
   table: layoutTable as LayoutFunction,
-  blank: layoutBlank as LayoutFunction,
-  end: layoutEnd as LayoutFunction,
-  statement: layoutStatement as LayoutFunction,
   "section-divider": layoutSectionDivider as LayoutFunction,
   "full-image": layoutFullImage as LayoutFunction,
-  quote: layoutQuote as LayoutFunction,
   "highlight-box": layoutHighlightBox as LayoutFunction,
   qa: layoutQa as LayoutFunction,
-  "numbered-list": layoutNumberedList as LayoutFunction,
-  definition: layoutDefinition as LayoutFunction,
   agenda: layoutAgenda as LayoutFunction,
-  code: layoutCode as LayoutFunction,
   "code-comparison": layoutCodeComparison as LayoutFunction,
   diagram: layoutDiagram as LayoutFunction,
   "chart-placeholder": layoutChartPlaceholder as LayoutFunction,

@@ -1,4 +1,4 @@
-name: dsl-definition
+name: definition
 params:
   title: { type: string, required: true }
   definitions: { type: array, required: true }

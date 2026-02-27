@@ -1,6 +1,6 @@
-name: dsl-end
+name: statement
 params:
-  title: { type: string }
+  statement: { type: string, required: true }
   subtitle: { type: string }
 
 base: full-compose
@@ -8,8 +8,8 @@ align: center
 verticalAlign: center
 children:
   - type: heading
-    text: "{{ title or 'Thank You' }}"
-    fontSize: 80
+    text: "{{ statement }}"
+    fontSize: 72
     textAlign: center
   {% if subtitle %}
   - type: divider
@@ -18,7 +18,7 @@ children:
     align: center
   - type: body
     text: "{{ subtitle }}"
-    fontSize: 36
+    fontSize: 32
     color: theme.textMuted
     textAlign: center
   {% endif %}

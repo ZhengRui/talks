@@ -201,57 +201,8 @@ describe("layoutPresentation - cover", () => {
   });
 });
 
-describe("layoutPresentation - bullets", () => {
-  const bulletSlide: SlideData = {
-    template: "bullets",
-    title: "Key Points",
-    bullets: ["Point one", "Point two", "Point three"],
-  };
-
-  it("produces title and bullet groups", () => {
-    const result = layoutPresentation("Test", [bulletSlide], "modern", "/img");
-    const slide = result.slides[0];
-
-    // Title (text) + accent line (shape) + 3 bullet groups
-    expect(slide.elements.length).toBe(5);
-    const groups = slide.elements.filter((e) => e.kind === "group");
-    expect(groups).toHaveLength(3);
-  });
-
-  it("staggers bullet animations", () => {
-    const result = layoutPresentation("Test", [bulletSlide], "modern", "/img");
-    const slide = result.slides[0];
-    const groups = slide.elements.filter((e) => e.kind === "group");
-    const delays = groups.map((g) => g.animation?.delay ?? 0);
-    expect(delays[0]).toBeLessThan(delays[1]);
-    expect(delays[1]).toBeLessThan(delays[2]);
-  });
-});
-
-describe("layoutPresentation - stats", () => {
-  const statsSlide: SlideData = {
-    template: "stats",
-    title: "Numbers",
-    stats: [
-      { value: "99%", label: "Uptime" },
-      { value: "50M", label: "Users" },
-      { value: "< 1s", label: "Response" },
-    ],
-  };
-
-  it("produces stat card groups", () => {
-    const result = layoutPresentation("Test", [statsSlide], "bold", "/img");
-    const slide = result.slides[0];
-    const groups = slide.elements.filter((e) => e.kind === "group");
-    expect(groups).toHaveLength(3); // 3 stat cards
-  });
-
-  it("uses bold theme colors", () => {
-    const result = layoutPresentation("Test", [statsSlide], "bold", "/img");
-    const slide = result.slides[0];
-    expect(slide.background).toBe("#0a0a0a");
-  });
-});
+// Note: bullets and stats rigid templates removed in v7 — now DSL-based
+// Integration tests for DSL templates are in src/lib/dsl/integration.test.ts
 
 describe("layoutPresentation - comparison", () => {
   const compSlide: SlideData = {

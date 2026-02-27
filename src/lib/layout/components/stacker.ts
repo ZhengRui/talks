@@ -131,7 +131,7 @@ export function stackComponents(
   });
 
   // Warn on overflow in development
-  if (cursorY > panel.h) {
+  if (cursorY > panel.h + 1) {
     console.warn(
       `[stacker] Content height (${Math.round(cursorY)}px) exceeds panel height (${Math.round(panel.h)}px). ` +
         `Overflow of ${Math.round(cursorY - panel.h)}px.`,

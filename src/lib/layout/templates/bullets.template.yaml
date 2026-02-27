@@ -1,9 +1,10 @@
-name: dsl-numbered-list
+name: bullets
 params:
   title: { type: string, required: true }
-  items: { type: "string[]", required: true }
+  bullets: { type: "string[]", required: true }
 style:
   titleSize: { type: number, default: 56 }
+  bulletVariant: { type: string, default: card }
 
 base: full-compose
 children:
@@ -16,6 +17,5 @@ children:
     marginTop: 16
     marginBottom: 40
   - type: bullets
-    ordered: true
-    variant: plain
-    items: {{ items }}
+    items: {{ bullets }}
+    variant: {{ style.bulletVariant }}

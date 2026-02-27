@@ -1,4 +1,4 @@
-name: dsl-quote
+name: quote
 params:
   quote: { type: string, required: true }
   attribution: { type: string }

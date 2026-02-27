@@ -12,44 +12,11 @@ export interface CoverSlideData {
   author?: string;
 }
 
-export interface BulletSlideData {
-  template: "bullets";
-  title: string;
-  bullets: string[];
-  image?: string;
-}
-
 export interface SectionDividerSlideData {
   template: "section-divider";
   title: string;
   subtitle?: string;
   image?: string;
-}
-
-export interface QuoteSlideData {
-  template: "quote";
-  quote: string;
-  attribution?: string;
-  image?: string;
-}
-
-export interface StatementSlideData {
-  template: "statement";
-  statement: string;
-  subtitle?: string;
-  image?: string;
-}
-
-export interface NumberedListSlideData {
-  template: "numbered-list";
-  title: string;
-  items: string[];
-}
-
-export interface DefinitionSlideData {
-  template: "definition";
-  title: string;
-  definitions: { term: string; description: string }[];
 }
 
 export interface AgendaSlideData {
@@ -134,13 +101,6 @@ export interface SidebarSlideData {
 }
 
 // Data & Technical
-export interface CodeSlideData {
-  template: "code";
-  title?: string;
-  code: string;
-  language?: string;
-}
-
 export interface CodeComparisonSlideData {
   template: "code-comparison";
   title?: string;
@@ -159,12 +119,6 @@ export interface TimelineSlideData {
   template: "timeline";
   title?: string;
   events: { date: string; label: string; description?: string }[];
-}
-
-export interface StatsSlideData {
-  template: "stats";
-  title?: string;
-  stats: { value: string; label: string }[];
 }
 
 export interface ChartPlaceholderSlideData {
@@ -236,18 +190,6 @@ export interface IframeSlideData {
   title?: string;
 }
 
-export interface BlankSlideData {
-  template: "blank";
-  image?: string;
-}
-
-export interface EndSlideData {
-  template: "end";
-  title?: string;
-  subtitle?: string;
-  image?: string;
-}
-
 // Freeform (v6 — direct Level 2 IR passthrough)
 export interface FreeformSlideData {
   template: "freeform";
@@ -280,12 +222,7 @@ export type { SlideComponent, PanelDef };
 
 export type SlideData = (
   | CoverSlideData
-  | BulletSlideData
   | SectionDividerSlideData
-  | QuoteSlideData
-  | StatementSlideData
-  | NumberedListSlideData
-  | DefinitionSlideData
   | AgendaSlideData
   | FullImageSlideData
   | ImageTextSlideData
@@ -297,11 +234,9 @@ export type SlideData = (
   | ThreeColumnSlideData
   | TopBottomSlideData
   | SidebarSlideData
-  | CodeSlideData
   | CodeComparisonSlideData
   | TableSlideData
   | TimelineSlideData
-  | StatsSlideData
   | ChartPlaceholderSlideData
   | DiagramSlideData
   | ComparisonSlideData
@@ -312,8 +247,6 @@ export type SlideData = (
   | QaSlideData
   | VideoSlideData
   | IframeSlideData
-  | BlankSlideData
-  | EndSlideData
   | FreeformSlideData
   | SplitComposeSlideData
   | FullComposeSlideData
