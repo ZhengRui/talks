@@ -52,6 +52,8 @@ export function layoutSplitCompose(
       textColor: leftTextColor,
       imageBase,
       idPrefix: "l",
+      verticalAlign: slide.left.verticalAlign,
+      animationBaseDelay: 0,
     }),
   );
 
@@ -69,6 +71,7 @@ export function layoutSplitCompose(
       imageBase,
       idPrefix: "r",
       animationBaseDelay: 300, // right panel starts later
+      verticalAlign: slide.right.verticalAlign,
     }),
   );
 

@@ -80,6 +80,69 @@ describe("resolveColor", () => {
 // Component resolvers
 // ============================================================
 
+describe("resolveComponent — text", () => {
+  it("produces a text element with default body style", () => {
+    const { elements, height } = resolveComponent(
+      { type: "text", text: "Hello world" },
+      makeCtx(),
+    );
+    expect(elements).toHaveLength(1);
+    expect(elements[0].kind).toBe("text");
+    if (elements[0].kind === "text") {
+      expect(elements[0].text).toBe("Hello world");
+      expect(elements[0].style.fontSize).toBe(28);
+      expect(elements[0].style.fontWeight).toBe(400);
+      expect(elements[0].style.fontFamily).toBe(theme.fontBody);
+    }
+    expect(height).toBeGreaterThan(0);
+  });
+
+  it("respects all style overrides", () => {
+    const { elements } = resolveComponent(
+      {
+        type: "text",
+        text: "Styled",
+        fontSize: 36,
+        fontWeight: "bold",
+        fontFamily: "heading",
+        color: "theme.accent",
+        textAlign: "center",
+        fontStyle: "italic",
+        lineHeight: 1.2,
+      },
+      makeCtx(),
+    );
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.fontSize).toBe(36);
+      expect(elements[0].style.fontWeight).toBe(700);
+      expect(elements[0].style.fontFamily).toBe(theme.fontHeading);
+      expect(elements[0].style.color).toBe(theme.accent);
+      expect(elements[0].style.textAlign).toBe("center");
+      expect(elements[0].style.fontStyle).toBe("italic");
+      expect(elements[0].style.lineHeight).toBe(1.2);
+    }
+  });
+
+  it("returns gapBefore/gapAfter from marginTop/marginBottom", () => {
+    const result = resolveComponent(
+      { type: "text", text: "Spaced", marginTop: 8, marginBottom: 40 },
+      makeCtx(),
+    );
+    expect(result.gapBefore).toBe(8);
+    expect(result.gapAfter).toBe(40);
+  });
+
+  it("uses mono font family", () => {
+    const { elements } = resolveComponent(
+      { type: "text", text: "code", fontFamily: "mono" },
+      makeCtx(),
+    );
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.fontFamily).toBe(theme.fontMono);
+    }
+  });
+});
+
 describe("resolveComponent — heading", () => {
   it("produces a text element with heading style", () => {
     const { elements, height } = resolveComponent(
@@ -125,6 +188,46 @@ describe("resolveComponent — heading", () => {
       expect(elements[0].style.color).toBe("#ffffff");
     }
   });
+
+  it("respects textAlign prop", () => {
+    const { elements } = resolveComponent(
+      { type: "heading", text: "Centered", textAlign: "center" },
+      makeCtx(),
+    );
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.textAlign).toBe("center");
+    }
+  });
+
+  it("defaults textAlign to left", () => {
+    const { elements } = resolveComponent(
+      { type: "heading", text: "Default" },
+      makeCtx(),
+    );
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.textAlign).toBe("left");
+    }
+  });
+
+  it("respects fontSize override", () => {
+    const { elements } = resolveComponent(
+      { type: "heading", text: "Big", fontSize: 80 },
+      makeCtx(),
+    );
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.fontSize).toBe(80);
+    }
+  });
+
+  it("fontSize override takes precedence over level", () => {
+    const { elements } = resolveComponent(
+      { type: "heading", text: "Custom", level: 2, fontSize: 72 },
+      makeCtx(),
+    );
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.fontSize).toBe(72);
+    }
+  });
 });
 
 describe("resolveComponent — body", () => {
@@ -140,6 +243,46 @@ describe("resolveComponent — body", () => {
       expect(elements[0].style.fontWeight).toBe(400);
     }
     expect(height).toBeGreaterThan(0);
+  });
+
+  it("respects textAlign prop", () => {
+    const { elements } = resolveComponent(
+      { type: "body", text: "Centered body", textAlign: "center" },
+      makeCtx(),
+    );
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.textAlign).toBe("center");
+    }
+  });
+
+  it("respects fontSize override", () => {
+    const { elements } = resolveComponent(
+      { type: "body", text: "Large body", fontSize: 36 },
+      makeCtx(),
+    );
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.fontSize).toBe(36);
+    }
+  });
+
+  it("respects color override with theme token", () => {
+    const { elements } = resolveComponent(
+      { type: "body", text: "Muted", color: "theme.textMuted" },
+      makeCtx(),
+    );
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.color).toBe(theme.textMuted);
+    }
+  });
+
+  it("color override takes precedence over panel textColor", () => {
+    const { elements } = resolveComponent(
+      { type: "body", text: "Custom", color: "#ff0000" },
+      makeCtx({ textColor: "#ffffff" }),
+    );
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.color).toBe("#ff0000");
+    }
   });
 });
 
@@ -165,6 +308,116 @@ describe("resolveComponent — bullets", () => {
       expect(group.border?.color).toBe(theme.accent);
     }
   });
+
+  it("defaults to 30px font and 16px gap", () => {
+    const { elements } = resolveComponent(
+      { type: "bullets", items: ["A", "B"] },
+      makeCtx(),
+    );
+    // Check font size on the text child inside the group
+    const group = elements[0];
+    if (group.kind === "group") {
+      const textEl = group.children[0];
+      if (textEl.kind === "text") {
+        expect(textEl.style.fontSize).toBe(30);
+      }
+    }
+    // Gap check: second item y > first item y + first item h + 16
+    const gap = elements[1].rect.y - (elements[0].rect.y + elements[0].rect.h);
+    expect(gap).toBe(16);
+  });
+
+  it("respects fontSize override", () => {
+    const { elements } = resolveComponent(
+      { type: "bullets", items: ["A"], fontSize: 24 },
+      makeCtx(),
+    );
+    const group = elements[0];
+    if (group.kind === "group") {
+      const textEl = group.children[0];
+      if (textEl.kind === "text") {
+        expect(textEl.style.fontSize).toBe(24);
+      }
+    }
+  });
+
+  it("respects gap override", () => {
+    const { elements } = resolveComponent(
+      { type: "bullets", items: ["A", "B"], gap: 8 },
+      makeCtx(),
+    );
+    const gap = elements[1].rect.y - (elements[0].rect.y + elements[0].rect.h);
+    expect(gap).toBe(8);
+  });
+
+  it("applies per-item staggered animation when animate is true", () => {
+    const { elements } = resolveComponent(
+      { type: "bullets", items: ["A", "B", "C"] },
+      makeCtx({ animate: true, animationDelay: 200 }),
+    );
+    expect(elements).toHaveLength(3);
+    elements.forEach((el, i) => {
+      expect(el.animation).toBeDefined();
+      expect(el.animation!.type).toBe("fade-up");
+      expect(el.animation!.delay).toBe(200 + i * 100);
+    });
+  });
+
+  it("does not apply animation when animate is false", () => {
+    const { elements } = resolveComponent(
+      { type: "bullets", items: ["A", "B"] },
+      makeCtx({ animate: false }),
+    );
+    elements.forEach((el) => {
+      expect(el.animation).toBeUndefined();
+    });
+  });
+
+  it("ordered card variant renders circle badges inside groups", () => {
+    const { elements } = resolveComponent(
+      { type: "bullets", ordered: true, items: ["First", "Second"] },
+      makeCtx({ animate: false }),
+    );
+    expect(elements).toHaveLength(2);
+    elements.forEach((el) => expect(el.kind).toBe("group"));
+    // Each group should have a badge group + text child
+    if (elements[0].kind === "group") {
+      expect(elements[0].children.length).toBe(2);
+      const badge = elements[0].children[0];
+      expect(badge.kind).toBe("group");
+      if (badge.kind === "group") {
+        expect(badge.style?.borderRadius).toBe(100); // circle
+        expect(badge.style?.fill).toBe(theme.accent);
+      }
+      // No left accent border for ordered
+      expect(elements[0].border).toBeUndefined();
+    }
+  });
+
+  it("plain variant renders text without card background", () => {
+    const { elements } = resolveComponent(
+      { type: "bullets", variant: "plain", items: ["A", "B"] },
+      makeCtx({ animate: false }),
+    );
+    // Plain unordered: just text elements, no groups
+    elements.forEach((el) => expect(el.kind).toBe("text"));
+  });
+
+  it("ordered plain variant renders badges and text separately", () => {
+    const { elements } = resolveComponent(
+      { type: "bullets", ordered: true, variant: "plain", items: ["A", "B"] },
+      makeCtx({ animate: false }),
+    );
+    // Each item produces a badge group + text element = 4 total
+    expect(elements).toHaveLength(4);
+    expect(elements[0].kind).toBe("group"); // badge
+    expect(elements[1].kind).toBe("text");  // text
+    expect(elements[2].kind).toBe("group"); // badge
+    expect(elements[3].kind).toBe("text");  // text
+    if (elements[0].kind === "group") {
+      expect(elements[0].style?.borderRadius).toBe(100);
+    }
+  });
 });
 
 describe("resolveComponent — stat", () => {
@@ -185,6 +438,197 @@ describe("resolveComponent — stat", () => {
       expect(elements[1].style.fontSize).toBe(24);
     }
     expect(height).toBeGreaterThan(0);
+  });
+
+  it("defaults textAlign to left", () => {
+    const { elements } = resolveComponent(
+      { type: "stat", value: "42", label: "items" },
+      makeCtx(),
+    );
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.textAlign).toBe("left");
+    }
+    if (elements[1].kind === "text") {
+      expect(elements[1].style.textAlign).toBe("left");
+    }
+  });
+
+  it("respects textAlign center", () => {
+    const { elements } = resolveComponent(
+      { type: "stat", value: "99", label: "score", textAlign: "center" },
+      makeCtx(),
+    );
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.textAlign).toBe("center");
+    }
+    if (elements[1].kind === "text") {
+      expect(elements[1].style.textAlign).toBe("center");
+    }
+  });
+});
+
+describe("resolveComponent — columns", () => {
+  it("distributes children horizontally with correct widths", () => {
+    const panel: Rect = { x: 0, y: 0, w: 800, h: 600 };
+    const { elements, height } = resolveComponent(
+      {
+        type: "columns",
+        children: [
+          { type: "stat", value: "10", label: "A" },
+          { type: "stat", value: "20", label: "B" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    // 2 columns, default gap 32: colW = (800 - 32) / 2 = 384
+    // Each stat produces 2 text elements → 4 total
+    expect(elements).toHaveLength(4);
+    // First column elements at x=0
+    expect(elements[0].rect.x).toBe(0);
+    // Second column elements at x = 384 + 32 = 416
+    expect(elements[2].rect.x).toBe(416);
+    expect(height).toBeGreaterThan(0);
+  });
+
+  it("uses custom gap", () => {
+    const panel: Rect = { x: 0, y: 0, w: 800, h: 600 };
+    const { elements } = resolveComponent(
+      {
+        type: "columns",
+        gap: 16,
+        children: [
+          { type: "stat", value: "1", label: "X" },
+          { type: "stat", value: "2", label: "Y" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    // colW = (800 - 16) / 2 = 392, second col at 392 + 16 = 408
+    expect(elements[2].rect.x).toBe(408);
+  });
+
+  it("height is max of children heights", () => {
+    const panel: Rect = { x: 0, y: 0, w: 800, h: 600 };
+    const { height } = resolveComponent(
+      {
+        type: "columns",
+        children: [
+          { type: "stat", value: "1", label: "Short" },
+          { type: "stat", value: "2", label: "Short" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    // Both stats have same height — max should equal either
+    const singleStat = resolveComponent(
+      { type: "stat", value: "1", label: "Short" },
+      makeCtx({ panel, animate: false }),
+    );
+    expect(height).toBe(singleStat.height);
+  });
+
+  it("applies per-column staggered animation", () => {
+    const panel: Rect = { x: 0, y: 0, w: 900, h: 600 };
+    const { elements } = resolveComponent(
+      {
+        type: "columns",
+        children: [
+          { type: "stat", value: "A", label: "a" },
+          { type: "stat", value: "B", label: "b" },
+          { type: "stat", value: "C", label: "c" },
+        ],
+      },
+      makeCtx({ panel, animate: true, animationDelay: 200 }),
+    );
+    // Each column's elements should have staggered delays
+    // Col 0: delay 200, Col 1: delay 300, Col 2: delay 400
+    expect(elements[0].animation).toBeDefined();
+    expect(elements[0].animation!.delay).toBe(200);
+    expect(elements[2].animation).toBeDefined();
+    expect(elements[2].animation!.delay).toBe(300);
+    expect(elements[4].animation).toBeDefined();
+    expect(elements[4].animation!.delay).toBe(400);
+  });
+
+  it("returns empty for no children", () => {
+    const { elements, height } = resolveComponent(
+      { type: "columns", children: [] },
+      makeCtx({ animate: false }),
+    );
+    expect(elements).toHaveLength(0);
+    expect(height).toBe(0);
+  });
+});
+
+describe("resolveComponent — box", () => {
+  it("wraps children in GroupElement with card styling", () => {
+    const { elements, height } = resolveComponent(
+      {
+        type: "box",
+        children: [{ type: "stat", value: "42", label: "Answer" }],
+      },
+      makeCtx({ animate: false }),
+    );
+    expect(elements).toHaveLength(1);
+    expect(elements[0].kind).toBe("group");
+    if (elements[0].kind === "group") {
+      expect(elements[0].style?.fill).toBe(theme.cardBg);
+      expect(elements[0].style?.borderRadius).toBe(theme.radius);
+      expect(elements[0].style?.shadow).toEqual(theme.shadow);
+      expect(elements[0].children.length).toBeGreaterThan(0);
+    }
+    expect(height).toBeGreaterThan(0);
+  });
+
+  it("accentTop adds top border", () => {
+    const { elements } = resolveComponent(
+      {
+        type: "box",
+        accentTop: true,
+        children: [{ type: "stat", value: "1", label: "X" }],
+      },
+      makeCtx({ animate: false }),
+    );
+    if (elements[0].kind === "group") {
+      expect(elements[0].border?.sides).toContain("top");
+      expect(elements[0].border?.color).toBe(theme.accent);
+      expect(elements[0].border?.width).toBe(3);
+    }
+  });
+
+  it("uses default cardBorder when accentTop is false", () => {
+    const { elements } = resolveComponent(
+      {
+        type: "box",
+        children: [{ type: "stat", value: "1", label: "X" }],
+      },
+      makeCtx({ animate: false }),
+    );
+    if (elements[0].kind === "group") {
+      expect(elements[0].border).toEqual(theme.cardBorder);
+    }
+  });
+
+  it("respects custom padding", () => {
+    const panel: Rect = { x: 0, y: 0, w: 400, h: 400 };
+    const result40 = resolveComponent(
+      {
+        type: "box",
+        padding: 40,
+        children: [{ type: "stat", value: "1", label: "X" }],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    const result20 = resolveComponent(
+      {
+        type: "box",
+        padding: 20,
+        children: [{ type: "stat", value: "1", label: "X" }],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    // Larger padding → taller box (more top+bottom padding)
+    expect(result40.height).toBeGreaterThan(result20.height);
   });
 });
 
@@ -241,6 +685,78 @@ describe("resolveComponent — divider", () => {
       expect(elements[0].style.fill).toBe(theme.accent);
     }
   });
+
+  it("respects width override", () => {
+    const { elements } = resolveComponent(
+      { type: "divider", width: 120 },
+      makeCtx(),
+    );
+    expect(elements[0].rect.w).toBe(120);
+  });
+
+  it("centers divider when align is center", () => {
+    const { elements } = resolveComponent(
+      { type: "divider", width: 120, align: "center" },
+      makeCtx(), // panel.w = 800
+    );
+    expect(elements[0].rect.x).toBe((800 - 120) / 2);
+    expect(elements[0].rect.w).toBe(120);
+  });
+
+  it("defaults divider to left alignment", () => {
+    const { elements } = resolveComponent(
+      { type: "divider" },
+      makeCtx(),
+    );
+    expect(elements[0].rect.x).toBe(0);
+  });
+
+  it("returns gapBefore/gapAfter from marginTop/marginBottom", () => {
+    const result = resolveComponent(
+      { type: "divider", marginTop: 16, marginBottom: 40 },
+      makeCtx(),
+    );
+    expect(result.gapBefore).toBe(16);
+    expect(result.gapAfter).toBe(40);
+  });
+
+  it("gapBefore/gapAfter are undefined when margins not set", () => {
+    const result = resolveComponent(
+      { type: "divider" },
+      makeCtx(),
+    );
+    expect(result.gapBefore).toBeUndefined();
+    expect(result.gapAfter).toBeUndefined();
+  });
+});
+
+describe("stacker — gapBefore/gapAfter", () => {
+  it("divider marginTop/marginBottom override stacker gap", () => {
+    const components: SlideComponent[] = [
+      { type: "heading", text: "Title" },
+      { type: "divider", variant: "gradient", marginTop: 16, marginBottom: 40 },
+      { type: "body", text: "Content" },
+    ];
+    const panel: Rect = { x: 100, y: 50, w: 800, h: 900 };
+    const els = stackComponents(components, panel, theme, { animate: false, imageBase: "" });
+
+    // Find the divider and body elements
+    const divider = els.find((e) => e.id.includes("divider"));
+    const heading = els.find((e) => e.id.includes("heading"));
+    const body = els.find((e) => e.id.includes("body"));
+
+    expect(divider).toBeDefined();
+    expect(heading).toBeDefined();
+    expect(body).toBeDefined();
+
+    // Gap from heading bottom to divider top = marginTop (16)
+    const headingBottom = heading!.rect.y + heading!.rect.h;
+    expect(divider!.rect.y - headingBottom).toBe(16);
+
+    // Gap from divider bottom to body top = marginBottom (40)
+    const dividerBottom = divider!.rect.y + divider!.rect.h;
+    expect(body!.rect.y - dividerBottom).toBe(40);
+  });
 });
 
 describe("resolveComponent — quote", () => {
@@ -267,6 +783,73 @@ describe("resolveComponent — quote", () => {
     if (elements[2].kind === "text") {
       expect(elements[2].text).toContain("Author");
     }
+  });
+
+  it("centers text and removes accent bar when textAlign is center", () => {
+    const { elements } = resolveComponent(
+      { type: "quote", text: "Centered quote.", textAlign: "center" },
+      makeCtx(),
+    );
+    // No accent bar — only quote text
+    expect(elements).toHaveLength(1);
+    expect(elements[0].kind).toBe("text");
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.textAlign).toBe("center");
+      expect(elements[0].rect.x).toBe(0); // no indent
+    }
+  });
+
+  it("respects fontSize override", () => {
+    const { elements } = resolveComponent(
+      { type: "quote", text: "Big quote.", fontSize: 36 },
+      makeCtx(),
+    );
+    const quoteText = elements.find((e) => e.kind === "text" && e.id.includes("quote-text"));
+    if (quoteText?.kind === "text") {
+      expect(quoteText.style.fontSize).toBe(36);
+    }
+  });
+
+  it("respects attributionFontSize override", () => {
+    const { elements } = resolveComponent(
+      { type: "quote", text: "Q.", attribution: "Author", attributionFontSize: 26 },
+      makeCtx(),
+    );
+    const attr = elements.find((e) => e.kind === "text" && e.id.includes("quote-attr"));
+    if (attr?.kind === "text") {
+      expect(attr.style.fontSize).toBe(26);
+    }
+  });
+
+  it("decorative adds large opening quote mark", () => {
+    const { elements, height } = resolveComponent(
+      { type: "quote", text: "A quote.", textAlign: "center", decorative: true },
+      makeCtx(),
+    );
+    // First element should be the decorative mark
+    const mark = elements.find((e) => e.kind === "text" && e.id.includes("quote-mark"));
+    expect(mark).toBeDefined();
+    if (mark?.kind === "text") {
+      expect(mark.text).toBe("\u201C");
+      expect(mark.style.fontSize).toBe(120);
+      expect(mark.style.color).toBe(theme.accent);
+    }
+    // Quote text should be below the mark
+    const quoteText = elements.find((e) => e.kind === "text" && e.id.includes("quote-text"));
+    expect(quoteText).toBeDefined();
+    expect(quoteText!.rect.y).toBeGreaterThan(mark!.rect.y);
+    expect(height).toBeGreaterThan(120);
+  });
+
+  it("decorative suppresses accent bar even for left-aligned quotes", () => {
+    const { elements } = resolveComponent(
+      { type: "quote", text: "Left decorative.", decorative: true },
+      makeCtx(),
+    );
+    const bar = elements.find((e) => e.kind === "shape" && e.id.includes("quote-bar"));
+    expect(bar).toBeUndefined();
+    const mark = elements.find((e) => e.kind === "text" && e.id.includes("quote-mark"));
+    expect(mark).toBeDefined();
   });
 });
 
@@ -342,6 +925,16 @@ describe("resolveComponent — spacer", () => {
     );
     expect(elements).toHaveLength(0);
     expect(height).toBe(50);
+  });
+
+  it("flex spacer returns height 0 and flex flag", () => {
+    const result = resolveComponent(
+      { type: "spacer", flex: true },
+      makeCtx(),
+    );
+    expect(result.elements).toHaveLength(0);
+    expect(result.height).toBe(0);
+    expect(result.flex).toBe(true);
   });
 });
 
@@ -462,6 +1055,122 @@ describe("stackComponents", () => {
   it("handles empty component list", () => {
     const elements = stackComponents([], panelRect, theme);
     expect(elements).toHaveLength(0);
+  });
+
+  it("vertically centers content when verticalAlign is center", () => {
+    const tallPanel: Rect = { x: 0, y: 0, w: 800, h: 1000 };
+    const elements = stackComponents(
+      [{ type: "heading", text: "Short" }],
+      tallPanel,
+      theme,
+      { animate: false, verticalAlign: "center" },
+    );
+    // Content should be centered — y should be > 0 (not at the top)
+    expect(elements[0].rect.y).toBeGreaterThan(0);
+    // And roughly centered
+    const contentH = elements[0].rect.h;
+    const expectedY = (tallPanel.h - contentH) / 2;
+    expect(elements[0].rect.y).toBeCloseTo(expectedY, 0);
+  });
+
+  it("aligns content to bottom when verticalAlign is bottom", () => {
+    const tallPanel: Rect = { x: 0, y: 0, w: 800, h: 1000 };
+    const elements = stackComponents(
+      [{ type: "heading", text: "Short" }],
+      tallPanel,
+      theme,
+      { animate: false, verticalAlign: "bottom" },
+    );
+    const contentH = elements[0].rect.h;
+    const expectedY = tallPanel.h - contentH;
+    expect(elements[0].rect.y).toBeCloseTo(expectedY, 0);
+  });
+
+  it("does not offset when verticalAlign is top (default)", () => {
+    const elements = stackComponents(
+      [{ type: "heading", text: "Short" }],
+      panelRect,
+      theme,
+      { animate: false, verticalAlign: "top" },
+    );
+    expect(elements[0].rect.y).toBe(panelRect.y);
+  });
+});
+
+describe("stacker — flex spacer", () => {
+  it("single flex spacer pushes subsequent content down", () => {
+    const tallPanel: Rect = { x: 0, y: 0, w: 800, h: 1000 };
+    const elements = stackComponents(
+      [
+        { type: "heading", text: "Top" },
+        { type: "spacer", flex: true },
+        { type: "heading", text: "Bottom" },
+      ],
+      tallPanel,
+      theme,
+      { animate: false },
+    );
+
+    const top = elements.find((e) => e.kind === "text" && "text" in e && e.text === "Top")!;
+    const bottom = elements.find((e) => e.kind === "text" && "text" in e && e.text === "Bottom")!;
+
+    // Top heading at y=0, bottom heading pushed down by flex space
+    expect(top.rect.y).toBe(0);
+    // Bottom heading should end at panel bottom
+    expect(bottom.rect.y + bottom.rect.h).toBeCloseTo(tallPanel.h, 0);
+  });
+
+  it("two flex spacers center content between them", () => {
+    const tallPanel: Rect = { x: 0, y: 0, w: 800, h: 1000 };
+    const elements = stackComponents(
+      [
+        { type: "heading", text: "Top" },
+        { type: "spacer", flex: true },
+        { type: "heading", text: "Middle" },
+        { type: "spacer", flex: true },
+        { type: "heading", text: "Bottom" },
+      ],
+      tallPanel,
+      theme,
+      { animate: false },
+    );
+
+    const top = elements.find((e) => e.kind === "text" && "text" in e && e.text === "Top")!;
+    const middle = elements.find((e) => e.kind === "text" && "text" in e && e.text === "Middle")!;
+    const bottom = elements.find((e) => e.kind === "text" && "text" in e && e.text === "Bottom")!;
+
+    // Top at the start
+    expect(top.rect.y).toBe(0);
+    // Middle should be roughly centered
+    const midCenter = middle.rect.y + middle.rect.h / 2;
+    expect(midCenter).toBeCloseTo(tallPanel.h / 2, -1);
+    // Bottom near the end
+    expect(bottom.rect.y + bottom.rect.h).toBeCloseTo(tallPanel.h, 0);
+  });
+
+  it("flex spacer with no remaining space gets height 0", () => {
+    const tinyPanel: Rect = { x: 0, y: 0, w: 800, h: 50 };
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const elements = stackComponents(
+      [
+        { type: "heading", text: "Big Title That Takes Space" },
+        { type: "spacer", flex: true },
+        { type: "heading", text: "Another" },
+      ],
+      tinyPanel,
+      theme,
+      { animate: false },
+    );
+
+    // Both headings should still render (flex space = 0, no negative offset)
+    expect(elements.length).toBeGreaterThanOrEqual(2);
+    // Second heading should come right after the first + two gaps (heading→spacer, spacer→heading)
+    const first = elements[0];
+    const second = elements[1];
+    expect(second.rect.y).toBeCloseTo(first.rect.y + first.rect.h + 28 * 2, 0); // 28 = default gap × 2
+
+    warnSpy.mockRestore();
   });
 });
 
@@ -639,6 +1348,21 @@ describe("layoutPresentation — full-compose", () => {
     const centerHeading = centerResult.slides[0].elements[0];
     const leftHeading = leftResult.slides[0].elements[0];
     expect(centerHeading.rect.w).toBeLessThan(leftHeading.rect.w);
+  });
+
+  it("vertically centers content when verticalAlign is center", () => {
+    const slide: SlideData = {
+      template: "full-compose",
+      verticalAlign: "center",
+      children: [{ type: "heading", text: "Centered" }],
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img");
+    const heading = result.slides[0].elements[0];
+    // Should NOT be at top (y=60 padding) — should be pushed down
+    expect(heading.rect.y).toBeGreaterThan(60);
+    // Should be roughly vertically centered on the 1080px canvas
+    expect(heading.rect.y).toBeGreaterThan(400);
+    expect(heading.rect.y).toBeLessThan(600);
   });
 });
 

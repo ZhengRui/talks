@@ -1,6 +1,6 @@
 import type { LayoutElement, ResolvedTheme, Rect } from "../types";
 import type { SlideComponent } from "./types";
-import { resolveComponent, type ResolveContext } from "./resolvers";
+import { resolveComponent, type ResolveContext, type ResolveResult } from "./resolvers";
 import { makeAnimation, staggerDelay } from "../helpers";
 
 const DEFAULT_GAP = 28;
@@ -37,12 +37,15 @@ export interface StackOptions {
   animationBaseDelay?: number;
   /** Prefix for component element IDs (default: "c"). Use distinct values per panel to avoid key collisions. */
   idPrefix?: string;
+  /** Vertical alignment of stacked content within the panel (default: "top"). */
+  verticalAlign?: "top" | "center" | "bottom";
 }
 
 /**
  * Stack a list of SlideComponents vertically within a panel rect.
  *
  * Returns absolute-positioned LayoutElement[] on the 1920×1080 canvas.
+ * Supports flex spacers that expand to fill remaining vertical space.
  * Warns if total content height exceeds the panel.
  */
 export function stackComponents(
@@ -56,27 +59,60 @@ export function stackComponents(
   const animate = opts.animate ?? true;
   const baseDelay = opts.animationBaseDelay ?? 100;
 
-  const allElements: LayoutElement[] = [];
-  let cursorY = 0;
+  // --- Pass 1: resolve all components, measure fixed content ---
+  interface Resolved {
+    result: ResolveResult;
+    effectiveGap: number; // gap before this component (0 for first)
+    animIdx: number;      // stagger index (skips spacers)
+  }
+
+  const resolved: Resolved[] = [];
+  let fixedH = 0;
+  let flexCount = 0;
+  let prevGapAfter: number | undefined;
+  let animIdx = 0;
 
   components.forEach((component, idx) => {
+    const isSpacer = component.type === "spacer";
+    const curAnimIdx = isSpacer ? animIdx : animIdx++;
+
     const ctx: ResolveContext = {
       theme,
-      panel: {
-        x: panel.x,
-        y: panel.y + cursorY,
-        w: panel.w,
-        h: panel.h - cursorY,
-      },
+      panel: { x: panel.x, y: panel.y, w: panel.w, h: panel.h },
       textColor: opts.textColor,
       idPrefix: `${opts.idPrefix ?? "c"}${idx}`,
       imageBase,
+      animate,
+      animationDelay: staggerDelay(curAnimIdx, baseDelay),
     };
 
-    const { elements, height } = resolveComponent(component, ctx);
+    const result = resolveComponent(component, ctx);
+
+    let effectiveGap = 0;
+    if (idx > 0) {
+      effectiveGap = result.gapBefore ?? prevGapAfter ?? gap;
+    }
+
+    resolved.push({ result, effectiveGap, animIdx: curAnimIdx });
+    fixedH += effectiveGap + result.height;
+    if (result.flex) flexCount++;
+    prevGapAfter = result.gapAfter;
+  });
+
+  // --- Compute flex spacer height ---
+  const flexH = flexCount > 0 ? Math.max(0, (panel.h - fixedH) / flexCount) : 0;
+
+  // --- Pass 2: position everything ---
+  const allElements: LayoutElement[] = [];
+  let cursorY = 0;
+
+  resolved.forEach(({ result, effectiveGap, animIdx: aIdx }) => {
+    cursorY += effectiveGap;
+
+    const height = result.flex ? flexH : result.height;
 
     // Offset from component-local (0,0) to absolute canvas position
-    const positioned = offsetElements(elements, panel.x, panel.y + cursorY);
+    const positioned = offsetElements(result.elements, panel.x, panel.y + cursorY);
 
     // Apply staggered animation to top-level elements
     if (animate) {
@@ -84,14 +120,14 @@ export function stackComponents(
         if (!el.animation) {
           (el as { animation: unknown }).animation = makeAnimation(
             "fade-up",
-            staggerDelay(idx, baseDelay),
+            staggerDelay(aIdx, baseDelay),
           );
         }
       });
     }
 
     allElements.push(...positioned);
-    cursorY += height + (idx < components.length - 1 ? gap : 0);
+    cursorY += height;
   });
 
   // Warn on overflow in development
@@ -100,6 +136,17 @@ export function stackComponents(
       `[stacker] Content height (${Math.round(cursorY)}px) exceeds panel height (${Math.round(panel.h)}px). ` +
         `Overflow of ${Math.round(cursorY - panel.h)}px.`,
     );
+  }
+
+  // Apply vertical alignment offset
+  const vAlign = opts.verticalAlign ?? "top";
+  if (vAlign !== "top" && cursorY < panel.h) {
+    const dy = vAlign === "center"
+      ? (panel.h - cursorY) / 2
+      : panel.h - cursorY; // bottom
+    allElements.forEach((el) => {
+      el.rect = { ...el.rect, y: el.rect.y + dy };
+    });
   }
 
   return allElements;

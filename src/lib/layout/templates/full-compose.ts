@@ -25,6 +25,8 @@ export function layoutFullCompose(
 
   const elements = stackComponents(slide.children, panel, theme, {
     imageBase,
+    verticalAlign: slide.verticalAlign,
+    animationBaseDelay: 0,
   });
 
   return {
