@@ -1,0 +1,24 @@
+name: dsl-end
+params:
+  title: { type: string }
+  subtitle: { type: string }
+
+base: full-compose
+align: center
+verticalAlign: center
+children:
+  - type: heading
+    text: "{{ title or 'Thank You' }}"
+    fontSize: 80
+    textAlign: center
+  {% if subtitle %}
+  - type: divider
+    variant: gradient
+    width: 120
+    align: center
+  - type: body
+    text: "{{ subtitle }}"
+    fontSize: 36
+    color: theme.textMuted
+    textAlign: center
+  {% endif %}

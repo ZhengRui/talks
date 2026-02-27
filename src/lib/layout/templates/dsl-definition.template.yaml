@@ -1,0 +1,36 @@
+name: dsl-definition
+params:
+  title: { type: string, required: true }
+  definitions: { type: array, required: true }
+style:
+  termSize: { type: number, default: 30 }
+  descSize: { type: number, default: 28 }
+
+base: full-compose
+children:
+  - type: heading
+    text: "{{ title }}"
+    fontSize: 56
+  - type: divider
+    variant: gradient
+    width: 80
+    marginTop: 16
+  {% for def in definitions %}
+  - type: text
+    text: "{{ def.term }}"
+    fontSize: {{ style.termSize }}
+    fontWeight: bold
+    color: theme.accent
+    {% if loop.first %}
+    marginTop: 64
+    {% else %}
+    marginTop: 24
+    {% endif %}
+  - type: text
+    text: "{{ def.description }}"
+    fontSize: {{ style.descSize }}
+    marginTop: 8
+  - type: divider
+    variant: border
+    marginTop: 24
+  {% endfor %}

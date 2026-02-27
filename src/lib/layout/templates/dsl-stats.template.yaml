@@ -1,0 +1,43 @@
+name: dsl-stats
+params:
+  title: { type: string }
+  stats: { type: array, required: true }
+style:
+  titleSize: { type: number, default: 56 }
+  statFontSize: { type: number, default: 72 }
+  labelFontSize: { type: number, default: 26 }
+  cardHeight: { type: number, default: 200 }
+
+base: full-compose
+children:
+  {% if title %}
+  - type: heading
+    text: "{{ title }}"
+    fontSize: {{ style.titleSize }}
+    textAlign: center
+  - type: divider
+    variant: gradient
+    width: 80
+    align: center
+    marginTop: 16
+    marginBottom: 40
+  {% endif %}
+  - type: spacer
+    flex: true
+  - type: columns
+    gap: 32
+    children:
+      {% for s in stats %}
+      - type: box
+        accentTop: true
+        height: {{ style.cardHeight }}
+        children:
+          - type: stat
+            value: "{{ s.value }}"
+            label: "{{ s.label }}"
+            textAlign: center
+            fontSize: {{ style.statFontSize }}
+            labelFontSize: {{ style.labelFontSize }}
+      {% endfor %}
+  - type: spacer
+    flex: true

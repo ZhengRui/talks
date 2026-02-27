@@ -1,0 +1,5 @@
+name: dsl-blank
+params: {}
+
+base: full-compose
+children: []

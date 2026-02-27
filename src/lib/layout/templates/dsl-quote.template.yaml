@@ -1,0 +1,21 @@
+name: dsl-quote
+params:
+  quote: { type: string, required: true }
+  attribution: { type: string }
+style:
+  fontSize: { type: number, default: 36 }
+  attributionFontSize: { type: number, default: 26 }
+
+base: full-compose
+align: center
+verticalAlign: center
+children:
+  - type: quote
+    text: "{{ quote }}"
+    textAlign: center
+    fontSize: {{ style.fontSize }}
+    attributionFontSize: {{ style.attributionFontSize }}
+    decorative: true
+    {% if attribution %}
+    attribution: "{{ attribution }}"
+    {% endif %}

@@ -1,0 +1,24 @@
+name: dsl-statement
+params:
+  statement: { type: string, required: true }
+  subtitle: { type: string }
+
+base: full-compose
+align: center
+verticalAlign: center
+children:
+  - type: heading
+    text: "{{ statement }}"
+    fontSize: 72
+    textAlign: center
+  {% if subtitle %}
+  - type: divider
+    variant: gradient
+    width: 120
+    align: center
+  - type: body
+    text: "{{ subtitle }}"
+    fontSize: 32
+    color: theme.textMuted
+    textAlign: center
+  {% endif %}

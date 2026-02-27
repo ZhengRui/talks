@@ -1,0 +1,29 @@
+name: dsl-code
+params:
+  code: { type: string, required: true }
+  title: { type: string }
+  language: { type: string }
+style:
+  titleSize: { type: number, default: 56 }
+  codeFontSize: { type: number, default: 24 }
+
+base: full-compose
+children:
+  {% if title %}
+  - type: heading
+    text: "{{ title }}"
+    fontSize: {{ style.titleSize }}
+    textAlign: center
+  - type: divider
+    variant: gradient
+    width: 80
+    align: center
+    marginTop: 16
+    marginBottom: 40
+  {% endif %}
+  - type: code
+    code: {{ code | tojson }}
+    fontSize: {{ style.codeFontSize }}
+    {% if language %}
+    language: {{ language }}
+    {% endif %}
