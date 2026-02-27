@@ -141,6 +141,155 @@ describe("resolveComponent — text", () => {
       expect(elements[0].style.fontFamily).toBe(theme.fontMono);
     }
   });
+
+  it("uses full panel width by default", () => {
+    const { elements } = resolveComponent(
+      { type: "text", text: "Full width" },
+      makeCtx(),
+    );
+    expect(elements[0].rect.w).toBe(panelRect.w);
+    expect(elements[0].rect.x).toBe(0);
+  });
+
+  it("constrains width and centers when maxWidth is set", () => {
+    const { elements } = resolveComponent(
+      { type: "text", text: "Narrow caption", maxWidth: 600 },
+      makeCtx(),
+    );
+    expect(elements[0].rect.w).toBe(600);
+    expect(elements[0].rect.x).toBe((panelRect.w - 600) / 2);
+  });
+
+  it("clamps maxWidth to panel width when larger", () => {
+    const { elements } = resolveComponent(
+      { type: "text", text: "Wide", maxWidth: 2000 },
+      makeCtx(),
+    );
+    expect(elements[0].rect.w).toBe(panelRect.w);
+    expect(elements[0].rect.x).toBe(0);
+  });
+});
+
+describe("resolveComponent — animationType on any component", () => {
+  it("applies animationType to heading elements", () => {
+    const { elements } = resolveComponent(
+      { type: "heading", text: "Title", animationType: "slide-left" },
+      makeCtx({ animate: true, animationDelay: 200 }),
+    );
+    expect(elements[0].animation).toBeDefined();
+    expect(elements[0].animation!.type).toBe("slide-left");
+    expect(elements[0].animation!.delay).toBe(200);
+  });
+
+  it("applies animationType to body elements", () => {
+    const { elements } = resolveComponent(
+      { type: "body", text: "Content", animationType: "slide-right" },
+      makeCtx({ animate: true, animationDelay: 100 }),
+    );
+    expect(elements[0].animation).toBeDefined();
+    expect(elements[0].animation!.type).toBe("slide-right");
+  });
+
+  it("does not apply when animate is false", () => {
+    const { elements } = resolveComponent(
+      { type: "heading", text: "Title", animationType: "slide-left" },
+      makeCtx({ animate: false }),
+    );
+    expect(elements[0].animation).toBeUndefined();
+  });
+
+  it("animationDelay overrides ctx.animationDelay", () => {
+    const { elements } = resolveComponent(
+      { type: "heading", text: "Title", animationType: "fade-up", animationDelay: 0 },
+      makeCtx({ animate: true, animationDelay: 500 }),
+    );
+    expect(elements[0].animation).toBeDefined();
+    expect(elements[0].animation!.delay).toBe(0); // component delay wins over ctx
+  });
+
+  it("animationDelay on box overrides ctx.animationDelay", () => {
+    const { elements } = resolveComponent(
+      { type: "box", children: [{ type: "body", text: "Hi" }], animationType: "slide-left", animationDelay: 200 },
+      makeCtx({ animate: true, animationDelay: 0 }),
+    );
+    expect(elements[0].animation).toBeDefined();
+    expect(elements[0].animation!.delay).toBe(200);
+  });
+
+  it("overrides bullet stagger animations", () => {
+    const { elements } = resolveComponent(
+      { type: "bullets", items: ["A", "B"], animationType: "slide-right" },
+      makeCtx({ animate: true, animationDelay: 0 }),
+    );
+    elements.forEach((el) => {
+      expect(el.animation!.type).toBe("slide-right");
+    });
+  });
+});
+
+describe("resolveComponent — opacity on any component", () => {
+  it("sets opacity on group elements (box)", () => {
+    const { elements } = resolveComponent(
+      { type: "box", children: [{ type: "body", text: "Hi" }], opacity: 0.5 },
+      makeCtx({ animate: false }),
+    );
+    expect(elements).toHaveLength(1);
+    expect(elements[0].kind).toBe("group");
+    if (elements[0].kind === "group") {
+      expect(elements[0].style?.opacity).toBe(0.5);
+    }
+  });
+
+  it("sets opacity on image elements", () => {
+    const { elements } = resolveComponent(
+      { type: "image", src: "photo.jpg", opacity: 0.3 },
+      makeCtx({ animate: false }),
+    );
+    expect(elements).toHaveLength(1);
+    if (elements[0].kind === "image") {
+      expect(elements[0].opacity).toBe(0.3);
+    }
+  });
+
+  it("wraps text elements in an opacity group", () => {
+    const { elements } = resolveComponent(
+      { type: "heading", text: "Faded", opacity: 0.7 },
+      makeCtx({ animate: false }),
+    );
+    // Text element gets wrapped in a group with opacity
+    expect(elements).toHaveLength(1);
+    expect(elements[0].kind).toBe("group");
+    if (elements[0].kind === "group") {
+      expect(elements[0].style?.opacity).toBe(0.7);
+      expect(elements[0].children[0].kind).toBe("text");
+    }
+  });
+
+  it("does not apply when opacity is 1 or undefined", () => {
+    const result1 = resolveComponent(
+      { type: "heading", text: "Full", opacity: 1 },
+      makeCtx({ animate: false }),
+    );
+    // opacity=1 is not < 1, so no wrapping
+    expect(result1.elements[0].kind).toBe("text");
+
+    const result2 = resolveComponent(
+      { type: "heading", text: "Default" },
+      makeCtx({ animate: false }),
+    );
+    expect(result2.elements[0].kind).toBe("text");
+  });
+
+  it("preserves animation when wrapping text in opacity group", () => {
+    const { elements } = resolveComponent(
+      { type: "heading", text: "Faded", opacity: 0.5, animationType: "fade-up" },
+      makeCtx({ animate: true, animationDelay: 100 }),
+    );
+    expect(elements).toHaveLength(1);
+    expect(elements[0].kind).toBe("group");
+    expect(elements[0].animation).toBeDefined();
+    expect(elements[0].animation!.type).toBe("fade-up");
+  });
 });
 
 describe("resolveComponent — heading", () => {
@@ -282,6 +431,26 @@ describe("resolveComponent — body", () => {
     );
     if (elements[0].kind === "text") {
       expect(elements[0].style.color).toBe("#ff0000");
+    }
+  });
+
+  it("forwards lineHeight when specified", () => {
+    const { elements } = resolveComponent(
+      { type: "body", text: "Tall lines", lineHeight: 1.7 },
+      makeCtx(),
+    );
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.lineHeight).toBe(1.7);
+    }
+  });
+
+  it("defaults lineHeight to 1.6 when not specified", () => {
+    const { elements } = resolveComponent(
+      { type: "body", text: "Default height" },
+      makeCtx(),
+    );
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.lineHeight).toBe(1.6);
     }
   });
 });
@@ -558,6 +727,45 @@ describe("resolveComponent — columns", () => {
     expect(elements).toHaveLength(0);
     expect(height).toBe(0);
   });
+
+  it("uses ratio for 2-column width split", () => {
+    const panel: Rect = { x: 0, y: 0, w: 1600, h: 600 };
+    const { elements } = resolveComponent(
+      {
+        type: "columns",
+        gap: 40,
+        ratio: 0.3,
+        children: [
+          { type: "stat", value: "A", label: "a" },
+          { type: "stat", value: "B", label: "b" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    // col0W = round(1600 * 0.3) = 480, col1W = 1600 - 480 - 40 = 1080
+    // First column at x=0, second column at x=480+40=520
+    expect(elements[0].rect.x).toBe(0);
+    expect(elements[2].rect.x).toBe(520);
+  });
+
+  it("equalHeight stretches all group elements to max height", () => {
+    const panel: Rect = { x: 0, y: 0, w: 800, h: 600 };
+    const { elements } = resolveComponent(
+      {
+        type: "columns",
+        equalHeight: true,
+        children: [
+          { type: "box", children: [{ type: "body", text: "Short" }] },
+          { type: "box", children: [{ type: "body", text: "Much longer text that wraps to multiple lines for testing purposes" }] },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    // Both boxes are groups — should have same height (the max)
+    const groups = elements.filter((e) => e.kind === "group");
+    expect(groups).toHaveLength(2);
+    expect(groups[0].rect.h).toBe(groups[1].rect.h);
+  });
 });
 
 describe("resolveComponent — box", () => {
@@ -606,6 +814,72 @@ describe("resolveComponent — box", () => {
     );
     if (elements[0].kind === "group") {
       expect(elements[0].border).toEqual(theme.cardBorder);
+    }
+  });
+
+  it("fill expands box to panel height", () => {
+    const panel: Rect = { x: 0, y: 0, w: 400, h: 800 };
+    const { elements, height } = resolveComponent(
+      {
+        type: "box",
+        fill: true,
+        children: [{ type: "body", text: "Short" }],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    // Box should expand to full panel height
+    expect(height).toBe(800);
+    if (elements[0].kind === "group") {
+      expect(elements[0].rect.h).toBe(800);
+    }
+  });
+
+  it("fill does not vertically center content", () => {
+    const panel: Rect = { x: 0, y: 0, w: 400, h: 800 };
+    const { elements } = resolveComponent(
+      {
+        type: "box",
+        fill: true,
+        children: [{ type: "body", text: "Short" }],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    if (elements[0].kind === "group") {
+      // Content should stay at top (padding=28 default)
+      const firstChild = elements[0].children[0];
+      expect(firstChild.rect.y).toBe(28);
+    }
+  });
+
+  it("panel variant has fill and borderRadius but no shadow or border", () => {
+    const { elements } = resolveComponent(
+      {
+        type: "box",
+        variant: "panel",
+        background: "theme.bgSecondary",
+        children: [{ type: "body", text: "Sidebar" }],
+      },
+      makeCtx({ animate: false }),
+    );
+    if (elements[0].kind === "group") {
+      expect(elements[0].style?.fill).toBe(theme.bgSecondary);
+      expect(elements[0].style?.borderRadius).toBe(theme.radius);
+      expect(elements[0].style?.shadow).toBeUndefined();
+      expect(elements[0].border).toBeUndefined();
+    }
+  });
+
+  it("uses custom background color", () => {
+    const { elements } = resolveComponent(
+      {
+        type: "box",
+        background: "theme.bgSecondary",
+        children: [{ type: "body", text: "Sidebar" }],
+      },
+      makeCtx({ animate: false }),
+    );
+    if (elements[0].kind === "group") {
+      expect(elements[0].style?.fill).toBe(theme.bgSecondary);
     }
   });
 
@@ -899,6 +1173,36 @@ describe("resolveComponent — image", () => {
       expect(elements[0].src).toBe("https://example.com/img.png");
     }
   });
+
+  it("uses default radiusSm when no borderRadius specified", () => {
+    const { elements } = resolveComponent(
+      { type: "image", src: "photo.jpg" },
+      makeCtx(),
+    );
+    if (elements[0].kind === "image") {
+      expect(elements[0].borderRadius).toBe(theme.radiusSm);
+    }
+  });
+
+  it("uses custom borderRadius when specified", () => {
+    const { elements } = resolveComponent(
+      { type: "image", src: "photo.jpg", borderRadius: 16 },
+      makeCtx(),
+    );
+    if (elements[0].kind === "image") {
+      expect(elements[0].borderRadius).toBe(16);
+    }
+  });
+
+  it("forces square dimensions and centers when clipCircle is true", () => {
+    const { elements } = resolveComponent(
+      { type: "image", src: "avatar.jpg", height: 200, clipCircle: true },
+      makeCtx(),
+    );
+    expect(elements[0].rect.w).toBe(200);  // square: w = h
+    expect(elements[0].rect.h).toBe(200);
+    expect(elements[0].rect.x).toBe((panelRect.w - 200) / 2); // centered
+  });
 });
 
 describe("resolveComponent — code", () => {
@@ -1175,6 +1479,160 @@ describe("stacker — flex spacer", () => {
 });
 
 // ============================================================
+// split-compose — padding & gap
+// ============================================================
+
+describe("split-compose — padding & gap", () => {
+  it("default padding (60) when no padding and no fill", () => {
+    const slide: SlideData = {
+      template: "split-compose",
+      left: { children: [{ type: "heading", text: "L" }] },
+      right: { children: [{ type: "heading", text: "R" }] },
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img");
+    const leftHeading = result.slides[0].elements.find(
+      (e) => e.kind === "text" && e.id?.includes("l"),
+    );
+    // Default padding = 60 on all sides
+    expect(leftHeading?.rect.x).toBe(60);
+    expect(leftHeading?.rect.y).toBe(60);
+  });
+
+  it("fill: true gives zero padding (backward compat)", () => {
+    const slide: SlideData = {
+      template: "split-compose",
+      left: {
+        fill: true,
+        children: [{ type: "image", src: "photo.jpg", height: 1080 }],
+      },
+      right: { children: [{ type: "heading", text: "R" }] },
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img");
+    const leftImage = result.slides[0].elements.find((e) => e.kind === "image");
+    expect(leftImage?.rect.x).toBe(0);
+    expect(leftImage?.rect.y).toBe(0);
+  });
+
+  it("uniform padding overrides default", () => {
+    const slide: SlideData = {
+      template: "split-compose",
+      left: {
+        padding: 40,
+        children: [{ type: "heading", text: "L" }],
+      },
+      right: { children: [{ type: "heading", text: "R" }] },
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img");
+    const leftHeading = result.slides[0].elements.find(
+      (e) => e.kind === "text" && e.id?.includes("l"),
+    );
+    expect(leftHeading?.rect.x).toBe(40);
+    expect(leftHeading?.rect.y).toBe(40);
+  });
+
+  it("2-value padding [vert, horiz]", () => {
+    const slide: SlideData = {
+      template: "split-compose",
+      left: {
+        padding: [40, 80],
+        children: [{ type: "heading", text: "L" }],
+      },
+      right: { children: [{ type: "heading", text: "R" }] },
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img");
+    const leftHeading = result.slides[0].elements.find(
+      (e) => e.kind === "text" && e.id?.includes("l"),
+    );
+    // top=40, left=80
+    expect(leftHeading?.rect.x).toBe(80);
+    expect(leftHeading?.rect.y).toBe(40);
+    // width = splitX(960) - left(80) - right(80) = 800
+    expect(leftHeading?.rect.w).toBe(800);
+  });
+
+  it("4-value padding [top, right, bottom, left]", () => {
+    const slide: SlideData = {
+      template: "split-compose",
+      left: {
+        padding: [10, 20, 30, 40],
+        children: [{ type: "heading", text: "L" }],
+      },
+      right: { children: [{ type: "heading", text: "R" }] },
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img");
+    const leftHeading = result.slides[0].elements.find(
+      (e) => e.kind === "text" && e.id?.includes("l"),
+    );
+    // left=40, top=10
+    expect(leftHeading?.rect.x).toBe(40);
+    expect(leftHeading?.rect.y).toBe(10);
+    // width = splitX(960) - left(40) - right(20) = 900
+    expect(leftHeading?.rect.w).toBe(900);
+  });
+
+  it("padding overrides fill", () => {
+    const slide: SlideData = {
+      template: "split-compose",
+      left: {
+        fill: true,
+        padding: 40,
+        children: [{ type: "heading", text: "L" }],
+      },
+      right: { children: [{ type: "heading", text: "R" }] },
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img");
+    const leftHeading = result.slides[0].elements.find(
+      (e) => e.kind === "text" && e.id?.includes("l"),
+    );
+    // padding wins over fill
+    expect(leftHeading?.rect.x).toBe(40);
+    expect(leftHeading?.rect.y).toBe(40);
+  });
+
+  it("custom gap: 0 removes spacing between components", () => {
+    const slide: SlideData = {
+      template: "split-compose",
+      left: {
+        gap: 0,
+        children: [
+          { type: "heading", text: "First" },
+          { type: "heading", text: "Second" },
+        ],
+      },
+      right: { children: [{ type: "heading", text: "R" }] },
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img");
+    const leftEls = result.slides[0].elements.filter(
+      (e) => e.kind === "text" && e.id?.startsWith("l"),
+    );
+    expect(leftEls).toHaveLength(2);
+    // Gap=0: second heading starts right after the first
+    const firstBottom = leftEls[0].rect.y + leftEls[0].rect.h;
+    expect(leftEls[1].rect.y).toBe(firstBottom);
+  });
+
+  it("default gap (28) when gap is not specified", () => {
+    const slide: SlideData = {
+      template: "split-compose",
+      left: {
+        children: [
+          { type: "heading", text: "First" },
+          { type: "heading", text: "Second" },
+        ],
+      },
+      right: { children: [{ type: "heading", text: "R" }] },
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img");
+    const leftEls = result.slides[0].elements.filter(
+      (e) => e.kind === "text" && e.id?.startsWith("l"),
+    );
+    expect(leftEls).toHaveLength(2);
+    const firstBottom = leftEls[0].rect.y + leftEls[0].rect.h;
+    expect(leftEls[1].rect.y - firstBottom).toBe(28);
+  });
+});
+
+// ============================================================
 // Integration: split-compose via layoutPresentation
 // ============================================================
 
@@ -1264,6 +1722,35 @@ describe("layoutPresentation — split-compose", () => {
     const result = layoutPresentation("Test", [slide], "modern", "/img");
     const rightBg = result.slides[0].elements.find((e) => e.id === "panel-right-bg");
     expect(rightBg?.rect.x).toBe(Math.round(1920 * 0.4));
+  });
+
+  it("fill mode uses zero padding for edge-to-edge content", () => {
+    const slide: SlideData = {
+      template: "split-compose",
+      left: {
+        fill: true,
+        children: [{ type: "image", src: "photo.jpg", height: 1080 }],
+      },
+      right: {
+        children: [{ type: "heading", text: "Text" }],
+      },
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img");
+    const leftImage = result.slides[0].elements.find(
+      (e) => e.kind === "image",
+    );
+    // fill: true → image starts at x=0, y=0 (no padding)
+    expect(leftImage).toBeDefined();
+    expect(leftImage?.rect.x).toBe(0);
+    expect(leftImage?.rect.y).toBe(0);
+
+    // Right panel still has normal padding (60px)
+    const rightHeading = result.slides[0].elements.find(
+      (e) => e.kind === "text" && e.id?.includes("heading"),
+    );
+    expect(rightHeading).toBeDefined();
+    // Right panel starts at splitX (960) + 60 padding
+    expect(rightHeading?.rect.x).toBe(960 + 60);
   });
 
   it("resolves theme tokens for panel backgrounds", () => {

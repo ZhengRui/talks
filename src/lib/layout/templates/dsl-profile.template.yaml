@@ -1,0 +1,62 @@
+name: dsl-profile
+params:
+  name: { type: string, required: true }
+  title: { type: string }
+  image: { type: string }
+  bio: { type: string }
+style:
+  nameSize: { type: number, default: 48 }
+  titleSize: { type: number, default: 32 }
+  bioSize: { type: number, default: 26 }
+  bioWidth: { type: number, default: 700 }
+  avatarSize: { type: number, default: 200 }
+
+base: full-compose
+align: center
+verticalAlign: center
+children:
+  {% if image %}
+  - type: image
+    src: "{{ image }}"
+    height: {{ style.avatarSize }}
+    objectFit: cover
+    clipCircle: true
+    animationType: scale-up
+    animationDelay: 0
+  {% endif %}
+  - type: heading
+    text: "{{ name }}"
+    fontSize: {{ style.nameSize }}
+    textAlign: center
+    animationType: fade-up
+    animationDelay: 200
+  {% if title %}
+  - type: text
+    text: "{{ title }}"
+    fontSize: {{ style.titleSize }}
+    textAlign: center
+    color: theme.accent
+    lineHeight: 1.3
+    marginTop: 8
+    animationType: fade-up
+    animationDelay: 300
+  {% endif %}
+  - type: divider
+    variant: gradient
+    width: 80
+    align: center
+    marginTop: 16
+    marginBottom: 16
+    animationType: fade-up
+    animationDelay: 350
+  {% if bio %}
+  - type: text
+    text: "{{ bio }}"
+    fontSize: {{ style.bioSize }}
+    textAlign: center
+    color: theme.textMuted
+    lineHeight: 1.5
+    maxWidth: {{ style.bioWidth }}
+    animationType: fade-up
+    animationDelay: 400
+  {% endif %}

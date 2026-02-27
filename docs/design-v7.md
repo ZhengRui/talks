@@ -13,7 +13,7 @@ If the compose system becomes expressive enough to replace all 35 templates, the
 
 Extend the component + compose system so that any slide layout can be expressed as a component composition in YAML — no TypeScript needed for new templates.
 
-## Current State (v6)
+## Current State (v7)
 
 **15 components:** text, heading, body, bullets, stat, tag, divider, quote, card, image, code, spacer, raw, columns, box
 
@@ -21,11 +21,15 @@ Extend the component + compose system so that any slide layout can be expressed 
 
 **Stacker:** Vertical, top-to-bottom, default gap (28px), flex spacers, marginTop/marginBottom overrides, verticalAlign
 
+**DSL engine:** Nunjucks-based `.template.yaml` expansion — `{{ }}`, `{% if %}`, `{% for %}` with style defaults and layered resolution (per-presentation shadows built-in)
+
+**Group 1 COMPLETE:** 9 rigid templates (bullets, stats, statement, quote, code, numbered-list, definition, blank, end) replaced by DSL `.template.yaml` files. Rigid TS layout functions deleted.
+
 ## Template Audit
 
-### Group 1: Already expressible (~9 templates)
+### Group 1: COMPLETE (~9 templates)
 
-Vertical stacks of existing components. All verified as pixel-matched compose equivalents.
+Vertical stacks of existing components. All replaced by DSL `.template.yaml` files. Rigid TS deleted.
 
 | Template | As composition |
 |---|---|
@@ -39,22 +43,94 @@ Vertical stacks of existing components. All verified as pixel-matched compose eq
 | `blank` | empty |
 | `end` | heading(large, center) + divider + body(muted, center) |
 
-### Group 2: Work with split-compose (~8 templates)
+### Group 2: IN PROGRESS (~8 templates)
 
-Two-panel layouts. Work with current split-compose but some need panel fill modes (image filling entire panel without padding).
+Two-panel layouts and multi-element compositions. DSL `.template.yaml` files created; rigid TS kept for visual comparison. `fill: true` implemented on PanelDef. ImageComponent extended with `objectFit` and `clipCircle`.
 
-| Template | As composition |
-|---|---|
-| `two-column` | split-compose, left + right panels |
-| `comparison` | split-compose, heading + bullets per panel |
-| `code-comparison` | split-compose, code per panel |
-| `image-text` | split-compose, image panel + content panel |
-| `image-caption` | full-compose, image + body |
-| `sidebar` | split-compose with ~30/70 ratio |
-| `image-comparison` | split-compose, image per panel |
-| `profile` | split-compose, image + heading + body |
+**Status:** DSL templates written, side-by-side comparison slides in `/v7-comparison`. Need to close style/animation gaps before deleting rigid TS files.
 
-**Missing:** Panel fill mode — image fills entire panel (no padding). Currently all panels apply uniform padding.
+#### Gap Analysis: Rigid TS vs DSL
+
+##### Cross-cutting gaps (affect all 8 templates)
+
+| Category | Rigid TS | DSL/Compose | Root cause |
+|---|---|---|---|
+| **Directional animations** | `slide-left`, `slide-right`, `scale-up` with per-element delays | Stacker assigns uniform `fade-up` stagger | Stacker has no per-component animation override |
+| **Dynamic height sizing** | `estimateTextHeight()` + `Math.min/max` for card heights | Fixed style params or auto-sizing | Component system doesn't expose height negotiation |
+| **Spacing precision** | Template-specific gaps (10, 16, 20, 24, 40px) | Stacker default 28px gap | No per-component gap override except `marginTop`/`marginBottom` |
+| **Style helpers** | `bodyStyle()`, `headingStyle()`, `mutedStyle()` set fontWeight, lineHeight, fontFamily explicitly | Components use resolver defaults which sometimes differ | Resolver defaults don't always match helper outputs |
+
+##### Per-template gaps
+
+**1. two-column**
+
+| Gap | Rigid | DSL | Fix needed |
+|---|---|---|---|
+| Animation | Left `slide-left` 200ms, Right `slide-right` 200ms | `fade-up` stagger | Column-level animation support |
+| Card height | Both forced same height via `Math.max` | Independent box heights | Box `height` can be set but not dynamically matched |
+| Vertical position | Top-aligned, content starts at `contentY` | `spacer flex:true` centers vertically | Remove spacers or add top-align mode |
+
+**2. comparison**
+
+| Gap | Rigid | DSL | Fix needed |
+|---|---|---|---|
+| Animation | Left `slide-left` 200ms, Right `slide-right` 200ms | `fade-up` stagger | Column-level animation support |
+| Accent colors | Left `#22c55e` (green), Right `#ef4444` (red) | Both use `theme.accent` | Box needs `accentColor` prop |
+| Card height | Both forced same height | Independent box heights | Same as two-column |
+| Vertical position | Top-aligned | Centered via flex spacers | Same as two-column |
+
+**3. code-comparison**
+
+| Gap | Rigid | DSL | Fix needed |
+|---|---|---|---|
+| Animation | Labels + code `slide-left/right` 200ms | `fade-up` stagger | Column-level animation support |
+| Code padding | Explicit `padding: 24` | Resolver default `padding: 32` | Code component needs `padding` prop |
+| Box chrome | No card wrapper — bare code blocks | `box padding:0` adds cardBg, shadow, border | Need wrapper-free column grouping, or skip box |
+
+**4. sidebar**
+
+| Gap | Rigid | DSL | Fix needed |
+|---|---|---|---|
+| Animation | Sidebar/main `slide-left/right` 200ms (position-conditional) | `fade-up` stagger | Panel-level animation support |
+| Sidebar padding | Interior 40px all sides | split-compose panel padding 60px | Panel needs custom padding or `padding` prop |
+| Sidebar border radius | `borderRadius: theme.radius` on group | Edge-to-edge rect, no rounding | Sidebar as group vs background rect |
+| Divider style | titleBlock uses gradient accent line | DSL uses `divider variant: border` | Change to `variant: gradient` |
+
+**5. image-caption**
+
+| Gap | Rigid | DSL | Fix needed |
+|---|---|---|---|
+| Animation | Image `scale-up` 200ms, Caption `fade-up` 400ms | `fade-up` stagger | Per-component animation type/delay |
+| Image height | Dynamic `Math.min(648, remaining)` | Fixed `height: 560` | Accept fixed default or add dynamic sizing |
+| Caption width | Fixed 900px centered | Full panel width (1200px) | Accept wider or add width constraint |
+| Vertical position | Top-aligned | `verticalAlign: center` | Change to top or accept centered |
+| Image borderRadius | `theme.radius` | Resolver default `theme.radiusSm` | Match radius in image component |
+
+**6. image-comparison**
+
+| Gap | Rigid | DSL | Fix needed |
+|---|---|---|---|
+| Animation | Before `slide-left` 200ms, After `slide-right` 200ms | `fade-up` stagger | Column-level animation support |
+| Image height | Dynamic: fills card minus padding and label | Fixed `height: 500` | Accept fixed default |
+| Label fontWeight | `600` (semi-bold) | `bold` (700) | Minor — accept or add fontWeight to text |
+
+**7. profile**
+
+| Gap | Rigid | DSL | Fix needed |
+|---|---|---|---|
+| Animation | avatar `scale-up` 0ms → name `fade-up` 200ms → title 300ms → accent 350ms → bio 400ms | Uniform `fade-up` stagger at 100ms intervals | Per-component animation type/delay |
+| Element spacing | Consistent 16px gaps | Stacker default 28px | Use `marginTop`/`marginBottom` overrides |
+| Title lineHeight | Explicit `1.3` | Text default `1.6` | Set `lineHeight: 1.3` on text component |
+
+**8. image-text**
+
+| Gap | Rigid | DSL | Fix needed |
+|---|---|---|---|
+| Animation | Image `slide-left/right` 200ms, Body opposite 300ms, Bullets stagger at 400ms | `fade-up` stagger | Panel/component animation support |
+| Image borderRadius | `theme.radius` | Resolver default `theme.radiusSm` | Match or accept — fill mode images typically don't need radius |
+| Body lineHeight | Explicit `1.7` | Body default `1.6` | Set `lineHeight: 1.7` on body component |
+| Text vertical position | Starts at 25% from top | `verticalAlign: center` (50%) | Accept centered or tune |
+| Bullet rendering | `kind: list` with `bulletColor: theme.accent`, `itemSpacing: 8` | `bullets variant: plain` | Different rendering path |
 
 ### Group 3: Need positioning controls (~8 templates)
 
@@ -259,7 +335,7 @@ Allow individual components to override default stacker behavior.
 
 This gives fine-grained control without going full freeform.
 
-## Extension 4: Jinja-style Template DSL
+## Extension 4: Jinja-style Template DSL — IMPLEMENTED
 
 ### Motivation
 
@@ -276,9 +352,9 @@ A template DSL bridges these: **a template is a parameterized component tree**. 
 slides.yaml
   → loadPresentation()
   → for each slide:
-      if DSL template  → expand params → component tree → stackComponents
-      if compose       → stackComponents directly
-      if rigid (legacy) → existing TS layout function
+      if rigid (registry) → existing TS layout function (26 remaining)
+      if DSL template     → expand params → component tree → stackComponents
+      if compose          → stackComponents directly
 ```
 
 The `.template.yaml` file is valid YAML, but certain sections contain Jinja expressions. Processing:
@@ -632,12 +708,13 @@ No TypeScript needed. The `.template.yaml` is the template.
 
 ## Migration Path
 
-Old templates remain unchanged and functional. Extensions are additive:
+Rigid templates are progressively replaced by DSL `.template.yaml` files:
 
-1. Add positioning controls to existing containers
-2. Add new container types (stack-compose, columns-compose)
-3. Add new components one at a time, driven by demand
-4. Optionally re-express old templates as compose YAML for validation
+1. ~~Group 1: 9 rigid templates → DSL (DONE)~~
+2. Group 2: 8 split-compose templates → add `fill` mode, create DSL templates, delete rigid TS
+3. Group 3: 8 positioning templates → add positioning controls, create DSL templates
+4. Group 4: 8 component templates → add new components, create DSL templates
+5. Group 5: 2 embed templates (video, iframe) — keep as rigid or convert last
 
 ## Design Decisions
 

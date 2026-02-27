@@ -1,0 +1,65 @@
+name: dsl-comparison
+params:
+  title: { type: string }
+  left: { type: object, required: true }
+  right: { type: object, required: true }
+  verticalAlign: { type: string }
+style:
+  titleSize: { type: number, default: 56 }
+  headingSize: { type: number, default: 36 }
+  bodySize: { type: number, default: 30 }
+  leftAccent: { type: string, default: "#22c55e" }
+  rightAccent: { type: string, default: "#ef4444" }
+
+base: full-compose
+verticalAlign: {{ verticalAlign or "top" }}
+children:
+  {% if title %}
+  - type: heading
+    text: "{{ title }}"
+    fontSize: {{ style.titleSize }}
+    textAlign: center
+  - type: divider
+    variant: gradient
+    width: 80
+    align: center
+    marginTop: 16
+    marginBottom: 40
+  {% endif %}
+  - type: columns
+    gap: 32
+    children:
+      - type: box
+        padding: 32
+        accentTop: true
+        accentColor: "{{ style.leftAccent }}"
+        animationType: slide-left
+        children:
+          - type: heading
+            text: "{{ left.heading }}"
+            level: 2
+            fontSize: {{ style.headingSize }}
+            textAlign: left
+          - type: bullets
+            items: {{ left.items }}
+            variant: list
+            fontSize: {{ style.bodySize }}
+          - type: spacer
+            height: 8
+      - type: box
+        padding: 32
+        accentTop: true
+        accentColor: "{{ style.rightAccent }}"
+        animationType: slide-right
+        children:
+          - type: heading
+            text: "{{ right.heading }}"
+            level: 2
+            fontSize: {{ style.headingSize }}
+            textAlign: left
+          - type: bullets
+            items: {{ right.items }}
+            variant: list
+            fontSize: {{ style.bodySize }}
+          - type: spacer
+            height: 8

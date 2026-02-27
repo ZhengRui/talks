@@ -1,5 +1,6 @@
 import type {
   LayoutElement,
+  ListElement,
   ResolvedTheme,
   Rect,
   TextElement,
@@ -74,13 +75,14 @@ function resolveText(c: TextComponent, ctx: ResolveContext): ResolveResult {
   const color = c.color
     ? resolveColor(c.color, ctx.theme, ctx.theme.text)
     : (ctx.textColor ?? ctx.theme.text);
-  const textW = ctx.panel.w;
+  const textW = c.maxWidth ? Math.min(c.maxWidth, ctx.panel.w) : ctx.panel.w;
+  const textX = c.maxWidth ? (ctx.panel.w - textW) / 2 : 0;
   const h = estimateTextHeight(c.text, fontSize, lineHeight, textW);
 
   const el: TextElement = {
     kind: "text",
     id: `${ctx.idPrefix}-text`,
-    rect: { x: 0, y: 0, w: textW, h },
+    rect: { x: textX, y: 0, w: textW, h },
     text: c.text,
     style: {
       fontFamily,
@@ -139,6 +141,9 @@ function resolveBody(c: BodyComponent, ctx: ResolveContext): ResolveResult {
       fontFamily: "body",
       ...(color ? { color } : {}),
       textAlign: c.textAlign,
+      ...(c.lineHeight !== undefined ? { lineHeight: c.lineHeight } : {}),
+      marginTop: c.marginTop,
+      marginBottom: c.marginBottom,
     },
     { ...ctx, idPrefix: `${ctx.idPrefix}-body` },
   );
@@ -150,10 +155,35 @@ function resolveBullets(c: BulletsComponent, ctx: ResolveContext): ResolveResult
   const variant = c.variant ?? "card";
   const ordered = c.ordered ?? false;
 
+  if (variant === "list") {
+    return resolveBulletsList(c, ctx, ordered);
+  }
   if (variant === "plain") {
     return resolveBulletsPlain(c, ctx, ordered);
   }
   return resolveBulletsCard(c, ctx, ordered);
+}
+
+function resolveBulletsList(c: BulletsComponent, ctx: ResolveContext, ordered: boolean): ResolveResult {
+  const fontSize = c.fontSize ?? 30;
+  const itemSpacing = c.gap ?? 10;
+  const lineH = fontSize * 1.6;
+  const h = c.items.length * (lineH + itemSpacing);
+
+  const el: ListElement = {
+    kind: "list",
+    id: `${ctx.idPrefix}-list`,
+    rect: { x: 0, y: 0, w: ctx.panel.w, h },
+    items: c.items,
+    ordered,
+    itemStyle: bodyStyle(ctx.theme, fontSize, {
+      color: ctx.textColor ?? ctx.theme.text,
+    }),
+    bulletColor: ctx.textColor ?? ctx.theme.text,
+    itemSpacing,
+  };
+
+  return { elements: [el], height: h };
 }
 
 function resolveBulletsCard(c: BulletsComponent, ctx: ResolveContext, ordered: boolean): ResolveResult {
@@ -629,13 +659,18 @@ function resolveImage(c: ImageComponent, ctx: ResolveContext): ResolveResult {
     ? c.src
     : `${ctx.imageBase}/${c.src}`;
 
+  // clipCircle requires a square — use height as both dimensions, center horizontally
+  const w = c.clipCircle ? h : ctx.panel.w;
+  const x = c.clipCircle ? (ctx.panel.w - w) / 2 : 0;
+
   const el: LayoutElement = {
     kind: "image",
     id: `${ctx.idPrefix}-image`,
-    rect: { x: 0, y: 0, w: ctx.panel.w, h },
+    rect: { x, y: 0, w, h },
     src,
-    objectFit: "contain",
-    borderRadius: ctx.theme.radiusSm,
+    objectFit: c.objectFit ?? "contain",
+    ...(c.clipCircle ? { clipCircle: true } : {}),
+    borderRadius: c.clipCircle ? 0 : (c.borderRadius ?? ctx.theme.radiusSm),
   };
 
   return { elements: [el], height: h };
@@ -646,7 +681,7 @@ function resolveImage(c: ImageComponent, ctx: ResolveContext): ResolveResult {
 function resolveCode(c: CodeComponent, ctx: ResolveContext): ResolveResult {
   const codeFontSize = c.fontSize ?? 24;
   const codeLineH = 1.6;
-  const codePadding = 32;
+  const codePadding = c.padding ?? 32;
   const lineCount = c.code.split("\n").length;
   const h = lineCount * codeFontSize * codeLineH + codePadding * 2;
 
@@ -691,12 +726,23 @@ function resolveColumns(c: ColumnsComponent, ctx: ResolveContext): ResolveResult
   const count = c.children.length;
   if (count === 0) return { elements: [], height: 0 };
 
-  const colW = (ctx.panel.w - gap * (count - 1)) / count;
+  // Compute column widths — use ratio for 2-column layouts, else equal
+  let colWidths: number[];
+  if (c.ratio !== undefined && count === 2) {
+    const col0W = Math.round(ctx.panel.w * c.ratio);
+    const col1W = ctx.panel.w - col0W - gap;
+    colWidths = [col0W, col1W];
+  } else {
+    const equalW = (ctx.panel.w - gap * (count - 1)) / count;
+    colWidths = Array(count).fill(equalW) as number[];
+  }
+
   const allElements: LayoutElement[] = [];
   let maxH = 0;
+  let colX = 0;
 
   c.children.forEach((child, i) => {
-    const colX = i * (colW + gap);
+    const colW = colWidths[i];
     const childCtx: ResolveContext = {
       ...ctx,
       panel: { x: colX, y: 0, w: colW, h: ctx.panel.h },
@@ -728,7 +774,17 @@ function resolveColumns(c: ColumnsComponent, ctx: ResolveContext): ResolveResult
 
     allElements.push(...positioned);
     maxH = Math.max(maxH, result.height);
+    colX += colW + gap;
   });
+
+  // Stretch all top-level group elements to equal height
+  if (c.equalHeight && maxH > 0) {
+    allElements.forEach((el) => {
+      if (el.kind === "group" && el.rect.h < maxH) {
+        el.rect = { ...el.rect, h: maxH };
+      }
+    });
+  }
 
   return { elements: allElements, height: maxH };
 }
@@ -767,31 +823,51 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
   });
 
   const contentH = cursorY + padding;
-  const totalH = c.height ?? contentH;
+  const totalH = c.fill ? ctx.panel.h : (c.height ?? contentH);
 
   // Vertically center children when fixed height is larger than content
-  if (c.height && c.height > contentH) {
+  // (skip when fill is used — content stays top-aligned)
+  if (!c.fill && c.height && c.height > contentH) {
     const dy = (c.height - contentH) / 2;
     children.forEach((el) => {
       el.rect = { ...el.rect, y: el.rect.y + dy };
     });
   }
 
+  const isFlat = c.variant === "flat";
+  const isPanel = c.variant === "panel";
+  const bg = c.background
+    ? resolveColor(c.background, ctx.theme, ctx.theme.cardBg)
+    : ctx.theme.cardBg;
+
+  const style: GroupElement["style"] = isFlat
+    ? {}
+    : isPanel
+      ? { fill: bg, borderRadius: ctx.theme.radius }
+      : { fill: bg, borderRadius: ctx.theme.radius, shadow: ctx.theme.shadow };
+
   const group: GroupElement = {
     kind: "group",
     id: `${ctx.idPrefix}-box`,
     rect: { x: 0, y: 0, w: ctx.panel.w, h: totalH },
     children,
-    style: {
-      fill: ctx.theme.cardBg,
-      borderRadius: ctx.theme.radius,
-      shadow: ctx.theme.shadow,
-    },
-    border: c.accentTop
-      ? { width: 3, color: ctx.theme.accent, sides: ["top"] }
-      : ctx.theme.cardBorder,
-    clipContent: true,
+    style,
+    ...(!isFlat && !isPanel && {
+      border: c.accentTop
+        ? { width: 3, color: c.accentColor ? resolveColor(c.accentColor, ctx.theme, ctx.theme.accent) : ctx.theme.accent, sides: ["top"] }
+        : ctx.theme.cardBorder,
+    }),
+    ...(isPanel && c.accentTop && {
+      border: { width: 3, color: c.accentColor ? resolveColor(c.accentColor, ctx.theme, ctx.theme.accent) : ctx.theme.accent, sides: ["top"] as const },
+    }),
+    clipContent: !isFlat,
   };
+
+  // Override default stacker/columns animation if component specifies one
+  if (c.animationType && ctx.animate) {
+    const boxDelay = (c as unknown as SlideComponent).animationDelay ?? ctx.animationDelay ?? 0;
+    group.animation = makeAnimation(c.animationType, boxDelay);
+  }
 
   return { elements: [group], height: totalH };
 }
@@ -802,36 +878,85 @@ export function resolveComponent(
   component: SlideComponent,
   ctx: ResolveContext,
 ): ResolveResult {
+  let result: ResolveResult;
+
   switch (component.type) {
     case "text":
-      return resolveText(component, ctx);
+      result = resolveText(component, ctx); break;
     case "heading":
-      return resolveHeading(component, ctx);
+      result = resolveHeading(component, ctx); break;
     case "body":
-      return resolveBody(component, ctx);
+      result = resolveBody(component, ctx); break;
     case "bullets":
-      return resolveBullets(component, ctx);
+      result = resolveBullets(component, ctx); break;
     case "stat":
-      return resolveStat(component, ctx);
+      result = resolveStat(component, ctx); break;
     case "tag":
-      return resolveTag(component, ctx);
+      result = resolveTag(component, ctx); break;
     case "divider":
-      return resolveDivider(component, ctx);
+      result = resolveDivider(component, ctx); break;
     case "quote":
-      return resolveQuote(component, ctx);
+      result = resolveQuote(component, ctx); break;
     case "card":
-      return resolveCard(component, ctx);
+      result = resolveCard(component, ctx); break;
     case "image":
-      return resolveImage(component, ctx);
+      result = resolveImage(component, ctx); break;
     case "code":
-      return resolveCode(component, ctx);
+      result = resolveCode(component, ctx); break;
     case "spacer":
-      return resolveSpacer(component, ctx);
+      result = resolveSpacer(component, ctx); break;
     case "raw":
-      return resolveRaw(component, ctx);
+      result = resolveRaw(component, ctx); break;
     case "columns":
-      return resolveColumns(component, ctx);
+      result = resolveColumns(component, ctx); break;
     case "box":
-      return resolveBox(component, ctx);
+      result = resolveBox(component, ctx); break;
   }
+
+  // Generic animationType override — skip box (handles it internally) and columns (container)
+  if (
+    component.type !== "box" &&
+    component.type !== "columns" &&
+    component.animationType &&
+    ctx.animate
+  ) {
+    const delay = component.animationDelay ?? ctx.animationDelay ?? 0;
+    const anim = makeAnimation(component.animationType, delay);
+    result.elements.forEach((el) => {
+      (el as { animation: unknown }).animation = anim;
+    });
+  }
+
+  // Generic opacity — apply to all emitted elements
+  if (component.opacity !== undefined && component.opacity < 1) {
+    const op = component.opacity;
+    result.elements.forEach((el) => {
+      if (el.kind === "group" || el.kind === "shape") {
+        el.style = { ...(el.style ?? {}), opacity: op };
+      } else if (el.kind === "image") {
+        (el as { opacity?: number }).opacity = op;
+      }
+      // text/code/list: no direct opacity field — wrap below if needed
+    });
+
+    // Wrap non-group/shape/image elements in an opacity group
+    const needsWrap = result.elements.some(
+      (el) => el.kind !== "group" && el.kind !== "shape" && el.kind !== "image",
+    );
+    if (needsWrap) {
+      const wrapped: GroupElement = {
+        kind: "group",
+        id: `${ctx.idPrefix}-opacity`,
+        rect: { x: 0, y: 0, w: ctx.panel.w, h: result.height },
+        children: result.elements,
+        style: { opacity: op },
+      };
+      // Preserve animation from the first element (if any)
+      const firstAnim = result.elements.find((el) => el.animation)?.animation;
+      if (firstAnim) wrapped.animation = firstAnim;
+      result = { ...result, elements: [wrapped] };
+    }
+  }
+
+  return result;
 }

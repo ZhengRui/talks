@@ -1,0 +1,72 @@
+name: dsl-code-comparison
+params:
+  title: { type: string }
+  before: { type: object, required: true }
+  after: { type: object, required: true }
+style:
+  titleSize: { type: number, default: 56 }
+  codeFontSize: { type: number, default: 22 }
+  codePadding: { type: number, default: 24 }
+  labelSize: { type: number, default: 24 }
+
+base: full-compose
+children:
+  {% if title %}
+  - type: heading
+    text: "{{ title }}"
+    fontSize: {{ style.titleSize }}
+    textAlign: center
+  - type: divider
+    variant: gradient
+    width: 80
+    align: center
+    marginTop: 16
+    marginBottom: 40
+  {% endif %}
+  - type: columns
+    gap: 32
+    children:
+      - type: box
+        variant: flat
+        padding: 0
+        animationType: slide-left
+        children:
+          {% if before.label %}
+          - type: text
+            text: "{{ before.label }}"
+            textAlign: center
+            fontSize: {{ style.labelSize }}
+            color: theme.textMuted
+            lineHeight: 1.5
+            marginBottom: 12
+          {% endif %}
+          - type: code
+            code: {{ before.code | tojson }}
+            fontSize: {{ style.codeFontSize }}
+            padding: {{ style.codePadding }}
+
+            {% if before.language %}
+            language: {{ before.language }}
+            {% endif %}
+      - type: box
+        variant: flat
+        padding: 0
+        animationType: slide-right
+        children:
+          {% if after.label %}
+          - type: text
+            text: "{{ after.label }}"
+            textAlign: center
+            fontSize: {{ style.labelSize }}
+            color: theme.textMuted
+            lineHeight: 1.5
+            marginBottom: 12
+          {% endif %}
+          - type: code
+            code: {{ after.code | tojson }}
+            fontSize: {{ style.codeFontSize }}
+            padding: {{ style.codePadding }}
+
+            {% if after.language %}
+            language: {{ after.language }}
+            {% endif %}

@@ -18,6 +18,13 @@ const env = new nunjucks.Environment(null, {
 // `tojson` filter for multiline strings (e.g., code blocks)
 env.addFilter("tojson", (val: unknown) => JSON.stringify(val));
 
+// `yaml_string` filter — escapes a string for safe insertion into a YAML double-quoted value.
+// Converts actual newlines back to \n literals so the rendered YAML parses correctly.
+env.addFilter("yaml_string", (val: unknown) => {
+  if (typeof val !== "string") return val;
+  return val.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/"/g, '\\"');
+});
+
 // --- SmartArray: makes {{ array }} output JSON (valid YAML flow sequence) ---
 
 class SmartArray<T> extends Array<T> {

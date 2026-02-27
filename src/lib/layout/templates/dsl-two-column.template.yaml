@@ -1,0 +1,53 @@
+name: dsl-two-column
+params:
+  title: { type: string }
+  left: { type: string, required: true }
+  right: { type: string, required: true }
+  verticalAlign: { type: string }
+style:
+  titleSize: { type: number, default: 56 }
+  bodySize: { type: number, default: 30 }
+  cardHeight: { type: number }
+
+base: full-compose
+verticalAlign: {{ verticalAlign or "top" }}
+children:
+  {% if title %}
+  - type: heading
+    text: "{{ title }}"
+    fontSize: {{ style.titleSize }}
+    textAlign: center
+  - type: divider
+    variant: gradient
+    width: 80
+    align: center
+    marginTop: 16
+    marginBottom: 40
+  {% endif %}
+  - type: columns
+    gap: 32
+    children:
+      - type: box
+        padding: 32
+        {% if style.cardHeight %}
+        height: {{ style.cardHeight }}
+        {% endif %}
+        animationType: slide-left
+        children:
+          - type: body
+            text: "{{ left }}"
+            fontSize: {{ style.bodySize }}
+          - type: spacer
+            height: 8
+      - type: box
+        padding: 32
+        {% if style.cardHeight %}
+        height: {{ style.cardHeight }}
+        {% endif %}
+        animationType: slide-right
+        children:
+          - type: body
+            text: "{{ right }}"
+            fontSize: {{ style.bodySize }}
+          - type: spacer
+            height: 8

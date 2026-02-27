@@ -1,0 +1,43 @@
+name: dsl-image-caption
+params:
+  title: { type: string }
+  image: { type: string, required: true }
+  caption: { type: string, required: true }
+style:
+  titleSize: { type: number, default: 56 }
+  imageHeight: { type: number, default: 648 }
+  captionSize: { type: number, default: 26 }
+  captionWidth: { type: number, default: 900 }
+  captionLineHeight: { type: number, default: 1.5 }
+
+base: full-compose
+align: center
+children:
+  {% if title %}
+  - type: heading
+    text: "{{ title }}"
+    fontSize: {{ style.titleSize }}
+    textAlign: center
+  - type: divider
+    variant: gradient
+    width: 80
+    align: center
+    marginTop: 16
+    marginBottom: 40
+  {% endif %}
+  - type: image
+    src: "{{ image }}"
+    height: {{ style.imageHeight }}
+    borderRadius: 16
+    animationType: scale-up
+    animationDelay: 200
+  - type: text
+    text: "{{ caption }}"
+    fontSize: {{ style.captionSize }}
+    textAlign: center
+    color: theme.textMuted
+    lineHeight: {{ style.captionLineHeight }}
+    maxWidth: {{ style.captionWidth }}
+    marginTop: 20
+    animationType: fade-up
+    animationDelay: 400

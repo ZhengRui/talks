@@ -1,0 +1,62 @@
+name: dsl-image-comparison
+params:
+  title: { type: string }
+  before: { type: object, required: true }
+  after: { type: object, required: true }
+style:
+  titleSize: { type: number, default: 56 }
+  labelSize: { type: number, default: 24 }
+  imageHeight: { type: number, default: 730 }
+
+base: full-compose
+children:
+  {% if title %}
+  - type: heading
+    text: "{{ title }}"
+    fontSize: {{ style.titleSize }}
+    textAlign: center
+  - type: divider
+    variant: gradient
+    width: 80
+    align: center
+    marginTop: 16
+    marginBottom: 40
+  {% endif %}
+  - type: columns
+    gap: 32
+    equalHeight: true
+    children:
+      - type: box
+        padding: 24
+        animationType: slide-left
+        animationDelay: 200
+        children:
+          - type: image
+            src: "{{ before.image }}"
+            height: {{ style.imageHeight }}
+            objectFit: cover
+          {% if before.label %}
+          - type: text
+            text: "{{ before.label }}"
+            textAlign: center
+            fontSize: {{ style.labelSize }}
+            fontWeight: bold
+            marginTop: 16
+          {% endif %}
+      - type: box
+        padding: 24
+        animationType: slide-right
+        animationDelay: 200
+        children:
+          - type: image
+            src: "{{ after.image }}"
+            height: {{ style.imageHeight }}
+            objectFit: cover
+          {% if after.label %}
+          - type: text
+            text: "{{ after.label }}"
+            textAlign: center
+            fontSize: {{ style.labelSize }}
+            fontWeight: bold
+            marginTop: 16
+          {% endif %}
