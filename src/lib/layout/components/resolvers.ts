@@ -77,7 +77,7 @@ function resolveText(c: TextComponent, ctx: ResolveContext): ResolveResult {
     : (ctx.textColor ?? ctx.theme.text);
   const textW = c.maxWidth ? Math.min(c.maxWidth, ctx.panel.w) : ctx.panel.w;
   const textX = c.maxWidth ? (ctx.panel.w - textW) / 2 : 0;
-  const h = estimateTextHeight(c.text, fontSize, lineHeight, textW);
+  const h = estimateTextHeight(c.text, fontSize, lineHeight, textW, fontWeight);
 
   const el: TextElement = {
     kind: "text",

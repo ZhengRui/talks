@@ -22,6 +22,7 @@ export const CONTENT_X = (CANVAS_W - CONTENT_W) / 2; // 160
 // --- Text height estimation ---
 
 const AVG_CHAR_WIDTH_RATIO = 0.52; // average character width as fraction of fontSize
+const BOLD_CHAR_WIDTH_RATIO = 0.57; // bold text is ~10% wider
 const CJK_CHAR_WIDTH_RATIO = 1.0; // CJK characters are full-width
 // CJK Unified Ideographs, Radicals, Symbols/Punctuation, Hiragana, Katakana, Fullwidth Forms
 const CJK_RE = /[\u2E80-\u9FFF\uF900-\uFAFF\uFE30-\uFE4F\uFF01-\uFF60\uFFE0-\uFFEF]/;
@@ -31,11 +32,13 @@ export function estimateTextHeight(
   fontSize: number,
   lineHeight: number,
   containerWidth: number,
+  fontWeight?: number,
 ): number {
-  // Calculate total text width accounting for CJK full-width characters
+  // Calculate total text width accounting for CJK full-width characters and bold text
+  const charRatio = fontWeight && fontWeight >= 700 ? BOLD_CHAR_WIDTH_RATIO : AVG_CHAR_WIDTH_RATIO;
   let totalTextWidth = 0;
   for (const ch of text) {
-    totalTextWidth += fontSize * (CJK_RE.test(ch) ? CJK_CHAR_WIDTH_RATIO : AVG_CHAR_WIDTH_RATIO);
+    totalTextWidth += fontSize * (CJK_RE.test(ch) ? CJK_CHAR_WIDTH_RATIO : charRatio);
   }
   const lineCount = containerWidth > 0 ? Math.max(1, Math.ceil(totalTextWidth / containerWidth)) : 1;
   // Extra space for descenders (g, y, p, q, j) — needed with tight lineHeight
@@ -141,7 +144,7 @@ export function titleBlock(
 
   const x = align === "center" ? (CANVAS_W - maxWidth) / 2 : CONTENT_X;
   const textAlign = align;
-  const titleHeight = estimateTextHeight(title, fontSize, 1.1, maxWidth);
+  const titleHeight = estimateTextHeight(title, fontSize, 1.1, maxWidth, 700);
 
   const titleEl: TextElement = {
     kind: "text",
