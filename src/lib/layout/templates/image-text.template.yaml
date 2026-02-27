@@ -1,4 +1,4 @@
-name: dsl-image-text
+name: image-text
 params:
   title: { type: string, required: true }
   image: { type: string, required: true }

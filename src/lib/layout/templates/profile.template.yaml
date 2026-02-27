@@ -1,4 +1,4 @@
-name: dsl-profile
+name: profile
 params:
   name: { type: string, required: true }
   title: { type: string }

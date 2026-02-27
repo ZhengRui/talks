@@ -1,4 +1,4 @@
-name: dsl-comparison
+name: comparison
 params:
   title: { type: string }
   left: { type: object, required: true }

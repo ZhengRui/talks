@@ -256,7 +256,7 @@ describe("DSL integration: template expansion + layout", () => {
   // --- Group 2 templates ---
 
   it("dsl-two-column: expands to columns with box children", () => {
-    const { slide, layout } = expandAndLayout("dsl-two-column", {
+    const { slide, layout } = expandAndLayout("two-column", {
       title: "Two Sides",
       left: "Left content",
       right: "Right content",
@@ -279,7 +279,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-two-column: expands without title", () => {
-    const { slide } = expandAndLayout("dsl-two-column", {
+    const { slide } = expandAndLayout("two-column", {
       left: "A",
       right: "B",
     });
@@ -291,7 +291,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-two-column: verticalAlign param passes through", () => {
-    const { slide } = expandAndLayout("dsl-two-column", {
+    const { slide } = expandAndLayout("two-column", {
       left: "A",
       right: "B",
       verticalAlign: "center",
@@ -302,7 +302,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-two-column: style.cardHeight overrides default", () => {
-    const { slide } = expandAndLayout("dsl-two-column", {
+    const { slide } = expandAndLayout("two-column", {
       left: "A",
       right: "B",
       style: { cardHeight: 500 },
@@ -315,7 +315,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-comparison: expands with heading + bullets per column", () => {
-    const { slide, layout } = expandAndLayout("dsl-comparison", {
+    const { slide, layout } = expandAndLayout("comparison", {
       title: "Before vs After",
       left: { heading: "Before", items: ["Slow", "Manual"] },
       right: { heading: "After", items: ["Fast", "Auto"] },
@@ -338,7 +338,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-code-comparison: expands with labels and code", () => {
-    const { slide, layout } = expandAndLayout("dsl-code-comparison", {
+    const { slide, layout } = expandAndLayout("code-comparison", {
       title: "Refactored",
       before: { label: "Before", code: "x = 1", language: "python" },
       after: { label: "After", code: "x: int = 1", language: "python" },
@@ -356,7 +356,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-code-comparison: expands without labels", () => {
-    const { slide } = expandAndLayout("dsl-code-comparison", {
+    const { slide } = expandAndLayout("code-comparison", {
       before: { code: "a" },
       after: { code: "b" },
     });
@@ -368,7 +368,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-sidebar: expands to full-compose with columns ratio 0.3", () => {
-    const { slide, layout } = expandAndLayout("dsl-sidebar", {
+    const { slide, layout } = expandAndLayout("sidebar", {
       title: "Overview",
       sidebar: "Side notes",
       main: "Main content here",
@@ -384,7 +384,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-sidebar: right position uses ratio 0.7", () => {
-    const { slide } = expandAndLayout("dsl-sidebar", {
+    const { slide } = expandAndLayout("sidebar", {
       sidebar: "Notes",
       main: "Content",
       sidebarPosition: "right",
@@ -395,7 +395,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-sidebar: yaml_string filter preserves multiline text", () => {
-    const { slide } = expandAndLayout("dsl-sidebar", {
+    const { slide } = expandAndLayout("sidebar", {
       title: "Test",
       sidebar: "Key concepts:\n\n• Components\n• Templates",
       main: "Main content",
@@ -419,7 +419,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-image-caption: expands with centered layout", () => {
-    const { slide, layout } = expandAndLayout("dsl-image-caption", {
+    const { slide, layout } = expandAndLayout("image-caption", {
       title: "Photo",
       image: "photo.jpg",
       caption: "A beautiful sunset",
@@ -440,7 +440,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-image-caption: expands without title", () => {
-    const { slide } = expandAndLayout("dsl-image-caption", {
+    const { slide } = expandAndLayout("image-caption", {
       image: "img.png",
       caption: "Caption text",
     });
@@ -453,7 +453,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-profile: expands with avatar, name, title, and bio", () => {
-    const { slide, layout } = expandAndLayout("dsl-profile", {
+    const { slide, layout } = expandAndLayout("profile", {
       name: "Jane Doe",
       title: "Software Engineer",
       image: "avatar.jpg",
@@ -477,7 +477,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-profile: expands without optional fields", () => {
-    const { slide } = expandAndLayout("dsl-profile", {
+    const { slide } = expandAndLayout("profile", {
       name: "Solo Name",
     });
 
@@ -489,7 +489,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-image-comparison: expands with images and labels", () => {
-    const { slide, layout } = expandAndLayout("dsl-image-comparison", {
+    const { slide, layout } = expandAndLayout("image-comparison", {
       title: "Before & After",
       before: { image: "old.jpg", label: "Before" },
       after: { image: "new.jpg", label: "After" },
@@ -509,7 +509,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-image-comparison: expands without labels", () => {
-    const { slide } = expandAndLayout("dsl-image-comparison", {
+    const { slide } = expandAndLayout("image-comparison", {
       before: { image: "a.jpg" },
       after: { image: "b.jpg" },
     });
@@ -520,7 +520,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-image-text: expands with fill mode image panel", () => {
-    const { slide, layout } = expandAndLayout("dsl-image-text", {
+    const { slide, layout } = expandAndLayout("image-text", {
       title: "About Us",
       image: "hero.jpg",
       body: "We build great things.",
@@ -549,7 +549,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-image-text: right position swaps panels", () => {
-    const { slide } = expandAndLayout("dsl-image-text", {
+    const { slide } = expandAndLayout("image-text", {
       title: "Reverse",
       image: "photo.jpg",
       imagePosition: "right",
@@ -569,7 +569,7 @@ describe("DSL integration: template expansion + layout", () => {
   });
 
   it("dsl-image-text: omits body and bullets when not provided", () => {
-    const { slide } = expandAndLayout("dsl-image-text", {
+    const { slide } = expandAndLayout("image-text", {
       title: "Minimal",
       image: "bg.jpg",
     });

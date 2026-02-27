@@ -1,4 +1,4 @@
-name: dsl-two-column
+name: two-column
 params:
   title: { type: string }
   left: { type: string, required: true }
@@ -26,6 +26,7 @@ children:
   {% endif %}
   - type: columns
     gap: 32
+    equalHeight: true
     children:
       - type: box
         padding: 32

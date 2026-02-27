@@ -35,34 +35,11 @@ export interface FullImageSlideData {
   overlay?: "dark" | "light";
 }
 
-export interface ImageTextSlideData {
-  template: "image-text";
-  title: string;
-  image: string;
-  imagePosition?: "left" | "right";
-  bullets?: string[];
-  body?: string;
-}
-
 export interface ImageGridSlideData {
   template: "image-grid";
   title?: string;
   images: { src: string; caption?: string }[];
   columns?: 2 | 3;
-}
-
-export interface ImageComparisonSlideData {
-  template: "image-comparison";
-  title?: string;
-  before: { image: string; label?: string };
-  after: { image: string; label?: string };
-}
-
-export interface ImageCaptionSlideData {
-  template: "image-caption";
-  image: string;
-  caption: string;
-  title?: string;
 }
 
 export interface ImageGallerySlideData {
@@ -72,13 +49,6 @@ export interface ImageGallerySlideData {
 }
 
 // Layout
-export interface TwoColumnSlideData {
-  template: "two-column";
-  title?: string;
-  left: string;
-  right: string;
-}
-
 export interface ThreeColumnSlideData {
   template: "three-column";
   title?: string;
@@ -92,22 +62,7 @@ export interface TopBottomSlideData {
   bottom: string;
 }
 
-export interface SidebarSlideData {
-  template: "sidebar";
-  title?: string;
-  sidebar: string;
-  main: string;
-  sidebarPosition?: "left" | "right";
-}
-
 // Data & Technical
-export interface CodeComparisonSlideData {
-  template: "code-comparison";
-  title?: string;
-  before: { code: string; label?: string; language?: string };
-  after: { code: string; label?: string; language?: string };
-}
-
 export interface TableSlideData {
   template: "table";
   title?: string;
@@ -136,25 +91,10 @@ export interface DiagramSlideData {
 }
 
 // Storytelling
-export interface ComparisonSlideData {
-  template: "comparison";
-  title?: string;
-  left: { heading: string; items: string[] };
-  right: { heading: string; items: string[] };
-}
-
 export interface StepsSlideData {
   template: "steps";
   title?: string;
   steps: { label: string; description?: string }[];
-}
-
-export interface ProfileSlideData {
-  template: "profile";
-  name: string;
-  title?: string;
-  image?: string;
-  bio?: string;
 }
 
 export interface IconGridSlideData {
@@ -225,23 +165,15 @@ export type SlideData = (
   | SectionDividerSlideData
   | AgendaSlideData
   | FullImageSlideData
-  | ImageTextSlideData
   | ImageGridSlideData
-  | ImageComparisonSlideData
-  | ImageCaptionSlideData
   | ImageGallerySlideData
-  | TwoColumnSlideData
   | ThreeColumnSlideData
   | TopBottomSlideData
-  | SidebarSlideData
-  | CodeComparisonSlideData
   | TableSlideData
   | TimelineSlideData
   | ChartPlaceholderSlideData
   | DiagramSlideData
-  | ComparisonSlideData
   | StepsSlideData
-  | ProfileSlideData
   | IconGridSlideData
   | HighlightBoxSlideData
   | QaSlideData

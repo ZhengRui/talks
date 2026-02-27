@@ -1,4 +1,4 @@
-name: dsl-sidebar
+name: sidebar
 params:
   title: { type: string }
   sidebar: { type: string, required: true }

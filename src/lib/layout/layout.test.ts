@@ -201,32 +201,8 @@ describe("layoutPresentation - cover", () => {
   });
 });
 
-// Note: bullets and stats rigid templates removed in v7 — now DSL-based
+// Note: Group 1+2 rigid templates removed in v7 — now DSL-based
 // Integration tests for DSL templates are in src/lib/dsl/integration.test.ts
-
-describe("layoutPresentation - comparison", () => {
-  const compSlide: SlideData = {
-    template: "comparison",
-    title: "Before vs After",
-    left: { heading: "Before", items: ["Slow", "Manual"] },
-    right: { heading: "After", items: ["Fast", "Automated"] },
-  };
-
-  it("produces two card groups", () => {
-    const result = layoutPresentation("Test", [compSlide], "modern", "/img");
-    const slide = result.slides[0];
-    const groups = slide.elements.filter((e) => e.kind === "group");
-    expect(groups).toHaveLength(2);
-  });
-
-  it("left card slides left, right card slides right", () => {
-    const result = layoutPresentation("Test", [compSlide], "modern", "/img");
-    const slide = result.slides[0];
-    const groups = slide.elements.filter((e) => e.kind === "group");
-    expect(groups[0].animation?.type).toBe("slide-left");
-    expect(groups[1].animation?.type).toBe("slide-right");
-  });
-});
 
 describe("layoutPresentation - table", () => {
   const tableSlide: SlideData = {

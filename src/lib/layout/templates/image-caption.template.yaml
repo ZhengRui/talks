@@ -1,4 +1,4 @@
-name: dsl-image-caption
+name: image-caption
 params:
   title: { type: string }
   image: { type: string, required: true }

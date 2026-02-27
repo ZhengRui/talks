@@ -76,7 +76,11 @@ YAML + layout-model-driven presentation hub. See `docs/design-v3.md` for base ar
 - Superpowers plugin for TDD/SDD workflow
 - `@/*` path alias → `src/*`
 
-## Git Commit Format
+## Git
+
+`content/` is a submodule — never `git add content`.
+
+### Commit Format
 
 Use conventional commits with scope. Body is a bullet list (no indentation). End with co-author line.
 

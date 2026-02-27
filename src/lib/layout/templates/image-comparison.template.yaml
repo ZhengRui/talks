@@ -1,13 +1,12 @@
-name: dsl-code-comparison
+name: image-comparison
 params:
   title: { type: string }
   before: { type: object, required: true }
   after: { type: object, required: true }
 style:
   titleSize: { type: number, default: 56 }
-  codeFontSize: { type: number, default: 22 }
-  codePadding: { type: number, default: 24 }
   labelSize: { type: number, default: 24 }
+  imageHeight: { type: number, default: 730 }
 
 base: full-compose
 children:
@@ -25,48 +24,39 @@ children:
   {% endif %}
   - type: columns
     gap: 32
+    equalHeight: true
     children:
       - type: box
-        variant: flat
-        padding: 0
+        padding: 24
         animationType: slide-left
+        animationDelay: 200
         children:
+          - type: image
+            src: "{{ before.image }}"
+            height: {{ style.imageHeight }}
+            objectFit: cover
           {% if before.label %}
           - type: text
             text: "{{ before.label }}"
             textAlign: center
             fontSize: {{ style.labelSize }}
-            color: theme.textMuted
-            lineHeight: 1.5
-            marginBottom: 12
+            fontWeight: bold
+            marginTop: 16
           {% endif %}
-          - type: code
-            code: {{ before.code | tojson }}
-            fontSize: {{ style.codeFontSize }}
-            padding: {{ style.codePadding }}
-
-            {% if before.language %}
-            language: {{ before.language }}
-            {% endif %}
       - type: box
-        variant: flat
-        padding: 0
+        padding: 24
         animationType: slide-right
+        animationDelay: 200
         children:
+          - type: image
+            src: "{{ after.image }}"
+            height: {{ style.imageHeight }}
+            objectFit: cover
           {% if after.label %}
           - type: text
             text: "{{ after.label }}"
             textAlign: center
             fontSize: {{ style.labelSize }}
-            color: theme.textMuted
-            lineHeight: 1.5
-            marginBottom: 12
+            fontWeight: bold
+            marginTop: 16
           {% endif %}
-          - type: code
-            code: {{ after.code | tojson }}
-            fontSize: {{ style.codeFontSize }}
-            padding: {{ style.codePadding }}
-
-            {% if after.language %}
-            language: {{ after.language }}
-            {% endif %}
