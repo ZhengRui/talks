@@ -140,7 +140,8 @@ export function expandDslTemplate(
   return {
     template: "full-compose",
     ...(parsed.background !== undefined ? { background: String(parsed.background) } : {}),
-    ...(parsed.align !== undefined ? { align: parsed.align } : {}),
+    ...(parsed.backgroundImage !== undefined ? { backgroundImage: String(parsed.backgroundImage) } : {}),
+    ...(parsed.overlay !== undefined ? { overlay: String(parsed.overlay) } : {}),
     ...(parsed.verticalAlign !== undefined ? { verticalAlign: parsed.verticalAlign } : {}),
     children: (parsed.children ?? []) as FullComposeSlideData["children"],
     ...base,

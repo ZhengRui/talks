@@ -19,13 +19,15 @@ Extend the component + compose system so that any slide layout can be expressed 
 
 **2 containers:** split-compose (two horizontal panels), full-compose (single content area)
 
-**Stacker:** Vertical, top-to-bottom, default gap (28px), flex spacers, marginTop/marginBottom overrides, verticalAlign
+**Stacker:** Vertical, top-to-bottom, default gap (28px), flex spacers, marginTop/marginBottom overrides, verticalAlign. Flex distribution for `fill: true` boxes (equal space split among fill siblings).
 
 **DSL engine:** Nunjucks-based `.template.yaml` expansion — `{{ }}`, `{% if %}`, `{% for %}` with style defaults and layered resolution (per-presentation shadows built-in)
 
 **Group 1 COMPLETE:** 9 rigid templates (bullets, stats, statement, quote, code, numbered-list, definition, blank, end) replaced by DSL `.template.yaml` files. Rigid TS layout functions deleted.
 
 **Group 2 COMPLETE:** 8 rigid templates (two-column, comparison, code-comparison, sidebar, image-caption, image-comparison, profile, image-text) replaced by DSL `.template.yaml` files. Rigid TS layout functions and type interfaces deleted.
+
+**Group 3 COMPLETE:** 8 positioning templates have DSL `.template.yaml` equivalents (dsl-cover, dsl-section-divider, dsl-three-column, dsl-top-bottom, dsl-highlight-box, dsl-qa, dsl-agenda, dsl-full-image). Rigid TS layout functions retained for comparison. Features added: `backgroundImage`/`overlay` on full-compose, `fill: true` flex distribution, box `maxWidth`/`borderColor`/`borderWidth`/`borderSides`/`marginTop`/`marginBottom`/directional `padding`, tag `align`.
 
 ## Template Audit
 
@@ -60,20 +62,20 @@ Two-panel layouts and multi-element compositions. All replaced by DSL `.template
 | `profile` | image(circle, scale-up) + heading(name) + text(title, accent) + divider + text(bio, muted) |
 | `image-text` | split-compose: left[image(cover, fill)] + right[heading + divider + body + bullets] |
 
-### Group 3: Need positioning controls (~8 templates)
+### Group 3: COMPLETE (~8 templates)
 
-These need the stacker/container to support more than top-down vertical stacking.
+Positioning templates — needed container/component extensions beyond basic vertical stacking. All have DSL `.template.yaml` equivalents. Rigid TS retained for comparison.
 
-| Template | What's needed |
-|---|---|
-| `cover` | Vertical + horizontal centering |
-| `section-divider` | Vertical + horizontal centering |
-| `top-bottom` | Two vertical panels (top/bottom split) |
-| `three-column` | Three panels side by side |
-| `highlight-box` | Centered card with background treatment |
-| `qa` | Two-section vertical split (question + answer) |
-| `agenda` | Numbered items with custom spacing |
-| `full-image` | Image fills slide, text overlaid on top |
+| Template | DSL template | Key features used |
+|---|---|---|
+| `cover` | `dsl-cover` | `backgroundImage`/`overlay`, `verticalAlign: center`, tag `align: center` |
+| `section-divider` | `dsl-section-divider` | `backgroundImage`/`overlay`, `verticalAlign: center` |
+| `top-bottom` | `dsl-top-bottom` | box `fill: true` (flex distribution — two fill boxes split space 50/50) |
+| `three-column` | `dsl-three-column` | columns + `{% for %}` loop, box `accentTop` |
+| `highlight-box` | `dsl-highlight-box` | box `maxWidth`, `borderColor`/`borderWidth`, `background` with theme tokens |
+| `qa` | `dsl-qa` | box `maxWidth` |
+| `agenda` | `dsl-agenda` | `{% for %}`+`{% if %}` conditionals, box `borderSides: [left]`, `opacity`, `padding: [vert, horiz]`, `marginTop` |
+| `full-image` | `dsl-full-image` | `backgroundImage`/`overlay` |
 
 ### Group 4: Need new components (~8 templates)
 
@@ -648,7 +650,7 @@ Rigid templates are progressively replaced by DSL `.template.yaml` files:
 
 1. ~~Group 1: 9 rigid templates → DSL (DONE)~~
 2. ~~Group 2: 8 two-panel/multi-element templates → DSL (DONE)~~
-3. Group 3: 8 positioning templates → add positioning controls, create DSL templates
+3. ~~Group 3: 8 positioning templates → DSL with component extensions (DONE)~~
 4. Group 4: 8 component templates → add new components, create DSL templates
 5. Group 5: 2 embed templates (video, iframe) — keep as rigid or convert last
 

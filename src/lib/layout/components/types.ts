@@ -82,6 +82,7 @@ export interface TagComponent {
   type: "tag";
   text: string;
   color?: string;
+  align?: "left" | "center";
 }
 
 export interface DividerComponent {
@@ -152,14 +153,20 @@ export interface ColumnsComponent {
 export interface BoxComponent {
   type: "box";
   children: SlideComponent[];
-  padding?: number;       // default 28
+  padding?: number | number[];  // default 28 — CSS-style: number | [vert, horiz] | [top, right, bottom, left]
   accentTop?: boolean;    // 3px accent bar on top
   accentColor?: string;   // custom accent bar color (hex or theme token), default theme.accent
   height?: number;        // fixed height (content vertically centered when set)
+  maxWidth?: number;      // constrain box width, centered within panel
   animationType?: AnimationType; // override stacker/columns default fade-up (e.g. "slide-left")
   variant?: "card" | "flat" | "panel"; // default "card"; "flat" = transparent, no bg/shadow/border; "panel" = bg + radius, no shadow/border
   background?: string;    // override card bg color (theme token or hex), default theme.cardBg
+  borderColor?: string;   // custom border color (hex or theme token) — replaces default cardBorder
+  borderWidth?: number;   // custom border width — replaces default cardBorder width
+  borderSides?: ("top" | "right" | "bottom" | "left")[]; // restrict border to specific sides
   fill?: boolean;         // expand to fill available panel height (content stays top-aligned)
+  marginTop?: number;     // override gap before this box in stacker
+  marginBottom?: number;  // override gap after this box in stacker
 }
 
 // --- Panel definition for split-compose ---

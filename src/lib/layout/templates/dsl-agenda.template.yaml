@@ -1,0 +1,54 @@
+name: dsl-agenda
+params:
+  title: { type: string, required: true }
+  items: { type: array, required: true }
+  activeIndex: { type: number }
+style:
+  titleSize: { type: number, default: 56 }
+  itemSize: { type: number, default: 30 }
+
+base: full-compose
+children:
+  - type: heading
+    text: "{{ title }}"
+    fontSize: {{ style.titleSize }}
+    textAlign: left
+  - type: divider
+    variant: gradient
+    width: 80
+    align: left
+    marginTop: 16
+    marginBottom: 40
+  {% for item in items %}
+  - type: box
+    padding: [16, 24]
+    {% if not loop.first %}
+    marginTop: 12
+    {% endif %}
+    {% if activeIndex is defined %}
+    {% if loop.index0 == activeIndex %}
+    variant: panel
+    background: theme.bgSecondary
+    borderColor: theme.accent
+    borderWidth: 3
+    borderSides: [left]
+    {% else %}
+    variant: flat
+    opacity: 0.5
+    {% endif %}
+    {% else %}
+    variant: panel
+    background: theme.bgSecondary
+    borderColor: theme.accent
+    borderWidth: 3
+    borderSides: [left]
+    {% endif %}
+    animationType: fade-up
+    children:
+      - type: text
+        text: "{{ item }}"
+        fontSize: {{ style.itemSize }}
+        {% if activeIndex is defined and loop.index0 == activeIndex %}
+        fontWeight: bold
+        {% endif %}
+  {% endfor %}

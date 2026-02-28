@@ -150,7 +150,8 @@ export interface SplitComposeSlideData {
 export interface FullComposeSlideData {
   template: "full-compose";
   background?: string;
-  align?: "left" | "center";
+  backgroundImage?: string;
+  overlay?: "dark" | "light" | "none" | string;  // default "dark" when backgroundImage set
   verticalAlign?: "top" | "center" | "bottom";
   children: SlideComponent[];
 }

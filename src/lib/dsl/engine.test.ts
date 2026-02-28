@@ -222,13 +222,12 @@ children: []
     );
   });
 
-  it("preserves base-level props (verticalAlign, align)", () => {
+  it("preserves base-level props (verticalAlign)", () => {
     const def = makeDef({
       params: { text: { type: "string", required: true } },
       rawBody: `
 name: test
 base: full-compose
-align: center
 verticalAlign: center
 children:
   - type: heading
@@ -237,7 +236,6 @@ children:
     });
 
     const result = expandDslTemplate({ template: "test", text: "Hi" }, def);
-    expect(result).toHaveProperty("align", "center");
     expect(result).toHaveProperty("verticalAlign", "center");
   });
 

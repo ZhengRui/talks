@@ -427,7 +427,6 @@ describe("DSL integration: template expansion + layout", () => {
 
     expect(slide.template).toBe("full-compose");
     const fc = slide as unknown as Record<string, unknown>;
-    expect(fc.align).toBe("center");
     expect(fc.verticalAlign).toBeUndefined(); // top-aligned like rigid TS
 
     const children = (slide as FullComposeSlideData).children;
@@ -463,7 +462,6 @@ describe("DSL integration: template expansion + layout", () => {
     expect(slide.template).toBe("full-compose");
     const fc = slide as FullComposeSlideData;
     const raw = slide as unknown as Record<string, unknown>;
-    expect(raw.align).toBe("center");
     expect(raw.verticalAlign).toBe("center");
     // image + heading + text(title) + divider + text(bio) = 5
     expect(fc.children).toHaveLength(5);

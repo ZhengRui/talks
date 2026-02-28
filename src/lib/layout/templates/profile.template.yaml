@@ -12,7 +12,6 @@ style:
   avatarSize: { type: number, default: 200 }
 
 base: full-compose
-align: center
 verticalAlign: center
 children:
   {% if image %}

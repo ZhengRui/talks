@@ -52,7 +52,7 @@ export function stackComponents(
   components: SlideComponent[],
   panel: Rect,
   theme: ResolvedTheme,
-  opts: StackOptions & { textColor?: string } = {},
+  opts: StackOptions & { textColor?: string; textShadow?: string } = {},
 ): LayoutElement[] {
   const gap = opts.gap ?? DEFAULT_GAP;
   const imageBase = opts.imageBase ?? "";
@@ -80,6 +80,7 @@ export function stackComponents(
       theme,
       panel: { x: panel.x, y: panel.y, w: panel.w, h: panel.h },
       textColor: opts.textColor,
+      textShadow: opts.textShadow,
       idPrefix: `${opts.idPrefix ?? "c"}${idx}`,
       imageBase,
       animate,
@@ -94,7 +95,7 @@ export function stackComponents(
     }
 
     resolved.push({ result, effectiveGap, animIdx: curAnimIdx });
-    fixedH += effectiveGap + result.height;
+    fixedH += effectiveGap + (result.flex ? 0 : result.height);
     if (result.flex) flexCount++;
     prevGapAfter = result.gapAfter;
   });
@@ -110,6 +111,13 @@ export function stackComponents(
     cursorY += effectiveGap;
 
     const height = result.flex ? flexH : result.height;
+
+    // Resize flex elements (e.g. fill boxes) to their computed flex height
+    if (result.flex && flexH > 0) {
+      result.elements.forEach((el) => {
+        el.rect = { ...el.rect, h: flexH };
+      });
+    }
 
     // Offset from component-local (0,0) to absolute canvas position
     const positioned = offsetElements(result.elements, panel.x, panel.y + cursorY);

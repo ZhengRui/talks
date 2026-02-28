@@ -1,0 +1,55 @@
+name: dsl-three-column
+params:
+  title: { type: string }
+  columns: { type: array, required: true }
+  verticalAlign: { type: string }
+style:
+  titleSize: { type: number, default: 56 }
+  iconSize: { type: number, default: 48 }
+  headingSize: { type: number, default: 32 }
+  bodySize: { type: number, default: 28 }
+
+base: full-compose
+verticalAlign: {{ verticalAlign or "top" }}
+children:
+  {% if title %}
+  - type: heading
+    text: "{{ title }}"
+    fontSize: {{ style.titleSize }}
+    textAlign: center
+  - type: divider
+    variant: gradient
+    width: 80
+    align: center
+    marginTop: 16
+    marginBottom: 40
+  {% endif %}
+  - type: columns
+    gap: 32
+    equalHeight: true
+    children:
+      {% for col in columns %}
+      - type: box
+        padding: 32
+        accentTop: true
+        animationType: fade-up
+        children:
+          {% if col.icon %}
+          - type: text
+            text: "{{ col.icon }}"
+            fontSize: {{ style.iconSize }}
+            textAlign: center
+            color: accent
+          {% endif %}
+          {% if col.heading %}
+          - type: heading
+            text: "{{ col.heading }}"
+            level: 2
+            fontSize: {{ style.headingSize }}
+            textAlign: center
+          {% endif %}
+          - type: body
+            text: "{{ col.body }}"
+            fontSize: {{ style.bodySize }}
+            textAlign: center
+      {% endfor %}

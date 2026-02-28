@@ -1,6 +1,6 @@
 import type { FullComposeSlideData } from "@/lib/types";
-import type { LayoutSlide, ResolvedTheme } from "../types";
-import { CANVAS_W, CANVAS_H, CONTENT_X, CONTENT_W, PADDING_Y } from "../helpers";
+import type { LayoutSlide, LayoutElement, ResolvedTheme } from "../types";
+import { CANVAS_W, CANVAS_H, CONTENT_X, CONTENT_W, PADDING_Y, backgroundImage } from "../helpers";
 import { stackComponents } from "../components/stacker";
 import { resolveColor } from "../components/theme-tokens";
 
@@ -9,12 +9,19 @@ export function layoutFullCompose(
   theme: ResolvedTheme,
   imageBase: string,
 ): LayoutSlide {
+  const hasImage = !!slide.backgroundImage;
   const bg = resolveColor(slide.background, theme, theme.bg);
-  const align = slide.align ?? "left";
+
+  // Background image + overlay elements (rendered behind content)
+  const bgElements: LayoutElement[] = [];
+  if (hasImage) {
+    const overlay = slide.overlay ?? "dark";
+    bgElements.push(...backgroundImage(slide.backgroundImage!, imageBase, overlay));
+  }
 
   // Content area with standard margins
-  const contentW = align === "center" ? 1200 : CONTENT_W;
-  const contentX = align === "center" ? (CANVAS_W - contentW) / 2 : CONTENT_X;
+  const contentW = CONTENT_W;
+  const contentX = CONTENT_X;
 
   const panel = {
     x: contentX,
@@ -27,12 +34,14 @@ export function layoutFullCompose(
     imageBase,
     verticalAlign: slide.verticalAlign,
     animationBaseDelay: 0,
+    textColor: hasImage && slide.overlay !== "light" ? "#ffffff" : undefined,
+    textShadow: hasImage && slide.overlay !== "light" ? "0 2px 12px rgba(0,0,0,0.7)" : undefined,
   });
 
   return {
     width: CANVAS_W,
     height: CANVAS_H,
     background: bg,
-    elements,
+    elements: [...bgElements, ...elements],
   };
 }

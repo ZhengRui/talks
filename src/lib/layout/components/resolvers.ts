@@ -49,6 +49,8 @@ export interface ResolveContext {
   panel: Rect;
   /** Override text color for the panel (e.g. light text on dark background) */
   textColor?: string;
+  /** Override text shadow for the panel (e.g. drop shadow on dark background) */
+  textShadow?: string;
   /** Unique prefix for element IDs (e.g. "left-0") */
   idPrefix: string;
   /** Image base path for relative src resolution */
@@ -92,6 +94,7 @@ function resolveText(c: TextComponent, ctx: ResolveContext): ResolveResult {
       lineHeight,
       textAlign: c.textAlign ?? "left",
       ...(c.fontStyle ? { fontStyle: c.fontStyle } : {}),
+      ...(ctx.textShadow ? { textShadow: ctx.textShadow } : {}),
     },
   };
 
@@ -392,33 +395,43 @@ function resolveStat(c: StatComponent, ctx: ResolveContext): ResolveResult {
 function resolveTag(c: TagComponent, ctx: ResolveContext): ResolveResult {
   const fontSize = 20;
   const paddingX = 20;
-  const paddingY = 8;
+  const paddingY = 12;
   const textW = c.text.length * fontSize * 0.7 + paddingX * 2;
   const h = fontSize + paddingY * 2;
-  const color = resolveColor(c.color, ctx.theme, ctx.theme.accent);
+  const color = c.color
+    ? resolveColor(c.color, ctx.theme, ctx.theme.accent)
+    : (ctx.textColor ?? ctx.theme.accent);
+
+  // When textColor override is active (e.g. white text on dark bg), use translucent pill
+  const hasTextOverride = !c.color && !!ctx.textColor;
+  const pillFill = hasTextOverride ? "rgba(255,255,255,0.15)" : color + "22";
+  const pillBorder = hasTextOverride ? "rgba(255,255,255,0.2)" : color;
+  const pillTextColor = hasTextOverride ? "rgba(255,255,255,0.9)" : color;
+
+  const x = c.align === "center" ? (ctx.panel.w - textW) / 2 : 0;
 
   const pill: ShapeElement = {
     kind: "shape",
     id: `${ctx.idPrefix}-tag-bg`,
-    rect: { x: 0, y: 0, w: textW, h },
+    rect: { x, y: 0, w: textW, h },
     shape: "pill",
     style: {
-      fill: color + "22", // very transparent version of the color
+      fill: pillFill,
       borderRadius: 100,
     },
-    border: { width: 1, color },
+    border: { width: 1, color: pillBorder },
   };
 
   const text: TextElement = {
     kind: "text",
     id: `${ctx.idPrefix}-tag-text`,
-    rect: { x: 0, y: 0, w: textW, h },
+    rect: { x, y: 0, w: textW, h },
     text: c.text,
     style: {
       fontFamily: ctx.theme.fontBody,
       fontSize,
       fontWeight: 600,
-      color,
+      color: pillTextColor,
       lineHeight: 1,
       textAlign: "center",
       verticalAlign: "middle",
@@ -791,44 +804,82 @@ function resolveColumns(c: ColumnsComponent, ctx: ResolveContext): ResolveResult
 
 // --- Box (card wrapper) ---
 
+function resolveBoxPadding(p: number | number[] | undefined): { top: number; right: number; bottom: number; left: number } {
+  if (p === undefined) return { top: 28, right: 28, bottom: 28, left: 28 };
+  if (typeof p === "number") return { top: p, right: p, bottom: p, left: p };
+  if (p.length === 4) return { top: p[0], right: p[1], bottom: p[2], left: p[3] };
+  if (p.length === 2) return { top: p[0], right: p[1], bottom: p[0], left: p[1] };
+  return { top: p[0], right: p[0], bottom: p[0], left: p[0] };
+}
+
 function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
-  const padding = c.padding ?? 28;
+  const boxW = c.maxWidth ? Math.min(c.maxWidth, ctx.panel.w) : ctx.panel.w;
+  const boxX = c.maxWidth ? (ctx.panel.w - boxW) / 2 : 0;
+  const pad = resolveBoxPadding(c.padding);
   const accentH = c.accentTop ? 3 : 0;
-  const innerY = padding + accentH;
-  const innerW = ctx.panel.w - padding * 2;
+  const innerY = pad.top + accentH;
+  const innerW = boxW - pad.left - pad.right;
 
   // Stack children manually in local coords (like resolveCard)
-  const children: LayoutElement[] = [];
-  let cursorY = innerY;
+  // Two-pass approach: measure fixed children, then distribute flex space
   const childGap = 8;
+
+  // Pass 1: resolve all children, measure fixed content
+  interface BoxChild { result: ResolveResult; gapBefore: number; }
+  const resolved: BoxChild[] = [];
+  let fixedH = innerY; // start with top padding + accent
+  let flexCount = 0;
 
   c.children.forEach((child, i) => {
     const childCtx: ResolveContext = {
       ...ctx,
-      panel: { x: padding, y: cursorY, w: innerW, h: ctx.panel.h - cursorY - padding },
+      panel: { x: pad.left, y: 0, w: innerW, h: ctx.panel.h },
       idPrefix: `${ctx.idPrefix}-box${i}`,
     };
 
     const result = resolveComponent(child, childCtx);
+    const gapBefore = i > 0 ? childGap : 0;
+    resolved.push({ result, gapBefore });
+    fixedH += gapBefore + (result.flex ? 0 : result.height);
+    if (result.flex) flexCount++;
+  });
+
+  fixedH += pad.bottom; // bottom padding
+  const boxTotalH = c.height ?? (flexCount > 0 ? ctx.panel.h : fixedH);
+  const flexH = flexCount > 0 ? Math.max(0, (boxTotalH - fixedH) / flexCount) : 0;
+
+  // Pass 2: position children with flex heights applied
+  const children: LayoutElement[] = [];
+  let cursorY = innerY;
+
+  resolved.forEach(({ result, gapBefore }) => {
+    cursorY += gapBefore;
+    const h = result.flex ? flexH : result.height;
+
+    // Resize flex elements to computed height
+    if (result.flex && flexH > 0) {
+      result.elements.forEach((el) => {
+        el.rect = { ...el.rect, h: flexH };
+      });
+    }
 
     // Position children in group-local coords
     result.elements.forEach((el) => {
       children.push({
         ...el,
-        rect: { ...el.rect, x: el.rect.x + padding, y: el.rect.y + cursorY },
+        rect: { ...el.rect, x: el.rect.x + pad.left, y: el.rect.y + cursorY },
       });
     });
 
-    cursorY += result.height + (i < c.children.length - 1 ? childGap : 0);
+    cursorY += h;
   });
 
-  const contentH = cursorY + padding;
-  const totalH = c.fill ? ctx.panel.h : (c.height ?? contentH);
+  cursorY += pad.bottom;
+  const totalH = c.height ?? (flexCount > 0 ? boxTotalH : cursorY);
 
   // Vertically center children when fixed height is larger than content
-  // (skip when fill is used — content stays top-aligned)
-  if (!c.fill && c.height && c.height > contentH) {
-    const dy = (c.height - contentH) / 2;
+  if (c.height && c.height > cursorY) {
+    const dy = (c.height - cursorY) / 2;
     children.forEach((el) => {
       el.rect = { ...el.rect, y: el.rect.y + dy };
     });
@@ -846,19 +897,25 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
       ? { fill: bg, borderRadius: ctx.theme.radius }
       : { fill: bg, borderRadius: ctx.theme.radius, shadow: ctx.theme.shadow };
 
+  // Determine border: explicit borderColor/borderWidth > accentTop > theme cardBorder
+  const customBorder = c.borderColor
+    ? { width: c.borderWidth ?? 2, color: resolveColor(c.borderColor, ctx.theme, ctx.theme.accent), ...(c.borderSides && { sides: c.borderSides }) }
+    : undefined;
+  const accentBorder = c.accentTop
+    ? { width: 3, color: c.accentColor ? resolveColor(c.accentColor, ctx.theme, ctx.theme.accent) : ctx.theme.accent, sides: ["top"] as const }
+    : undefined;
+
   const group: GroupElement = {
     kind: "group",
     id: `${ctx.idPrefix}-box`,
-    rect: { x: 0, y: 0, w: ctx.panel.w, h: totalH },
+    rect: { x: boxX, y: 0, w: boxW, h: totalH },
     children,
     style,
     ...(!isFlat && !isPanel && {
-      border: c.accentTop
-        ? { width: 3, color: c.accentColor ? resolveColor(c.accentColor, ctx.theme, ctx.theme.accent) : ctx.theme.accent, sides: ["top"] }
-        : ctx.theme.cardBorder,
+      border: customBorder ?? accentBorder ?? ctx.theme.cardBorder,
     }),
-    ...(isPanel && c.accentTop && {
-      border: { width: 3, color: c.accentColor ? resolveColor(c.accentColor, ctx.theme, ctx.theme.accent) : ctx.theme.accent, sides: ["top"] as const },
+    ...(isPanel && (customBorder || accentBorder) && {
+      border: customBorder ?? accentBorder,
     }),
     clipContent: !isFlat,
   };
@@ -869,7 +926,13 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
     group.animation = makeAnimation(c.animationType, boxDelay);
   }
 
-  return { elements: [group], height: totalH };
+  return {
+    elements: [group],
+    height: totalH,
+    ...(c.fill && { flex: true }),
+    gapBefore: c.marginTop,
+    gapAfter: c.marginBottom,
+  };
 }
 
 // --- Main dispatch ---

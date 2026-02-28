@@ -1,0 +1,30 @@
+name: dsl-qa
+params:
+  question: { type: string, required: true }
+  answer: { type: string, required: true }
+style:
+  questionSize: { type: number, default: 56 }
+  answerSize: { type: number, default: 30 }
+  cardWidth: { type: number, default: 1200 }
+
+base: full-compose
+verticalAlign: top
+children:
+  - type: heading
+    text: "{{ question }}"
+    fontSize: {{ style.questionSize }}
+    textAlign: center
+  - type: divider
+    variant: gradient
+    width: 80
+    align: center
+    marginTop: 16
+    marginBottom: 40
+  - type: box
+    maxWidth: {{ style.cardWidth }}
+    padding: 40
+    animationType: fade-in
+    children:
+      - type: body
+        text: "{{ answer }}"
+        fontSize: {{ style.answerSize }}

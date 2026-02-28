@@ -1,0 +1,33 @@
+name: dsl-section-divider
+params:
+  title: { type: string, required: true }
+  subtitle: { type: string }
+  image: { type: string }
+  overlay: { type: string }
+style:
+  titleSize: { type: number, default: 80 }
+  subtitleSize: { type: number, default: 32 }
+
+base: full-compose
+{% if image %}
+backgroundImage: {{ image }}
+overlay: {{ overlay or "dark" }}
+{% endif %}
+verticalAlign: center
+children:
+  - type: heading
+    text: "{{ title }}"
+    fontSize: {{ style.titleSize }}
+    textAlign: center
+  - type: divider
+    variant: gradient
+    width: 120
+    align: center
+    marginTop: 16
+    marginBottom: 32
+  {% if subtitle %}
+  - type: body
+    text: "{{ subtitle }}"
+    fontSize: {{ style.subtitleSize }}
+    textAlign: center
+  {% endif %}

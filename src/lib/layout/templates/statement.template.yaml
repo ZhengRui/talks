@@ -4,7 +4,6 @@ params:
   subtitle: { type: string }
 
 base: full-compose
-align: center
 verticalAlign: center
 children:
   - type: heading

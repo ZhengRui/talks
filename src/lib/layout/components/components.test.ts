@@ -817,9 +817,9 @@ describe("resolveComponent — box", () => {
     }
   });
 
-  it("fill expands box to panel height", () => {
+  it("fill returns flex: true for stacker-based expansion", () => {
     const panel: Rect = { x: 0, y: 0, w: 400, h: 800 };
-    const { elements, height } = resolveComponent(
+    const result = resolveComponent(
       {
         type: "box",
         fill: true,
@@ -827,14 +827,13 @@ describe("resolveComponent — box", () => {
       },
       makeCtx({ panel, animate: false }),
     );
-    // Box should expand to full panel height
-    expect(height).toBe(800);
-    if (elements[0].kind === "group") {
-      expect(elements[0].rect.h).toBe(800);
-    }
+    // Resolver returns flex: true; stacker distributes remaining space
+    expect(result.flex).toBe(true);
+    // Height is content height (not panel height) — stacker will expand it
+    expect(result.height).toBeLessThan(800);
   });
 
-  it("fill does not vertically center content", () => {
+  it("fill box content stays top-aligned", () => {
     const panel: Rect = { x: 0, y: 0, w: 400, h: 800 };
     const { elements } = resolveComponent(
       {
@@ -1814,27 +1813,6 @@ describe("layoutPresentation — full-compose", () => {
   it("uses theme background by default", () => {
     const result = layoutPresentation("Test", [fullSlide], "modern", "/img");
     expect(result.slides[0].background).toBe(theme.bg);
-  });
-
-  it("center alignment narrows content width", () => {
-    const centered: SlideData = {
-      template: "full-compose",
-      align: "center",
-      children: [{ type: "heading", text: "Centered" }],
-    };
-    const leftAligned: SlideData = {
-      template: "full-compose",
-      align: "left",
-      children: [{ type: "heading", text: "Left" }],
-    };
-
-    const centerResult = layoutPresentation("Test", [centered], "modern", "/img");
-    const leftResult = layoutPresentation("Test", [leftAligned], "modern", "/img");
-
-    // Center uses 1200px width, left uses 1600px → center heading rect is narrower
-    const centerHeading = centerResult.slides[0].elements[0];
-    const leftHeading = leftResult.slides[0].elements[0];
-    expect(centerHeading.rect.w).toBeLessThan(leftHeading.rect.w);
   });
 
   it("vertically centers content when verticalAlign is center", () => {

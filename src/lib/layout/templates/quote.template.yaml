@@ -7,7 +7,6 @@ style:
   attributionFontSize: { type: number, default: 26 }
 
 base: full-compose
-align: center
 verticalAlign: center
 children:
   - type: quote

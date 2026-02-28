@@ -1,0 +1,40 @@
+name: dsl-cover
+params:
+  title: { type: string, required: true }
+  subtitle: { type: string }
+  author: { type: string }
+  image: { type: string }
+  overlay: { type: string }
+style:
+  titleSize: { type: number, default: 80 }
+  subtitleSize: { type: number, default: 42 }
+
+base: full-compose
+{% if image %}
+backgroundImage: {{ image }}
+overlay: {{ overlay or "dark" }}
+{% endif %}
+verticalAlign: center
+children:
+  - type: heading
+    text: "{{ title }}"
+    fontSize: {{ style.titleSize }}
+    textAlign: center
+  - type: divider
+    variant: gradient
+    width: 120
+    align: center
+    marginTop: 16
+    marginBottom: 40
+  {% if subtitle %}
+  - type: body
+    text: "{{ subtitle }}"
+    fontSize: {{ style.subtitleSize }}
+    textAlign: center
+    marginBottom: 16
+  {% endif %}
+  {% if author %}
+  - type: tag
+    text: "{{ author }}"
+    align: center
+  {% endif %}
