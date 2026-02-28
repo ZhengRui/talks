@@ -1,13 +1,12 @@
-name: dsl-cover
+name: section-divider
 params:
   title: { type: string, required: true }
   subtitle: { type: string }
-  author: { type: string }
   image: { type: string }
   overlay: { type: string }
 style:
   titleSize: { type: number, default: 80 }
-  subtitleSize: { type: number, default: 42 }
+  subtitleSize: { type: number, default: 32 }
 
 base: full-compose
 {% if image %}
@@ -25,16 +24,10 @@ children:
     width: 120
     align: center
     marginTop: 16
-    marginBottom: 40
+    marginBottom: 32
   {% if subtitle %}
   - type: body
     text: "{{ subtitle }}"
     fontSize: {{ style.subtitleSize }}
     textAlign: center
-    marginBottom: 16
-  {% endif %}
-  {% if author %}
-  - type: tag
-    text: "{{ author }}"
-    align: center
   {% endif %}

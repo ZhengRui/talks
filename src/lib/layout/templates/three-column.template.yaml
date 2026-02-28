@@ -1,4 +1,4 @@
-name: dsl-three-column
+name: three-column
 params:
   title: { type: string }
   columns: { type: array, required: true }

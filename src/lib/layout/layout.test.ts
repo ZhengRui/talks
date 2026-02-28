@@ -158,50 +158,7 @@ describe("layoutSlide", () => {
   });
 });
 
-describe("layoutPresentation - cover", () => {
-  const coverSlide: SlideData = {
-    template: "cover",
-    title: "My Presentation",
-    subtitle: "A great talk",
-    author: "John Doe",
-  };
-
-  it("produces correct slide structure", () => {
-    const result = layoutPresentation("Test", [coverSlide], "modern", "/img", "Author");
-    expect(result.title).toBe("Test");
-    expect(result.slides).toHaveLength(1);
-
-    const slide = result.slides[0];
-    expect(slide.width).toBe(1920);
-    expect(slide.height).toBe(1080);
-    expect(slide.background).toBe("#f8f9fc");
-  });
-
-  it("has title, accent line, subtitle, and author elements", () => {
-    const result = layoutPresentation("Test", [coverSlide], "modern", "/img");
-    const slide = result.slides[0];
-    const kinds = slide.elements.map((e) => e.kind);
-    expect(kinds).toContain("text"); // title + subtitle
-    expect(kinds).toContain("shape"); // accent line
-    expect(kinds).toContain("group"); // author pill
-  });
-
-  it("adds background image elements when image is specified", () => {
-    const slideWithImage: SlideData = {
-      ...coverSlide,
-      image: "hero.jpg",
-    };
-    const result = layoutPresentation("Test", [slideWithImage], "modern", "/img");
-    const slide = result.slides[0];
-    const imageEls = slide.elements.filter((e) => e.kind === "image");
-    expect(imageEls).toHaveLength(1);
-    if (imageEls[0].kind === "image") {
-      expect(imageEls[0].src).toBe("/img/hero.jpg");
-    }
-  });
-});
-
-// Note: Group 1+2 rigid templates removed in v7 — now DSL-based
+// Note: Group 1+2+3 rigid templates removed in v7 — now DSL-based
 // Integration tests for DSL templates are in src/lib/dsl/integration.test.ts
 
 describe("layoutPresentation - table", () => {
@@ -322,8 +279,8 @@ describe("layoutPresentation - freeform", () => {
 describe("per-slide theme override", () => {
   it("uses slide-level theme when specified", () => {
     const slide: SlideData = {
-      template: "cover",
-      title: "Dark Cover",
+      template: "full-compose",
+      children: [{ type: "heading", text: "Dark Cover" }],
       theme: "dark-tech",
     };
     const result = layoutPresentation("Test", [slide], "modern", "/img");

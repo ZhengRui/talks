@@ -1,4 +1,4 @@
-name: dsl-full-image
+name: full-image
 params:
   image: { type: string, required: true }
   title: { type: string }

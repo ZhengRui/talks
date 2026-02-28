@@ -25,7 +25,7 @@ import type {
   ColumnsComponent,
   BoxComponent,
 } from "./types";
-import { estimateTextHeight, headingStyle, bodyStyle, makeAnimation, staggerDelay } from "../helpers";
+import { estimateTextHeight, bodyStyle, makeAnimation, staggerDelay } from "../helpers";
 import { resolveColor } from "./theme-tokens";
 
 // --- Resolver result ---
@@ -274,7 +274,6 @@ function resolveBulletsCard(c: BulletsComponent, ctx: ResolveContext, ordered: b
 function resolveBulletsPlain(c: BulletsComponent, ctx: ResolveContext, ordered: boolean): ResolveResult {
   const itemGap = c.gap ?? 20;
   const fontSize = c.fontSize ?? 30;
-  const lineHeight = 1.5;
   const badgeSize = 44;
   const badgeTextGap = 20;
   const textIndent = ordered ? badgeSize + badgeTextGap : 0;
@@ -719,7 +718,7 @@ function resolveCode(c: CodeComponent, ctx: ResolveContext): ResolveResult {
 
 // --- Spacer ---
 
-function resolveSpacer(c: SpacerComponent, _ctx: ResolveContext): ResolveResult {
+function resolveSpacer(c: SpacerComponent): ResolveResult {
   if (c.flex) {
     return { elements: [], height: 0, flex: true };
   }
@@ -728,7 +727,7 @@ function resolveSpacer(c: SpacerComponent, _ctx: ResolveContext): ResolveResult 
 
 // --- Raw (escape hatch) ---
 
-function resolveRaw(c: RawComponent, _ctx: ResolveContext): ResolveResult {
+function resolveRaw(c: RawComponent): ResolveResult {
   return { elements: c.elements, height: c.height };
 }
 
@@ -902,7 +901,7 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
     ? { width: c.borderWidth ?? 2, color: resolveColor(c.borderColor, ctx.theme, ctx.theme.accent), ...(c.borderSides && { sides: c.borderSides }) }
     : undefined;
   const accentBorder = c.accentTop
-    ? { width: 3, color: c.accentColor ? resolveColor(c.accentColor, ctx.theme, ctx.theme.accent) : ctx.theme.accent, sides: ["top"] as const }
+    ? { width: 3, color: c.accentColor ? resolveColor(c.accentColor, ctx.theme, ctx.theme.accent) : ctx.theme.accent, sides: ["top"] as ("left" | "right" | "top" | "bottom")[] }
     : undefined;
 
   const group: GroupElement = {
@@ -967,9 +966,9 @@ export function resolveComponent(
     case "code":
       result = resolveCode(component, ctx); break;
     case "spacer":
-      result = resolveSpacer(component, ctx); break;
+      result = resolveSpacer(component); break;
     case "raw":
-      result = resolveRaw(component, ctx); break;
+      result = resolveRaw(component); break;
     case "columns":
       result = resolveColumns(component, ctx); break;
     case "box":

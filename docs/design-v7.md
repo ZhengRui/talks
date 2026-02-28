@@ -27,7 +27,7 @@ Extend the component + compose system so that any slide layout can be expressed 
 
 **Group 2 COMPLETE:** 8 rigid templates (two-column, comparison, code-comparison, sidebar, image-caption, image-comparison, profile, image-text) replaced by DSL `.template.yaml` files. Rigid TS layout functions and type interfaces deleted.
 
-**Group 3 COMPLETE:** 8 positioning templates have DSL `.template.yaml` equivalents (dsl-cover, dsl-section-divider, dsl-three-column, dsl-top-bottom, dsl-highlight-box, dsl-qa, dsl-agenda, dsl-full-image). Rigid TS layout functions retained for comparison. Features added: `backgroundImage`/`overlay` on full-compose, `fill: true` flex distribution, box `maxWidth`/`borderColor`/`borderWidth`/`borderSides`/`marginTop`/`marginBottom`/directional `padding`, tag `align`.
+**Group 3 COMPLETE:** 8 positioning templates (cover, section-divider, three-column, top-bottom, highlight-box, qa, agenda, full-image) replaced by DSL `.template.yaml` files. Rigid TS layout functions and type interfaces deleted. Features added: `backgroundImage`/`overlay` on full-compose, `fill: true` flex distribution, box `maxWidth`/`borderColor`/`borderWidth`/`borderSides`/`marginTop`/`marginBottom`/directional `padding`, tag `align`.
 
 ## Template Audit
 
@@ -64,18 +64,18 @@ Two-panel layouts and multi-element compositions. All replaced by DSL `.template
 
 ### Group 3: COMPLETE (~8 templates)
 
-Positioning templates — needed container/component extensions beyond basic vertical stacking. All have DSL `.template.yaml` equivalents. Rigid TS retained for comparison.
+Positioning templates — needed container/component extensions beyond basic vertical stacking. All replaced by DSL `.template.yaml` files. Rigid TS layout functions and type interfaces deleted.
 
-| Template | DSL template | Key features used |
-|---|---|---|
-| `cover` | `dsl-cover` | `backgroundImage`/`overlay`, `verticalAlign: center`, tag `align: center` |
-| `section-divider` | `dsl-section-divider` | `backgroundImage`/`overlay`, `verticalAlign: center` |
-| `top-bottom` | `dsl-top-bottom` | box `fill: true` (flex distribution — two fill boxes split space 50/50) |
-| `three-column` | `dsl-three-column` | columns + `{% for %}` loop, box `accentTop` |
-| `highlight-box` | `dsl-highlight-box` | box `maxWidth`, `borderColor`/`borderWidth`, `background` with theme tokens |
-| `qa` | `dsl-qa` | box `maxWidth` |
-| `agenda` | `dsl-agenda` | `{% for %}`+`{% if %}` conditionals, box `borderSides: [left]`, `opacity`, `padding: [vert, horiz]`, `marginTop` |
-| `full-image` | `dsl-full-image` | `backgroundImage`/`overlay` |
+| Template | As composition |
+|---|---|
+| `cover` | heading(large, center) + divider + body(center) + tag(center) + backgroundImage/overlay |
+| `section-divider` | heading(large, center) + body(center) + backgroundImage/overlay |
+| `three-column` | heading + divider + columns[box(accentTop)[text + heading + body] x 3] |
+| `top-bottom` | heading + divider + box(fill) + divider(gradient) + box(fill) |
+| `highlight-box` | heading + divider + box(maxWidth, borderColor, panel)[body] |
+| `qa` | heading + divider + box(maxWidth)[body] |
+| `agenda` | heading + divider + [box(borderSides:left, conditional opacity/bold)]... |
+| `full-image` | heading(center) + body(center) + backgroundImage/overlay |
 
 ### Group 4: Need new components (~8 templates)
 

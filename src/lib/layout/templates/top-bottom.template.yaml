@@ -1,4 +1,4 @@
-name: dsl-top-bottom
+name: top-bottom
 params:
   title: { type: string }
   top: { type: string, required: true }

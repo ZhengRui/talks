@@ -14,15 +14,15 @@ describe("loadPresentation", () => {
     expect(data.slides).toHaveLength(2);
   });
 
-  it("parses cover slide fields correctly", () => {
+  it("expands DSL cover template into full-compose", () => {
     const data = loadPresentation("70-years-of-ai");
     const cover = data.slides[0];
 
-    expect(cover.template).toBe("cover");
-    if (cover.template !== "cover") throw new Error("expected cover");
-    expect(cover.title).toBe("70 Years of AI");
-    expect(cover.subtitle).toBe("crack the AI jargon");
-    expect(cover.image).toBe("cover-bg.jpg");
+    // DSL expansion: template: cover → template: full-compose
+    expect(cover.template).toBe("full-compose");
+    if (cover.template !== "full-compose") throw new Error("expected full-compose");
+    // heading child contains the title
+    expect(cover.children[0]).toMatchObject({ type: "heading", text: "70 Years of AI" });
   });
 
   it("expands DSL bullets template into full-compose", () => {

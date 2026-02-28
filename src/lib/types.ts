@@ -3,38 +3,7 @@ import type { SlideComponent, PanelDef } from "./layout/components/types";
 
 // --- Per-template slide data ---
 
-// Text-focused
-export interface CoverSlideData {
-  template: "cover";
-  title: string;
-  subtitle?: string;
-  image?: string;
-  author?: string;
-}
-
-export interface SectionDividerSlideData {
-  template: "section-divider";
-  title: string;
-  subtitle?: string;
-  image?: string;
-}
-
-export interface AgendaSlideData {
-  template: "agenda";
-  title: string;
-  items: string[];
-  activeIndex?: number;
-}
-
 // Image-focused
-export interface FullImageSlideData {
-  template: "full-image";
-  image: string;
-  title?: string;
-  body?: string;
-  overlay?: "dark" | "light";
-}
-
 export interface ImageGridSlideData {
   template: "image-grid";
   title?: string;
@@ -46,20 +15,6 @@ export interface ImageGallerySlideData {
   template: "image-gallery";
   title?: string;
   images: { src: string; caption?: string }[];
-}
-
-// Layout
-export interface ThreeColumnSlideData {
-  template: "three-column";
-  title?: string;
-  columns: { icon?: string; heading?: string; body: string }[];
-}
-
-export interface TopBottomSlideData {
-  template: "top-bottom";
-  title?: string;
-  top: string;
-  bottom: string;
 }
 
 // Data & Technical
@@ -102,19 +57,6 @@ export interface IconGridSlideData {
   title?: string;
   items: { icon: string; label: string }[];
   columns?: 2 | 3 | 4;
-}
-
-export interface HighlightBoxSlideData {
-  template: "highlight-box";
-  title?: string;
-  body: string;
-  variant?: "info" | "warning" | "success";
-}
-
-export interface QaSlideData {
-  template: "qa";
-  question: string;
-  answer: string;
 }
 
 // Interactive/Special
@@ -162,22 +104,14 @@ export type { SlideComponent, PanelDef };
 // --- Discriminated union ---
 
 export type SlideData = (
-  | CoverSlideData
-  | SectionDividerSlideData
-  | AgendaSlideData
-  | FullImageSlideData
   | ImageGridSlideData
   | ImageGallerySlideData
-  | ThreeColumnSlideData
-  | TopBottomSlideData
   | TableSlideData
   | TimelineSlideData
   | ChartPlaceholderSlideData
   | DiagramSlideData
   | StepsSlideData
   | IconGridSlideData
-  | HighlightBoxSlideData
-  | QaSlideData
   | VideoSlideData
   | IframeSlideData
   | FreeformSlideData

@@ -1,16 +1,8 @@
 import type { SlideData } from "@/lib/types";
 import type { LayoutSlide, ResolvedTheme } from "../types";
-import { layoutCover } from "./cover";
 import { layoutTable } from "./table";
-import { layoutSectionDivider } from "./section-divider";
-import { layoutFullImage } from "./full-image";
-import { layoutHighlightBox } from "./highlight-box";
-import { layoutQa } from "./qa";
-import { layoutAgenda } from "./agenda";
 import { layoutDiagram } from "./diagram";
 import { layoutChartPlaceholder } from "./chart-placeholder";
-import { layoutThreeColumn } from "./three-column";
-import { layoutTopBottom } from "./top-bottom";
 import { layoutImageGrid } from "./image-grid";
 import { layoutImageGallery } from "./image-gallery";
 import { layoutTimeline } from "./timeline";
@@ -29,17 +21,9 @@ export type LayoutFunction = (
 ) => LayoutSlide;
 
 const layoutRegistry: Record<string, LayoutFunction> = {
-  cover: layoutCover as LayoutFunction,
   table: layoutTable as LayoutFunction,
-  "section-divider": layoutSectionDivider as LayoutFunction,
-  "full-image": layoutFullImage as LayoutFunction,
-  "highlight-box": layoutHighlightBox as LayoutFunction,
-  qa: layoutQa as LayoutFunction,
-  agenda: layoutAgenda as LayoutFunction,
   diagram: layoutDiagram as LayoutFunction,
   "chart-placeholder": layoutChartPlaceholder as LayoutFunction,
-  "three-column": layoutThreeColumn as LayoutFunction,
-  "top-bottom": layoutTopBottom as LayoutFunction,
   "image-grid": layoutImageGrid as LayoutFunction,
   "image-gallery": layoutImageGallery as LayoutFunction,
   timeline: layoutTimeline as LayoutFunction,

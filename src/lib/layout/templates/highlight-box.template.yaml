@@ -1,4 +1,4 @@
-name: dsl-highlight-box
+name: highlight-box
 params:
   title: { type: string }
   body: { type: string, required: true }

@@ -1,4 +1,4 @@
-name: dsl-agenda
+name: agenda
 params:
   title: { type: string, required: true }
   items: { type: array, required: true }

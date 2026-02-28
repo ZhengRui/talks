@@ -1,4 +1,4 @@
-name: dsl-qa
+name: qa
 params:
   question: { type: string, required: true }
   answer: { type: string, required: true }
