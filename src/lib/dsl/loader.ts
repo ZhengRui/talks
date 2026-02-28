@@ -39,7 +39,7 @@ export function findTemplate(
       `${templateName}.template.yaml`,
     );
     if (fs.existsSync(perPres)) {
-      const def = parseTemplateFile(perPres, templateName);
+      const def = resolveAlias(parseTemplateFile(perPres, templateName), slug);
       if (def) {
         cache.set(cacheKey, def);
         return def;
@@ -50,7 +50,7 @@ export function findTemplate(
   // 2. Built-in
   const builtIn = path.join(BUILT_IN_DIR, `${templateName}.template.yaml`);
   if (fs.existsSync(builtIn)) {
-    const def = parseTemplateFile(builtIn, templateName);
+    const def = resolveAlias(parseTemplateFile(builtIn, templateName), slug);
     if (def) {
       cache.set(cacheKey, def);
       return def;
@@ -58,6 +58,15 @@ export function findTemplate(
   }
 
   return null;
+}
+
+/** If the template declares an alias, resolve to the target template. */
+function resolveAlias(
+  def: DslTemplateDef | null,
+  slug?: string,
+): DslTemplateDef | null {
+  if (!def || !def.alias) return def;
+  return findTemplate(def.alias, slug);
 }
 
 function parseTemplateFile(
@@ -85,6 +94,7 @@ function parseTemplateFile(
 
     return {
       name: parsed.name ?? templateName,
+      ...(parsed.alias ? { alias: parsed.alias } : {}),
       params: parsed.params ?? {},
       style: parsed.style,
       rawBody: raw,

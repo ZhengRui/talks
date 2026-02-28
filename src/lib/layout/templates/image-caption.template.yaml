@@ -5,7 +5,7 @@ params:
   caption: { type: string, required: true }
 style:
   titleSize: { type: number, default: 56 }
-  imageHeight: { type: number, default: 648 }
+  imageHeight: { type: number }
   captionSize: { type: number, default: 26 }
   captionWidth: { type: number, default: 900 }
   captionLineHeight: { type: number, default: 1.5 }
@@ -26,7 +26,9 @@ children:
   {% endif %}
   - type: image
     src: "{{ image }}"
+    {% if style.imageHeight %}
     height: {{ style.imageHeight }}
+    {% endif %}
     borderRadius: 16
     animationType: scale-up
     animationDelay: 200

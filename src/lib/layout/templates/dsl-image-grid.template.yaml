@@ -1,0 +1,51 @@
+name: dsl-image-grid
+params:
+  title: { type: string }
+  images: { type: array, required: true }
+  columns: { type: number }
+style:
+  titleSize: { type: number, default: 56 }
+  imageHeight: { type: number }
+  captionSize: { type: number, default: 24 }
+
+base: full-compose
+children:
+  {% if title %}
+  - type: heading
+    text: "{{ title }}"
+    fontSize: {{ style.titleSize }}
+    textAlign: center
+  - type: divider
+    variant: gradient
+    width: 80
+    align: center
+    marginTop: 16
+    marginBottom: 40
+  {% endif %}
+  - type: grid
+    columns: {{ columns or 2 }}
+    gap: 32
+    equalHeight: true
+    children:
+      {% for img in images %}
+      - type: box
+        variant: flat
+        padding: 0
+        children:
+          - type: image
+            src: "{{ img.src }}"
+            {% if style.imageHeight %}
+            height: {{ style.imageHeight }}
+            {% endif %}
+            objectFit: cover
+            borderRadius: 16
+            animationType: scale-up
+          {% if img.caption %}
+          - type: text
+            text: "{{ img.caption }}"
+            fontSize: {{ style.captionSize }}
+            textAlign: center
+            color: theme.textMuted
+            marginTop: 8
+          {% endif %}
+      {% endfor %}

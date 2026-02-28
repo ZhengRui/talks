@@ -19,6 +19,7 @@ export type SlideComponent =
   | RawComponent
   | ColumnsComponent
   | BoxComponent
+  | GridComponent
   ) & { animationType?: AnimationType; animationDelay?: number; opacity?: number };
 
 export interface TextComponent {
@@ -164,9 +165,18 @@ export interface BoxComponent {
   borderColor?: string;   // custom border color (hex or theme token) — replaces default cardBorder
   borderWidth?: number;   // custom border width — replaces default cardBorder width
   borderSides?: ("top" | "right" | "bottom" | "left")[]; // restrict border to specific sides
-  fill?: boolean;         // expand to fill available panel height (content stays top-aligned)
+  fill?: boolean;         // expand to fill available panel height
+  verticalAlign?: "top" | "center" | "bottom"; // align content within box, default "top"
   marginTop?: number;     // override gap before this box in stacker
   marginBottom?: number;  // override gap after this box in stacker
+}
+
+export interface GridComponent {
+  type: "grid";
+  children: SlideComponent[];
+  columns?: number;      // items per row, default 3
+  gap?: number;          // default 32
+  equalHeight?: boolean; // stretch cells to same height per row
 }
 
 // --- Panel definition for split-compose ---

@@ -13,6 +13,7 @@ export interface DslStyleDef {
 /** Parsed .template.yaml definition */
 export interface DslTemplateDef {
   name: string;
+  alias?: string; // redirect to another template by name
   params: Record<string, DslParamDef>;
   style?: Record<string, DslStyleDef>;
   rawBody: string; // entire file content — Nunjucks template

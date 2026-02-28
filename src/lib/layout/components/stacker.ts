@@ -76,9 +76,14 @@ export function stackComponents(
     const isSpacer = component.type === "spacer";
     const curAnimIdx = isSpacer ? animIdx : animIdx++;
 
+    // Pass remaining available height so containers (columns, box) know
+    // how much space flex children can fill — prevents nested flex overflow.
+    const estGap = idx > 0 ? (prevGapAfter ?? gap) : 0;
+    const availableH = Math.max(0, panel.h - fixedH - estGap);
+
     const ctx: ResolveContext = {
       theme,
-      panel: { x: panel.x, y: panel.y, w: panel.w, h: panel.h },
+      panel: { x: panel.x, y: panel.y, w: panel.w, h: availableH },
       textColor: opts.textColor,
       textShadow: opts.textShadow,
       idPrefix: `${opts.idPrefix ?? "c"}${idx}`,

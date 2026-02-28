@@ -24,6 +24,7 @@ import type {
   RawComponent,
   ColumnsComponent,
   BoxComponent,
+  GridComponent,
 } from "./types";
 import { estimateTextHeight, bodyStyle, makeAnimation, staggerDelay } from "../helpers";
 import { resolveColor } from "./theme-tokens";
@@ -666,13 +667,14 @@ function resolveCard(c: CardComponent, ctx: ResolveContext): ResolveResult {
 // --- Image ---
 
 function resolveImage(c: ImageComponent, ctx: ResolveContext): ResolveResult {
-  const h = c.height ?? 400;
+  const flex = c.height === undefined;
+  const h = c.height ?? 0; // flex images get height from stacker
   const src = c.src.startsWith("/") || c.src.startsWith("http") || c.src.startsWith("data:")
     ? c.src
     : `${ctx.imageBase}/${c.src}`;
 
   // clipCircle requires a square — use height as both dimensions, center horizontally
-  const w = c.clipCircle ? h : ctx.panel.w;
+  const w = c.clipCircle ? (h || ctx.panel.h) : ctx.panel.w;
   const x = c.clipCircle ? (ctx.panel.w - w) / 2 : 0;
 
   const el: LayoutElement = {
@@ -685,7 +687,7 @@ function resolveImage(c: ImageComponent, ctx: ResolveContext): ResolveResult {
     borderRadius: c.clipCircle ? 0 : (c.borderRadius ?? ctx.theme.radiusSm),
   };
 
-  return { elements: [el], height: h };
+  return { elements: [el], height: h, ...(flex && { flex: true }) };
 }
 
 // --- Code ---
@@ -801,6 +803,97 @@ function resolveColumns(c: ColumnsComponent, ctx: ResolveContext): ResolveResult
   return { elements: allElements, height: maxH };
 }
 
+// --- Grid (wrapping multi-row layout) ---
+
+function resolveGrid(c: GridComponent, ctx: ResolveContext): ResolveResult {
+  const gap = c.gap ?? 32;
+  const cols = c.columns ?? 3;
+  const count = c.children.length;
+  if (count === 0) return { elements: [], height: 0 };
+
+  const colW = (ctx.panel.w - gap * (cols - 1)) / cols;
+  const rows = Math.ceil(count / cols);
+  // Pre-divide available height equally among rows so flex children
+  // in each row get a fair share (instead of first row grabbing all).
+  const rowH = (ctx.panel.h - gap * (rows - 1)) / rows;
+
+  const allElements: LayoutElement[] = [];
+  let totalH = 0;
+  let globalIdx = 0; // for staggered animation across all items
+
+  // Process children in row chunks
+  for (let start = 0; start < count; start += cols) {
+    const rowChildren = c.children.slice(start, start + cols);
+    const rowElements: LayoutElement[][] = [];
+    let rowMaxH = 0;
+
+    let hasFlexChild = false;
+
+    rowChildren.forEach((child, colIdx) => {
+      const colX = colIdx * (colW + gap);
+      const childCtx: ResolveContext = {
+        ...ctx,
+        panel: { x: colX, y: 0, w: colW, h: rowH },
+        idPrefix: `${ctx.idPrefix}-g${globalIdx}`,
+        animationDelay: ctx.animate
+          ? staggerDelay(globalIdx, ctx.animationDelay ?? 0)
+          : undefined,
+      };
+
+      const result = resolveComponent(child, childCtx);
+
+      // Expand flex children (e.g. fill boxes) to the pre-computed row height
+      if (result.flex) {
+        hasFlexChild = true;
+        result.elements.forEach((el) => {
+          if (el.kind === "group") {
+            el.rect = { ...el.rect, h: rowH };
+          }
+        });
+      }
+
+      // Offset to column position within row
+      const positioned = result.elements.map((el) => ({
+        ...el,
+        rect: { ...el.rect, x: el.rect.x + colX, y: el.rect.y + totalH },
+      }));
+
+      // Apply per-item staggered animation
+      if (ctx.animate) {
+        positioned.forEach((el) => {
+          if (!el.animation) {
+            (el as { animation: unknown }).animation = makeAnimation(
+              "fade-up",
+              staggerDelay(globalIdx, ctx.animationDelay ?? 0),
+            );
+          }
+        });
+      }
+
+      rowElements.push(positioned);
+      rowMaxH = Math.max(rowMaxH, result.flex ? rowH : result.height);
+      globalIdx++;
+    });
+
+    // Stretch groups to equal height within the row
+    const effectiveRowH = hasFlexChild ? rowH : rowMaxH;
+    if ((c.equalHeight || hasFlexChild) && effectiveRowH > 0) {
+      rowElements.forEach((els) => {
+        els.forEach((el) => {
+          if (el.kind === "group" && el.rect.h < effectiveRowH) {
+            el.rect = { ...el.rect, h: effectiveRowH };
+          }
+        });
+      });
+    }
+
+    rowElements.forEach((els) => allElements.push(...els));
+    totalH += rowMaxH + (start + cols < count ? gap : 0);
+  }
+
+  return { elements: allElements, height: totalH };
+}
+
 // --- Box (card wrapper) ---
 
 function resolveBoxPadding(p: number | number[] | undefined): { top: number; right: number; bottom: number; left: number } {
@@ -844,7 +937,8 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
   });
 
   fixedH += pad.bottom; // bottom padding
-  const boxTotalH = c.height ?? (flexCount > 0 ? ctx.panel.h : fixedH);
+  const useFullHeight = flexCount > 0 || (c.fill && !c.height);
+  const boxTotalH = c.height ?? (useFullHeight ? ctx.panel.h : fixedH);
   const flexH = flexCount > 0 ? Math.max(0, (boxTotalH - fixedH) / flexCount) : 0;
 
   // Pass 2: position children with flex heights applied
@@ -874,11 +968,14 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
   });
 
   cursorY += pad.bottom;
-  const totalH = c.height ?? (flexCount > 0 ? boxTotalH : cursorY);
+  const totalH = c.height ?? (useFullHeight ? boxTotalH : cursorY);
 
-  // Vertically center children when fixed height is larger than content
-  if (c.height && c.height > cursorY) {
-    const dy = (c.height - cursorY) / 2;
+  // Vertically align children within the box
+  const vAlign = c.verticalAlign ?? (c.height ? "center" : "top");
+  if (vAlign !== "top" && totalH > cursorY) {
+    const dy = vAlign === "center"
+      ? (totalH - cursorY) / 2
+      : totalH - cursorY; // bottom
     children.forEach((el) => {
       el.rect = { ...el.rect, y: el.rect.y + dy };
     });
@@ -971,6 +1068,8 @@ export function resolveComponent(
       result = resolveRaw(component); break;
     case "columns":
       result = resolveColumns(component, ctx); break;
+    case "grid":
+      result = resolveGrid(component, ctx); break;
     case "box":
       result = resolveBox(component, ctx); break;
   }
@@ -979,6 +1078,7 @@ export function resolveComponent(
   if (
     component.type !== "box" &&
     component.type !== "columns" &&
+    component.type !== "grid" &&
     component.animationType &&
     ctx.animate
   ) {

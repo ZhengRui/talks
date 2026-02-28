@@ -768,6 +768,142 @@ describe("resolveComponent — columns", () => {
   });
 });
 
+describe("resolveComponent — grid", () => {
+  it("distributes 6 children into 2 rows of 3 columns", () => {
+    const panel: Rect = { x: 0, y: 0, w: 800, h: 600 };
+    const children: SlideComponent[] = Array.from({ length: 6 }, (_, i) => ({
+      type: "stat" as const,
+      value: `${i}`,
+      label: `Item ${i}`,
+    }));
+    const { elements, height } = resolveComponent(
+      { type: "grid", columns: 3, children },
+      makeCtx({ panel, animate: false }),
+    );
+    // 6 stats, each produces 2 text elements → 12 total
+    expect(elements).toHaveLength(12);
+    // colW = (800 - 32*2) / 3 = 245.33
+    const colW = (800 - 32 * 2) / 3;
+    // Row 0: items 0,1,2 at y ≈ 0
+    expect(elements[0].rect.x).toBeCloseTo(0, 0);
+    expect(elements[2].rect.x).toBeCloseTo(colW + 32, 0);
+    expect(elements[4].rect.x).toBeCloseTo(2 * (colW + 32), 0);
+    // Row 1: items 3,4,5 at y > 0
+    expect(elements[6].rect.y).toBeGreaterThan(0);
+    expect(height).toBeGreaterThan(0);
+  });
+
+  it("uses default 3 columns and 32 gap", () => {
+    const panel: Rect = { x: 0, y: 0, w: 800, h: 600 };
+    const children: SlideComponent[] = Array.from({ length: 4 }, (_, i) => ({
+      type: "stat" as const,
+      value: `${i}`,
+      label: `L${i}`,
+    }));
+    const { elements } = resolveComponent(
+      { type: "grid", children },
+      makeCtx({ panel, animate: false }),
+    );
+    // 4 items, 3 cols → row 0 has 3, row 1 has 1
+    // colW = (800 - 64) / 3 = 245.33
+    const colW = (800 - 64) / 3;
+    // 4th item (index 6,7 for stat elements) at x ≈ 0, y > 0
+    expect(elements[6].rect.x).toBeCloseTo(0, 0);
+    expect(elements[6].rect.y).toBeGreaterThan(0);
+  });
+
+  it("respects custom gap", () => {
+    const panel: Rect = { x: 0, y: 0, w: 800, h: 600 };
+    const { elements } = resolveComponent(
+      {
+        type: "grid",
+        columns: 2,
+        gap: 16,
+        children: [
+          { type: "stat", value: "A", label: "a" },
+          { type: "stat", value: "B", label: "b" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    // colW = (800 - 16) / 2 = 392, second col at 392 + 16 = 408
+    expect(elements[2].rect.x).toBeCloseTo(408, 0);
+  });
+
+  it("equalHeight stretches groups to max height per row", () => {
+    const panel: Rect = { x: 0, y: 0, w: 800, h: 600 };
+    const { elements } = resolveComponent(
+      {
+        type: "grid",
+        columns: 2,
+        equalHeight: true,
+        children: [
+          { type: "box", children: [{ type: "body", text: "Short" }] },
+          { type: "box", children: [{ type: "body", text: "Much longer text that wraps to multiple lines for height difference" }] },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    const groups = elements.filter((e) => e.kind === "group");
+    expect(groups).toHaveLength(2);
+    expect(groups[0].rect.h).toBe(groups[1].rect.h);
+  });
+
+  it("applies staggered animation across all items", () => {
+    const panel: Rect = { x: 0, y: 0, w: 800, h: 600 };
+    const { elements } = resolveComponent(
+      {
+        type: "grid",
+        columns: 2,
+        children: [
+          { type: "stat", value: "A", label: "a" },
+          { type: "stat", value: "B", label: "b" },
+          { type: "stat", value: "C", label: "c" },
+        ],
+      },
+      makeCtx({ panel, animate: true, animationDelay: 200 }),
+    );
+    // Item 0 delay 200, item 1 delay 300, item 2 delay 400
+    expect(elements[0].animation!.delay).toBe(200);
+    expect(elements[2].animation!.delay).toBe(300);
+    expect(elements[4].animation!.delay).toBe(400);
+  });
+
+  it("returns empty for no children", () => {
+    const { elements, height } = resolveComponent(
+      { type: "grid", children: [] },
+      makeCtx({ animate: false }),
+    );
+    expect(elements).toHaveLength(0);
+    expect(height).toBe(0);
+  });
+
+  it("fill boxes expand to pre-computed row height", () => {
+    const panel: Rect = { x: 0, y: 0, w: 800, h: 600 };
+    const { elements, height } = resolveComponent(
+      {
+        type: "grid",
+        columns: 2,
+        children: [
+          { type: "box", fill: true, children: [{ type: "body", text: "A" }] },
+          { type: "box", fill: true, children: [{ type: "body", text: "B" }] },
+          { type: "box", fill: true, children: [{ type: "body", text: "C" }] },
+          { type: "box", fill: true, children: [{ type: "body", text: "D" }] },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    // 2 rows, gap 32 → rowH = (600 - 32) / 2 = 284
+    const rowH = (600 - 32) / 2;
+    const groups = elements.filter((e) => e.kind === "group");
+    expect(groups).toHaveLength(4);
+    groups.forEach((g) => {
+      expect(g.rect.h).toBeCloseTo(rowH, 0);
+    });
+    expect(height).toBeCloseTo(600, 0);
+  });
+});
+
 describe("resolveComponent — box", () => {
   it("wraps children in GroupElement with card styling", () => {
     const { elements, height } = resolveComponent(
@@ -817,7 +953,7 @@ describe("resolveComponent — box", () => {
     }
   });
 
-  it("fill returns flex: true for stacker-based expansion", () => {
+  it("fill returns flex: true and uses panel height", () => {
     const panel: Rect = { x: 0, y: 0, w: 400, h: 800 };
     const result = resolveComponent(
       {
@@ -827,13 +963,12 @@ describe("resolveComponent — box", () => {
       },
       makeCtx({ panel, animate: false }),
     );
-    // Resolver returns flex: true; stacker distributes remaining space
     expect(result.flex).toBe(true);
-    // Height is content height (not panel height) — stacker will expand it
-    expect(result.height).toBeLessThan(800);
+    // Fill box uses panel height as its height
+    expect(result.height).toBe(800);
   });
 
-  it("fill box content stays top-aligned", () => {
+  it("fill box content stays top-aligned by default", () => {
     const panel: Rect = { x: 0, y: 0, w: 400, h: 800 };
     const { elements } = resolveComponent(
       {
@@ -847,6 +982,24 @@ describe("resolveComponent — box", () => {
       // Content should stay at top (padding=28 default)
       const firstChild = elements[0].children[0];
       expect(firstChild.rect.y).toBe(28);
+    }
+  });
+
+  it("fill box with verticalAlign center centers content", () => {
+    const panel: Rect = { x: 0, y: 0, w: 400, h: 800 };
+    const { elements } = resolveComponent(
+      {
+        type: "box",
+        fill: true,
+        verticalAlign: "center",
+        children: [{ type: "body", text: "Short" }],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    if (elements[0].kind === "group") {
+      const firstChild = elements[0].children[0];
+      // Content should be pushed down from top (centered in 800px)
+      expect(firstChild.rect.y).toBeGreaterThan(200);
     }
   });
 
@@ -1142,17 +1295,18 @@ describe("resolveComponent — card", () => {
 });
 
 describe("resolveComponent — image", () => {
-  it("produces an image element with default height", () => {
-    const { elements, height } = resolveComponent(
+  it("produces a flex image element when no height specified", () => {
+    const result = resolveComponent(
       { type: "image", src: "photo.jpg" },
       makeCtx(),
     );
-    expect(elements).toHaveLength(1);
-    expect(elements[0].kind).toBe("image");
-    if (elements[0].kind === "image") {
-      expect(elements[0].src).toBe("/img/photo.jpg");
+    expect(result.elements).toHaveLength(1);
+    expect(result.elements[0].kind).toBe("image");
+    if (result.elements[0].kind === "image") {
+      expect(result.elements[0].src).toBe("/img/photo.jpg");
     }
-    expect(height).toBe(400); // default
+    expect(result.height).toBe(0);
+    expect(result.flex).toBe(true); // fills remaining stacker space
   });
 
   it("uses custom height", () => {
@@ -1449,6 +1603,54 @@ describe("stacker — flex spacer", () => {
     expect(midCenter).toBeCloseTo(tallPanel.h / 2, -1);
     // Bottom near the end
     expect(bottom.rect.y + bottom.rect.h).toBeCloseTo(tallPanel.h, 0);
+  });
+
+  it("nested flex image in columns > box fills remaining height without overflow", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const panel: Rect = { x: 0, y: 0, w: 800, h: 500 };
+
+    const elements = stackComponents(
+      [
+        { type: "heading", text: "Title" },
+        {
+          type: "columns",
+          children: [
+            {
+              type: "box",
+              padding: 0,
+              variant: "flat",
+              children: [{ type: "image", src: "photo.jpg" }],
+            },
+          ],
+        },
+      ],
+      panel,
+      theme,
+      { animate: false, gap: 28 },
+    );
+
+    // Should NOT overflow
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    // Find the image element (nested inside groups)
+    function findImage(els: typeof elements): (typeof elements)[0] | undefined {
+      for (const el of els) {
+        if (el.kind === "image") return el;
+        if (el.kind === "group" && "children" in el) {
+          const found = findImage(el.children);
+          if (found) return found;
+        }
+      }
+      return undefined;
+    }
+    const image = findImage(elements);
+    expect(image).toBeDefined();
+    // Image height should be less than panel height (heading + gap consumed some space)
+    expect(image!.rect.h).toBeLessThan(panel.h);
+    // Image bottom should fit within the panel
+    expect(image!.rect.y + image!.rect.h).toBeLessThanOrEqual(panel.h + 1);
+
+    warnSpy.mockRestore();
   });
 
   it("flex spacer with no remaining space gets height 0", () => {

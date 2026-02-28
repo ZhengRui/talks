@@ -577,6 +577,110 @@ describe("DSL integration: template expansion + layout", () => {
     expect(sc.right.children).toHaveLength(3);
   });
 
+  // --- Template aliases ---
+
+  it("alias: dsl-chart-placeholder resolves to image-caption", () => {
+    const def = findTemplate("dsl-chart-placeholder");
+    expect(def).not.toBeNull();
+    // Should resolve to image-caption template (has params: title, image, caption)
+    expect(def!.params).toHaveProperty("image");
+    expect(def!.params).toHaveProperty("caption");
+  });
+
+  it("alias: dsl-diagram resolves to image-caption", () => {
+    const def = findTemplate("dsl-diagram");
+    expect(def).not.toBeNull();
+    expect(def!.params).toHaveProperty("image");
+    expect(def!.params).toHaveProperty("caption");
+  });
+
+  it("dsl-image-gallery: expands with columns of images + captions", () => {
+    const { slide, layout } = expandAndLayout("dsl-image-gallery", {
+      title: "Gallery",
+      images: [
+        { src: "a.jpg", caption: "First" },
+        { src: "b.jpg", caption: "Second" },
+      ],
+    });
+
+    expect(slide.template).toBe("full-compose");
+    const fc = slide as FullComposeSlideData;
+    // heading + divider + columns = 3
+    expect(fc.children).toHaveLength(3);
+    expect(fc.children[0]).toMatchObject({ type: "heading", text: "Gallery" });
+    expect(fc.children[2]).toMatchObject({ type: "columns" });
+    const cols = fc.children[2] as unknown as { children: unknown[] };
+    expect(cols.children).toHaveLength(2);
+    // Each box has image + text(caption)
+    expect(cols.children[0]).toMatchObject({ type: "box", variant: "flat" });
+
+    expect(layout.elements.length).toBeGreaterThan(0);
+  });
+
+  it("dsl-image-grid: expands with grid of images + captions", () => {
+    const { slide, layout } = expandAndLayout("dsl-image-grid", {
+      title: "Grid",
+      columns: 2,
+      images: [
+        { src: "a.jpg", caption: "First" },
+        { src: "b.jpg", caption: "Second" },
+        { src: "c.jpg", caption: "Third" },
+        { src: "d.jpg", caption: "Fourth" },
+      ],
+    });
+
+    expect(slide.template).toBe("full-compose");
+    const fc = slide as FullComposeSlideData;
+    // heading + divider + grid = 3
+    expect(fc.children).toHaveLength(3);
+    expect(fc.children[2]).toMatchObject({ type: "grid", columns: 2, equalHeight: true });
+    const grid = fc.children[2] as unknown as { children: unknown[] };
+    expect(grid.children).toHaveLength(4);
+
+    expect(layout.elements.length).toBeGreaterThan(0);
+  });
+
+  it("dsl-icon-grid: expands with grid of icon + label boxes", () => {
+    const { slide, layout } = expandAndLayout("dsl-icon-grid", {
+      title: "Icons",
+      columns: 3,
+      items: [
+        { icon: "⚛️", label: "React" },
+        { icon: "▲", label: "Next.js" },
+        { icon: "📝", label: "TypeScript" },
+      ],
+    });
+
+    expect(slide.template).toBe("full-compose");
+    const fc = slide as FullComposeSlideData;
+    // heading + divider + spacer + grid + spacer = 5
+    expect(fc.children).toHaveLength(5);
+    expect(fc.children[2]).toMatchObject({ type: "spacer", flex: true });
+    expect(fc.children[3]).toMatchObject({ type: "grid", columns: 3, equalHeight: true });
+    const grid = fc.children[3] as unknown as { children: unknown[] };
+    expect(grid.children).toHaveLength(3);
+    expect(grid.children[0]).toMatchObject({ type: "box", padding: 24 });
+
+    expect(layout.elements.length).toBeGreaterThan(0);
+  });
+
+  it("alias: dsl-chart-placeholder expands and lays out", () => {
+    const { slide, layout } = expandAndLayout("dsl-chart-placeholder", {
+      title: "Growth Chart",
+      image: "chart.svg",
+      caption: "Monthly metrics",
+    });
+
+    expect(slide.template).toBe("full-compose");
+    const fc = slide as FullComposeSlideData;
+    // heading + divider + image + text = 4 (same as image-caption)
+    expect(fc.children).toHaveLength(4);
+    expect(fc.children[2]).toMatchObject({ type: "image", src: "chart.svg" });
+    expect(fc.children[3]).toMatchObject({ type: "text", text: "Monthly metrics" });
+
+    expect(layout.elements.length).toBeGreaterThan(0);
+  });
+
   it("style overrides propagate through layout", () => {
     const def = findTemplate("bullets");
     expect(def).not.toBeNull();
