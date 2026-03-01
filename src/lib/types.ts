@@ -3,62 +3,6 @@ import type { SlideComponent, PanelDef } from "./layout/components/types";
 
 // --- Per-template slide data ---
 
-// Image-focused
-export interface ImageGridSlideData {
-  template: "image-grid";
-  title?: string;
-  images: { src: string; caption?: string }[];
-  columns?: 2 | 3;
-}
-
-export interface ImageGallerySlideData {
-  template: "image-gallery";
-  title?: string;
-  images: { src: string; caption?: string }[];
-}
-
-// Data & Technical
-export interface TableSlideData {
-  template: "table";
-  title?: string;
-  headers: string[];
-  rows: string[][];
-}
-
-export interface TimelineSlideData {
-  template: "timeline";
-  title?: string;
-  events: { date: string; label: string; description?: string }[];
-}
-
-export interface ChartPlaceholderSlideData {
-  template: "chart-placeholder";
-  title: string;
-  image: string;
-  caption?: string;
-}
-
-export interface DiagramSlideData {
-  template: "diagram";
-  title?: string;
-  image: string;
-  caption?: string;
-}
-
-// Storytelling
-export interface StepsSlideData {
-  template: "steps";
-  title?: string;
-  steps: { label: string; description?: string }[];
-}
-
-export interface IconGridSlideData {
-  template: "icon-grid";
-  title?: string;
-  items: { icon: string; label: string }[];
-  columns?: 2 | 3 | 4;
-}
-
 // Interactive/Special
 export interface VideoSlideData {
   template: "video";
@@ -104,14 +48,6 @@ export type { SlideComponent, PanelDef };
 // --- Discriminated union ---
 
 export type SlideData = (
-  | ImageGridSlideData
-  | ImageGallerySlideData
-  | TableSlideData
-  | TimelineSlideData
-  | ChartPlaceholderSlideData
-  | DiagramSlideData
-  | StepsSlideData
-  | IconGridSlideData
   | VideoSlideData
   | IframeSlideData
   | FreeformSlideData

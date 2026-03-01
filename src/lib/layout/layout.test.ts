@@ -158,40 +158,8 @@ describe("layoutSlide", () => {
   });
 });
 
-// Note: Group 1+2+3 rigid templates removed in v7 — now DSL-based
+// Note: Group 1-4 rigid templates removed in v7 — now DSL-based
 // Integration tests for DSL templates are in src/lib/dsl/integration.test.ts
-
-describe("layoutPresentation - table", () => {
-  const tableSlide: SlideData = {
-    template: "table",
-    title: "Data Table",
-    headers: ["Name", "Score"],
-    rows: [
-      ["Alice", "95"],
-      ["Bob", "87"],
-    ],
-  };
-
-  it("produces a table element", () => {
-    const result = layoutPresentation("Test", [tableSlide], "elegant", "/img");
-    const slide = result.slides[0];
-    const tables = slide.elements.filter((e) => e.kind === "table");
-    expect(tables).toHaveLength(1);
-    if (tables[0].kind === "table") {
-      expect(tables[0].headers).toEqual(["Name", "Score"]);
-      expect(tables[0].rows).toHaveLength(2);
-    }
-  });
-
-  it("uses elegant theme accent for header", () => {
-    const result = layoutPresentation("Test", [tableSlide], "elegant", "/img");
-    const slide = result.slides[0];
-    const table = slide.elements.find((e) => e.kind === "table");
-    if (table?.kind === "table") {
-      expect(table.headerStyle.background).toBe("#b8860b");
-    }
-  });
-});
 
 // --- Freeform template ---
 

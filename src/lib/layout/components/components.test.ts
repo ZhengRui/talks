@@ -52,6 +52,14 @@ describe("resolveThemeToken", () => {
     expect(resolveThemeToken(undefined, theme)).toBeUndefined();
   });
 
+  it("resolves dot-path theme.border.color", () => {
+    expect(resolveThemeToken("theme.border.color", theme)).toBe(theme.border.color);
+  });
+
+  it("resolves theme.radius as string number", () => {
+    expect(resolveThemeToken("theme.radius", theme)).toBe(String(theme.radius));
+  });
+
   it("returns undefined for non-string theme properties", () => {
     // shadow is an object, not a string
     expect(resolveThemeToken("theme.shadow", theme)).toBeUndefined();
@@ -1358,6 +1366,273 @@ describe("resolveComponent — image", () => {
   });
 });
 
+describe("resolveComponent — table", () => {
+  it("produces a table element with themed styles", () => {
+    const { elements, height } = resolveComponent(
+      {
+        type: "table",
+        headers: ["Name", "Value"],
+        rows: [["A", "1"], ["B", "2"]],
+      },
+      makeCtx(),
+    );
+    expect(elements).toHaveLength(1);
+    expect(elements[0].kind).toBe("table");
+    if (elements[0].kind === "table") {
+      expect(elements[0].headers).toEqual(["Name", "Value"]);
+      expect(elements[0].rows).toEqual([["A", "1"], ["B", "2"]]);
+      expect(elements[0].headerStyle.background).toBe(theme.accent);
+      expect(elements[0].cellStyle.background).toBe(theme.cardBg);
+      expect(elements[0].cellStyle.fontSize).toBe(26);
+    }
+    // headerH(72) + 2 rows * rowH(68) = 208
+    expect(height).toBe(208);
+  });
+
+  it("respects fontSize override", () => {
+    const { elements } = resolveComponent(
+      {
+        type: "table",
+        headers: ["H"],
+        rows: [["R"]],
+        fontSize: 20,
+      },
+      makeCtx(),
+    );
+    if (elements[0].kind === "table") {
+      expect(elements[0].cellStyle.fontSize).toBe(20);
+    }
+  });
+
+  it("respects headerFontSize override", () => {
+    const { elements } = resolveComponent(
+      {
+        type: "table",
+        headers: ["H"],
+        rows: [["R"]],
+        headerFontSize: 30,
+      },
+      makeCtx(),
+    );
+    if (elements[0].kind === "table") {
+      expect(elements[0].headerStyle.fontSize).toBe(30);
+    }
+  });
+});
+
+describe("resolveComponent — steps", () => {
+  it("produces badges, connectors, and cards for each step", () => {
+    const { elements, height } = resolveComponent(
+      {
+        type: "steps",
+        items: [
+          { label: "First", description: "Do the first thing" },
+          { label: "Second", description: "Do the second thing" },
+          { label: "Third" },
+        ],
+      },
+      makeCtx({ animate: true }),
+    );
+
+    // 3 badges + 2 connectors + 3 cards = 8
+    expect(elements).toHaveLength(8);
+
+    // Badges are accent-filled circles with numbers
+    const badges = elements.filter((e) => e.id.includes("badge") && !e.id.includes("num"));
+    expect(badges).toHaveLength(3);
+    expect(badges[0].kind).toBe("group");
+    if (badges[0].kind === "group") {
+      expect(badges[0].style?.fill).toBe(theme.accent);
+      expect(badges[0].style?.borderRadius).toBe(100);
+      expect(badges[0].children[0]).toMatchObject({ kind: "text", text: "1" });
+    }
+
+    // Connectors between badges (not after last)
+    const connectors = elements.filter((e) => e.id.includes("connector"));
+    expect(connectors).toHaveLength(2);
+    expect(connectors[0].kind).toBe("shape");
+
+    // Cards have themed card style
+    const cards = elements.filter((e) => e.id.includes("step-card"));
+    expect(cards).toHaveLength(3);
+    if (cards[0].kind === "group") {
+      expect(cards[0].style?.fill).toBe(theme.cardBg);
+      // Card has label + description
+      expect(cards[0].children).toHaveLength(2);
+    }
+    // Third card has no description
+    if (cards[2].kind === "group") {
+      expect(cards[2].children).toHaveLength(1);
+    }
+
+    expect(height).toBeGreaterThan(0);
+  });
+
+  it("uses default badgeSize 48 and gap 24", () => {
+    const { elements } = resolveComponent(
+      {
+        type: "steps",
+        items: [{ label: "A" }, { label: "B" }],
+      },
+      makeCtx(),
+    );
+
+    const badges = elements.filter((e) => e.id.includes("badge") && !e.id.includes("num"));
+    expect(badges[0].rect.w).toBe(48);
+    expect(badges[0].rect.h).toBe(48);
+
+    // Second badge y > first badge y + badge size (gap applied)
+    expect(badges[1].rect.y).toBeGreaterThan(badges[0].rect.y + 48);
+  });
+
+  it("respects custom badgeSize", () => {
+    const { elements } = resolveComponent(
+      {
+        type: "steps",
+        items: [{ label: "A" }],
+        badgeSize: 64,
+      },
+      makeCtx(),
+    );
+
+    const badge = elements.find((e) => e.id.includes("badge") && !e.id.includes("num"));
+    expect(badge?.rect.w).toBe(64);
+    expect(badge?.rect.h).toBe(64);
+  });
+
+  it("applies staggered animations when animate is true", () => {
+    const { elements } = resolveComponent(
+      {
+        type: "steps",
+        items: [{ label: "A" }, { label: "B" }],
+      },
+      makeCtx({ animate: true }),
+    );
+
+    const badges = elements.filter((e) => e.id.includes("badge") && !e.id.includes("num"));
+    expect(badges[0].animation).toBeDefined();
+    expect(badges[1].animation).toBeDefined();
+    // Second badge has later delay
+    expect(badges[1].animation!.delay).toBeGreaterThan(badges[0].animation!.delay);
+  });
+
+  it("returns empty for zero items", () => {
+    const { elements, height } = resolveComponent(
+      { type: "steps", items: [] },
+      makeCtx(),
+    );
+    expect(elements).toHaveLength(0);
+    expect(height).toBe(0);
+  });
+});
+
+describe("resolveComponent — timeline", () => {
+  it("produces line, dots, dates, and labels for each event", () => {
+    const { elements, height } = resolveComponent(
+      {
+        type: "timeline",
+        events: [
+          { date: "Week 1", label: "Planning", description: "Gather requirements" },
+          { date: "Week 2", label: "Build" },
+        ],
+      },
+      makeCtx({ animate: true }),
+    );
+
+    // 1 line + 2×(3 dot layers + date + label) + 1 description = 1 + 6 + 4 + 1 = 12
+    // Event 1: ring + inner + core + date + label + desc = 6
+    // Event 2: ring + inner + core + date + label = 5
+    // Total: 1 line + 6 + 5 = 12
+    expect(elements).toHaveLength(12);
+
+    // Horizontal line
+    const line = elements.find((e) => e.id.includes("timeline-line"));
+    expect(line).toBeDefined();
+    expect(line!.kind).toBe("shape");
+    expect(line!.rect.w).toBe(800); // panel width (makeCtx default)
+
+    // Dot rings
+    const rings = elements.filter((e) => e.id.includes("dot-ring"));
+    expect(rings).toHaveLength(2);
+    expect(rings[0].kind).toBe("shape");
+
+    // Date text
+    const dates = elements.filter((e) => e.id.includes("date-"));
+    expect(dates).toHaveLength(2);
+    if (dates[0].kind === "text") {
+      expect(dates[0].text).toBe("Week 1");
+      expect(dates[0].style.color).toBe(theme.accent);
+    }
+
+    // Labels
+    const labels = elements.filter((e) => e.id.includes("label-"));
+    expect(labels).toHaveLength(2);
+
+    // Description only on first event
+    const descs = elements.filter((e) => e.id.includes("desc-"));
+    expect(descs).toHaveLength(1);
+
+    expect(height).toBeGreaterThan(0);
+  });
+
+  it("uses default dotSize 16", () => {
+    const { elements } = resolveComponent(
+      {
+        type: "timeline",
+        events: [{ date: "Q1", label: "Start" }],
+      },
+      makeCtx(),
+    );
+
+    const ring = elements.find((e) => e.id.includes("dot-ring"));
+    // ring is dotSize + 4 = 20
+    expect(ring?.rect.w).toBe(20);
+    expect(ring?.rect.h).toBe(20);
+  });
+
+  it("respects custom dotSize", () => {
+    const { elements } = resolveComponent(
+      {
+        type: "timeline",
+        events: [{ date: "Q1", label: "Start" }],
+        dotSize: 24,
+      },
+      makeCtx(),
+    );
+
+    const ring = elements.find((e) => e.id.includes("dot-ring"));
+    // ring is dotSize + 4 = 28
+    expect(ring?.rect.w).toBe(28);
+  });
+
+  it("applies staggered animations", () => {
+    const { elements } = resolveComponent(
+      {
+        type: "timeline",
+        events: [
+          { date: "Q1", label: "A" },
+          { date: "Q2", label: "B" },
+        ],
+      },
+      makeCtx({ animate: true }),
+    );
+
+    const rings = elements.filter((e) => e.id.includes("dot-ring"));
+    expect(rings[0].animation).toBeDefined();
+    expect(rings[1].animation).toBeDefined();
+    expect(rings[1].animation!.delay).toBeGreaterThan(rings[0].animation!.delay);
+  });
+
+  it("returns empty for zero events", () => {
+    const { elements, height } = resolveComponent(
+      { type: "timeline", events: [] },
+      makeCtx(),
+    );
+    expect(elements).toHaveLength(0);
+    expect(height).toBe(0);
+  });
+});
+
 describe("resolveComponent — code", () => {
   it("produces a code element", () => {
     const { elements, height } = resolveComponent(
@@ -1413,6 +1688,104 @@ describe("resolveComponent — raw", () => {
     expect(elements).toHaveLength(1);
     expect(elements[0].id).toBe("raw-shape");
     expect(height).toBe(65);
+  });
+  it("resolves theme.* tokens in element styles", () => {
+    const rawElements = [
+      {
+        kind: "shape" as const,
+        id: "themed-shape",
+        rect: { x: 0, y: 0, w: 100, h: 3 },
+        shape: "rect" as const,
+        style: { fill: "theme.accent" },
+      },
+      {
+        kind: "text" as const,
+        id: "themed-text",
+        rect: { x: 0, y: 10, w: 100, h: 30 },
+        text: "Hello",
+        style: {
+          fontFamily: "theme.fontBody",
+          fontSize: 24,
+          fontWeight: 400,
+          color: "theme.heading",
+          lineHeight: 1.4,
+          textAlign: "left" as const,
+        },
+      },
+    ];
+    const { elements } = resolveComponent(
+      { type: "raw", height: 40, elements: rawElements },
+      makeCtx(),
+    );
+    // shape fill should be resolved
+    if (elements[0].kind === "shape") {
+      expect(elements[0].style.fill).toBe(theme.accent);
+      expect(elements[0].style.fill).not.toBe("theme.accent");
+    }
+    // text color and fontFamily should be resolved
+    if (elements[1].kind === "text") {
+      expect(elements[1].style.color).toBe(theme.heading);
+      expect(elements[1].style.fontFamily).toBe(theme.fontBody);
+    }
+  });
+
+  it("resolves theme tokens in nested group children", () => {
+    const rawElements = [
+      {
+        kind: "group" as const,
+        id: "themed-group",
+        rect: { x: 0, y: 0, w: 48, h: 48 },
+        children: [
+          {
+            kind: "text" as const,
+            id: "inner-text",
+            rect: { x: 0, y: 0, w: 48, h: 48 },
+            text: "1",
+            style: {
+              fontFamily: "Arial",
+              fontSize: 24,
+              fontWeight: 700,
+              color: "theme.bg",
+              lineHeight: 1,
+              textAlign: "center" as const,
+            },
+          },
+        ],
+        style: { fill: "theme.accent", borderRadius: 100 },
+      },
+    ];
+    const { elements } = resolveComponent(
+      { type: "raw", height: 48, elements: rawElements },
+      makeCtx(),
+    );
+    if (elements[0].kind === "group") {
+      expect(elements[0].style?.fill).toBe(theme.accent);
+      expect(elements[0].children[0].kind).toBe("text");
+      if (elements[0].children[0].kind === "text") {
+        expect(elements[0].children[0].style.color).toBe(theme.bg);
+      }
+    }
+  });
+
+  it("resolves theme tokens in border color", () => {
+    const rawElements = [
+      {
+        kind: "group" as const,
+        id: "bordered-group",
+        rect: { x: 0, y: 0, w: 100, h: 100 },
+        children: [],
+        style: { fill: "theme.cardBg" },
+        border: { width: 1, color: "theme.accent" },
+      },
+    ];
+    const { elements } = resolveComponent(
+      { type: "raw", height: 100, elements: rawElements },
+      makeCtx(),
+    );
+    if (elements[0].kind === "group") {
+      expect(elements[0].style?.fill).toBe(theme.cardBg);
+      expect(elements[0].border?.color).toBe(theme.accent);
+    }
   });
 });
 

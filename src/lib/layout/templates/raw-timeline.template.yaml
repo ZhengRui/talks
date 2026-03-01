@@ -1,0 +1,109 @@
+name: raw-timeline
+params:
+  title: { type: string }
+  events: { type: array, required: true }
+style:
+  titleSize: { type: number, default: 56 }
+  dotSize: { type: number, default: 16 }
+
+base: full-compose
+children:
+  {% if title %}
+  - type: heading
+    text: "{{ title }}"
+    fontSize: {{ style.titleSize }}
+    textAlign: center
+  - type: divider
+    variant: gradient
+    width: 80
+    align: center
+    marginTop: 16
+    marginBottom: 40
+  {% endif %}
+  {% set pw = 1600 %}
+  {% set count = events.length %}
+  {% set lineY = 18 %}
+  {% set segW = pw / count %}
+  - type: raw
+    height: 300
+    elements:
+      # Horizontal connector line (appears first)
+      - kind: shape
+        id: raw-tl-line
+        rect: { x: 0, y: {{ lineY - 1 }}, w: {{ pw }}, h: 3 }
+        shape: rect
+        style: { fill: "theme.border.color" }
+        animation: { type: fade-in, delay: 100, duration: 500 }
+      {% for event in events %}
+      {% set cx = loop.index0 * segW + segW / 2 %}
+      {% set dotX = cx - style.dotSize / 2 %}
+      {% set dotY = lineY - style.dotSize / 2 + 1 %}
+      {% set delay = 200 + loop.index0 * 150 %}
+      # Dot ring
+      - kind: shape
+        id: "raw-tl-ring-{{ loop.index0 }}"
+        rect: { x: {{ dotX - 2 }}, y: {{ dotY - 2 }}, w: {{ style.dotSize + 4 }}, h: {{ style.dotSize + 4 }} }
+        shape: circle
+        style: { fill: "theme.accent" }
+        animation: { type: scale-up, delay: {{ delay }}, duration: 500 }
+      # Inner bg circle (simulates border)
+      - kind: shape
+        id: "raw-tl-inner-{{ loop.index0 }}"
+        rect: { x: {{ dotX + 1 }}, y: {{ dotY + 1 }}, w: {{ style.dotSize - 2 }}, h: {{ style.dotSize - 2 }} }
+        shape: circle
+        style: { fill: "theme.bg" }
+        animation: { type: scale-up, delay: {{ delay }}, duration: 500 }
+      # Core accent dot
+      - kind: shape
+        id: "raw-tl-core-{{ loop.index0 }}"
+        rect: { x: {{ dotX + 1 }}, y: {{ dotY + 1 }}, w: {{ style.dotSize - 2 }}, h: {{ style.dotSize - 2 }} }
+        shape: circle
+        style: { fill: "theme.accent" }
+        animation: { type: scale-up, delay: {{ delay }}, duration: 500 }
+      # Date text (accent, bold)
+      {% set textX = loop.index0 * segW + 16 %}
+      {% set textW = segW - 32 %}
+      {% set dateY = dotY + style.dotSize + 16 %}
+      - kind: text
+        id: "raw-tl-date-{{ loop.index0 }}"
+        rect: { x: {{ textX }}, y: {{ dateY }}, w: {{ textW }}, h: 32 }
+        text: "{{ event.date }}"
+        style:
+          fontFamily: "theme.fontBody"
+          fontSize: 26
+          fontWeight: 700
+          color: "theme.accent"
+          lineHeight: 1.2
+          textAlign: center
+        animation: { type: fade-up, delay: {{ delay + 50 }}, duration: 500 }
+      # Label text (bold heading)
+      {% set labelY = dateY + 40 %}
+      - kind: text
+        id: "raw-tl-label-{{ loop.index0 }}"
+        rect: { x: {{ textX }}, y: {{ labelY }}, w: {{ textW }}, h: 32 }
+        text: "{{ event.label }}"
+        style:
+          fontFamily: "theme.fontHeading"
+          fontSize: 26
+          fontWeight: 700
+          color: "theme.heading"
+          lineHeight: 1.1
+          textAlign: center
+        animation: { type: fade-up, delay: {{ delay + 100 }}, duration: 500 }
+      {% if event.description %}
+      # Description text (muted)
+      {% set descY = labelY + 40 %}
+      - kind: text
+        id: "raw-tl-desc-{{ loop.index0 }}"
+        rect: { x: {{ textX }}, y: {{ descY }}, w: {{ textW }}, h: 100 }
+        text: "{{ event.description }}"
+        style:
+          fontFamily: "theme.fontBody"
+          fontSize: 24
+          fontWeight: 400
+          color: "theme.textMuted"
+          lineHeight: 1.5
+          textAlign: center
+        animation: { type: fade-up, delay: {{ delay + 150 }}, duration: 500 }
+      {% endif %}
+      {% endfor %}

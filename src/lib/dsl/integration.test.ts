@@ -32,7 +32,7 @@ function expandAndLayout(
 }
 
 describe("DSL integration: template expansion + layout", () => {
-  it("dsl-bullets: expands and lays out", () => {
+  it("bullets: expands and lays out", () => {
     const { slide, layout } = expandAndLayout("bullets", {
       title: "Test Bullets",
       bullets: ["Point A", "Point B", "Point C"],
@@ -49,7 +49,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("dsl-stats: expands with title and stats", () => {
+  it("stats: expands with title and stats", () => {
     const { slide, layout } = expandAndLayout("stats", {
       title: "Metrics",
       stats: [
@@ -68,7 +68,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("dsl-stats: expands without title", () => {
+  it("stats: expands without title", () => {
     const { slide } = expandAndLayout("stats", {
       stats: [{ value: "1", label: "One" }],
     });
@@ -80,7 +80,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(fc.children[1]).toMatchObject({ type: "columns" });
   });
 
-  it("dsl-statement: expands with subtitle", () => {
+  it("statement: expands with subtitle", () => {
     const { slide, layout } = expandAndLayout("statement", {
       statement: "Big Idea",
       subtitle: "Supporting text",
@@ -96,7 +96,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("dsl-statement: expands without subtitle", () => {
+  it("statement: expands without subtitle", () => {
     const { slide } = expandAndLayout("statement", {
       statement: "Solo Statement",
     });
@@ -107,7 +107,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(fc.children[0]).toMatchObject({ type: "heading", text: "Solo Statement" });
   });
 
-  it("dsl-quote: expands with attribution", () => {
+  it("quote: expands with attribution", () => {
     const { slide, layout } = expandAndLayout("quote", {
       quote: "To be or not to be.",
       attribution: "Shakespeare",
@@ -127,7 +127,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("dsl-quote: expands without attribution", () => {
+  it("quote: expands without attribution", () => {
     const { slide } = expandAndLayout("quote", {
       quote: "Just a quote.",
     });
@@ -136,7 +136,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(fc.children[0]).not.toHaveProperty("attribution");
   });
 
-  it("dsl-code: expands with title and language", () => {
+  it("code: expands with title and language", () => {
     const code = 'function greet() {\n  return "hello";\n}';
     const { slide, layout } = expandAndLayout("code", {
       title: "Code Example",
@@ -158,7 +158,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("dsl-code: expands without title", () => {
+  it("code: expands without title", () => {
     const { slide } = expandAndLayout("code", {
       code: "x = 1",
     });
@@ -169,7 +169,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(fc.children[0]).toMatchObject({ type: "code" });
   });
 
-  it("dsl-numbered-list: expands and lays out", () => {
+  it("numbered-list: expands and lays out", () => {
     const { slide, layout } = expandAndLayout("numbered-list", {
       title: "Steps",
       items: ["First", "Second", "Third"],
@@ -188,7 +188,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("dsl-definition: expands with multiple definitions", () => {
+  it("definition: expands with multiple definitions", () => {
     const { slide, layout } = expandAndLayout("definition", {
       title: "Terms",
       definitions: [
@@ -216,7 +216,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("dsl-blank: expands to empty compose slide", () => {
+  it("blank: expands to empty compose slide", () => {
     const { slide, layout } = expandAndLayout("blank", {});
 
     expect(slide.template).toBe("full-compose");
@@ -228,7 +228,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.background).toBeDefined();
   });
 
-  it("dsl-end: expands with title and subtitle", () => {
+  it("end: expands with title and subtitle", () => {
     const { slide, layout } = expandAndLayout("end", {
       title: "Goodbye",
       subtitle: "Any questions?",
@@ -244,7 +244,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("dsl-end: uses default title when none provided", () => {
+  it("end: uses default title when none provided", () => {
     const { slide } = expandAndLayout("end", {});
 
     const fc = slide as FullComposeSlideData;
@@ -255,7 +255,7 @@ describe("DSL integration: template expansion + layout", () => {
 
   // --- Group 2 templates ---
 
-  it("dsl-two-column: expands to columns with box children", () => {
+  it("two-column: expands to columns with box children", () => {
     const { slide, layout } = expandAndLayout("two-column", {
       title: "Two Sides",
       left: "Left content",
@@ -278,7 +278,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("dsl-two-column: expands without title", () => {
+  it("two-column: expands without title", () => {
     const { slide } = expandAndLayout("two-column", {
       left: "A",
       right: "B",
@@ -290,7 +290,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(fc.children[0]).toMatchObject({ type: "columns" });
   });
 
-  it("dsl-two-column: verticalAlign param passes through", () => {
+  it("two-column: verticalAlign param passes through", () => {
     const { slide } = expandAndLayout("two-column", {
       left: "A",
       right: "B",
@@ -301,7 +301,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(raw.verticalAlign).toBe("center");
   });
 
-  it("dsl-two-column: style.cardHeight overrides default", () => {
+  it("two-column: style.cardHeight overrides default", () => {
     const { slide } = expandAndLayout("two-column", {
       left: "A",
       right: "B",
@@ -314,7 +314,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(cols.children[1].height).toBe(500);
   });
 
-  it("dsl-comparison: expands with heading + bullets per column", () => {
+  it("comparison: expands with heading + bullets per column", () => {
     const { slide, layout } = expandAndLayout("comparison", {
       title: "Before vs After",
       left: { heading: "Before", items: ["Slow", "Manual"] },
@@ -337,7 +337,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("dsl-code-comparison: expands with labels and code", () => {
+  it("code-comparison: expands with labels and code", () => {
     const { slide, layout } = expandAndLayout("code-comparison", {
       title: "Refactored",
       before: { label: "Before", code: "x = 1", language: "python" },
@@ -355,7 +355,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("dsl-code-comparison: expands without labels", () => {
+  it("code-comparison: expands without labels", () => {
     const { slide } = expandAndLayout("code-comparison", {
       before: { code: "a" },
       after: { code: "b" },
@@ -367,7 +367,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(fc.children[0]).toMatchObject({ type: "columns" });
   });
 
-  it("dsl-sidebar: expands to full-compose with columns ratio 0.3", () => {
+  it("sidebar: expands to full-compose with columns ratio 0.3", () => {
     const { slide, layout } = expandAndLayout("sidebar", {
       title: "Overview",
       sidebar: "Side notes",
@@ -383,7 +383,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("dsl-sidebar: right position uses ratio 0.7", () => {
+  it("sidebar: right position uses ratio 0.7", () => {
     const { slide } = expandAndLayout("sidebar", {
       sidebar: "Notes",
       main: "Content",
@@ -394,7 +394,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(fc.children[0]).toMatchObject({ type: "columns", ratio: 0.7 });
   });
 
-  it("dsl-sidebar: yaml_string filter preserves multiline text", () => {
+  it("sidebar: yaml_string filter preserves multiline text", () => {
     const { slide } = expandAndLayout("sidebar", {
       title: "Test",
       sidebar: "Key concepts:\n\n• Components\n• Templates",
@@ -418,7 +418,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(body!.text).toContain("• Components");
   });
 
-  it("dsl-image-caption: expands with centered layout", () => {
+  it("image-caption: expands with centered layout", () => {
     const { slide, layout } = expandAndLayout("image-caption", {
       title: "Photo",
       image: "photo.jpg",
@@ -438,7 +438,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("dsl-image-caption: expands without title", () => {
+  it("image-caption: expands without title", () => {
     const { slide } = expandAndLayout("image-caption", {
       image: "img.png",
       caption: "Caption text",
@@ -451,7 +451,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(fc.children[1]).toMatchObject({ type: "text" });
   });
 
-  it("dsl-profile: expands with avatar, name, title, and bio", () => {
+  it("profile: expands with avatar, name, title, and bio", () => {
     const { slide, layout } = expandAndLayout("profile", {
       name: "Jane Doe",
       title: "Software Engineer",
@@ -474,7 +474,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("dsl-profile: expands without optional fields", () => {
+  it("profile: expands without optional fields", () => {
     const { slide } = expandAndLayout("profile", {
       name: "Solo Name",
     });
@@ -486,7 +486,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(fc.children[1]).toMatchObject({ type: "divider" });
   });
 
-  it("dsl-image-comparison: expands with images and labels", () => {
+  it("image-comparison: expands with images and labels", () => {
     const { slide, layout } = expandAndLayout("image-comparison", {
       title: "Before & After",
       before: { image: "old.jpg", label: "Before" },
@@ -506,7 +506,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("dsl-image-comparison: expands without labels", () => {
+  it("image-comparison: expands without labels", () => {
     const { slide } = expandAndLayout("image-comparison", {
       before: { image: "a.jpg" },
       after: { image: "b.jpg" },
@@ -517,7 +517,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(fc.children).toHaveLength(1);
   });
 
-  it("dsl-image-text: expands with fill mode image panel", () => {
+  it("image-text: expands with fill mode image panel", () => {
     const { slide, layout } = expandAndLayout("image-text", {
       title: "About Us",
       image: "hero.jpg",
@@ -546,7 +546,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("dsl-image-text: right position swaps panels", () => {
+  it("image-text: right position swaps panels", () => {
     const { slide } = expandAndLayout("image-text", {
       title: "Reverse",
       image: "photo.jpg",
@@ -566,7 +566,7 @@ describe("DSL integration: template expansion + layout", () => {
     expect(sc.left.children[2]).toMatchObject({ type: "divider", animationType: "fade-up", animationDelay: 100 });
   });
 
-  it("dsl-image-text: omits body and bullets when not provided", () => {
+  it("image-text: omits body and bullets when not provided", () => {
     const { slide } = expandAndLayout("image-text", {
       title: "Minimal",
       image: "bg.jpg",
@@ -579,23 +579,23 @@ describe("DSL integration: template expansion + layout", () => {
 
   // --- Template aliases ---
 
-  it("alias: dsl-chart-placeholder resolves to image-caption", () => {
-    const def = findTemplate("dsl-chart-placeholder");
+  it("alias: chart-placeholder resolves to image-caption", () => {
+    const def = findTemplate("chart-placeholder");
     expect(def).not.toBeNull();
     // Should resolve to image-caption template (has params: title, image, caption)
     expect(def!.params).toHaveProperty("image");
     expect(def!.params).toHaveProperty("caption");
   });
 
-  it("alias: dsl-diagram resolves to image-caption", () => {
-    const def = findTemplate("dsl-diagram");
+  it("alias: diagram resolves to image-caption", () => {
+    const def = findTemplate("diagram");
     expect(def).not.toBeNull();
     expect(def!.params).toHaveProperty("image");
     expect(def!.params).toHaveProperty("caption");
   });
 
-  it("dsl-image-gallery: expands with columns of images + captions", () => {
-    const { slide, layout } = expandAndLayout("dsl-image-gallery", {
+  it("image-gallery: expands with columns of images + captions", () => {
+    const { slide, layout } = expandAndLayout("image-gallery", {
       title: "Gallery",
       images: [
         { src: "a.jpg", caption: "First" },
@@ -617,8 +617,8 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("dsl-image-grid: expands with grid of images + captions", () => {
-    const { slide, layout } = expandAndLayout("dsl-image-grid", {
+  it("image-grid: expands with grid of images + captions", () => {
+    const { slide, layout } = expandAndLayout("image-grid", {
       title: "Grid",
       columns: 2,
       images: [
@@ -640,8 +640,8 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("dsl-icon-grid: expands with grid of icon + label boxes", () => {
-    const { slide, layout } = expandAndLayout("dsl-icon-grid", {
+  it("icon-grid: expands with grid of icon + label boxes", () => {
+    const { slide, layout } = expandAndLayout("icon-grid", {
       title: "Icons",
       columns: 3,
       items: [
@@ -664,8 +664,167 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("alias: dsl-chart-placeholder expands and lays out", () => {
-    const { slide, layout } = expandAndLayout("dsl-chart-placeholder", {
+  it("table: expands with themed table headers and rows", () => {
+    const { slide, layout } = expandAndLayout("table", {
+      title: "Comparison",
+      headers: ["Feature", "A", "B"],
+      rows: [
+        ["Speed", "Fast", "Slow"],
+        ["Cost", "$10", "$20"],
+      ],
+    });
+
+    expect(slide.template).toBe("full-compose");
+    const fc = slide as FullComposeSlideData;
+    // heading + divider + table = 3
+    expect(fc.children).toHaveLength(3);
+    expect(fc.children[2]).toMatchObject({
+      type: "table",
+      headers: ["Feature", "A", "B"],
+    });
+    const tbl = fc.children[2] as unknown as { rows: string[][] };
+    expect(tbl.rows).toHaveLength(2);
+
+    // layout produces table element
+    const tableEl = layout.elements.find((e) => e.kind === "table");
+    expect(tableEl).toBeDefined();
+    expect(layout.elements.length).toBeGreaterThan(0);
+  });
+
+  it("steps: expands with badge + card steps", () => {
+    const { slide, layout } = expandAndLayout("steps", {
+      title: "Getting Started",
+      steps: [
+        { label: "Create YAML", description: "Define slides" },
+        { label: "Preview" },
+      ],
+    });
+
+    expect(slide.template).toBe("full-compose");
+    const fc = slide as FullComposeSlideData;
+    // heading + divider + steps = 3
+    expect(fc.children).toHaveLength(3);
+    expect(fc.children[2]).toMatchObject({ type: "steps", badgeSize: 48 });
+    const steps = fc.children[2] as unknown as { items: unknown[] };
+    expect(steps.items).toHaveLength(2);
+
+    // layout produces badge + connector + card elements
+    const badges = layout.elements.filter((e) => e.id.includes("badge"));
+    expect(badges.length).toBeGreaterThanOrEqual(2);
+    expect(layout.elements.length).toBeGreaterThan(0);
+  });
+
+  it("timeline: expands with horizontal line and event dots", () => {
+    const { slide, layout } = expandAndLayout("timeline", {
+      title: "Project Timeline",
+      events: [
+        { date: "Week 1", label: "Planning", description: "Gather reqs" },
+        { date: "Week 2", label: "Build" },
+      ],
+    });
+
+    expect(slide.template).toBe("full-compose");
+    const fc = slide as FullComposeSlideData;
+    // heading + divider + timeline = 3
+    expect(fc.children).toHaveLength(3);
+    expect(fc.children[2]).toMatchObject({ type: "timeline" });
+    const tl = fc.children[2] as unknown as { events: unknown[] };
+    expect(tl.events).toHaveLength(2);
+
+    // layout produces dot and line elements
+    const line = layout.elements.find((e) => e.id.includes("timeline-line"));
+    expect(line).toBeDefined();
+    const dots = layout.elements.filter((e) => e.id.includes("dot-ring"));
+    expect(dots).toHaveLength(2);
+    expect(layout.elements.length).toBeGreaterThan(0);
+  });
+
+  it("raw-timeline: raw elements with resolved theme tokens", () => {
+    const { slide, layout } = expandAndLayout("raw-timeline", {
+      title: "Timeline",
+      events: [
+        { date: "Q1", label: "Start", description: "Begin work" },
+        { date: "Q2", label: "End" },
+      ],
+    });
+
+    expect(slide.template).toBe("full-compose");
+    const fc = slide as FullComposeSlideData;
+    // heading + divider + raw = 3
+    expect(fc.children).toHaveLength(3);
+    expect(fc.children[2]).toMatchObject({ type: "raw", height: 300 });
+
+    // raw elements should contain line + dots + text
+    const line = layout.elements.find((e) => e.id.includes("raw-tl-line"));
+    expect(line).toBeDefined();
+    // Theme tokens should be resolved (not "theme.border.color")
+    if (line?.kind === "shape") {
+      expect(line.style.fill).not.toContain("theme.");
+    }
+    const dates = layout.elements.filter((e) => e.id.includes("raw-tl-date"));
+    expect(dates).toHaveLength(2);
+  });
+
+  it("raw-steps: raw elements with badges, connectors, cards", () => {
+    const { slide, layout } = expandAndLayout("raw-steps", {
+      title: "Steps",
+      steps: [
+        { label: "First", description: "Do this" },
+        { label: "Second" },
+      ],
+    });
+
+    expect(slide.template).toBe("full-compose");
+    const fc = slide as FullComposeSlideData;
+    // heading + divider + raw = 3
+    expect(fc.children).toHaveLength(3);
+    expect(fc.children[2]).toMatchObject({ type: "raw" });
+
+    // badges + connectors + cards in layout
+    const badges = layout.elements.filter((e) => e.id.includes("raw-st-badge") && !e.id.includes("num"));
+    expect(badges).toHaveLength(2);
+    // Theme tokens resolved on badge group
+    if (badges[0].kind === "group" && badges[0].style) {
+      expect(badges[0].style.fill).not.toContain("theme.");
+    }
+    const cards = layout.elements.filter((e) => e.id.includes("raw-st-card"));
+    expect(cards).toHaveLength(2);
+  });
+
+  it("raw-table: raw elements with header row and data cells", () => {
+    const { slide, layout } = expandAndLayout("raw-table", {
+      title: "Table",
+      headers: ["A", "B"],
+      rows: [["1", "2"], ["3", "4"]],
+    });
+
+    expect(slide.template).toBe("full-compose");
+    const fc = slide as FullComposeSlideData;
+    // heading + divider + raw = 3
+    expect(fc.children).toHaveLength(3);
+    expect(fc.children[2]).toMatchObject({ type: "raw" });
+
+    // Table is wrapped in a clipping group with rounded corners
+    const group = layout.elements.find((e) => e.id === "raw-tbl-group");
+    expect(group).toBeDefined();
+    if (group?.kind === "group") {
+      expect(group.style?.borderRadius).toBe(12);
+      expect(group.clipContent).toBe(true);
+      // Theme tokens resolved inside group children
+      const headerBg = group.children.find((e) => e.id === "raw-tbl-header-bg");
+      expect(headerBg).toBeDefined();
+      if (headerBg?.kind === "shape") {
+        expect(headerBg.style.fill).not.toContain("theme.");
+      }
+      const hdrs = group.children.filter((e) => e.id.includes("raw-tbl-hdr"));
+      expect(hdrs).toHaveLength(2);
+      const cells = group.children.filter((e) => e.id.includes("raw-tbl-cell"));
+      expect(cells).toHaveLength(4);
+    }
+  });
+
+  it("alias: chart-placeholder expands and lays out", () => {
+    const { slide, layout } = expandAndLayout("chart-placeholder", {
       title: "Growth Chart",
       image: "chart.svg",
       caption: "Monthly metrics",

@@ -15,7 +15,7 @@ Extend the component + compose system so that any slide layout can be expressed 
 
 ## Current State (v7)
 
-**15 components:** text, heading, body, bullets, stat, tag, divider, quote, card, image, code, spacer, raw, columns, box
+**19 components:** text, heading, body, bullets, stat, tag, divider, quote, card, image, code, spacer, raw, columns, box, grid, table, steps, timeline
 
 **2 containers:** split-compose (two horizontal panels), full-compose (single content area)
 
@@ -28,6 +28,8 @@ Extend the component + compose system so that any slide layout can be expressed 
 **Group 2 COMPLETE:** 8 rigid templates (two-column, comparison, code-comparison, sidebar, image-caption, image-comparison, profile, image-text) replaced by DSL `.template.yaml` files. Rigid TS layout functions and type interfaces deleted.
 
 **Group 3 COMPLETE:** 8 positioning templates (cover, section-divider, three-column, top-bottom, highlight-box, qa, agenda, full-image) replaced by DSL `.template.yaml` files. Rigid TS layout functions and type interfaces deleted. Features added: `backgroundImage`/`overlay` on full-compose, `fill: true` flex distribution, box `maxWidth`/`borderColor`/`borderWidth`/`borderSides`/`marginTop`/`marginBottom`/directional `padding`, tag `align`.
+
+**Group 4 COMPLETE:** 8 complex spatial templates (table, timeline, steps, chart-placeholder, diagram, icon-grid, image-grid, image-gallery) replaced by DSL `.template.yaml` files. Rigid TS layout functions and type interfaces deleted. Features added: 4 new components (`grid`, `table`, `steps`, `timeline`), template aliasing (`chart-placeholder` → `image-caption`), theme token resolution in `raw` elements (dot-path notation e.g. `theme.border.color`). Also created 3 "raw" alternative templates (`raw-table`, `raw-timeline`, `raw-steps`) demonstrating full layout control via `raw` + Nunjucks loops.
 
 ## Template Audit
 
@@ -77,20 +79,32 @@ Positioning templates — needed container/component extensions beyond basic ver
 | `agenda` | heading + divider + [box(borderSides:left, conditional opacity/bold)]... |
 | `full-image` | heading(center) + body(center) + backgroundImage/overlay |
 
-### Group 4: Need new components (~8 templates)
+### Group 4: COMPLETE (~8 templates)
 
-Complex spatial patterns that are their own layout primitive — they should become components.
+Complex spatial patterns — mix of DSL-only templates, template aliasing, and new components. All replaced by DSL `.template.yaml` files. Rigid TS layout functions and type interfaces deleted.
 
-| Template | Component needed |
+| Template | As composition |
 |---|---|
-| `timeline` | **timeline** — labeled points on a horizontal/vertical line |
-| `steps` | **steps** — numbered process flow with connectors |
-| `diagram` | **diagram** — boxes with arrows/connections |
-| `chart-placeholder` | **chart** — or just use image component |
-| `icon-grid` | **icon-grid** — grid of icon + label pairs |
-| `image-grid` | **image-grid** — 2x2 or 3x2 image layout |
-| `image-gallery` | **gallery** — row of images with captions |
-| `table` | **table** — already exists in IR as `kind: table` |
+| `chart-placeholder` | alias → `image-caption` |
+| `diagram` | alias → `image-caption` |
+| `image-gallery` | heading + divider + columns[box(flat)[image + text(caption)]] |
+| `image-grid` | heading + divider + grid(equalHeight)[box(flat)[image + text(caption)]] |
+| `icon-grid` | heading + divider + grid(equalHeight)[box(accentTop)[text(icon) + text(label)]] |
+| `table` | heading + divider + table(headers, rows) |
+| `steps` | heading + divider + steps(items with label + description) |
+| `timeline` | heading + divider + timeline(events with date + label + description) |
+
+#### Raw alternative templates
+
+3 additional templates demonstrate full layout control using `raw` elements + Nunjucks loops + theme tokens, without relying on the specialized components:
+
+| Template | Approach |
+|---|---|
+| `raw-table` | Header bg shape + cell text elements in computed grid positions, wrapped in clipping group |
+| `raw-steps` | Badge groups (accent circle + number) + connector shapes + card groups |
+| `raw-timeline` | Horizontal line shape + 3-layer dots + date/label/description text at computed positions |
+
+These serve as examples of the `raw` escape hatch — when the built-in components don't match the desired layout, Claude can generate a raw template with full control over element positioning.
 
 ### Group 5: Special (~2 templates)
 
@@ -282,7 +296,7 @@ A template DSL bridges these: **a template is a parameterized component tree**. 
 slides.yaml
   → loadPresentation()
   → for each slide:
-      if rigid (registry) → existing TS layout function (18 remaining)
+      if rigid (registry) → existing TS layout function (2 remaining: video, iframe)
       if DSL template     → expand params → component tree → stackComponents
       if compose          → stackComponents directly
 ```
@@ -651,8 +665,8 @@ Rigid templates are progressively replaced by DSL `.template.yaml` files:
 1. ~~Group 1: 9 rigid templates → DSL (DONE)~~
 2. ~~Group 2: 8 two-panel/multi-element templates → DSL (DONE)~~
 3. ~~Group 3: 8 positioning templates → DSL with component extensions (DONE)~~
-4. Group 4: 8 component templates → add new components, create DSL templates
-5. Group 5: 2 embed templates (video, iframe) — keep as rigid or convert last
+4. ~~Group 4: 8 component templates → new components + DSL (DONE)~~
+5. Group 5: 2 embed templates (video, iframe) — keep as rigid (not visual layout patterns)
 
 ## Design Decisions
 

@@ -1,0 +1,27 @@
+name: table
+params:
+  title: { type: string }
+  headers: { type: array, required: true }
+  rows: { type: array, required: true }
+style:
+  titleSize: { type: number, default: 56 }
+  fontSize: { type: number, default: 26 }
+
+base: full-compose
+children:
+  {% if title %}
+  - type: heading
+    text: "{{ title }}"
+    fontSize: {{ style.titleSize }}
+    textAlign: center
+  - type: divider
+    variant: gradient
+    width: 80
+    align: center
+    marginTop: 16
+    marginBottom: 40
+  {% endif %}
+  - type: table
+    headers: {{ headers }}
+    rows: {{ rows }}
+    fontSize: {{ style.fontSize }}

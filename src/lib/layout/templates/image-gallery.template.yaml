@@ -1,4 +1,4 @@
-name: dsl-image-gallery
+name: image-gallery
 params:
   title: { type: string }
   images: { type: array, required: true }

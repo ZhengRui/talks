@@ -1,4 +1,4 @@
-name: dsl-icon-grid
+name: icon-grid
 params:
   title: { type: string }
   items: { type: array, required: true }

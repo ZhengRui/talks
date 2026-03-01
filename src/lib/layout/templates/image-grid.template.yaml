@@ -1,4 +1,4 @@
-name: dsl-image-grid
+name: image-grid
 params:
   title: { type: string }
   images: { type: array, required: true }
