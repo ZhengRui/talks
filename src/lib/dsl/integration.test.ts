@@ -664,83 +664,8 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
-  it("table: expands with themed table headers and rows", () => {
-    const { slide, layout } = expandAndLayout("table", {
-      title: "Comparison",
-      headers: ["Feature", "A", "B"],
-      rows: [
-        ["Speed", "Fast", "Slow"],
-        ["Cost", "$10", "$20"],
-      ],
-    });
-
-    expect(slide.template).toBe("full-compose");
-    const fc = slide as FullComposeSlideData;
-    // heading + divider + table = 3
-    expect(fc.children).toHaveLength(3);
-    expect(fc.children[2]).toMatchObject({
-      type: "table",
-      headers: ["Feature", "A", "B"],
-    });
-    const tbl = fc.children[2] as unknown as { rows: string[][] };
-    expect(tbl.rows).toHaveLength(2);
-
-    // layout produces table element
-    const tableEl = layout.elements.find((e) => e.kind === "table");
-    expect(tableEl).toBeDefined();
-    expect(layout.elements.length).toBeGreaterThan(0);
-  });
-
-  it("steps: expands with badge + card steps", () => {
-    const { slide, layout } = expandAndLayout("steps", {
-      title: "Getting Started",
-      steps: [
-        { label: "Create YAML", description: "Define slides" },
-        { label: "Preview" },
-      ],
-    });
-
-    expect(slide.template).toBe("full-compose");
-    const fc = slide as FullComposeSlideData;
-    // heading + divider + steps = 3
-    expect(fc.children).toHaveLength(3);
-    expect(fc.children[2]).toMatchObject({ type: "steps", badgeSize: 48 });
-    const steps = fc.children[2] as unknown as { items: unknown[] };
-    expect(steps.items).toHaveLength(2);
-
-    // layout produces badge + connector + card elements
-    const badges = layout.elements.filter((e) => e.id.includes("badge"));
-    expect(badges.length).toBeGreaterThanOrEqual(2);
-    expect(layout.elements.length).toBeGreaterThan(0);
-  });
-
-  it("timeline: expands with horizontal line and event dots", () => {
+  it("timeline: raw elements with resolved theme tokens", () => {
     const { slide, layout } = expandAndLayout("timeline", {
-      title: "Project Timeline",
-      events: [
-        { date: "Week 1", label: "Planning", description: "Gather reqs" },
-        { date: "Week 2", label: "Build" },
-      ],
-    });
-
-    expect(slide.template).toBe("full-compose");
-    const fc = slide as FullComposeSlideData;
-    // heading + divider + timeline = 3
-    expect(fc.children).toHaveLength(3);
-    expect(fc.children[2]).toMatchObject({ type: "timeline" });
-    const tl = fc.children[2] as unknown as { events: unknown[] };
-    expect(tl.events).toHaveLength(2);
-
-    // layout produces dot and line elements
-    const line = layout.elements.find((e) => e.id.includes("timeline-line"));
-    expect(line).toBeDefined();
-    const dots = layout.elements.filter((e) => e.id.includes("dot-ring"));
-    expect(dots).toHaveLength(2);
-    expect(layout.elements.length).toBeGreaterThan(0);
-  });
-
-  it("raw-timeline: raw elements with resolved theme tokens", () => {
-    const { slide, layout } = expandAndLayout("raw-timeline", {
       title: "Timeline",
       events: [
         { date: "Q1", label: "Start", description: "Begin work" },
@@ -755,18 +680,18 @@ describe("DSL integration: template expansion + layout", () => {
     expect(fc.children[2]).toMatchObject({ type: "raw", height: 300 });
 
     // raw elements should contain line + dots + text
-    const line = layout.elements.find((e) => e.id.includes("raw-tl-line"));
+    const line = layout.elements.find((e) => e.id.includes("tl-line"));
     expect(line).toBeDefined();
     // Theme tokens should be resolved (not "theme.border.color")
     if (line?.kind === "shape") {
       expect(line.style.fill).not.toContain("theme.");
     }
-    const dates = layout.elements.filter((e) => e.id.includes("raw-tl-date"));
+    const dates = layout.elements.filter((e) => e.id.includes("tl-date"));
     expect(dates).toHaveLength(2);
   });
 
-  it("raw-steps: raw elements with badges, connectors, cards", () => {
-    const { slide, layout } = expandAndLayout("raw-steps", {
+  it("steps: raw elements with badges, connectors, cards", () => {
+    const { slide, layout } = expandAndLayout("steps", {
       title: "Steps",
       steps: [
         { label: "First", description: "Do this" },
@@ -781,18 +706,18 @@ describe("DSL integration: template expansion + layout", () => {
     expect(fc.children[2]).toMatchObject({ type: "raw" });
 
     // badges + connectors + cards in layout
-    const badges = layout.elements.filter((e) => e.id.includes("raw-st-badge") && !e.id.includes("num"));
+    const badges = layout.elements.filter((e) => e.id.includes("st-badge") && !e.id.includes("num"));
     expect(badges).toHaveLength(2);
     // Theme tokens resolved on badge group
     if (badges[0].kind === "group" && badges[0].style) {
       expect(badges[0].style.fill).not.toContain("theme.");
     }
-    const cards = layout.elements.filter((e) => e.id.includes("raw-st-card"));
+    const cards = layout.elements.filter((e) => e.id.includes("st-card"));
     expect(cards).toHaveLength(2);
   });
 
-  it("raw-table: raw elements with header row and data cells", () => {
-    const { slide, layout } = expandAndLayout("raw-table", {
+  it("table: raw elements with header row and data cells", () => {
+    const { slide, layout } = expandAndLayout("table", {
       title: "Table",
       headers: ["A", "B"],
       rows: [["1", "2"], ["3", "4"]],
@@ -804,21 +729,26 @@ describe("DSL integration: template expansion + layout", () => {
     expect(fc.children).toHaveLength(3);
     expect(fc.children[2]).toMatchObject({ type: "raw" });
 
-    // Table is wrapped in a clipping group with rounded corners
-    const group = layout.elements.find((e) => e.id === "raw-tbl-group");
+    // Table uses layered approach: group for animation, rounded rects for corners
+    const group = layout.elements.find((e) => e.id === "tbl-group");
     expect(group).toBeDefined();
     if (group?.kind === "group") {
-      expect(group.style?.borderRadius).toBe(12);
-      expect(group.clipContent).toBe(true);
-      // Theme tokens resolved inside group children
-      const headerBg = group.children.find((e) => e.id === "raw-tbl-header-bg");
-      expect(headerBg).toBeDefined();
-      if (headerBg?.kind === "shape") {
-        expect(headerBg.style.fill).not.toContain("theme.");
+      // Layer 1: accent bg with rounded corners (theme tokens resolved)
+      const accentBg = group.children.find((e) => e.id === "tbl-accent-bg");
+      expect(accentBg).toBeDefined();
+      if (accentBg?.kind === "shape") {
+        expect(accentBg.style.borderRadius).toBe(12);
+        expect(accentBg.style.fill).not.toContain("theme.");
       }
-      const hdrs = group.children.filter((e) => e.id.includes("raw-tbl-hdr"));
+      // Layer 2: data area bg with rounded corners
+      const dataBg = group.children.find((e) => e.id === "tbl-data-bg");
+      expect(dataBg).toBeDefined();
+      if (dataBg?.kind === "shape") {
+        expect(dataBg.style.borderRadius).toBe(12);
+      }
+      const hdrs = group.children.filter((e) => e.id.includes("tbl-hdr"));
       expect(hdrs).toHaveLength(2);
-      const cells = group.children.filter((e) => e.id.includes("raw-tbl-cell"));
+      const cells = group.children.filter((e) => e.id.includes("tbl-cell"));
       expect(cells).toHaveLength(4);
     }
   });

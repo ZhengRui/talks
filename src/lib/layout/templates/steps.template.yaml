@@ -5,6 +5,7 @@ params:
 style:
   titleSize: { type: number, default: 56 }
   badgeSize: { type: number, default: 48 }
+  stepGap: { type: number, default: 24 }
 
 base: full-compose
 children:
@@ -20,6 +21,87 @@ children:
     marginTop: 16
     marginBottom: 40
   {% endif %}
-  - type: steps
-    items: {{ steps }}
-    badgeSize: {{ style.badgeSize }}
+  {% set pw = 1600 %}
+  {% set ph = 660 %}
+  {% set count = steps.length %}
+  {% set stepH = (ph - (count - 1) * style.stepGap) / count %}
+  {% if stepH > 120 %}{% set stepH = 120 %}{% endif %}
+  {% set connGap = 24 %}
+  {% set cardX = style.badgeSize + connGap %}
+  {% set cardW = pw - style.badgeSize - connGap %}
+  {% set cardPad = 24 %}
+  - type: raw
+    height: {{ count * stepH + (count - 1) * style.stepGap }}
+    elements:
+      {% for step in steps %}
+      {% set y = loop.index0 * (stepH + style.stepGap) %}
+      {% set delay = 200 + loop.index0 * 150 %}
+      # Badge circle (accent bg, number)
+      - kind: group
+        id: "st-badge-{{ loop.index0 }}"
+        rect: { x: 0, y: {{ y + (stepH - style.badgeSize) / 2 }}, w: {{ style.badgeSize }}, h: {{ style.badgeSize }} }
+        children:
+          - kind: text
+            id: "st-badge-{{ loop.index0 }}-num"
+            rect: { x: 0, y: 0, w: {{ style.badgeSize }}, h: {{ style.badgeSize }} }
+            text: "{{ loop.index }}"
+            style:
+              fontFamily: "theme.fontBody"
+              fontSize: 24
+              fontWeight: 700
+              color: "theme.bg"
+              lineHeight: 1
+              textAlign: center
+              verticalAlign: middle
+        style:
+          fill: "theme.accent"
+          borderRadius: 100
+        animation: { type: scale-up, delay: {{ delay }}, duration: 500 }
+      {% if not loop.last %}
+      # Connector line between badges
+      {% set lineX = style.badgeSize / 2 - 1.5 %}
+      {% set lineY = y + (stepH + style.badgeSize) / 2 %}
+      {% set lineH = style.stepGap + (stepH - style.badgeSize) %}
+      - kind: shape
+        id: "st-conn-{{ loop.index0 }}"
+        rect: { x: {{ lineX }}, y: {{ lineY }}, w: 3, h: {{ lineH }} }
+        shape: rect
+        style: { fill: "theme.border.color" }
+        animation: { type: fade-in, delay: {{ delay + 100 }}, duration: 500 }
+      {% endif %}
+      # Step card (label + optional description)
+      - kind: group
+        id: "st-card-{{ loop.index0 }}"
+        rect: { x: {{ cardX }}, y: {{ y }}, w: {{ cardW }}, h: {{ stepH }} }
+        children:
+          - kind: text
+            id: "st-label-{{ loop.index0 }}"
+            rect: { x: {{ cardPad }}, y: {{ cardPad }}, w: {{ cardW - cardPad * 2 }}, h: 36 }
+            text: "{{ step.label }}"
+            style:
+              fontFamily: "theme.fontHeading"
+              fontSize: 30
+              fontWeight: 700
+              color: "theme.heading"
+              lineHeight: 1.1
+              textAlign: left
+          {% if step.description %}
+          - kind: text
+            id: "st-desc-{{ loop.index0 }}"
+            rect: { x: {{ cardPad }}, y: {{ cardPad + 40 }}, w: {{ cardW - cardPad * 2 }}, h: 32 }
+            text: "{{ step.description }}"
+            style:
+              fontFamily: "theme.fontBody"
+              fontSize: 24
+              fontWeight: 400
+              color: "theme.textMuted"
+              lineHeight: 1.5
+              textAlign: left
+          {% endif %}
+        style:
+          fill: "theme.cardBg"
+          borderRadius: 16
+        border: { width: 1, color: "theme.border.color" }
+        clipContent: true
+        animation: { type: fade-up, delay: {{ delay + 50 }}, duration: 500 }
+      {% endfor %}

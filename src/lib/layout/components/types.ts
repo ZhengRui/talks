@@ -20,9 +20,6 @@ export type SlideComponent =
   | ColumnsComponent
   | BoxComponent
   | GridComponent
-  | TableComponent
-  | StepsComponent
-  | TimelineComponent
   ) & { animationType?: AnimationType; animationDelay?: number; opacity?: number };
 
 export interface TextComponent {
@@ -180,27 +177,6 @@ export interface GridComponent {
   columns?: number;      // items per row, default 3
   gap?: number;          // default 32
   equalHeight?: boolean; // stretch cells to same height per row
-}
-
-export interface TableComponent {
-  type: "table";
-  headers: string[];
-  rows: string[][];
-  fontSize?: number;       // cell font size, default 26
-  headerFontSize?: number; // header font size, default 26
-}
-
-export interface StepsComponent {
-  type: "steps";
-  items: { label: string; description?: string }[];
-  badgeSize?: number;  // default 48
-  gap?: number;        // vertical gap between steps, default 24
-}
-
-export interface TimelineComponent {
-  type: "timeline";
-  events: { date: string; label: string; description?: string }[];
-  dotSize?: number;  // default 16
 }
 
 // --- Panel definition for split-compose ---
