@@ -1,6 +1,6 @@
 import type { FreeformSlideData } from "@/lib/types";
-import type { LayoutSlide, LayoutElement, ResolvedTheme } from "../types";
-import { CANVAS_W, CANVAS_H, backgroundImage } from "../helpers";
+import type { LayoutSlide, LayoutElement, ResolvedTheme } from "../../types";
+import { CANVAS_W, CANVAS_H, backgroundImage } from "../../helpers";
 
 /** Prefix relative image src values with imageBase (e.g. "/superbowl"). */
 function prefixImageSrcs(elements: LayoutElement[], imageBase: string): LayoutElement[] {

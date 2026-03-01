@@ -2,9 +2,9 @@ import type { SlideData } from "@/lib/types";
 import type { LayoutSlide, ResolvedTheme } from "../types";
 import { layoutVideo } from "./video";
 import { layoutIframe } from "./iframe";
-import { layoutFreeform } from "./freeform";
-import { layoutSplitCompose } from "./split-compose";
-import { layoutFullCompose } from "./full-compose";
+import { layoutFreeform } from "./bases/freeform";
+import { layoutSplitCompose } from "./bases/split-compose";
+import { layoutFullCompose } from "./bases/full-compose";
 
 export type LayoutFunction = (
   slide: SlideData,

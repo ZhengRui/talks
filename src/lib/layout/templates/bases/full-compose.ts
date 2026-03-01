@@ -1,8 +1,8 @@
 import type { FullComposeSlideData } from "@/lib/types";
-import type { LayoutSlide, LayoutElement, ResolvedTheme } from "../types";
-import { CANVAS_W, CANVAS_H, CONTENT_X, CONTENT_W, PADDING_Y, backgroundImage } from "../helpers";
-import { stackComponents } from "../components/stacker";
-import { resolveColor } from "../components/theme-tokens";
+import type { LayoutSlide, LayoutElement, ResolvedTheme } from "../../types";
+import { CANVAS_W, CANVAS_H, CONTENT_X, CONTENT_W, PADDING_Y, backgroundImage } from "../../helpers";
+import { stackComponents } from "../../components/stacker";
+import { resolveColor } from "../../components/theme-tokens";
 
 export function layoutFullCompose(
   slide: FullComposeSlideData,

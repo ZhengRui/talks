@@ -1,9 +1,9 @@
 import type { SplitComposeSlideData } from "@/lib/types";
-import type { PanelDef } from "@/lib/layout/components/types";
-import type { LayoutSlide, LayoutElement, ResolvedTheme, ShapeElement } from "../types";
-import { CANVAS_W, CANVAS_H } from "../helpers";
-import { stackComponents } from "../components/stacker";
-import { resolveColor, resolveThemeToken } from "../components/theme-tokens";
+import type { PanelDef } from "../../components/types";
+import type { LayoutSlide, LayoutElement, ResolvedTheme, ShapeElement } from "../../types";
+import { CANVAS_W, CANVAS_H } from "../../helpers";
+import { stackComponents } from "../../components/stacker";
+import { resolveColor, resolveThemeToken } from "../../components/theme-tokens";
 
 const PANEL_PADDING_X = 60;
 const PANEL_PADDING_Y = 60;
