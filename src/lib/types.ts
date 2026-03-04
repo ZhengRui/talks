@@ -3,19 +3,6 @@ import type { SlideComponent, PanelDef } from "./layout/components/types";
 
 // --- Per-template slide data ---
 
-// Interactive/Special
-export interface VideoSlideData {
-  template: "video";
-  src: string;
-  title?: string;
-}
-
-export interface IframeSlideData {
-  template: "iframe";
-  src: string;
-  title?: string;
-}
-
 // Freeform (v6 — direct Level 2 IR passthrough)
 export interface FreeformSlideData {
   template: "freeform";
@@ -48,8 +35,6 @@ export type { SlideComponent, PanelDef };
 // --- Discriminated union ---
 
 export type SlideData = (
-  | VideoSlideData
-  | IframeSlideData
   | FreeformSlideData
   | SplitComposeSlideData
   | FullComposeSlideData

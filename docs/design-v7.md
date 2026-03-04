@@ -2,26 +2,26 @@
 
 ## Motivation
 
-v6 introduced a composable component layer with 12 typed components and a vertical stacker. This works well for simple compositions but can only express ~9 of the 35 existing templates. The remaining templates need:
+v6 introduced a composable component layer with 12 typed components and a vertical stacker. This worked well for simple compositions but could only express ~9 of the 35 existing templates. The remaining templates needed:
 
 1. **Positioning controls** — centering, vertical splits, overlays, panel fill modes
 2. **Complex components** — timeline, steps, table, image grids are spatial patterns that don't decompose into vertical stacks
 
-If the compose system becomes expressive enough to replace all 35 templates, the generation target simplifies: Claude (or Claude Vision from a screenshot) only needs to output compose YAML instead of writing TypeScript layout functions. This unlocks the **screenshot → reusable template** workflow.
+v7 extended the compose system + added a Nunjucks-based template DSL so that all 35 templates are expressed as YAML — no TypeScript needed. The generation target is now pure YAML: Claude (or Claude Vision from a screenshot) outputs a `.template.yaml` file. This unlocks the **screenshot → reusable template** workflow.
 
-## Goal
+## Goal — ACHIEVED
 
-Extend the component + compose system so that any slide layout can be expressed as a component composition in YAML — no TypeScript needed for new templates.
+All slide layouts expressed as component compositions in YAML. Zero rigid TypeScript layout functions remain.
 
 ## Current State (v7)
 
-**19 components:** text, heading, body, bullets, stat, tag, divider, quote, card, image, code, spacer, raw, columns, box, grid, table, steps, timeline
+**16 components:** text, heading, body, bullets, stat, tag, divider, quote, card, image, code, spacer, raw, columns, box, grid
 
 **2 containers:** split-compose (two horizontal panels), full-compose (single content area)
 
 **Stacker:** Vertical, top-to-bottom, default gap (28px), flex spacers, marginTop/marginBottom overrides, verticalAlign. Flex distribution for `fill: true` boxes (equal space split among fill siblings).
 
-**DSL engine:** Nunjucks-based `.template.yaml` expansion — `{{ }}`, `{% if %}`, `{% for %}` with style defaults and layered resolution (per-presentation shadows built-in)
+**DSL engine:** Nunjucks-based `.template.yaml` expansion — `{{ }}`, `{% if %}`, `{% for %}`, `{% set %}` with style defaults and layered resolution (per-presentation shadows built-in)
 
 **Group 1 COMPLETE:** 9 rigid templates (bullets, stats, statement, quote, code, numbered-list, definition, blank, end) replaced by DSL `.template.yaml` files. Rigid TS layout functions deleted.
 
@@ -29,7 +29,9 @@ Extend the component + compose system so that any slide layout can be expressed 
 
 **Group 3 COMPLETE:** 8 positioning templates (cover, section-divider, three-column, top-bottom, highlight-box, qa, agenda, full-image) replaced by DSL `.template.yaml` files. Rigid TS layout functions and type interfaces deleted. Features added: `backgroundImage`/`overlay` on full-compose, `fill: true` flex distribution, box `maxWidth`/`borderColor`/`borderWidth`/`borderSides`/`marginTop`/`marginBottom`/directional `padding`, tag `align`.
 
-**Group 4 COMPLETE:** 8 complex spatial templates (table, timeline, steps, chart-placeholder, diagram, icon-grid, image-grid, image-gallery) replaced by DSL `.template.yaml` files. Rigid TS layout functions and type interfaces deleted. Features added: 4 new components (`grid`, `table`, `steps`, `timeline`), template aliasing (`chart-placeholder` → `image-caption`), theme token resolution in `raw` elements (dot-path notation e.g. `theme.border.color`). Also created 3 "raw" alternative templates (`raw-table`, `raw-timeline`, `raw-steps`) demonstrating full layout control via `raw` + Nunjucks loops.
+**Group 4 COMPLETE:** 8 complex spatial templates (table, timeline, steps, chart-placeholder, diagram, icon-grid, image-grid, image-gallery) replaced by DSL `.template.yaml` files. Rigid TS layout functions and type interfaces deleted. Features added: `grid` component (multi-row layout), template aliasing (`chart-placeholder` → `image-caption`), theme token resolution in `raw` elements (dot-path notation e.g. `theme.border.color`). Table, steps, and timeline use `raw` elements + Nunjucks loops for full layout control (no specialized components — shapes are positioned explicitly with theme tokens).
+
+**Group 5 COMPLETE:** 2 embed placeholder templates (video, iframe) replaced by DSL `.template.yaml` files using `raw` elements. Rigid TS layout functions and type interfaces deleted. `VideoSlideData` and `IframeSlideData` removed from `SlideData` union. Features added: `resolveThemeTokenAny()` for object-type theme tokens (border, shadow) in raw elements. **All 35 rigid TS templates are now DSL-based. Zero rigid TS layout functions remain.**
 
 ## Template Audit
 
@@ -81,7 +83,7 @@ Positioning templates — needed container/component extensions beyond basic ver
 
 ### Group 4: COMPLETE (~8 templates)
 
-Complex spatial patterns — mix of DSL-only templates, template aliasing, and new components. All replaced by DSL `.template.yaml` files. Rigid TS layout functions and type interfaces deleted.
+Complex spatial patterns — mix of component-based DSL, template aliasing, and raw element templates. All replaced by DSL `.template.yaml` files. Rigid TS layout functions and type interfaces deleted. Table/steps/timeline components were initially created but later removed as non-generic — replaced by raw element templates with full layout control.
 
 | Template | As composition |
 |---|---|
@@ -90,41 +92,31 @@ Complex spatial patterns — mix of DSL-only templates, template aliasing, and n
 | `image-gallery` | heading + divider + columns[box(flat)[image + text(caption)]] |
 | `image-grid` | heading + divider + grid(equalHeight)[box(flat)[image + text(caption)]] |
 | `icon-grid` | heading + divider + grid(equalHeight)[box(accentTop)[text(icon) + text(label)]] |
-| `table` | heading + divider + table(headers, rows) |
-| `steps` | heading + divider + steps(items with label + description) |
-| `timeline` | heading + divider + timeline(events with date + label + description) |
+| `table` | heading + divider + raw[layered rounded rects + header/cell text at computed grid positions] |
+| `steps` | heading + divider + raw[badge groups (accent circle + number) + connector shapes + card groups] |
+| `timeline` | heading + divider + raw[horizontal line + 3-layer dots + date/label/description text] |
 
-#### Raw alternative templates
+### Group 5: COMPLETE (~2 templates)
 
-3 additional templates demonstrate full layout control using `raw` elements + Nunjucks loops + theme tokens, without relying on the specialized components:
+Both render static placeholder visuals (shapes + text) — no actual `<video>` or `<iframe>` embedding. The web `LayoutRenderer` has no special handling; they go through the same layout model as everything else. Both use `raw` elements with `{% set %}` arithmetic for computed positions, flex spacers for vertical centering (video), and `resolveThemeTokenAny()` for object-type theme tokens (border, shadow).
 
-| Template | Approach |
+| Template | As composition |
 |---|---|
-| `raw-table` | Header bg shape + cell text elements in computed grid positions, wrapped in clipping group |
-| `raw-steps` | Badge groups (accent circle + number) + connector shapes + card groups |
-| `raw-timeline` | Horizontal line shape + 3-layer dots + date/label/description text at computed positions |
+| `video` | spacer(flex) + raw[shape(rounded, shadow) + text(▶, accent) + text(label) + text(url)] + spacer(flex) |
+| `iframe` | raw[shape(rounded, shadow) + shape(bar) + shape(dot, red/yellow/green) × 3 + text(label) + text(url)] |
 
-These serve as examples of the `raw` escape hatch — when the built-in components don't match the desired layout, Claude can generate a raw template with full control over element positioning.
+## Extensions — IMPLEMENTED
 
-### Group 5: Special (~2 templates)
+### Extension 1: Positioning controls — IMPLEMENTED
 
-| Template | Notes |
-|---|---|
-| `video` | Embed, not a visual layout pattern |
-| `iframe` | Embed, not a visual layout pattern |
+Layout properties added to containers and the stacker.
 
-## Proposed Extensions
-
-### Extension 1: Positioning controls
-
-Add layout properties to containers and the stacker so content isn't limited to top-down vertical flow.
-
-#### Vertical alignment
+#### Vertical alignment — IMPLEMENTED
 
 ```yaml
 - template: full-compose
   align: center
-  verticalAlign: center        # NEW — top | center | bottom (default: top)
+  verticalAlign: center        # top | center | bottom (default: top)
   children:
     - type: heading
       text: "Section Title"
@@ -132,163 +124,80 @@ Add layout properties to containers and the stacker so content isn't limited to 
       text: "Subtitle"
 ```
 
-This unlocks `cover`, `section-divider`, `highlight-box` — any centered content.
+Used by `cover`, `section-divider`, `statement`, `end`, `highlight-box`, `qa`.
 
-#### Vertical split container
+#### Vertical split container — NOT NEEDED
 
-```yaml
-- template: stack-compose       # NEW — vertical panels
-  ratio: 0.6
-  top:
-    background: theme.bg
-    children: [...]
-  bottom:
-    background: theme.bgSecondary
-    children: [...]
-```
+The proposed `stack-compose` container was never implemented. All vertical-split layouts (e.g. `top-bottom`) were solved using `box(fill: true)` pairs in `full-compose`, which gives the same result with less infrastructure.
 
-This unlocks `top-bottom`, `qa` — any top/bottom split.
+#### Three-panel container — NOT NEEDED
 
-#### Three-panel container
+The proposed `columns-compose` container was never implemented. Multi-column layouts (e.g. `three-column`, `agenda`) were solved using the `columns` component inside `full-compose`.
 
-```yaml
-- template: columns-compose     # NEW — N horizontal panels
-  columns:
-    - width: 0.33
-      children: [...]
-    - width: 0.34
-      children: [...]
-    - width: 0.33
-      children: [...]
-```
-
-This unlocks `three-column`, `agenda` with column layouts.
-
-#### Panel fill mode
+#### Panel fill mode — IMPLEMENTED
 
 ```yaml
 - template: split-compose
   left:
-    fill: true                  # NEW — child fills panel, no padding
+    fill: true                  # child fills panel, no padding
     children:
       - type: image
         src: "hero.jpg"
-  right:
-    children:
-      - type: heading
-        text: "Title"
 ```
 
-This unlocks `image-text`, `profile`, `full-image` — panels where an image bleeds to the edge.
+Used by `image-text`, `profile`.
 
-#### Overlay mode
+#### Overlay mode — IMPLEMENTED
 
 ```yaml
 - template: full-compose
-  backgroundImage: "hero.jpg"   # NEW — image behind all content
-  overlay: "rgba(0,0,0,0.5)"   # NEW — darkening overlay
+  backgroundImage: "hero.jpg"   # image behind all content
+  overlay: "rgba(0,0,0,0.5)"   # darkening overlay
   verticalAlign: bottom
   children:
     - type: heading
       text: "Title over image"
 ```
 
-This unlocks `full-image` — text overlaid on a background image.
+Used by `cover`, `section-divider`, `full-image`.
 
-### Extension 2: New components
+### Extension 2: New components — PARTIALLY IMPLEMENTED
 
-Promote complex templates to components so they can appear inside any container.
+The original proposal suggested promoting complex templates to dedicated components (table, timeline, steps, icon-grid, image-grid). In practice, only generic building blocks were added — the complex spatial patterns were solved with raw elements + Nunjucks loops in DSL templates instead.
 
-#### table
+**Implemented as generic components:**
 
-```yaml
-- type: table
-  headers: ["Year", "Event", "Impact"]
-  rows:
-    - ["907", "Tang falls", "Fragmentation begins"]
-    - ["960", "Song founded", "Reunification"]
-```
+| Component | Used by |
+|---|---|
+| `grid` (multi-row layout) | `icon-grid`, `image-grid` |
+| `raw` (arbitrary LayoutElement[]) | `table`, `steps`, `timeline`, `video`, `iframe` |
+| `columns` (horizontal split) | `stats`, `two-column`, `comparison`, `code-comparison`, `image-comparison`, `image-gallery`, `three-column` |
+| `box` (container with borders/padding/fill) | most templates |
 
-Maps directly to existing `kind: table` in IR.
+**NOT implemented as components** (solved with `raw` + Nunjucks instead):
+- `table` — raw shapes + text at computed grid positions
+- `timeline` — raw horizontal line + layered dots + text
+- `steps` — raw badge circles + connectors + card groups
 
-#### timeline
+These spatial patterns don't generalize well as components — each has unique layout math. Raw DSL templates with `{% set %}` arithmetic give full control without adding non-generic component types.
 
-```yaml
-- type: timeline
-  items:
-    - year: "907"
-      label: "Fall of Tang"
-    - year: "960"
-      label: "Song Dynasty"
-```
+### Extension 3: Component-level positioning — IMPLEMENTED
 
-Renders as horizontal line with labeled points.
+Individual components support stacker overrides:
 
-#### steps
-
-```yaml
-- type: steps
-  items:
-    - title: "Research"
-      description: "Gather requirements"
-    - title: "Design"
-      description: "Create wireframes"
-```
-
-Renders as numbered boxes with connectors.
-
-#### icon-grid
-
-```yaml
-- type: icon-grid
-  columns: 3
-  items:
-    - icon: "🚀"
-      label: "Fast"
-    - icon: "🔒"
-      label: "Secure"
-```
-
-Renders as grid of icon + label pairs.
-
-#### image-grid
-
-```yaml
-- type: image-grid
-  columns: 2
-  items:
-    - src: "photo1.jpg"
-      caption: "First"
-    - src: "photo2.jpg"
-      caption: "Second"
-```
-
-Renders as grid of images with optional captions.
-
-### Extension 3: Component-level positioning (optional)
-
-Allow individual components to override default stacker behavior.
-
-```yaml
-- type: heading
-  text: "Title"
-  align: center                 # text alignment within the component
-  margin:
-    top: 40                     # override default gap
-```
-
-This gives fine-grained control without going full freeform.
+- `marginTop` / `marginBottom` — override default stacker gap
+- `textAlign` — text alignment within the component
+- `fontSize`, `fontWeight`, `color` — per-component overrides
+- `fill: true` on `box` — expand to fill remaining stacker space (flex distribution among siblings)
+- `maxWidth`, `borderColor`, `borderWidth`, `borderSides` on `box` — fine-grained container styling
+- `padding` on `box` — CSS-style shorthand (`"20"`, `"20 40"`, `"20 40 20 40"`)
+- `align` on `tag` — horizontal alignment
 
 ## Extension 4: Jinja-style Template DSL — IMPLEMENTED
 
 ### Motivation
 
-Currently there are two extremes:
-
-1. **Rigid templates** — clean data interface (`title`, `bullets[]`), but rendering is locked in TypeScript
-2. **Compose** — fully flexible, but verbose — users specify every component, font size, margin
-
-A template DSL bridges these: **a template is a parameterized component tree**. It has a clean user-facing schema but expands into the same components that compose uses. This also enables the **screenshot → reusable template** workflow — AI generates a `.template.yaml` from a screenshot, and users reuse it with different content.
+The compose system is fully flexible but verbose — users specify every component, font size, margin. A template DSL bridges this gap: **a template is a parameterized component tree**. It has a clean user-facing schema but expands into the same components that compose uses. This enables the **screenshot → reusable template** workflow — AI generates a `.template.yaml` from a screenshot, and users reuse it with different content. All 35 templates are now DSL-based — zero rigid TS layout functions remain.
 
 ### Processing Pipeline
 
@@ -296,7 +205,6 @@ A template DSL bridges these: **a template is a parameterized component tree**. 
 slides.yaml
   → loadPresentation()
   → for each slide:
-      if rigid (registry) → existing TS layout function (2 remaining: video, iframe)
       if DSL template     → expand params → component tree → stackComponents
       if compose          → stackComponents directly
 ```
@@ -313,11 +221,12 @@ Non-string values auto-serialize to YAML format — arrays become YAML lists, ob
 
 ### DSL Constructs
 
-Three Jinja constructs cover all template patterns:
+Four Jinja constructs cover all template patterns:
 
-- **`{{ expr }}`** — variable interpolation with dot access (`{{ s.value }}`)
+- **`{{ expr }}`** — variable interpolation with dot access (`{{ s.value }}`), arithmetic (`{{ 16 + dotSize + 8 }}`)
 - **`{% if expr %}...{% endif %}`** — conditional blocks (truthiness check, supports `loop.last`, `not`, etc.)
 - **`{% for item in list %}...{% endfor %}`** — iteration with loop context variables
+- **`{% set name = expr %}`** — local variables for computed positions (e.g. `{% set dotY = (barH - dotSize) / 2 %}`)
 
 The `{% %}` tags are control flow markers that get **stripped from the output**. They have no indentation requirement of their own — only the content inside the blocks needs correct YAML indentation. With `trim_blocks` + `lstrip_blocks` enabled, leading whitespace on `{% %}` lines is also stripped, so tags can be indented for readability without affecting output.
 
@@ -362,27 +271,15 @@ In the template body, params are accessed directly (`{{ title }}`), style values
 
 ### Coverage
 
-All 17 templates (Group 1 + Group 2) with constructs needed:
+All 35 templates are DSL-based. Constructs used by group:
 
-| Template | `{{ }}` | `{% if %}` | `{% for %}` | `style` |
-|---|---|---|---|---|
-| `bullets` | title, bullets | – | – | titleSize, bulletVariant |
-| `stats` | title | – | stats | statFontSize, cardHeight |
-| `statement` | statement | subtitle | – | – |
-| `quote` | quote | attribution | – | fontSize |
-| `code` | title, code | title | – | codeFontSize |
-| `numbered-list` | title, items | – | – | – |
-| `definition` | title | – | definitions | termSize, descSize |
-| `blank` | – | – | – | – |
-| `end` | title | subtitle | – | – |
-| `two-column` | title, left, right | title, cardHeight | – | titleSize, bodySize, cardHeight |
-| `comparison` | title, left, right | title | – | titleSize, headingSize, bodySize, leftAccent, rightAccent |
-| `code-comparison` | title, before, after | title, labels | – | titleSize |
-| `sidebar` | title, sidebar, main | title, sidebarPosition | – | – |
-| `image-caption` | title, image, caption | title | – | – |
-| `image-comparison` | title, before, after | title, labels | – | – |
-| `profile` | name, title, image, bio | image, title, bio | – | – |
-| `image-text` | title, image, body, bullets | title, body, bullets, imagePosition | – | – |
+| Group | `{{ }}` | `{% if %}` | `{% for %}` | `{% set %}` | `raw` |
+|---|---|---|---|---|---|
+| Group 1 (9) | all | most | stats, definition | – | – |
+| Group 2 (8) | all | most | – | – | – |
+| Group 3 (8) | all | most | agenda | – | – |
+| Group 4 (8) | all | most | icon-grid, image-grid, image-gallery, table, steps, timeline | table, steps, timeline | table, steps, timeline |
+| Group 5 (2) | all | video, iframe | – | video, iframe | video, iframe |
 
 ### Examples
 
@@ -413,7 +310,7 @@ children:
     variant: {{ style.bulletVariant }}
 ```
 
-Usage — identical to the current rigid template, style overrides optional:
+Usage — style overrides optional:
 
 ```yaml
 - template: bullets
@@ -624,16 +521,13 @@ Per-presentation templates shadow built-in ones — override `bullets` for a spe
 
 ### What's Explicitly Excluded
 
-- **Computed expressions** — no `{{ items | length > 5 }}` or ternaries. If complex logic is needed, write a TypeScript resolver. Keeps the DSL declarative and AI-friendly.
+- **Filters and complex expressions** — no `{{ items | length > 5 }}`, ternaries, or string manipulation filters. Arithmetic (`+`, `-`, `*`, `/`) and `{% set %}` are allowed for position calculations in `raw` templates, but data-dependent branching stays in `{% if %}` / `{% for %}`.
 - **Template inheritance/mixins** — a template is one flat definition. Copy to create variants.
 - **Expressions in style values** — no `fontSize: "{{ itemCount > 5 ? 20 : 28 }}"`. Use reasonable fixed defaults.
 
 ### Implementation Notes
 
-The Jinja subset is small — only `{{ }}`, `{% if %}`, `{% for %}` with dot access and loop variables. Options:
-
-- Use [Nunjucks](https://mozilla.github.io/nunjucks/) (Mozilla's JS Jinja2 port) — full-featured, well-maintained
-- Or implement a lightweight engine (~100 lines) for just this subset
+Uses [Nunjucks](https://mozilla.github.io/nunjucks/) (Mozilla's JS Jinja2 port) with `trim_blocks` + `lstrip_blocks` enabled. The DSL subset: `{{ }}`, `{% if %}`, `{% for %}`, `{% set %}` with dot access, loop variables, and arithmetic.
 
 ## Screenshot → Template Workflow
 
@@ -660,13 +554,13 @@ No TypeScript needed. The `.template.yaml` is the template.
 
 ## Migration Path
 
-Rigid templates are progressively replaced by DSL `.template.yaml` files:
+All 35 rigid templates have been replaced by DSL `.template.yaml` files:
 
 1. ~~Group 1: 9 rigid templates → DSL (DONE)~~
 2. ~~Group 2: 8 two-panel/multi-element templates → DSL (DONE)~~
 3. ~~Group 3: 8 positioning templates → DSL with component extensions (DONE)~~
-4. ~~Group 4: 8 component templates → new components + DSL (DONE)~~
-5. Group 5: 2 embed templates (video, iframe) — keep as rigid (not visual layout patterns)
+4. ~~Group 4: 8 complex spatial templates → grid component + raw DSL (DONE)~~
+5. ~~Group 5: 2 embed placeholders (video, iframe) → raw DSL templates (DONE)~~
 
 ## Design Decisions
 
@@ -684,8 +578,13 @@ When `fill: true`, the panel content area has 0px padding on all sides. The cont
 
 Components have clean boundaries — their props define what's customizable. If a user needs to customize something inside a component (e.g., a custom icon at a timeline point), they should use `raw` or freeform for that whole section instead of injecting raw elements inside the component. This keeps component resolvers simple and predictable.
 
-### Priority ordering
+### Actual implementation order
 
-1. Positioning controls (unlock Group 3 — most templates, least code)
-2. New container types — stack-compose, columns-compose (unlock multi-panel layouts)
-3. New components (unlock Group 4 — driven by demand, one at a time)
+All 35 templates migrated. The priority ordering shifted from the original plan:
+
+1. ~~Positioning controls (verticalAlign, fill, backgroundImage/overlay) — unlocked Group 3~~
+2. ~~DSL template engine (Nunjucks-based `.template.yaml` expansion) — unlocked Groups 1-2~~
+3. ~~Grid component + raw elements + theme tokens — unlocked Group 4~~
+4. ~~`resolveThemeTokenAny()` for object-type tokens — unlocked Group 5~~
+
+The proposed `stack-compose` and `columns-compose` containers were never needed — `columns` component and `box(fill: true)` covered all cases.

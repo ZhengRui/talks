@@ -35,6 +35,30 @@ export function resolveThemeToken(
 }
 
 /**
+ * Resolve a "theme.*" token to any value (string, number, or object).
+ * Used by raw element token resolution where border/shadow are objects.
+ * Returns undefined if the path doesn't exist in the theme.
+ */
+export function resolveThemeTokenAny(
+  value: string,
+  theme: ResolvedTheme,
+): unknown | undefined {
+  if (!value.startsWith("theme.")) return undefined;
+
+  const path = value.slice(6);
+  let resolved: unknown = theme;
+  for (const key of path.split(".")) {
+    if (resolved && typeof resolved === "object") {
+      resolved = (resolved as Record<string, unknown>)[key];
+    } else {
+      return undefined;
+    }
+  }
+
+  return resolved;
+}
+
+/**
  * Resolve a color value that could be a theme token or a hardcoded hex/rgba.
  * Falls back to the provided default if resolution fails.
  */

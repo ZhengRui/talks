@@ -27,7 +27,7 @@ import type {
   GridComponent,
 } from "./types";
 import { estimateTextHeight, bodyStyle, makeAnimation, staggerDelay } from "../helpers";
-import { resolveColor, resolveThemeToken } from "./theme-tokens";
+import { resolveColor, resolveThemeToken, resolveThemeTokenAny } from "./theme-tokens";
 
 // --- Resolver result ---
 
@@ -737,8 +737,12 @@ function resolveRawTokens(elements: LayoutElement[], theme: ResolvedTheme): Layo
   function walk(obj: unknown, key?: string): unknown {
     // Skip content fields
     if (key && RAW_TOKEN_SKIP.has(key)) return obj;
-    // Resolve theme token strings
-    if (typeof obj === "string") return resolveThemeToken(obj, theme) ?? obj;
+    // Resolve theme token strings (supports object-type values like border, shadow)
+    if (typeof obj === "string" && obj.startsWith("theme.")) {
+      const resolved = resolveThemeTokenAny(obj, theme);
+      return resolved !== undefined ? resolved : obj;
+    }
+    if (typeof obj === "string") return obj;
     // Recurse into arrays (e.g. children, rows, headers, items, stops)
     if (Array.isArray(obj)) return obj.map((v, i) => walk(v, String(i)));
     // Recurse into objects

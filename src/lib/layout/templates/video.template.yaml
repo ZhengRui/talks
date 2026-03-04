@@ -1,0 +1,84 @@
+name: video
+params:
+  src: { type: string, required: true }
+  title: { type: string }
+style:
+  titleSize: { type: number, default: 56 }
+  placeholderW: { type: number, default: 1400 }
+  placeholderH: { type: number, default: 600 }
+
+base: full-compose
+children:
+  {% if title %}
+  - type: heading
+    text: "{{ title }}"
+    fontSize: {{ style.titleSize }}
+    textAlign: center
+  - type: divider
+    variant: gradient
+    width: 80
+    align: center
+    marginTop: 16
+    marginBottom: 40
+  {% endif %}
+  {% set pw = style.placeholderW %}
+  {% set ph = style.placeholderH %}
+  {% set px = (1600 - pw) / 2 %}
+  {% set playSize = 80 %}
+  {% set iconY = (ph - playSize) / 2 - 40 %}
+  - type: spacer
+    flex: true
+  - type: raw
+    height: {{ ph }}
+    elements:
+      # Placeholder background
+      - kind: shape
+        id: vid-placeholder
+        rect: { x: {{ px }}, y: 0, w: {{ pw }}, h: {{ ph }} }
+        shape: rect
+        style:
+          fill: "theme.bgSecondary"
+          borderRadius: "theme.radius"
+          shadow: "theme.shadow"
+        border: "theme.cardBorder"
+        animation: { type: fade-in, delay: 200, duration: 600 }
+      # Play icon ▶
+      - kind: text
+        id: vid-play
+        rect: { x: {{ (1600 - playSize) / 2 }}, y: {{ iconY }}, w: {{ playSize }}, h: {{ playSize }} }
+        text: "▶"
+        style:
+          fontFamily: "theme.fontBody"
+          fontSize: 64
+          fontWeight: 400
+          color: "theme.accent"
+          lineHeight: 1
+          textAlign: center
+          verticalAlign: middle
+        animation: { type: scale-up, delay: 300, duration: 600 }
+      # "Video" label
+      - kind: text
+        id: vid-label
+        rect: { x: {{ (1600 - 600) / 2 }}, y: {{ iconY + playSize + 10 }}, w: 600, h: 36 }
+        text: "Video"
+        style:
+          fontFamily: "theme.fontHeading"
+          fontSize: 28
+          fontWeight: 700
+          color: "theme.text"
+          textAlign: center
+        animation: { type: fade-up, delay: 350, duration: 600 }
+      # URL text
+      - kind: text
+        id: vid-url
+        rect: { x: {{ (1600 - 1000) / 2 }}, y: {{ iconY + playSize + 60 }}, w: 1000, h: 32 }
+        text: "{{ src }}"
+        style:
+          fontFamily: "theme.fontBody"
+          fontSize: 22
+          fontWeight: 400
+          color: "theme.textMuted"
+          textAlign: center
+        animation: { type: fade-up, delay: 400, duration: 600 }
+  - type: spacer
+    flex: true

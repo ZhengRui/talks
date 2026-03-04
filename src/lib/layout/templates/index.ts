@@ -1,7 +1,5 @@
 import type { SlideData } from "@/lib/types";
 import type { LayoutSlide, ResolvedTheme } from "../types";
-import { layoutVideo } from "./video";
-import { layoutIframe } from "./iframe";
 import { layoutFreeform } from "./bases/freeform";
 import { layoutSplitCompose } from "./bases/split-compose";
 import { layoutFullCompose } from "./bases/full-compose";
@@ -13,8 +11,6 @@ export type LayoutFunction = (
 ) => LayoutSlide;
 
 const layoutRegistry: Record<string, LayoutFunction> = {
-  video: layoutVideo as LayoutFunction,
-  iframe: layoutIframe as LayoutFunction,
   freeform: layoutFreeform as LayoutFunction,
   "split-compose": layoutSplitCompose as LayoutFunction,
   "full-compose": layoutFullCompose as LayoutFunction,

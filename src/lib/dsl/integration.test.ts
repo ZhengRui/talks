@@ -770,6 +770,96 @@ describe("DSL integration: template expansion + layout", () => {
     expect(layout.elements.length).toBeGreaterThan(0);
   });
 
+  // --- Group 5 templates ---
+
+  it("video: raw elements with placeholder, play icon, and URL", () => {
+    const { slide, layout } = expandAndLayout("video", {
+      title: "Demo Video",
+      src: "https://example.com/video.mp4",
+    });
+
+    expect(slide.template).toBe("full-compose");
+    const fc = slide as FullComposeSlideData;
+    // heading + divider + spacer(flex) + raw + spacer(flex) = 5
+    expect(fc.children).toHaveLength(5);
+    expect(fc.children[0]).toMatchObject({ type: "heading", text: "Demo Video" });
+    expect(fc.children[2]).toMatchObject({ type: "spacer", flex: true });
+    expect(fc.children[3]).toMatchObject({ type: "raw" });
+    expect(fc.children[4]).toMatchObject({ type: "spacer", flex: true });
+
+    // raw elements: placeholder shape + play icon + label + URL
+    const placeholder = layout.elements.find((e) => e.id === "vid-placeholder");
+    expect(placeholder).toBeDefined();
+    if (placeholder?.kind === "shape") {
+      expect(placeholder.style.fill).not.toContain("theme.");
+      expect(placeholder.style.borderRadius).toBeDefined();
+    }
+    const play = layout.elements.find((e) => e.id === "vid-play");
+    expect(play).toBeDefined();
+    if (play?.kind === "text") {
+      expect(play.text).toBe("▶");
+    }
+    const url = layout.elements.find((e) => e.id === "vid-url");
+    expect(url).toBeDefined();
+    if (url?.kind === "text") {
+      expect(url.text).toBe("https://example.com/video.mp4");
+    }
+    expect(layout.elements.length).toBeGreaterThan(0);
+  });
+
+  it("video: expands without title", () => {
+    const { slide } = expandAndLayout("video", {
+      src: "https://example.com/clip.mp4",
+    });
+
+    const fc = slide as FullComposeSlideData;
+    // spacer(flex) + raw + spacer(flex) = 3
+    expect(fc.children).toHaveLength(3);
+    expect(fc.children[1]).toMatchObject({ type: "raw" });
+  });
+
+  it("iframe: raw elements with browser frame, dots, and URL", () => {
+    const { slide, layout } = expandAndLayout("iframe", {
+      title: "Live Demo",
+      src: "https://example.com/app",
+    });
+
+    expect(slide.template).toBe("full-compose");
+    const fc = slide as FullComposeSlideData;
+    // heading + divider + raw = 3
+    expect(fc.children).toHaveLength(3);
+    expect(fc.children[0]).toMatchObject({ type: "heading", text: "Live Demo" });
+    expect(fc.children[2]).toMatchObject({ type: "raw" });
+
+    // raw elements: placeholder + bar + 3 dots + label + URL = 7
+    const placeholder = layout.elements.find((e) => e.id === "ifr-placeholder");
+    expect(placeholder).toBeDefined();
+    if (placeholder?.kind === "shape") {
+      expect(placeholder.style.fill).not.toContain("theme.");
+    }
+    const bar = layout.elements.find((e) => e.id === "ifr-bar");
+    expect(bar).toBeDefined();
+    const dots = layout.elements.filter((e) => e.id.startsWith("ifr-dot-"));
+    expect(dots).toHaveLength(3);
+    const url = layout.elements.find((e) => e.id === "ifr-url");
+    expect(url).toBeDefined();
+    if (url?.kind === "text") {
+      expect(url.text).toBe("https://example.com/app");
+    }
+    expect(layout.elements.length).toBeGreaterThan(0);
+  });
+
+  it("iframe: expands without title", () => {
+    const { slide } = expandAndLayout("iframe", {
+      src: "https://example.com",
+    });
+
+    const fc = slide as FullComposeSlideData;
+    // raw only = 1
+    expect(fc.children).toHaveLength(1);
+    expect(fc.children[0]).toMatchObject({ type: "raw" });
+  });
+
   it("style overrides propagate through layout", () => {
     const def = findTemplate("bullets");
     expect(def).not.toBeNull();
