@@ -61,10 +61,12 @@ Pick a theme. See [reference.md](reference.md) for full palette details.
 
 | Mood | Themes | Feel |
 |------|--------|------|
-| Confident/Bold | `bold`, `bold-signal` | Heavy weights, punchy stats |
-| Calm/Elegant | `elegant`, `paper-ink` | Serif headings, generous spacing |
-| Energetic/Playful | `creative-voltage`, `split-pastel` | Mixed weights, pill tags |
+| Confident/Bold | `bold`, `bold-signal`, `electric-studio` | Heavy weights, punchy stats |
+| Calm/Elegant | `elegant`, `paper-ink`, `vintage-editorial` | Serif headings, generous spacing |
+| Warm/Organic | `dark-botanical`, `notebook-tabs` | Natural tones, soft borders |
+| Energetic/Playful | `creative-voltage`, `split-pastel`, `pastel-geometry` | Mixed weights, pill tags |
 | Technical/Precise | `dark-tech`, `terminal-green`, `swiss-modern` | Monospace accents, grid |
+| Futuristic | `neon-cyber` | Glowing accents, deep purples |
 
 ### Phase 3: Plan Slide Compositions
 Plan the visual arc. Vary slide types:

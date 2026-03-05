@@ -184,6 +184,33 @@ Groups position children relative to the group's rect origin. Use for composite 
   animation: { type: fade-up, delay: 200, duration: 500 }
 ```
 
+### video
+
+Renders a playable `<video>` tag for direct files (.mp4/.webm), or an `<iframe>` embed for YouTube/Vimeo URLs.
+
+```yaml
+- kind: video
+  id: unique-id
+  rect: { x: 160, y: 200, w: 1600, h: 700 }
+  src: "demo.mp4"            # .mp4/.webm → <video>, YouTube/Vimeo → <iframe> embed
+  poster: "thumbnail.jpg"   # optional preview image
+  borderRadius: 12           # optional
+  animation: { type: fade-in, delay: 0, duration: 500 }
+```
+
+### iframe
+
+Renders an embedded `<iframe>`. Subject to same-origin restrictions — some sites block framing.
+
+```yaml
+- kind: iframe
+  id: unique-id
+  rect: { x: 160, y: 200, w: 1600, h: 700 }
+  src: "https://en.wikipedia.org/wiki/Slide_deck"
+  borderRadius: 12           # optional
+  animation: { type: fade-in, delay: 0, duration: 500 }
+```
+
 ## Animations
 
 All elements support an optional `animation` property:
@@ -231,6 +258,21 @@ Use the `theme` field at presentation level. You can also override individual co
 - Fonts: Outfit (heading + body)
 - Radius: 16. Feel: Startup, approachable.
 
+**`notebook-tabs`** — Soft, whimsical. Lavender + rose on warm paper.
+- bg: `#f8f6f1`, text: `#1a1a1a`, accent: `#c7b8ea`, accent2: `#f4b8c5`
+- Fonts: Bodoni Moda (heading), DM Sans (body)
+- Radius: 6. Feel: Journaling, stationery.
+
+**`pastel-geometry`** — Cool, structured. Sage green + pink on soft blue.
+- bg: `#c8d9e6`, text: `#2a2a2a`, accent: `#5a7c6a`, accent2: `#f0b4d4`
+- Fonts: Plus Jakarta Sans (heading + body)
+- Radius: 16. Feel: Architecture, modern art.
+
+**`vintage-editorial`** — Classic, print-inspired. Warm tones + strong borders.
+- bg: `#f5f3ee`, text: `#1a1a1a`, accent: `#e8d4c0`, accent2: `#c45c5c`
+- Fonts: Fraunces (heading), Work Sans (body)
+- Radius: 4. Feel: Magazine, editorial.
+
 ### Dark Themes
 
 **`bold`** — High-impact, confident. Orange on black.
@@ -247,6 +289,21 @@ Use the `theme` field at presentation level. You can also override individual co
 - bg: `#1a1a1a`, text: `#f5f5f5`, accent: `#ff6b6b`, accent2: `#4ecdc4`
 - Fonts: Inter (heading + body)
 - Radius: 8. Feel: Confident tech pitch.
+
+**`electric-studio`** — Bold contrast. Blue accent, black/white panels.
+- bg: `#0a0a0a`, text: `#ffffff`, accent: `#4361ee`, accent2: `#6b83f2`
+- Fonts: Manrope (heading + body)
+- Radius: 8. Feel: Studio, high-contrast.
+
+**`creative-voltage`** — Electric, experimental. Lime-green on dark indigo.
+- bg: `#1a1a2e`, text: `#ffffff`, accent: `#d4ff00`, accent2: `#0066ff`
+- Fonts: Syne (heading), Space Mono (body)
+- Radius: 8. Feel: Experimental, avant-garde.
+
+**`dark-botanical`** — Warm organic. Copper + blush on dark.
+- bg: `#0f0f0f`, text: `#e8e4df`, accent: `#d4a574`, accent2: `#e8b4b8`
+- Fonts: Cormorant (heading), IBM Plex Sans (body)
+- Radius: 8. Feel: Natural luxury, organic.
 
 **`neon-cyber`** — Futuristic, glowing. Magenta on deep purple.
 - bg: `#0a0014`, text: `#e0e0ff`, accent: `#ff00ff`, accent2: `#00ffff`

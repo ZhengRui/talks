@@ -27,7 +27,7 @@ slides:
 
 ## Shortcut Templates
 
-Concise YAML for standard layouts. Each has fixed props — no component composition.
+Concise YAML for standard layouts. Each has specific props — internally they expand to compose templates via DSL.
 
 ### Title & Section Slides
 
@@ -375,8 +375,11 @@ Concise YAML for standard layouts. Each has fixed props — no component composi
 #### video
 ```yaml
 - template: video
-  src: "demo.mp4"
+  src: "demo.mp4"                    # .mp4/.webm → <video>, YouTube/Vimeo → <iframe> embed
   title: "Product Demo"             # optional
+  poster: "thumbnail.jpg"           # optional preview image
+  style:
+    height: 600                     # optional, omit to fill available space
 ```
 
 #### iframe
@@ -384,6 +387,8 @@ Concise YAML for standard layouts. Each has fixed props — no component composi
 - template: iframe
   src: "https://example.com"
   title: "Live Demo"                # optional
+  style:
+    height: 600                     # optional, omit to fill available space
 ```
 
 ---
@@ -402,6 +407,10 @@ Two-panel layout with configurable ratio.
   left:
     background: theme.bg             # theme token or hex
     textColor: "#e8e0d0"            # override text color for panel
+    verticalAlign: center            # optional: top | center | bottom
+    fill: false                      # optional: true = edge-to-edge, no padding
+    padding: 60                      # optional: number or [vert, horiz] or [top, right, bottom, left]
+    gap: 28                          # optional: override default stacker gap
     children: []                     # SlideComponent[]
   right:
     background: "#1a1714"
@@ -409,7 +418,7 @@ Two-panel layout with configurable ratio.
     children: []
 ```
 
-- 60px padding on all sides per panel
+- 60px padding on all sides per panel (unless `fill: true` or custom `padding`)
 - Right panel animations start with 300ms base delay
 
 ### full-compose
@@ -419,7 +428,10 @@ Single content area, full width or centered.
 ```yaml
 - template: full-compose
   background: theme.bg               # theme token or hex
+  backgroundImage: "hero.jpg"        # optional background image
+  overlay: dark                      # optional: dark | light | "rgba(0,0,0,0.5)"
   align: left                        # left (1600px wide) | center (1200px wide)
+  verticalAlign: center              # optional: top | center | bottom
   children: []                       # SlideComponent[]
 ```
 
@@ -427,17 +439,49 @@ Single content area, full width or centered.
 
 All components are positioned automatically by the vertical stacker (28px gap, staggered fade-up animations).
 
+**Common props** (available on all components):
+```yaml
+  animationType: fade-up            # optional: fade-up | fade-in | slide-left | slide-right | scale-up | count-up | none
+  animationDelay: 200               # optional: ms offset
+  opacity: 0.8                      # optional: 0-1
+```
+
+#### text
+```yaml
+- type: text
+  text: "Custom styled text"
+  fontSize: 24                       # optional
+  fontWeight: bold                   # optional: normal | bold
+  color: theme.accent               # optional, theme token or hex
+  textAlign: left                    # optional: left | center | right
+  fontStyle: italic                  # optional: normal | italic
+  fontFamily: heading                # optional: heading | body | mono (maps to theme fonts)
+  lineHeight: 1.4                    # optional
+  maxWidth: 800                      # optional, centered within panel
+  marginTop: 20                      # optional, overrides stacker gap before
+  marginBottom: 20                   # optional, overrides stacker gap after
+```
+
 #### heading
 ```yaml
 - type: heading
   text: "Title Text"
   level: 1                          # optional: 1 (54px), 2 (42px), 3 (34px)
+  fontSize: 54                      # optional, overrides level default
+  textAlign: left                   # optional: left | center | right
+  color: theme.heading              # optional, theme token or hex
 ```
 
 #### body
 ```yaml
 - type: body
   text: "Paragraph text that can wrap across multiple lines."
+  fontSize: 28                      # optional
+  color: theme.text                 # optional, theme token or hex
+  textAlign: left                   # optional: left | center | right
+  lineHeight: 1.6                   # optional
+  marginTop: 20                     # optional, overrides stacker gap before
+  marginBottom: 20                  # optional, overrides stacker gap after
 ```
 
 #### bullets
@@ -447,6 +491,10 @@ All components are positioned automatically by the vertical stacker (28px gap, s
     - "Point one"
     - "Point two"
     - "Point three"
+  fontSize: 26                      # optional
+  gap: 16                           # optional, spacing between items
+  ordered: false                    # optional: true = numbered circles, false = accent bars
+  variant: card                     # optional: card | plain | list (list = native bullet dots)
 ```
 
 #### stat
@@ -454,6 +502,9 @@ All components are positioned automatically by the vertical stacker (28px gap, s
 - type: stat
   value: "907"
   label: "Year of Tang's Fall"
+  textAlign: left                   # optional: left | center
+  fontSize: 64                      # optional, value font size
+  labelFontSize: 24                 # optional, label font size
 ```
 
 #### tag
@@ -461,12 +512,17 @@ All components are positioned automatically by the vertical stacker (28px gap, s
 - type: tag
   text: "Chapter 1"
   color: theme.accent               # optional, theme token or hex
+  align: left                       # optional: left | center
 ```
 
 #### divider
 ```yaml
 - type: divider
-  variant: gradient                  # optional: solid | gradient | ink
+  variant: gradient                  # optional: solid | gradient | ink | border
+  width: 80                         # optional, percentage of panel width
+  align: left                       # optional: left | center
+  marginTop: 16                     # optional, overrides stacker gap before
+  marginBottom: 40                  # optional, overrides stacker gap after
 ```
 
 #### quote
@@ -474,6 +530,10 @@ All components are positioned automatically by the vertical stacker (28px gap, s
 - type: quote
   text: "The empire, long united, must divide."
   attribution: "Romance of the Three Kingdoms"   # optional
+  textAlign: left                   # optional: left | center | right
+  fontSize: 30                      # optional, quote text font size
+  attributionFontSize: 22           # optional
+  decorative: true                  # optional, large opening quote mark above text
 ```
 
 #### card
@@ -488,7 +548,27 @@ All components are positioned automatically by the vertical stacker (28px gap, s
 ```yaml
 - type: image
   src: "photo.jpg"                   # relative to content/[slug]/images/
-  height: 400                        # optional, default 400px
+  height: 400                        # optional, omit to fill remaining space
+  objectFit: cover                   # optional: cover | contain
+  clipCircle: false                  # optional, circular crop
+  borderRadius: 12                   # optional, overrides theme default
+```
+
+#### video
+```yaml
+- type: video
+  src: "demo.mp4"                    # .mp4/.webm → <video>, YouTube/Vimeo → <iframe> embed
+  poster: "thumbnail.jpg"           # optional preview image
+  height: 500                        # optional, omit to fill remaining space
+  borderRadius: 12                   # optional, overrides theme default
+```
+
+#### iframe
+```yaml
+- type: iframe
+  src: "https://example.com"
+  height: 500                        # optional, omit to fill remaining space
+  borderRadius: 12                   # optional, overrides theme default
 ```
 
 #### code
@@ -496,12 +576,72 @@ All components are positioned automatically by the vertical stacker (28px gap, s
 - type: code
   code: "const x = 42;\nconsole.log(x);"
   language: typescript               # optional
+  fontSize: 24                       # optional, default 24
+  padding: 32                        # optional, default 32
 ```
 
 #### spacer
 ```yaml
 - type: spacer
-  height: 200                        # px
+  height: 200                        # px, optional
+  flex: true                         # optional, fills remaining vertical space
+```
+
+#### box (container)
+```yaml
+- type: box
+  variant: card                      # optional: card (bg+shadow+border) | flat (transparent) | panel (bg+radius, no shadow)
+  maxWidth: 800                      # optional, centered within panel
+  height: 300                        # optional, fixed height (content vertically centered)
+  fill: false                        # optional, expand to fill available panel height
+  verticalAlign: top                 # optional: top | center | bottom
+  padding: 28                        # optional: number or [vert, horiz] or [top, right, bottom, left]
+  background: theme.cardBg           # optional, theme token or hex
+  accentTop: true                    # optional, 3px accent bar on top
+  accentColor: theme.accent          # optional, accent bar color
+  borderColor: "#ccc"               # optional, custom border color
+  borderWidth: 2                     # optional, custom border width
+  borderSides: [left]               # optional: top | right | bottom | left
+  marginTop: 20                      # optional, overrides stacker gap
+  marginBottom: 20                   # optional
+  children:
+    - type: heading
+      text: "Inside a box"
+    - type: body
+      text: "Box children are stacked vertically."
+```
+
+#### columns (horizontal split)
+```yaml
+- type: columns
+  gap: 32                            # optional, default 32
+  ratio: 0.3                         # optional, first column width fraction (for 2-column)
+  equalHeight: true                  # optional, stretch all columns to same height
+  children:
+    - type: stat
+      value: "100"
+      label: "First"
+    - type: stat
+      value: "200"
+      label: "Second"
+```
+
+#### grid (multi-row)
+```yaml
+- type: grid
+  columns: 3                         # optional, items per row, default 3
+  gap: 32                            # optional, default 32
+  equalHeight: true                  # optional, stretch cells to same height per row
+  children:
+    - type: card
+      title: "Card 1"
+      body: "Description"
+    - type: card
+      title: "Card 2"
+      body: "Description"
+    - type: card
+      title: "Card 3"
+      body: "Description"
 ```
 
 #### raw (escape hatch)
@@ -665,6 +805,25 @@ Full pixel control on the 1920x1080 canvas. Every element has explicit position,
   itemSpacing: 16
 ```
 
+#### video
+```yaml
+- kind: video
+  id: unique-id
+  rect: { x: 0, y: 0, w: 800, h: 450 }
+  src: "demo.mp4"                    # .mp4/.webm → <video>, YouTube/Vimeo → <iframe> embed
+  poster: "thumbnail.jpg"           # optional
+  borderRadius: 12                   # optional
+```
+
+#### iframe
+```yaml
+- kind: iframe
+  id: unique-id
+  rect: { x: 0, y: 0, w: 800, h: 450 }
+  src: "https://example.com"
+  borderRadius: 12                   # optional
+```
+
 ### Animations
 
 | Type | Effect | Best for |
@@ -705,6 +864,18 @@ Full pixel control on the 1920x1080 canvas. Every element has explicit position,
 - bg: `#fef7f0`, bgSecondary: `#f0e8f5`, text: `#2d2a3e`, accent: `#e8937a`, accent2: `#9b8ec4`
 - Fonts: Outfit. Radius: 16.
 
+**`notebook-tabs`** — Soft, whimsical. Lavender + rose on warm paper.
+- bg: `#f8f6f1`, bgSecondary: `#ffffff`, text: `#1a1a1a`, accent: `#c7b8ea`, accent2: `#f4b8c5`
+- Fonts: Bodoni Moda (heading), DM Sans (body). Radius: 6.
+
+**`pastel-geometry`** — Cool, structured. Sage green + pink on soft blue.
+- bg: `#c8d9e6`, bgSecondary: `#faf9f7`, text: `#2a2a2a`, accent: `#5a7c6a`, accent2: `#f0b4d4`
+- Fonts: Plus Jakarta Sans. Radius: 16.
+
+**`vintage-editorial`** — Classic, print-inspired. Warm tones + strong borders.
+- bg: `#f5f3ee`, bgSecondary: `#ffffff`, text: `#1a1a1a`, accent: `#e8d4c0`, accent2: `#c45c5c`
+- Fonts: Fraunces (heading), Work Sans (body). Radius: 4.
+
 ### Dark Themes
 
 **`bold`** — High-impact. Orange on black.
@@ -718,6 +889,18 @@ Full pixel control on the 1920x1080 canvas. Every element has explicit position,
 **`bold-signal`** — Vibrant dark. Coral + electric blue.
 - bg: `#1a1a1a`, bgSecondary: `#242424`, text: `#f5f5f5`, accent: `#ff6b6b`, accent2: `#4ecdc4`
 - Fonts: Inter. Radius: 8.
+
+**`electric-studio`** — Bold contrast. Blue accent, black/white panels.
+- bg: `#0a0a0a`, bgSecondary: `#ffffff`, text: `#ffffff`, accent: `#4361ee`, accent2: `#6b83f2`
+- Fonts: Manrope. Radius: 8.
+
+**`creative-voltage`** — Electric, experimental. Lime-green on dark indigo.
+- bg: `#1a1a2e`, bgSecondary: `#0066ff`, text: `#ffffff`, accent: `#d4ff00`, accent2: `#0066ff`
+- Fonts: Syne (heading), Space Mono (body). Radius: 8.
+
+**`dark-botanical`** — Warm organic. Copper + blush on dark.
+- bg: `#0f0f0f`, bgSecondary: `#1a1a1a`, text: `#e8e4df`, accent: `#d4a574`, accent2: `#e8b4b8`
+- Fonts: Cormorant (heading), IBM Plex Sans (body). Radius: 8.
 
 **`neon-cyber`** — Futuristic. Magenta on deep purple.
 - bg: `#0a0014`, bgSecondary: `#140020`, text: `#e0e0ff`, accent: `#ff00ff`, accent2: `#00ffff`

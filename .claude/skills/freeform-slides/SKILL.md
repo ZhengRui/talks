@@ -32,10 +32,12 @@ Pick a theme as a starting palette, or define custom colors. Don't just use them
 **Mood-to-style mapping:**
 | Mood | Themes | Typography Feel | Animation Feel |
 |------|--------|----------------|---------------|
-| Confident/Bold | `bold`, `bold-signal` | Heavy weights, uppercase tags, tight leading | Fast fade-up, scale-up for stats |
-| Calm/Elegant | `elegant`, `paper-ink` | Serif headings, generous spacing, italic accents | Slow fade-in (600ms), minimal motion |
-| Energetic/Playful | `creative-voltage`, `split-pastel` | Mixed weights, large display type, pill tags | Slide-left/right, staggered reveals |
+| Confident/Bold | `bold`, `bold-signal`, `electric-studio` | Heavy weights, uppercase tags, tight leading | Fast fade-up, scale-up for stats |
+| Calm/Elegant | `elegant`, `paper-ink`, `vintage-editorial` | Serif headings, generous spacing, italic accents | Slow fade-in (600ms), minimal motion |
+| Warm/Organic | `dark-botanical`, `notebook-tabs` | Natural tones, soft borders | Gentle fade-up, slow reveals |
+| Energetic/Playful | `creative-voltage`, `split-pastel`, `pastel-geometry` | Mixed weights, large display type, pill tags | Slide-left/right, staggered reveals |
 | Technical/Precise | `dark-tech`, `terminal-green`, `swiss-modern` | Monospace accents, grid alignment, small type | Fade-up with tight stagger (80ms) |
+| Futuristic | `neon-cyber` | Glowing accents, display fonts | Scale-up, dramatic delays |
 
 ### Phase 3: Plan Slide Compositions
 Before writing YAML, plan the visual arc of the presentation. Vary slide types:
@@ -94,7 +96,7 @@ Animate thoughtfully, not uniformly. Not every element needs animation.
 
 ## Element Types
 
-7 kinds: `text`, `shape`, `image`, `group`, `code`, `table`, `list`.
+9 kinds: `text`, `shape`, `image`, `group`, `code`, `table`, `list`, `video`, `iframe`.
 
 See [reference.md](reference.md) for full prop reference and YAML examples.
 

@@ -18,7 +18,7 @@ Visit [http://localhost:3000](http://localhost:3000) to see all presentations.
 ```yaml
 title: "My Talk"
 author: "Your Name"
-theme: modern          # modern (default) | bold | elegant | dark-tech
+theme: modern          # 16 themes — see Themes section below
 slides:
   - template: cover
     title: "My Talk"
@@ -31,34 +31,74 @@ slides:
       - First point
       - Second point
       - Third point
+
+  - template: split-compose
+    ratio: 0.55
+    left:
+      background: theme.bg
+      children:
+        - type: heading
+          text: "Custom Layout"
+        - type: bullets
+          items: ["Mix components freely", "Theme-aware colors"]
+    right:
+      background: theme.bgSecondary
+      children:
+        - type: stat
+          value: "42"
+          label: "The Answer"
 ```
 
 2. Put images in `content/my-talk/images/`, then run `bun run sync-content`
 3. The home page auto-discovers it — no code changes needed
 
+## Three Approaches
+
+| Approach | When to use | YAML verbosity |
+|----------|-------------|----------------|
+| **Shortcut templates** | Standard layouts (bullets, stats, cover, comparison) | Low — fill in props |
+| **Compose templates** | Custom content combinations, two-panel layouts | Medium — declare components |
+| **Freeform** | Hero slides, visual inventions, pixel-precise layouts | High — position every element |
+
+Mix all three in one presentation.
+
 ## PPTX Export
 
 Click the **Export PPTX** button on any presentation to download a `.pptx` file. The export uses the same layout model as the web renderer, so positioning is consistent.
 
-The export pipeline:
-1. Layout model converts YAML slides to absolute-positioned elements on a 1920×1080 canvas
-2. PptxGenJS maps those elements to PowerPoint shapes, text boxes, and images
-3. The result is a standard `.pptx` file compatible with PowerPoint, Keynote, and WPS Office
-
 ## Themes
 
-Four built-in themes, selected per-presentation via the `theme` YAML field:
+16 built-in themes, selected per-presentation via the `theme` YAML field:
 
+### Light
 | Theme | Style |
 |-------|-------|
-| `modern` (default) | Clean lines, light backgrounds, soft shadows |
-| `bold` | High contrast, saturated colors, large type |
-| `elegant` | Serif headings, muted tones, refined spacing |
-| `dark-tech` | Dark backgrounds, neon accents, monospace touches |
+| `modern` (default) | Clean lines, blue accent, soft shadows |
+| `elegant` | Gold on parchment, serif headings |
+| `paper-ink` | Crimson on warm paper, literary |
+| `swiss-modern` | Red on white, Bauhaus precision |
+| `split-pastel` | Soft peach + lavender, playful |
+| `notebook-tabs` | Lavender + rose on warm paper |
+| `pastel-geometry` | Sage green + pink on soft blue |
+| `vintage-editorial` | Warm tones, strong borders, print-inspired |
+
+### Dark
+| Theme | Style |
+|-------|-------|
+| `bold` | Orange on black, high-impact |
+| `dark-tech` | Cyan-green on navy, futuristic |
+| `bold-signal` | Coral + electric blue, vibrant |
+| `electric-studio` | Blue accent, black/white contrast |
+| `creative-voltage` | Lime-green on dark indigo, experimental |
+| `dark-botanical` | Copper + blush, warm organic |
+| `neon-cyber` | Magenta on deep purple, sci-fi |
+| `terminal-green` | Green phosphor on black, hacker |
 
 Themes are defined as concrete value sets in `src/lib/layout/theme.ts`. Both the web renderer and PPTX exporter consume the same resolved theme values.
 
 ## Available Templates (35)
+
+All templates are DSL YAML files (`.template.yaml`) that expand into composable components at runtime.
 
 | Template | Description |
 |----------|-------------|
@@ -85,8 +125,8 @@ Themes are defined as concrete value sets in `src/lib/layout/theme.ts`. Both the
 | `icon-grid` | Grid of icon + label items |
 | `highlight-box` | Emphasized content box |
 | `qa` | Question and answer format |
-| `video` | Embedded video |
-| `iframe` | Embedded iframe |
+| `video` | Playable video (.mp4/.webm or YouTube/Vimeo embed) |
+| `iframe` | Embedded webpage |
 | `image-grid` | Grid of images |
 | `image-comparison` | Side-by-side image comparison |
 | `image-caption` | Image with caption |
@@ -98,11 +138,13 @@ Themes are defined as concrete value sets in `src/lib/layout/theme.ts`. Both the
 | `blank` | Empty slide |
 | `end` | Closing slide |
 
+Plus 2 compose templates (`split-compose`, `full-compose`) and `freeform` for pixel-level control.
+
 Preview all templates at `/example`.
 
 ## Animations
 
-CSS-only animations trigger when slides become active. Each template has a sensible default (stagger, fade, counter-up, etc.). Override per-slide:
+CSS-only animations trigger when slides become active. Each template has sensible defaults (stagger, fade, counter-up, etc.). Override per-slide:
 
 ```yaml
 - template: bullets
@@ -121,6 +163,8 @@ slides.yaml → loadPresentation() → layoutPresentation() → LayoutPresentati
 
 Both renderers consume the same intermediate layout model — a JSON structure with absolute-positioned elements on a 1920×1080 canvas. This guarantees consistent positioning between web and PPTX output.
 
+Templates are DSL YAML files processed by a Nunjucks compiler into composable components, which are then resolved into layout elements by the stacker algorithm.
+
 ## Project Structure
 
 ```
@@ -128,12 +172,15 @@ content/[slug]/slides.yaml          # Presentation content (YAML)
 content/[slug]/images/              # Source images
 src/lib/types.ts                    # TypeScript types (discriminated union)
 src/lib/loadPresentation.ts         # YAML parser + auto-discovery
-src/lib/layout/                     # Layout model (v3)
-  types.ts                          #   Layout element types, ResolvedTheme
-  theme.ts                          #   4 theme definitions, resolveTheme()
+src/lib/layout/                     # Layout model
+  types.ts                          #   9 element kinds, ResolvedTheme
+  theme.ts                          #   16 theme definitions, resolveTheme()
   helpers.ts                        #   Shared layout utilities
   index.ts                          #   layoutPresentation() dispatcher
-  templates/                        #   35 layout functions (one per template)
+  components/                       #   18 composable component types + resolvers
+  templates/                        #   35 DSL YAML templates (.template.yaml)
+  templates/bases/                  #   3 base layout engines (freeform, split-compose, full-compose)
+src/lib/dsl/                        # DSL template loader + Nunjucks compiler
 src/lib/export/                     # PPTX export
   pptx.ts                           #   exportPptx() via PptxGenJS
   pptx-helpers.ts                   #   Coordinate/color/font conversion
@@ -141,8 +188,7 @@ src/components/SlideEngine.tsx      # Custom presentation engine
 src/components/LayoutRenderer.tsx   # Web renderer (layout model → divs)
 src/styles/engine.css               # Engine base styles (scaling, layout, transitions)
 src/styles/animations.css           # CSS keyframes and animation utilities
-src/styles/components.css           # Shared CSS component classes
-src/styles/themes/                  # 4 theme CSS files
+src/styles/themes/                  # 16 theme CSS files
 src/app/[slug]/page.tsx             # Dynamic presentation route
 src/app/page.tsx                    # Home page (auto-discovers presentations)
 src/app/api/layout/route.ts        # GET /api/layout?slug=X → layout JSON
@@ -151,11 +197,12 @@ src/app/api/export_pptx/route.ts   # POST layout JSON → .pptx download
 
 ## Tech Stack
 
-- Next.js 15 (App Router), React 19, TypeScript
+- Next.js 15 (App Router), React 19, TypeScript (strict)
 - Custom slide engine (keyboard nav, viewport scaling, CSS transitions)
 - Unified layout model (1920×1080 canvas) for web + PPTX rendering
-- PptxGenJS for PowerPoint export
-- 4 CSS themes via custom properties, CSS-only animations
+- DSL template system (Nunjucks) — 35 YAML templates, 18 composable components
+- PptxGenJS for PowerPoint export, JSZip for OOXML post-processing
+- 16 themes via resolved concrete values, CSS-only animations
 - Tailwind CSS 4 for styling
 - Vitest + Playwright for testing
 - Bun as package manager

@@ -27,7 +27,7 @@ Follow TDD: write failing test → implement → green. Enforced by Superpowers 
 
 ## Architecture
 
-YAML + layout-model-driven presentation hub. See `docs/design-v3.md` for base architecture, `docs/design-v6.md` for the composable component layer.
+YAML + layout-model-driven presentation hub. See `docs/design-v3.md` for layout model, `docs/design-v6.md` for composable components, `docs/design-v7.md` for DSL template system.
 
 **Data flow:** `content/[slug]/slides.yaml` → `loadPresentation()` → `layoutPresentation()` → `LayoutPresentation` JSON → `LayoutRenderer` (web) or `exportPptx()` (PPTX)
 
@@ -35,11 +35,13 @@ YAML + layout-model-driven presentation hub. See `docs/design-v3.md` for base ar
 
 - `src/lib/types.ts` — `SlideData` discriminated union, `PresentationData`, `ThemeName`, `AnimationOverride`
 - `src/lib/loadPresentation.ts` — `loadPresentation()`, `discoverPresentations()`, `getAllSlugs()`
-- `src/lib/layout/types.ts` — `LayoutSlide`, `LayoutElement`, `ResolvedTheme`, `AnimationDef`
-- `src/lib/layout/theme.ts` — 4 resolved theme definitions, `resolveTheme()`
+- `src/lib/layout/types.ts` — `LayoutSlide`, `LayoutElement` (9 kinds: text, image, shape, group, code, table, list, video, iframe), `ResolvedTheme`, `AnimationDef`
+- `src/lib/layout/theme.ts` — 16 resolved theme definitions, `resolveTheme()`
 - `src/lib/layout/helpers.ts` — shared layout utilities (`titleBlock`, `stackVertical`, etc.)
-- `src/lib/layout/components/` — composable component layer (v6): types, resolvers, stacker, theme tokens
-- `src/lib/layout/templates/` — 38 layout functions (35 rigid + freeform + split-compose + full-compose), registry in `index.ts`
+- `src/lib/layout/components/` — composable component layer: types (18 components), resolvers, stacker, theme tokens
+- `src/lib/layout/templates/` — 35 DSL YAML templates (`.template.yaml`), registry in `index.ts`
+- `src/lib/layout/templates/bases/` — 3 base layout engines: freeform, split-compose, full-compose
+- `src/lib/dsl/` — DSL template loader, Nunjucks compiler, integration tests
 - `src/lib/export/pptx.ts` — `exportPptx()` via PptxGenJS, spid tracking + JSZip post-processing for animations
 - `src/lib/export/pptx-animations.ts` — OOXML `<p:timing>` XML builder for entrance animations
 - `src/lib/export/pptx-helpers.ts` — coordinate/color/font conversion utilities
@@ -47,7 +49,7 @@ YAML + layout-model-driven presentation hub. See `docs/design-v3.md` for base ar
 - `src/components/LayoutRenderer.tsx` — unified web renderer (layout model → absolute-positioned divs)
 - `src/styles/engine.css` — slide engine base styles (scaling, layout, transitions)
 - `src/styles/animations.css` — CSS keyframes and animation utility classes
-- `src/styles/themes/` — 4 theme CSS files (modern, bold, elegant, dark-tech)
+- `src/styles/themes/` — 16 theme CSS files
 - `src/app/[slug]/page.tsx` — dynamic route with `generateStaticParams`
 - `src/app/page.tsx` — home page, auto-discovers from `content/`
 - `src/app/api/layout/route.ts` — GET /api/layout?slug=X → layout JSON
@@ -59,7 +61,7 @@ YAML + layout-model-driven presentation hub. See `docs/design-v3.md` for base ar
 
 **Preview all templates:** Visit `/example` — one slide per template with sample content.
 
-**New template:** Add interface to `types.ts` → create layout function in `src/lib/layout/templates/foo.ts` → add to registry in `src/lib/layout/templates/index.ts`. The `LayoutRenderer` handles rendering automatically.
+**New template:** Create `src/lib/layout/templates/foo.template.yaml` with `name`, `params`, `style`, `base` (full-compose/split-compose/freeform), and `children`. Auto-discovered by DSL loader — no registry update needed.
 
 **New theme:** Add a new `ResolvedTheme` object in `src/lib/layout/theme.ts` → add to `ThemeName` union in `types.ts`. Both web and PPTX renderers use the same resolved values.
 
@@ -71,7 +73,7 @@ YAML + layout-model-driven presentation hub. See `docs/design-v3.md` for base ar
 - Custom slide engine (no Reveal.js), Tailwind CSS 4, Bun
 - Unified layout model (1920×1080 canvas) for web + PPTX
 - PptxGenJS for PowerPoint export, JSZip for OOXML post-processing (animations)
-- 4 themes via resolved concrete values, CSS-only animations
+- 16 themes via resolved concrete values, CSS-only animations
 - Vitest for unit/integration tests, Playwright for E2E
 - Superpowers plugin for TDD/SDD workflow
 - `@/*` path alias → `src/*`
