@@ -19,6 +19,8 @@ import type {
   QuoteComponent,
   CardComponent,
   ImageComponent,
+  VideoComponent,
+  IframeComponent,
   CodeComponent,
   SpacerComponent,
   RawComponent,
@@ -690,6 +692,48 @@ function resolveImage(c: ImageComponent, ctx: ResolveContext): ResolveResult {
   return { elements: [el], height: h, ...(flex && { flex: true }) };
 }
 
+// --- Video ---
+
+function resolveVideo(c: VideoComponent, ctx: ResolveContext): ResolveResult {
+  const flex = c.height === undefined;
+  const h = c.height ?? 0;
+  const src = c.src.startsWith("/") || c.src.startsWith("http") || c.src.startsWith("data:")
+    ? c.src
+    : `${ctx.imageBase}/${c.src}`;
+
+  const el: LayoutElement = {
+    kind: "video",
+    id: `${ctx.idPrefix}-video`,
+    rect: { x: 0, y: 0, w: ctx.panel.w, h },
+    src,
+    ...(c.poster ? { poster: c.poster } : {}),
+    borderRadius: c.borderRadius ?? ctx.theme.radius,
+    border: ctx.theme.cardBorder,
+    shadow: ctx.theme.shadow,
+  };
+
+  return { elements: [el], height: h, ...(flex && { flex: true }) };
+}
+
+// --- Iframe ---
+
+function resolveIframe(c: IframeComponent, ctx: ResolveContext): ResolveResult {
+  const flex = c.height === undefined;
+  const h = c.height ?? 0;
+
+  const el: LayoutElement = {
+    kind: "iframe",
+    id: `${ctx.idPrefix}-iframe`,
+    rect: { x: 0, y: 0, w: ctx.panel.w, h },
+    src: c.src,
+    borderRadius: c.borderRadius ?? ctx.theme.radius,
+    border: ctx.theme.cardBorder,
+    shadow: ctx.theme.shadow,
+  };
+
+  return { elements: [el], height: h, ...(flex && { flex: true }) };
+}
+
 // --- Code ---
 
 function resolveCode(c: CodeComponent, ctx: ResolveContext): ResolveResult {
@@ -1091,6 +1135,10 @@ export function resolveComponent(
       result = resolveCard(component, ctx); break;
     case "image":
       result = resolveImage(component, ctx); break;
+    case "video":
+      result = resolveVideo(component, ctx); break;
+    case "iframe":
+      result = resolveIframe(component, ctx); break;
     case "code":
       result = resolveCode(component, ctx); break;
     case "spacer":

@@ -9,6 +9,8 @@ import type {
   CodeElement,
   TableElement,
   ListElement,
+  VideoElement,
+  IframeElement,
   GradientDef,
   BoxShadow,
   BorderDef,
@@ -505,6 +507,93 @@ function renderList(el: ListElement): React.ReactNode {
   );
 }
 
+// --- Video / Iframe helpers ---
+
+/** Detect YouTube/Vimeo URLs and return an embed-friendly URL. */
+function toEmbedUrl(src: string): string | null {
+  // YouTube: youtube.com/watch?v=ID, youtu.be/ID, youtube.com/embed/ID
+  const ytMatch = src.match(
+    /(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]+)/,
+  );
+  if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}`;
+
+  // Vimeo: vimeo.com/ID, player.vimeo.com/video/ID
+  const vimeoMatch = src.match(
+    /(?:vimeo\.com\/|player\.vimeo\.com\/video\/)([\d]+)/,
+  );
+  if (vimeoMatch) return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+
+  return null;
+}
+
+function mediaWrapperStyle(el: VideoElement | IframeElement, anim: ReturnType<typeof animProps>): React.CSSProperties {
+  const style: React.CSSProperties = {
+    position: "absolute",
+    left: el.rect.x,
+    top: el.rect.y,
+    width: el.rect.w,
+    height: el.rect.h,
+    overflow: "hidden",
+    borderRadius: el.borderRadius,
+    ...anim.style,
+  };
+  if (el.shadow) style.boxShadow = shadowToCSS(el.shadow);
+  if (el.border) Object.assign(style, borderToCSS(el.border, el.border.sides));
+  return style;
+}
+
+function renderVideo(el: VideoElement): React.ReactNode {
+  const anim = animProps(el.animation);
+  const wrapperStyle = mediaWrapperStyle(el, anim);
+
+  const embedUrl = toEmbedUrl(el.src);
+  if (embedUrl) {
+    return (
+      <div key={el.id} className={anim.className} style={wrapperStyle}>
+        <iframe
+          src={embedUrl}
+          style={{ width: "100%", height: "100%", border: "none" }}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div key={el.id} className={anim.className} style={wrapperStyle}>
+      <video
+        src={el.src}
+        poster={el.poster}
+        controls
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "contain",
+          display: "block",
+        }}
+      />
+    </div>
+  );
+}
+
+function renderIframe(el: IframeElement): React.ReactNode {
+  const anim = animProps(el.animation);
+  return (
+    <div
+      key={el.id}
+      className={anim.className}
+      style={mediaWrapperStyle(el, anim)}
+    >
+      <iframe
+        src={el.src}
+        style={{ width: "100%", height: "100%", border: "none" }}
+        allowFullScreen
+      />
+    </div>
+  );
+}
+
 // --- Dispatcher ---
 
 function renderElement(el: LayoutElement): React.ReactNode {
@@ -523,6 +612,10 @@ function renderElement(el: LayoutElement): React.ReactNode {
       return renderTable(el);
     case "list":
       return renderList(el);
+    case "video":
+      return renderVideo(el);
+    case "iframe":
+      return renderIframe(el);
   }
 }
 

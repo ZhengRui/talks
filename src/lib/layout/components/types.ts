@@ -14,6 +14,8 @@ export type SlideComponent =
   | QuoteComponent
   | CardComponent
   | ImageComponent
+  | VideoComponent
+  | IframeComponent
   | CodeComponent
   | SpacerComponent
   | RawComponent
@@ -121,6 +123,21 @@ export interface ImageComponent {
   objectFit?: "contain" | "cover";
   clipCircle?: boolean;
   borderRadius?: number;   // override default theme.radiusSm
+}
+
+export interface VideoComponent {
+  type: "video";
+  src: string;
+  poster?: string;
+  height?: number;
+  borderRadius?: number;
+}
+
+export interface IframeComponent {
+  type: "iframe";
+  src: string;
+  height?: number;
+  borderRadius?: number;
 }
 
 export interface CodeComponent {

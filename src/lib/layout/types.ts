@@ -191,6 +191,29 @@ export interface ListElement {
   animation?: AnimationDef;
 }
 
+export interface VideoElement {
+  kind: "video";
+  id: string;
+  rect: Rect;
+  src: string;
+  poster?: string;
+  borderRadius?: number;
+  border?: BorderDef;
+  shadow?: BoxShadow;
+  animation?: AnimationDef;
+}
+
+export interface IframeElement {
+  kind: "iframe";
+  id: string;
+  rect: Rect;
+  src: string;
+  borderRadius?: number;
+  border?: BorderDef;
+  shadow?: BoxShadow;
+  animation?: AnimationDef;
+}
+
 export type LayoutElement =
   | TextElement
   | ImageElement
@@ -198,7 +221,9 @@ export type LayoutElement =
   | GroupElement
   | CodeElement
   | TableElement
-  | ListElement;
+  | ListElement
+  | VideoElement
+  | IframeElement;
 
 // --- Slide and Presentation ---
 

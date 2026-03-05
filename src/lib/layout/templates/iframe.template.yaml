@@ -4,8 +4,7 @@ params:
   title: { type: string }
 style:
   titleSize: { type: number, default: 56 }
-  placeholderW: { type: number, default: 1600 }
-  placeholderH: { type: number, default: 800 }
+  height: { type: number }
 
 base: full-compose
 children:
@@ -21,80 +20,8 @@ children:
     marginTop: 16
     marginBottom: 40
   {% endif %}
-  {% set pw = style.placeholderW %}
-  {% set rawH = style.placeholderH %}
-  {% set barH = 40 %}
-  {% set dotSize = 12 %}
-  {% set dotY = (barH - dotSize) / 2 %}
-  {% set contentCenterY = barH + (rawH - barH) / 2 %}
-  - type: raw
-    height: {{ rawH }}
-    elements:
-      # Placeholder background
-      - kind: shape
-        id: ifr-placeholder
-        rect: { x: 0, y: 0, w: {{ pw }}, h: {{ rawH }} }
-        shape: rect
-        style:
-          fill: "theme.bgSecondary"
-          borderRadius: "theme.radius"
-          shadow: "theme.shadow"
-        border: "theme.cardBorder"
-        animation: { type: fade-in, delay: 200, duration: 600 }
-      # Browser top bar
-      - kind: shape
-        id: ifr-bar
-        rect: { x: 0, y: 0, w: {{ pw }}, h: {{ barH }} }
-        shape: rect
-        style:
-          fill: "theme.bgTertiary"
-          borderRadius: 0
-        animation: { type: fade-in, delay: 200, duration: 600 }
-      # Browser dot — red
-      - kind: shape
-        id: ifr-dot-0
-        rect: { x: 16, y: {{ dotY }}, w: {{ dotSize }}, h: {{ dotSize }} }
-        shape: circle
-        style:
-          fill: "#ef4444"
-        animation: { type: fade-in, delay: 250, duration: 600 }
-      # Browser dot — yellow
-      - kind: shape
-        id: ifr-dot-1
-        rect: { x: {{ 16 + dotSize + 8 }}, y: {{ dotY }}, w: {{ dotSize }}, h: {{ dotSize }} }
-        shape: circle
-        style:
-          fill: "#eab308"
-        animation: { type: fade-in, delay: 250, duration: 600 }
-      # Browser dot — green
-      - kind: shape
-        id: ifr-dot-2
-        rect: { x: {{ 16 + 2 * (dotSize + 8) }}, y: {{ dotY }}, w: {{ dotSize }}, h: {{ dotSize }} }
-        shape: circle
-        style:
-          fill: "#22c55e"
-        animation: { type: fade-in, delay: 250, duration: 600 }
-      # "Embedded Content" label
-      - kind: text
-        id: ifr-label
-        rect: { x: {{ (pw - 600) / 2 }}, y: {{ contentCenterY - 40 }}, w: 600, h: 36 }
-        text: "Embedded Content"
-        style:
-          fontFamily: "theme.fontHeading"
-          fontSize: 28
-          fontWeight: 700
-          color: "theme.text"
-          textAlign: center
-        animation: { type: fade-up, delay: 300, duration: 600 }
-      # URL text
-      - kind: text
-        id: ifr-url
-        rect: { x: {{ (pw - 1200) / 2 }}, y: {{ contentCenterY + 10 }}, w: 1200, h: 32 }
-        text: "{{ src }}"
-        style:
-          fontFamily: "theme.fontBody"
-          fontSize: 22
-          fontWeight: 400
-          color: "theme.textMuted"
-          textAlign: center
-        animation: { type: fade-up, delay: 350, duration: 600 }
+  - type: iframe
+    src: "{{ src }}"
+    {% if style.height %}
+    height: {{ style.height }}
+    {% endif %}

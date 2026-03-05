@@ -13,6 +13,8 @@ import type {
   CodeElement,
   TableElement,
   ListElement,
+  VideoElement,
+  IframeElement,
   TextStyle,
   ShapeStyle,
   BorderDef,
@@ -275,6 +277,10 @@ function renderElement(
       return renderTable(slide, el);
     case "list":
       return renderList(slide, el);
+    case "video":
+      return renderVideo(slide, el);
+    case "iframe":
+      return renderIframe(slide, el);
   }
 }
 
@@ -927,5 +933,117 @@ function renderList(slide: Slide, el: ListElement): void {
     h: r.h,
     margin: 0,
     valign: "top",
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Video — embed media or fallback to placeholder
+// ---------------------------------------------------------------------------
+
+/** Detect YouTube/Vimeo and return an embed URL, or null for direct files. */
+function toEmbedUrl(src: string): string | null {
+  const ytMatch = src.match(
+    /(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]+)/,
+  );
+  if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}`;
+
+  const vimeoMatch = src.match(
+    /(?:vimeo\.com\/|player\.vimeo\.com\/video\/)([\d]+)/,
+  );
+  if (vimeoMatch) return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+
+  return null;
+}
+
+function renderVideo(slide: Slide, el: VideoElement): void {
+  const r = rectToInches(el.rect);
+  const embedUrl = toEmbedUrl(el.src);
+
+  if (embedUrl) {
+    // YouTube/Vimeo → online media embed
+    slide.addMedia({
+      type: "online",
+      link: embedUrl,
+      x: r.x,
+      y: r.y,
+      w: r.w,
+      h: r.h,
+    });
+  } else if (
+    el.src.startsWith("/") ||
+    (!el.src.startsWith("http") && !el.src.startsWith("data:"))
+  ) {
+    // Local file → embed video
+    const resolved = resolveImagePath(el.src);
+    slide.addMedia({
+      type: "video",
+      path: resolved,
+      x: r.x,
+      y: r.y,
+      w: r.w,
+      h: r.h,
+    });
+  } else {
+    // Remote direct URL — render placeholder (PptxGenJS can't embed remote videos)
+    renderMediaPlaceholder(slide, el.rect, "Video", el.src);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Iframe — always placeholder in PPTX (no equivalent)
+// ---------------------------------------------------------------------------
+
+function renderIframe(slide: Slide, el: IframeElement): void {
+  renderMediaPlaceholder(slide, el.rect, "Embedded Content", el.src);
+}
+
+/** Render a rounded-rect placeholder with label + URL text for PPTX. */
+function renderMediaPlaceholder(
+  slide: Slide,
+  rect: Rect,
+  label: string,
+  url: string,
+): void {
+  const r = rectToInches(rect);
+
+  // Background rounded rect
+  slide.addShape(SHAPES.ROUNDED_RECTANGLE, {
+    x: r.x,
+    y: r.y,
+    w: r.w,
+    h: r.h,
+    fill: { color: "1e293b" },
+    rectRadius: radiusToInches(12),
+  });
+
+  // Label text
+  slide.addText(label, {
+    x: r.x,
+    y: r.y,
+    w: r.w,
+    h: r.h * 0.5,
+    fontSize: 24,
+    fontFace: "Arial",
+    color: "e2e8f0",
+    bold: true,
+    align: "center",
+    valign: "bottom",
+    margin: 0,
+    isTextBox: true,
+  });
+
+  // URL text
+  slide.addText(url, {
+    x: r.x,
+    y: r.y + r.h * 0.5,
+    w: r.w,
+    h: r.h * 0.5,
+    fontSize: 18,
+    fontFace: "Arial",
+    color: "94a3b8",
+    align: "center",
+    valign: "top",
+    margin: [8, 0, 0, 0],
+    isTextBox: true,
   });
 }
