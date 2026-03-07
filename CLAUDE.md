@@ -80,7 +80,7 @@ YAML + layout-model-driven presentation hub. See `docs/design-v3.md` for layout 
 
 ## Git
 
-`content/` is a submodule — never `git add content`.
+`content/` is a git submodule. `git add content` updates the submodule commit pointer (not the files) — safe to use when syncing.
 
 ### Commit Format
 
