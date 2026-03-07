@@ -6,8 +6,10 @@ import type {
   TextElement,
   ShapeElement,
   GroupElement,
+  FlexLayout,
   TransformDef,
 } from "../types";
+import { resolveLayouts } from "../auto-layout";
 import type {
   SlideComponent,
   TextComponent,
@@ -805,7 +807,7 @@ function resolveSpacer(c: SpacerComponent): ResolveResult {
 const RAW_TOKEN_SKIP = new Set(["text", "id", "code", "src", "language", "shape", "kind"]);
 
 /** Recursively resolve theme.* tokens in all string fields of raw elements. */
-function resolveRawTokens(elements: LayoutElement[], theme: ResolvedTheme): LayoutElement[] {
+export function resolveRawTokens(elements: LayoutElement[], theme: ResolvedTheme): LayoutElement[] {
   function walk(obj: unknown, key?: string): unknown {
     // Skip content fields
     if (key && RAW_TOKEN_SKIP.has(key)) return obj;
@@ -999,12 +1001,235 @@ function resolveGrid(c: GridComponent, ctx: ResolveContext): ResolveResult {
 
 // --- Box (card wrapper) ---
 
+/** Build the GroupElement wrapper shared by both stacked and layout-mode boxes. */
+function buildBoxGroup(
+  c: BoxComponent,
+  ctx: ResolveContext,
+  boxX: number,
+  boxW: number,
+  totalH: number,
+  children: LayoutElement[],
+): GroupElement {
+  const isFlat = c.variant === "flat";
+  const isPanel = c.variant === "panel";
+  const bg = c.background
+    ? resolveColor(c.background, ctx.theme, ctx.theme.cardBg)
+    : ctx.theme.cardBg;
+
+  const radius = c.borderRadius ?? ctx.theme.radius;
+  const style: GroupElement["style"] = isFlat
+    ? {}
+    : { fill: bg };
+
+  // Determine border: explicit borderColor/borderWidth > accentTop > theme cardBorder
+  const customBorder = c.borderColor
+    ? { width: c.borderWidth ?? 2, color: resolveColor(c.borderColor, ctx.theme, ctx.theme.accent), ...(c.borderSides && { sides: c.borderSides }) }
+    : undefined;
+  const accentBorder = c.accentTop
+    ? { width: 3, color: c.accentColor ? resolveColor(c.accentColor, ctx.theme, ctx.theme.accent) : ctx.theme.accent, sides: ["top"] as ("left" | "right" | "top" | "bottom")[] }
+    : undefined;
+
+  const group: GroupElement = {
+    kind: "group",
+    id: `${ctx.idPrefix}-box`,
+    rect: { x: boxX, y: 0, w: boxW, h: totalH },
+    children,
+    style,
+    ...(!isFlat ? { borderRadius: radius } : {}),
+    ...(!isFlat && !isPanel ? { shadow: ctx.theme.shadow } : {}),
+    ...(!isFlat && !isPanel && {
+      border: customBorder ?? accentBorder ?? ctx.theme.cardBorder,
+    }),
+    ...(isPanel && (customBorder || accentBorder) && {
+      border: customBorder ?? accentBorder,
+    }),
+    clipContent: !isFlat,
+  };
+
+  // Override default stacker/columns animation if component specifies one
+  if (c.entranceType && ctx.animate) {
+    const boxDelay = (c as unknown as SlideComponent).entranceDelay ?? ctx.animationDelay ?? 0;
+    group.entrance = makeEntrance(c.entranceType, boxDelay);
+  }
+
+  return group;
+}
+
 function resolveBoxPadding(p: number | number[] | undefined): { top: number; right: number; bottom: number; left: number } {
   if (p === undefined) return { top: 28, right: 28, bottom: 28, left: 28 };
   if (typeof p === "number") return { top: p, right: p, bottom: p, left: p };
   if (p.length === 4) return { top: p[0], right: p[1], bottom: p[2], left: p[3] };
   if (p.length === 2) return { top: p[0], right: p[1], bottom: p[0], left: p[1] };
   return { top: p[0], right: p[0], bottom: p[0], left: p[0] };
+}
+
+/** Layout-based child positioning for flex-row and grid modes. */
+function resolveBoxWithLayout(
+  c: BoxComponent,
+  ctx: ResolveContext,
+  boxW: number,
+  boxX: number,
+  pad: { top: number; right: number; bottom: number; left: number },
+  accentH: number,
+  innerW: number,
+): ResolveResult {
+  const layout = c.layout!;
+  const gap = layout.gap ?? 16;
+  const innerY = pad.top + accentH;
+  const innerH = (c.height ?? ctx.panel.h) - pad.top - pad.bottom - accentH;
+
+  const allChildren: LayoutElement[] = [];
+  let contentH = 0;
+
+  if (layout.type === "flex" && layout.direction === "row") {
+    // --- Flex-row: delegate to auto-layout engine for justify support ---
+
+    // 1. Compute assigned widths (explicit `width` prop or auto-fill)
+    const childExplicitWidths = c.children.map(child => child.width);
+    const explicitTotalW = childExplicitWidths
+      .filter((w): w is number => w != null)
+      .reduce((s, w) => s + w, 0);
+    const autoCount = childExplicitWidths.filter(w => w == null).length;
+    const totalGap = (c.children.length - 1) * gap;
+    const autoW = autoCount > 0
+      ? (innerW - explicitTotalW - totalGap) / autoCount
+      : 0;
+    const assignedWidths = c.children.map((_, i) =>
+      childExplicitWidths[i] ?? autoW,
+    );
+
+    // 2. Resolve each child with its assigned width
+    const resolved = c.children.map((child, i) => {
+      const childCtx: ResolveContext = {
+        ...ctx,
+        panel: { x: 0, y: 0, w: assignedWidths[i], h: innerH },
+        idPrefix: `${ctx.idPrefix}-box${i}`,
+      };
+      return resolveComponent(child, childCtx);
+    });
+
+    // 3. Build placeholder elements and delegate positioning to auto-layout
+    const placeholders: LayoutElement[] = resolved.map((r, i) => ({
+      kind: "shape" as const,
+      id: `ph-${i}`,
+      rect: { x: 0, y: 0, w: assignedWidths[i], h: r.height },
+      shape: "rect" as const,
+      style: {},
+    }));
+
+    const flexLayout: FlexLayout = {
+      type: "flex",
+      direction: "row",
+      gap,
+      align: layout.align,
+      justify: layout.justify,
+      wrap: layout.wrap,
+    };
+
+    const virtualGroup: GroupElement = {
+      kind: "group",
+      id: "box-flex",
+      rect: { x: 0, y: 0, w: innerW, h: innerH },
+      layout: flexLayout,
+      children: placeholders,
+    };
+
+    const [resolvedGroup] = resolveLayouts([virtualGroup]);
+    const positioned = (resolvedGroup as GroupElement).children;
+
+    // 4. Map auto-layout positions to actual resolved elements
+    let maxChildH = 0;
+    resolved.forEach((r) => { maxChildH = Math.max(maxChildH, r.height); });
+
+    resolved.forEach((result, i) => {
+      const pos = positioned[i].rect;
+      result.elements.forEach((el) => {
+        allChildren.push({
+          ...el,
+          rect: {
+            x: el.rect.x + pos.x + pad.left,
+            y: el.rect.y + pos.y + innerY,
+            w: el.rect.w,
+            h: el.rect.h,
+          },
+        });
+      });
+    });
+
+    contentH = maxChildH;
+  } else {
+    // --- Grid: column-based layout ---
+    const resolved = c.children.map((child, i) => {
+      const childCtx: ResolveContext = {
+        ...ctx,
+        panel: { x: 0, y: 0, w: innerW, h: innerH },
+        idPrefix: `${ctx.idPrefix}-box${i}`,
+      };
+      return resolveComponent(child, childCtx);
+    });
+
+    const cols = layout.columns ?? 2;
+    const colGap = layout.columnGap ?? gap;
+    const rGap = layout.rowGap ?? gap;
+    const colW = (innerW - (cols - 1) * colGap) / cols;
+    const count = resolved.length;
+    let totalH = 0;
+
+    for (let start = 0; start < count; start += cols) {
+      const rowResults = resolved.slice(start, start + cols);
+      let rowMaxH = 0;
+
+      rowResults.forEach((r) => {
+        rowMaxH = Math.max(rowMaxH, r.height);
+      });
+
+      rowResults.forEach((result, colIdx) => {
+        const colX = pad.left + colIdx * (colW + colGap);
+        const childY = innerY + totalH;
+
+        result.elements.forEach((el) => {
+          const scaleX = colW / (ctx.panel.w > 0 ? ctx.panel.w : colW);
+          allChildren.push({
+            ...el,
+            rect: {
+              x: el.rect.x * scaleX + colX,
+              y: el.rect.y + childY,
+              w: el.kind === "group" ? colW : el.rect.w * scaleX,
+              h: el.rect.h,
+            },
+          });
+        });
+      });
+
+      totalH += rowMaxH + (start + cols < count ? rGap : 0);
+    }
+
+    contentH = totalH;
+  }
+
+  const totalH = c.height ?? (contentH + pad.top + pad.bottom + accentH);
+
+  // Vertical alignment within box
+  const cursorH = contentH + pad.top + pad.bottom + accentH;
+  const vAlign = c.verticalAlign ?? (c.height ? "center" : "top");
+  if (vAlign !== "top" && totalH > cursorH) {
+    const dy = vAlign === "center"
+      ? (totalH - cursorH) / 2
+      : totalH - cursorH; // bottom
+    allChildren.forEach((el) => {
+      el.rect = { ...el.rect, y: el.rect.y + dy };
+    });
+  }
+
+  const group = buildBoxGroup(c, ctx, boxX, boxW, totalH, allChildren);
+
+  return {
+    elements: [group],
+    height: totalH,
+    ...(c.fill && { flex: true }),
+    gapBefore: c.marginTop,
+    gapAfter: c.marginBottom,
+  };
 }
 
 function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
@@ -1014,6 +1239,12 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
   const accentH = c.accentTop ? 3 : 0;
   const innerY = pad.top + accentH;
   const innerW = boxW - pad.left - pad.right;
+
+  // Dispatch to layout-based positioning for flex-row and grid modes
+  // (flex-column or no layout falls through to existing two-pass stacker)
+  if (c.layout && !(c.layout.type === "flex" && (!c.layout.direction || c.layout.direction === "column"))) {
+    return resolveBoxWithLayout(c, ctx, boxW, boxX, pad, accentH, innerW);
+  }
 
   // Stack children manually in local coords (like resolveCard)
   // Two-pass approach: measure fixed children, then distribute flex space
@@ -1084,47 +1315,7 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
     });
   }
 
-  const isFlat = c.variant === "flat";
-  const isPanel = c.variant === "panel";
-  const bg = c.background
-    ? resolveColor(c.background, ctx.theme, ctx.theme.cardBg)
-    : ctx.theme.cardBg;
-
-  const radius = c.borderRadius ?? ctx.theme.radius;
-  const style: GroupElement["style"] = isFlat
-    ? {}
-    : { fill: bg };
-
-  // Determine border: explicit borderColor/borderWidth > accentTop > theme cardBorder
-  const customBorder = c.borderColor
-    ? { width: c.borderWidth ?? 2, color: resolveColor(c.borderColor, ctx.theme, ctx.theme.accent), ...(c.borderSides && { sides: c.borderSides }) }
-    : undefined;
-  const accentBorder = c.accentTop
-    ? { width: 3, color: c.accentColor ? resolveColor(c.accentColor, ctx.theme, ctx.theme.accent) : ctx.theme.accent, sides: ["top"] as ("left" | "right" | "top" | "bottom")[] }
-    : undefined;
-
-  const group: GroupElement = {
-    kind: "group",
-    id: `${ctx.idPrefix}-box`,
-    rect: { x: boxX, y: 0, w: boxW, h: totalH },
-    children,
-    style,
-    ...(!isFlat ? { borderRadius: radius } : {}),
-    ...(!isFlat && !isPanel ? { shadow: ctx.theme.shadow } : {}),
-    ...(!isFlat && !isPanel && {
-      border: customBorder ?? accentBorder ?? ctx.theme.cardBorder,
-    }),
-    ...(isPanel && (customBorder || accentBorder) && {
-      border: customBorder ?? accentBorder,
-    }),
-    clipContent: !isFlat,
-  };
-
-  // Override default stacker/columns animation if component specifies one
-  if (c.entranceType && ctx.animate) {
-    const boxDelay = (c as unknown as SlideComponent).entranceDelay ?? ctx.animationDelay ?? 0;
-    group.entrance = makeEntrance(c.entranceType, boxDelay);
-  }
+  const group = buildBoxGroup(c, ctx, boxX, boxW, totalH, children);
 
   return {
     elements: [group],

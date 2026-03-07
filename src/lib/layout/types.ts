@@ -147,6 +147,29 @@ export interface ElementBase {
   cssStyle?: Record<string, string>;
 }
 
+// --- Auto-layout modes for GroupElement ---
+
+export interface FlexLayout {
+  type: "flex";
+  direction: "row" | "column";
+  gap?: number;                  // px between items, default 0
+  align?: "start" | "center" | "end" | "stretch";     // cross-axis alignment
+  justify?: "start" | "center" | "end" | "space-between" | "space-around"; // main-axis distribution
+  wrap?: boolean;                // wrap to next row/column when items overflow
+  padding?: number | [number, number, number, number]; // inner padding
+}
+
+export interface GridLayout {
+  type: "grid";
+  columns: number;
+  gap?: number;                  // uniform gap (overridden by rowGap/columnGap)
+  rowGap?: number;
+  columnGap?: number;
+  padding?: number | [number, number, number, number];
+}
+
+export type LayoutMode = FlexLayout | GridLayout;
+
 // --- Element types (discriminated union on `kind`) ---
 // All elements extend ElementBase which provides:
 //   opacity?, borderRadius?, shadow?, effects?, border?  — visual properties
@@ -180,6 +203,7 @@ export interface GroupElement extends ElementBase {
   children: LayoutElement[];
   style?: ShapeStyle;
   clipContent?: boolean;
+  layout?: LayoutMode;
 }
 
 export interface CodeElement extends ElementBase {

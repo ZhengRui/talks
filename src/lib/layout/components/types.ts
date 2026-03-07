@@ -31,6 +31,9 @@ export type SlideComponent =
   borderRadius?: number;
   clipPath?: string;
   cssStyle?: Record<string, string>;
+  /** Explicit width for this component — enables justify in flex-row boxes.
+   *  Without this, flex-row children auto-fill the container (no space for justify). */
+  width?: number;
 };
 
 export interface TextComponent {
@@ -207,6 +210,20 @@ export interface BoxComponent {
   verticalAlign?: "top" | "center" | "bottom"; // align content within box, default "top"
   marginTop?: number;     // override gap before this box in stacker
   marginBottom?: number;  // override gap after this box in stacker
+  /** Layout mode for children: flex-row or grid (default is vertical stacking).
+   *  justify requires children with explicit `width` — without it, children auto-fill
+   *  the container and all justify modes produce the same result as "start". */
+  layout?: {
+    type: "flex" | "grid";
+    direction?: "row" | "column";    // flex only, default "column"
+    columns?: number;                 // grid only
+    gap?: number;
+    rowGap?: number;                  // grid only — overrides gap for rows
+    columnGap?: number;               // grid only — overrides gap for columns
+    align?: "start" | "center" | "end" | "stretch";
+    justify?: "start" | "center" | "end" | "space-between" | "space-around"; // flex only
+    wrap?: boolean;                   // flex-row only — wrap children into multiple rows
+  };
 }
 
 export interface GridComponent {

@@ -6,6 +6,7 @@ import { resolveTheme } from "./theme";
 import { getLayoutFunction } from "./templates";
 import { applyDecorators } from "./decorators";
 import { CANVAS_W, CANVAS_H } from "./helpers";
+import { resolveLayouts } from "./auto-layout";
 
 export function layoutSlide(
   slide: SlideData,
@@ -42,6 +43,9 @@ export function layoutSlide(
   }
 
   const result = layoutFn(slide, resolved, imageBase);
+
+  // Resolve auto-layout groups (flex/grid → absolute rects)
+  result.elements = resolveLayouts(result.elements);
 
   // Apply theme decorators (background elements go first, foreground last)
   const { background, foreground } = applyDecorators(resolved, slideIndex);

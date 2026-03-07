@@ -46,3 +46,47 @@ Resolved by v8 Phase 2: style passthrough mixin adds `transform`, `effects`, `bo
 - `BoxComponent.entranceType` → mixin `entranceType`
 
 Migrate existing YAML, remove redundant fields from interfaces, simplify resolver code (remove component-specific borderRadius handling, remove box entranceType special-case at `resolvers.ts:1217`).
+
+## Auto-Layout — Phase 3 Loose Ends
+
+Core auto-layout engine is complete (`auto-layout.ts`, pipeline integration, `BoxComponent.layout`).
+
+~~**`justify` in BoxComponent resolver**~~ — Done. Implemented for flex-row: start, center, end, space-between, space-around.
+
+~~**`rowGap`/`columnGap` on BoxComponent.layout**~~ — Done. Added to type and wired through grid resolver.
+
+~~**`wrap` on FlexLayout**~~ — Done. `wrap?: boolean` on `FlexLayout`. Splits children into rows when total width exceeds container.
+
+**Stacker unification** — Deferred to Phase 5. Stacker has flex spacers (`SpacerComponent` with `flex: true`), per-component custom gaps (`marginTop`/`marginBottom`), and animation staggering that `resolveLayouts()` doesn't handle. Different layers: stacker resolves `SlideComponent[]` → `LayoutElement[]`, auto-layout resolves `LayoutElement[]` → `LayoutElement[]`.
+
+**Template switchover** — `steps-v2` and `timeline-v2` templates created as auto-layout comparisons. Need visual + PPTX comparison before replacing originals. Table template rewrite deferred — complex layered backgrounds (accent rect, alternating row stripes, border lines) don't benefit from auto-layout.
+
+## v8 Design Divergences (Intentional)
+
+Differences between `docs/design-v8.md` and actual implementation, with rationale:
+
+**`rect` required (not optional)** — Design says `rect?: Rect` when parent has layout. Implementation keeps `rect: Rect` always required. `ensureRects()` fills `{x:0,y:0,w:0,h:0}`, `resolveLayouts()` overwrites. Same behavior, avoids type changes across every renderer and template.
+
+**No `{ type: "absolute" }` in LayoutMode** — Design includes absolute as explicit mode. Implementation: absence of `layout` = absolute. Simpler types.
+
+**`TextStyle` not `ParagraphStyle`** — Same shape, different name. Missing `spaceBefore`, `spaceAfter`, `indent` from design spec.
+
+**`borderRadius` number only** — Design has `number | [number, number, number, number]`. Per-corner requires OOXML `<a:custGeom>` path. No use case yet.
+
+**`zIndex` not on ElementBase** — Array order determines stacking. Sufficient for all current templates.
+
+**`overflow` not on ElementBase** — Only `clipContent?: boolean` on `GroupElement`. Narrower scope, works.
+
+**`TransformDef` missing `originX`/`originY`** — No templates use non-center transform origin.
+
+**`ImageElement.clipCircle` not removed** — Design says use `clipPath` instead. Kept for backward compat with existing templates.
+
+**Component passthrough missing `fill`/`stroke`/`zIndex`** — Blocked on FillDef/StrokeDef migration. Will add when those types exist.
+
+## Phase 4 Prerequisite
+
+Phase 4 (Multi-Layer Backgrounds) wants `backgroundLayers: FillDef[]` on `LayoutSlide`. This depends on `FillDef` existing — currently deferred (see "FillDef / StrokeDef / EffectsDef" section above). Options:
+
+1. Implement FillDef first (prerequisite, ~35 files)
+2. Design Phase 4 with a simpler typed background that doesn't use FillDef
+3. Skip Phase 4, move to Phase 5 (shape presets, independent)

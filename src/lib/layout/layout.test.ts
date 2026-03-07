@@ -242,6 +242,61 @@ describe("layoutPresentation - freeform", () => {
   });
 });
 
+// --- Freeform with auto-layout groups ---
+
+describe("freeform auto-layout integration", () => {
+  it("resolves flex-row layout group children rects", () => {
+    const slide: SlideData = {
+      template: "freeform",
+      elements: [
+        {
+          kind: "group" as const,
+          id: "stats-row",
+          rect: { x: 100, y: 400, w: 1720, h: 200 },
+          layout: { type: "flex" as const, direction: "row" as const, gap: 40 },
+          children: [
+            {
+              kind: "text" as const,
+              id: "stat-1",
+              rect: { x: 0, y: 0, w: 0, h: 0 },
+              text: "4.2B",
+              style: { fontFamily: "Inter", fontSize: 72, fontWeight: 900, color: "#fff", lineHeight: 1.0 },
+            },
+            {
+              kind: "text" as const,
+              id: "stat-2",
+              rect: { x: 0, y: 0, w: 0, h: 0 },
+              text: "180+",
+              style: { fontFamily: "Inter", fontSize: 72, fontWeight: 900, color: "#fff", lineHeight: 1.0 },
+            },
+            {
+              kind: "text" as const,
+              id: "stat-3",
+              rect: { x: 0, y: 0, w: 0, h: 0 },
+              text: "99.9%",
+              style: { fontFamily: "Inter", fontSize: 72, fontWeight: 900, color: "#fff", lineHeight: 1.0 },
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = layoutPresentation("Test", [slide], "modern", "/img");
+    const group = result.slides[0].elements[0];
+    expect(group.kind).toBe("group");
+    if (group.kind === "group") {
+      expect(group.children).toHaveLength(3);
+      // Each child should get ~546.67px width ((1720 - 80) / 3)
+      const expectedW = (1720 - 80) / 3;
+      group.children.forEach((child, i) => {
+        expect(child.rect.w).toBeCloseTo(expectedW, 0);
+        expect(child.rect.h).toBe(200);
+        expect(child.rect.x).toBeCloseTo(i * (expectedW + 40), 0);
+      });
+    }
+  });
+});
+
 // --- Per-slide theme override ---
 
 describe("per-slide theme override", () => {

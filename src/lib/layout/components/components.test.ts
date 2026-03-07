@@ -1062,6 +1062,327 @@ describe("resolveComponent — box", () => {
   });
 });
 
+describe("resolveComponent — box layout modes", () => {
+  it("flex-row distributes children horizontally", () => {
+    const panel: Rect = { x: 0, y: 0, w: 900, h: 600 };
+    const { elements, height } = resolveComponent(
+      {
+        type: "box",
+        padding: 0,
+        layout: { type: "flex", direction: "row", gap: 20 },
+        children: [
+          { type: "stat", value: "10", label: "A" },
+          { type: "stat", value: "20", label: "B" },
+          { type: "stat", value: "30", label: "C" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    expect(elements).toHaveLength(1);
+    expect(elements[0].kind).toBe("group");
+    const group = elements[0] as GroupElement;
+    // 3 stat children, each emitting 2 text elements = 6 children
+    expect(group.children.length).toBe(6);
+
+    // Children should be distributed horizontally — check x positions
+    // Each child gets (900 - 2*20) / 3 = 286.67px width
+    const childW = (900 - 2 * 20) / 3;
+    // First child elements at x=0, second at childW+gap, third at 2*(childW+gap)
+    const child0X = group.children[0].rect.x;
+    const child1X = group.children[2].rect.x; // stat emits 2 elements
+    const child2X = group.children[4].rect.x;
+    expect(child0X).toBeCloseTo(0, 0);
+    expect(child1X).toBeCloseTo(childW + 20, 0);
+    expect(child2X).toBeCloseTo(2 * (childW + 20), 0);
+
+    expect(height).toBeGreaterThan(0);
+  });
+
+  it("grid positions children in column-based rows", () => {
+    const panel: Rect = { x: 0, y: 0, w: 800, h: 600 };
+    const { elements } = resolveComponent(
+      {
+        type: "box",
+        padding: 0,
+        layout: { type: "grid", columns: 2, gap: 20 },
+        children: [
+          { type: "stat", value: "1", label: "A" },
+          { type: "stat", value: "2", label: "B" },
+          { type: "stat", value: "3", label: "C" },
+          { type: "stat", value: "4", label: "D" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    expect(elements).toHaveLength(1);
+    const group = elements[0] as GroupElement;
+    // 4 stat children × 2 elements each = 8 children
+    expect(group.children.length).toBe(8);
+
+    // Column width: (800 - 20) / 2 = 390
+    const colW = (800 - 20) / 2;
+
+    // Row 1: items 0,1 at y near 0
+    const r1c0 = group.children[0]; // stat 1, value element
+    const r1c1 = group.children[2]; // stat 2, value element
+    expect(r1c0.rect.x).toBeCloseTo(0, 0);
+    expect(r1c1.rect.x).toBeCloseTo(colW + 20, 0);
+
+    // Row 2: items 2,3 at y > row1
+    const r2c0 = group.children[4]; // stat 3, value element
+    const r2c1 = group.children[6]; // stat 4, value element
+    expect(r2c0.rect.x).toBeCloseTo(0, 0);
+    expect(r2c1.rect.x).toBeCloseTo(colW + 20, 0);
+    // Row 2 should be below row 1
+    expect(r2c0.rect.y).toBeGreaterThan(r1c0.rect.y);
+  });
+
+  it("flex-row respects padding", () => {
+    const panel: Rect = { x: 0, y: 0, w: 800, h: 600 };
+    const { elements } = resolveComponent(
+      {
+        type: "box",
+        padding: 40,
+        layout: { type: "flex", direction: "row", gap: 10 },
+        children: [
+          { type: "stat", value: "A", label: "X" },
+          { type: "stat", value: "B", label: "Y" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    const group = elements[0] as GroupElement;
+    // With padding=40, innerW = 800-80 = 720
+    // Child positions should start at x=40 (pad.left)
+    const firstChild = group.children[0];
+    expect(firstChild.rect.x).toBeCloseTo(40, 0);
+    // First child y should include top padding
+    expect(firstChild.rect.y).toBeCloseTo(40, 0);
+  });
+
+  it("box without layout uses existing vertical stacking", () => {
+    const panel: Rect = { x: 0, y: 0, w: 600, h: 600 };
+    const { elements, height } = resolveComponent(
+      {
+        type: "box",
+        children: [
+          { type: "stat", value: "1", label: "A" },
+          { type: "stat", value: "2", label: "B" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    const group = elements[0] as GroupElement;
+    // Children should be stacked vertically: all at similar x positions
+    // (within padding), but increasing y positions
+    const firstY = group.children[0].rect.y;
+    const lastChild = group.children[group.children.length - 1];
+    expect(lastChild.rect.y).toBeGreaterThan(firstY);
+    expect(height).toBeGreaterThan(0);
+    // Group should have card styling
+    expect(group.style?.fill).toBe(theme.cardBg);
+  });
+
+  it("flex-column layout falls through to vertical stacking", () => {
+    const panel: Rect = { x: 0, y: 0, w: 600, h: 600 };
+    const withLayout = resolveComponent(
+      {
+        type: "box",
+        layout: { type: "flex", direction: "column" },
+        children: [
+          { type: "stat", value: "1", label: "A" },
+          { type: "stat", value: "2", label: "B" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    const withoutLayout = resolveComponent(
+      {
+        type: "box",
+        children: [
+          { type: "stat", value: "1", label: "A" },
+          { type: "stat", value: "2", label: "B" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    // Both should produce the same height (same stacking logic)
+    expect(withLayout.height).toBe(withoutLayout.height);
+  });
+
+  it("flex-row preserves card styling on group wrapper", () => {
+    const panel: Rect = { x: 0, y: 0, w: 600, h: 600 };
+    const { elements } = resolveComponent(
+      {
+        type: "box",
+        layout: { type: "flex", direction: "row" },
+        children: [
+          { type: "stat", value: "1", label: "A" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    const group = elements[0] as GroupElement;
+    expect(group.style?.fill).toBe(theme.cardBg);
+    expect(group.borderRadius).toBe(theme.radius);
+    expect(group.shadow).toEqual(theme.shadow);
+    expect(group.border).toEqual(theme.cardBorder);
+  });
+
+  it("grid preserves card styling on group wrapper", () => {
+    const panel: Rect = { x: 0, y: 0, w: 600, h: 600 };
+    const { elements } = resolveComponent(
+      {
+        type: "box",
+        layout: { type: "grid", columns: 2 },
+        children: [
+          { type: "stat", value: "1", label: "A" },
+          { type: "stat", value: "2", label: "B" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    const group = elements[0] as GroupElement;
+    expect(group.style?.fill).toBe(theme.cardBg);
+    expect(group.borderRadius).toBe(theme.radius);
+  });
+
+  it("flex-row distributes children horizontally with gap", () => {
+    const panel: Rect = { x: 0, y: 0, w: 900, h: 600 };
+    const { elements } = resolveComponent(
+      {
+        type: "box",
+        padding: 0,
+        layout: { type: "flex", direction: "row", gap: 30 },
+        children: [
+          { type: "stat", value: "A", label: "X" },
+          { type: "stat", value: "B", label: "Y" },
+          { type: "stat", value: "C", label: "Z" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    const group = elements[0] as GroupElement;
+    // 3 items in 900px with gap 30: childW = (900 - 60) / 3 = 280
+    const firstX = group.children[0].rect.x;
+    const lastX = group.children[group.children.length - 2].rect.x; // stat emits 2 els
+    expect(lastX).toBeGreaterThan(firstX);
+    // First child starts at x=0 (pad.left=0)
+    expect(firstX).toBe(0);
+  });
+
+  it("flex-row justify space-between with explicit widths", () => {
+    const panel: Rect = { x: 0, y: 0, w: 1000, h: 600 };
+    const { elements } = resolveComponent(
+      {
+        type: "box",
+        padding: 0,
+        layout: { type: "flex", direction: "row", gap: 0, justify: "space-between" },
+        children: [
+          { type: "stat", value: "A", label: "X", width: 200 } as SlideComponent,
+          { type: "stat", value: "B", label: "Y", width: 200 } as SlideComponent,
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    const group = elements[0] as GroupElement;
+    // 2 items of 200px in 1000px container → 600px leftover
+    // space-between: first at x=0, last at x=800
+    const firstX = group.children[0].rect.x;
+    const lastChild = group.children.find((_, idx) =>
+      // stat emits 2 elements per child; second child starts at index 2
+      idx === 2
+    );
+    expect(firstX).toBe(0);
+    expect(lastChild!.rect.x).toBe(800);
+  });
+
+  it("flex-row justify center with explicit widths", () => {
+    const panel: Rect = { x: 0, y: 0, w: 1000, h: 600 };
+    const { elements } = resolveComponent(
+      {
+        type: "box",
+        padding: 0,
+        layout: { type: "flex", direction: "row", gap: 0, justify: "center" },
+        children: [
+          { type: "stat", value: "A", label: "X", width: 200 } as SlideComponent,
+          { type: "stat", value: "B", label: "Y", width: 200 } as SlideComponent,
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    const group = elements[0] as GroupElement;
+    // 2 items of 200px in 1000px → 600px leftover, center offset = 300
+    const firstX = group.children[0].rect.x;
+    expect(firstX).toBe(300);
+  });
+
+  it("flex-row without explicit widths: justify has no effect (auto-fill)", () => {
+    const panel: Rect = { x: 0, y: 0, w: 900, h: 600 };
+    const resultStart = resolveComponent(
+      {
+        type: "box",
+        padding: 0,
+        layout: { type: "flex", direction: "row", gap: 30, justify: "start" },
+        children: [
+          { type: "stat", value: "A", label: "X" },
+          { type: "stat", value: "B", label: "Y" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    const resultBetween = resolveComponent(
+      {
+        type: "box",
+        padding: 0,
+        layout: { type: "flex", direction: "row", gap: 30, justify: "space-between" },
+        children: [
+          { type: "stat", value: "A", label: "X" },
+          { type: "stat", value: "B", label: "Y" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    // Both should produce same x positions since auto-width fills container
+    const startGroup = resultStart.elements[0] as GroupElement;
+    const betweenGroup = resultBetween.elements[0] as GroupElement;
+    expect(startGroup.children[0].rect.x).toBe(betweenGroup.children[0].rect.x);
+  });
+
+  it("grid uses separate rowGap and columnGap", () => {
+    const panel: Rect = { x: 0, y: 0, w: 800, h: 600 };
+    const { elements } = resolveComponent(
+      {
+        type: "box",
+        padding: 0,
+        layout: { type: "grid", columns: 2, rowGap: 40, columnGap: 10 },
+        children: [
+          { type: "stat", value: "1", label: "A" },
+          { type: "stat", value: "2", label: "B" },
+          { type: "stat", value: "3", label: "C" },
+          { type: "stat", value: "4", label: "D" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    const group = elements[0] as GroupElement;
+    // Column width: (800 - 10) / 2 = 395
+    const colW = (800 - 10) / 2;
+
+    // Row 1 items
+    const r1c0 = group.children[0];
+    const r1c1 = group.children[2];
+    expect(r1c0.rect.x).toBeCloseTo(0, 0);
+    expect(r1c1.rect.x).toBeCloseTo(colW + 10, 0);
+
+    // Row 2 items should be separated by rowGap (40), not columnGap (10)
+    const r2c0 = group.children[4];
+    const rowGapActual = r2c0.rect.y - r1c0.rect.y;
+    // rowGap should be larger than columnGap
+    expect(rowGapActual).toBeGreaterThan(10);
+  });
+});
+
 describe("resolveComponent — tag", () => {
   it("produces a pill shape and text", () => {
     const { elements, height } = resolveComponent(

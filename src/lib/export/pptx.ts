@@ -51,19 +51,10 @@ function offsetRect(child: Rect, parent: Rect): Rect {
   };
 }
 
-/** Deep-clone an element with its rect offset by a parent origin. */
+/** Offset an element's rect by a parent origin. Children are NOT recursively
+ *  offset — each renderGroup() call handles its own children's offsetting. */
 function offsetElement(el: LayoutElement, parent: Rect): LayoutElement {
-  const offsetted = { ...el, rect: offsetRect(el.rect, parent) };
-  // Recursively offset nested group children
-  if (el.kind === "group") {
-    return {
-      ...offsetted,
-      children: (el as GroupElement).children.map((child) =>
-        offsetElement(child, offsetted.rect),
-      ),
-    } as LayoutElement;
-  }
-  return offsetted;
+  return { ...el, rect: offsetRect(el.rect, parent) };
 }
 
 type Slide = ReturnType<PptxGenJS["addSlide"]>;
@@ -82,6 +73,9 @@ let slideCssGradientEntries: { spid: number; gradient: import("./pptx-helpers").
 let slideTextAlphaEntries: { spid: number; alpha: number }[] = [];
 let slideCoverImages: { spid: number; imagePath: string; containerW: number; containerH: number }[] = [];
 let slideFlipEntries: FlipEntry[] = [];
+// Per-element animation/effects tracking — populated by renderElement, consumed by exportPptx
+let slideElementAnimations: AnimationEntry[] = [];
+let slideElementEffects: EffectsEntry[] = [];
 
 /** Read the current object count from a PptxGenJS slide. */
 function slideObjectCount(slide: Slide): number {
@@ -113,39 +107,18 @@ export async function exportPptx(
     slideTextAlphaEntries = [];
     slideCoverImages = [];
     slideFlipEntries = [];
+    slideElementAnimations = [];
+    slideElementEffects = [];
 
     renderSlideBackground(slide, layoutSlide);
 
-    const animations: AnimationEntry[] = [];
-    const effects: EffectsEntry[] = [];
     for (const el of layoutSlide.elements) {
-      const before = slideObjectCount(slide);
       renderElement(slide, el);
-      const after = slideObjectCount(slide);
-
-      const spids: number[] = [];
-      for (let i = before; i < after; i++) {
-        spids.push(i + 2); // PptxGenJS: spid = idx + 2
-      }
-
-      if (spids.length > 0) {
-        if (el.entrance && el.entrance.type !== "none") {
-          animations.push({ spids, entrance: el.entrance });
-        }
-
-        // Track effects and pattern fills for post-processing
-        // Skip patternFill for presets already rendered as actual shapes
-        const elEffects = el.effects;
-        const elPatternFill = "style" in el && el.kind === "shape"
-          && el.style.patternFill
-          && !SHAPE_RENDERED_PATTERNS.has(el.style.patternFill.preset)
-          ? el.style.patternFill
-          : undefined;
-        if (elEffects || elPatternFill) {
-          effects.push({ spids, effects: elEffects, patternFill: elPatternFill });
-        }
-      }
     }
+
+    // Collect animations and effects tracked by renderElement (works for nested groups too)
+    const animations = slideElementAnimations;
+    const effects: EffectsEntry[] = [...slideElementEffects];
 
     // Fold render-time gradient and text alpha entries into effects
     for (const g of slideGradientEntries) {
@@ -301,25 +274,56 @@ function renderElement(
   if (el.cssStyle) {
     console.warn(`[pptx] ${el.id}: cssStyle is web-only, skipped in PPTX`);
   }
+
+  // Track spids for this element's entrance animation and effects
+  const before = slideObjectCount(slide);
+
   switch (el.kind) {
     case "text":
-      return renderText(slide, el);
+      renderText(slide, el); break;
     case "image":
-      return renderImage(slide, el);
+      renderImage(slide, el); break;
     case "shape":
-      return renderShape(slide, el);
+      renderShape(slide, el); break;
     case "group":
-      return renderGroup(slide, el);
+      renderGroup(slide, el); break;
     case "code":
-      return renderCode(slide, el);
+      renderCode(slide, el); break;
     case "table":
-      return renderTable(slide, el);
+      renderTable(slide, el); break;
     case "list":
-      return renderList(slide, el);
+      renderList(slide, el); break;
     case "video":
-      return renderVideo(slide, el);
+      renderVideo(slide, el); break;
     case "iframe":
-      return renderIframe(slide, el);
+      renderIframe(slide, el); break;
+  }
+
+  // Collect spids produced by this element.
+  // For non-groups: track entrance/effects on the element itself.
+  // For groups: track the group's own entrance (applied to ALL child shapes).
+  //   Individual children inside the group are tracked by their own renderElement
+  //   calls within renderGroup().
+  const after = slideObjectCount(slide);
+  const spids: number[] = [];
+  for (let i = before; i < after; i++) {
+    spids.push(i + 2);
+  }
+  if (spids.length > 0) {
+    if (el.entrance && el.entrance.type !== "none") {
+      slideElementAnimations.push({ spids, entrance: el.entrance });
+    }
+    if (el.kind !== "group") {
+      const elEffects = el.effects;
+      const elPatternFill = "style" in el && el.kind === "shape"
+        && el.style.patternFill
+        && !SHAPE_RENDERED_PATTERNS.has(el.style.patternFill.preset)
+        ? el.style.patternFill
+        : undefined;
+      if (elEffects || elPatternFill) {
+        slideElementEffects.push({ spids, effects: elEffects, patternFill: elPatternFill });
+      }
+    }
   }
 }
 
@@ -856,10 +860,16 @@ function renderGroup(
     }
   }
 
-  // Render children — offset by group's origin since children use relative coords
+  // Render children — offset by group's origin since children use relative coords.
+  // If the group itself has an entrance, suppress children's individual entrances
+  // to avoid duplicate animation entries on the same spids.
+  const groupHasEntrance = el.entrance && el.entrance.type !== "none";
   for (const child of el.children) {
     const offsetChild = offsetElement(child, el.rect);
-    renderElement(slide, offsetChild);
+    const renderedChild = groupHasEntrance && child.entrance
+      ? { ...offsetChild, entrance: undefined }
+      : offsetChild;
+    renderElement(slide, renderedChild as LayoutElement);
   }
 }
 
