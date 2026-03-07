@@ -3,6 +3,7 @@
 // after PptxGenJS generates the file.
 
 import type { ElementEffects, PatternFillDef, GradientDef } from "@/lib/layout/types";
+import type { ParsedCssGradient } from "./pptx-helpers";
 import { hexColor, colorAlpha } from "./pptx-helpers";
 
 /** Entry mapping PptxGenJS shape indices to their effects. */
@@ -11,6 +12,8 @@ export interface EffectsEntry {
   effects?: ElementEffects;
   patternFill?: PatternFillDef;
   gradient?: GradientDef;
+  /** CSS-parsed radial/linear gradient (from background strings). */
+  cssGradient?: ParsedCssGradient;
   textAlpha?: number; // OOXML alpha: 0 (transparent) to 100000 (opaque)
 }
 
@@ -112,6 +115,53 @@ function buildGradFillXml(gradient: GradientDef): string {
 }
 
 /**
+ * Build <a:gradFill> XML for a CSS-parsed gradient (radial or linear).
+ * Radial: uses <a:path path="circle"> with fillToRect for center position.
+ * Linear: delegates to buildGradFillXml via GradientDef adapter.
+ */
+function buildCssGradFillXml(g: ParsedCssGradient): string {
+  const stops = g.stops
+    .map((stop) => {
+      const pos = Math.round(stop.position * 100000);
+      const hex = hexColor(stop.color);
+      const alpha = colorAlpha(stop.color);
+
+      if (alpha !== undefined) {
+        const ooxmlAlpha = Math.round((100 - alpha) * 1000);
+        return `<a:gs pos="${pos}"><a:srgbClr val="${hex}"><a:alpha val="${ooxmlAlpha}"/></a:srgbClr></a:gs>`;
+      }
+      // "transparent" → black with 0 alpha
+      if (stop.color.trim().toLowerCase() === "transparent") {
+        return `<a:gs pos="${pos}"><a:srgbClr val="000000"><a:alpha val="0"/></a:srgbClr></a:gs>`;
+      }
+      return `<a:gs pos="${pos}"><a:srgbClr val="${hex}"/></a:gs>`;
+    })
+    .join("");
+
+  if (g.type === "radial") {
+    const cx = Math.round((g.centerX ?? 50) * 1000);
+    const cy = Math.round((g.centerY ?? 50) * 1000);
+    const rx = 100000 - cx;
+    const ry = 100000 - cy;
+    return (
+      `<a:gradFill rotWithShape="0">` +
+        `<a:gsLst>${stops}</a:gsLst>` +
+        `<a:path path="circle">` +
+          `<a:fillToRect l="${cx}" t="${cy}" r="${rx}" b="${ry}"/>` +
+        `</a:path>` +
+      `</a:gradFill>`
+    );
+  }
+
+  // Linear — convert to GradientDef and delegate
+  return buildGradFillXml({
+    type: "linear",
+    angle: g.angle ?? 180,
+    stops: g.stops.map((s) => ({ color: s.color, position: s.position })),
+  });
+}
+
+/**
  * Apply effects to a slide XML string.
  * Finds <p:sp> elements by spid and injects effectLst / replaces solidFill.
  */
@@ -207,6 +257,21 @@ export function applyEffectsToSlideXml(
         }
       }
 
+      // Replace solid fill with CSS-parsed gradient (radial or linear)
+      if (entry.cssGradient) {
+        const gradFillXml = buildCssGradFillXml(entry.cssGradient);
+        if (/<a:solidFill>[\s\S]*?<\/a:solidFill>/.test(shapeXml)) {
+          shapeXml = shapeXml.replace(
+            /<a:solidFill>[\s\S]*?<\/a:solidFill>/,
+            gradFillXml,
+          );
+        } else if (shapeXml.includes("<a:noFill/>")) {
+          shapeXml = shapeXml.replace("<a:noFill/>", gradFillXml);
+        } else {
+          shapeXml = shapeXml.replace("</p:spPr>", `${gradFillXml}</p:spPr>`);
+        }
+      }
+
       xml = xml.replace(match[1], shapeXml);
 
       // Inject text color alpha into <p:txBody> run properties
@@ -234,5 +299,43 @@ export function applyEffectsToSlideXml(
     }
   }
 
+  return xml;
+}
+
+// ---------------------------------------------------------------------------
+// Flip transforms — inject flipH/flipV into <a:xfrm>
+// ---------------------------------------------------------------------------
+
+export interface FlipEntry {
+  spid: number;
+  flipH?: boolean;
+  flipV?: boolean;
+}
+
+/**
+ * Apply flipH/flipV attributes to <a:xfrm> elements by spid.
+ * PptxGenJS doesn't support flip natively, so we inject via post-processing.
+ */
+export function applyFlipsToSlideXml(
+  slideXml: string,
+  entries: FlipEntry[],
+): string {
+  let xml = slideXml;
+  for (const entry of entries) {
+    if (!entry.flipH && !entry.flipV) continue;
+
+    // Find <a:xfrm> associated with this spid
+    const pattern = new RegExp(
+      `(<p:cNvPr\\s+id="${entry.spid}"[\\s\\S]*?<a:xfrm)(\\s*[^>]*>)`,
+    );
+    const match = xml.match(pattern);
+    if (!match) continue;
+
+    let attrs = "";
+    if (entry.flipH) attrs += ` flipH="1"`;
+    if (entry.flipV) attrs += ` flipV="1"`;
+
+    xml = xml.replace(match[0], match[1] + attrs + match[2]);
+  }
   return xml;
 }

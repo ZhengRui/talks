@@ -23,7 +23,7 @@ children:
   - type: box
     maxWidth: {{ style.cardWidth }}
     padding: 40
-    animationType: fade-in
+    entranceType: fade-in
     children:
       - type: body
         text: "{{ answer }}"

@@ -30,8 +30,8 @@ children:
     height: {{ style.imageHeight }}
     {% endif %}
     borderRadius: 16
-    animationType: scale-up
-    animationDelay: 200
+    entranceType: scale-up
+    entranceDelay: 200
   - type: text
     text: "{{ caption }}"
     fontSize: {{ style.captionSize }}
@@ -40,5 +40,5 @@ children:
     lineHeight: {{ style.captionLineHeight }}
     maxWidth: {{ style.captionWidth }}
     marginTop: 20
-    animationType: fade-up
-    animationDelay: 400
+    entranceType: fade-up
+    entranceDelay: 400

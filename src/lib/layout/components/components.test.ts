@@ -178,59 +178,59 @@ describe("resolveComponent — text", () => {
   });
 });
 
-describe("resolveComponent — animationType on any component", () => {
-  it("applies animationType to heading elements", () => {
+describe("resolveComponent — entranceType on any component", () => {
+  it("applies entranceType to heading elements", () => {
     const { elements } = resolveComponent(
-      { type: "heading", text: "Title", animationType: "slide-left" },
+      { type: "heading", text: "Title", entranceType: "slide-left" },
       makeCtx({ animate: true, animationDelay: 200 }),
     );
-    expect(elements[0].animation).toBeDefined();
-    expect(elements[0].animation!.type).toBe("slide-left");
-    expect(elements[0].animation!.delay).toBe(200);
+    expect(elements[0].entrance).toBeDefined();
+    expect(elements[0].entrance!.type).toBe("slide-left");
+    expect(elements[0].entrance!.delay).toBe(200);
   });
 
-  it("applies animationType to body elements", () => {
+  it("applies entranceType to body elements", () => {
     const { elements } = resolveComponent(
-      { type: "body", text: "Content", animationType: "slide-right" },
+      { type: "body", text: "Content", entranceType: "slide-right" },
       makeCtx({ animate: true, animationDelay: 100 }),
     );
-    expect(elements[0].animation).toBeDefined();
-    expect(elements[0].animation!.type).toBe("slide-right");
+    expect(elements[0].entrance).toBeDefined();
+    expect(elements[0].entrance!.type).toBe("slide-right");
   });
 
   it("does not apply when animate is false", () => {
     const { elements } = resolveComponent(
-      { type: "heading", text: "Title", animationType: "slide-left" },
+      { type: "heading", text: "Title", entranceType: "slide-left" },
       makeCtx({ animate: false }),
     );
-    expect(elements[0].animation).toBeUndefined();
+    expect(elements[0].entrance).toBeUndefined();
   });
 
-  it("animationDelay overrides ctx.animationDelay", () => {
+  it("entranceDelay overrides ctx.animationDelay", () => {
     const { elements } = resolveComponent(
-      { type: "heading", text: "Title", animationType: "fade-up", animationDelay: 0 },
+      { type: "heading", text: "Title", entranceType: "fade-up", entranceDelay: 0 },
       makeCtx({ animate: true, animationDelay: 500 }),
     );
-    expect(elements[0].animation).toBeDefined();
-    expect(elements[0].animation!.delay).toBe(0); // component delay wins over ctx
+    expect(elements[0].entrance).toBeDefined();
+    expect(elements[0].entrance!.delay).toBe(0); // component delay wins over ctx
   });
 
-  it("animationDelay on box overrides ctx.animationDelay", () => {
+  it("entranceDelay on box overrides ctx.animationDelay", () => {
     const { elements } = resolveComponent(
-      { type: "box", children: [{ type: "body", text: "Hi" }], animationType: "slide-left", animationDelay: 200 },
+      { type: "box", children: [{ type: "body", text: "Hi" }], entranceType: "slide-left", entranceDelay: 200 },
       makeCtx({ animate: true, animationDelay: 0 }),
     );
-    expect(elements[0].animation).toBeDefined();
-    expect(elements[0].animation!.delay).toBe(200);
+    expect(elements[0].entrance).toBeDefined();
+    expect(elements[0].entrance!.delay).toBe(200);
   });
 
   it("overrides bullet stagger animations", () => {
     const { elements } = resolveComponent(
-      { type: "bullets", items: ["A", "B"], animationType: "slide-right" },
+      { type: "bullets", items: ["A", "B"], entranceType: "slide-right" },
       makeCtx({ animate: true, animationDelay: 0 }),
     );
     elements.forEach((el) => {
-      expect(el.animation!.type).toBe("slide-right");
+      expect(el.entrance!.type).toBe("slide-right");
     });
   });
 });
@@ -290,13 +290,13 @@ describe("resolveComponent — opacity on any component", () => {
 
   it("preserves animation when wrapping text in opacity group", () => {
     const { elements } = resolveComponent(
-      { type: "heading", text: "Faded", opacity: 0.5, animationType: "fade-up" },
+      { type: "heading", text: "Faded", opacity: 0.5, entranceType: "fade-up" },
       makeCtx({ animate: true, animationDelay: 100 }),
     );
     expect(elements).toHaveLength(1);
     expect(elements[0].kind).toBe("group");
-    expect(elements[0].animation).toBeDefined();
-    expect(elements[0].animation!.type).toBe("fade-up");
+    expect(elements[0].entrance).toBeDefined();
+    expect(elements[0].entrance!.type).toBe("fade-up");
   });
 });
 
@@ -534,9 +534,9 @@ describe("resolveComponent — bullets", () => {
     );
     expect(elements).toHaveLength(3);
     elements.forEach((el, i) => {
-      expect(el.animation).toBeDefined();
-      expect(el.animation!.type).toBe("fade-up");
-      expect(el.animation!.delay).toBe(200 + i * 100);
+      expect(el.entrance).toBeDefined();
+      expect(el.entrance!.type).toBe("fade-up");
+      expect(el.entrance!.delay).toBe(200 + i * 100);
     });
   });
 
@@ -546,7 +546,7 @@ describe("resolveComponent — bullets", () => {
       makeCtx({ animate: false }),
     );
     elements.forEach((el) => {
-      expect(el.animation).toBeUndefined();
+      expect(el.entrance).toBeUndefined();
     });
   });
 
@@ -719,12 +719,12 @@ describe("resolveComponent — columns", () => {
     );
     // Each column's elements should have staggered delays
     // Col 0: delay 200, Col 1: delay 300, Col 2: delay 400
-    expect(elements[0].animation).toBeDefined();
-    expect(elements[0].animation!.delay).toBe(200);
-    expect(elements[2].animation).toBeDefined();
-    expect(elements[2].animation!.delay).toBe(300);
-    expect(elements[4].animation).toBeDefined();
-    expect(elements[4].animation!.delay).toBe(400);
+    expect(elements[0].entrance).toBeDefined();
+    expect(elements[0].entrance!.delay).toBe(200);
+    expect(elements[2].entrance).toBeDefined();
+    expect(elements[2].entrance!.delay).toBe(300);
+    expect(elements[4].entrance).toBeDefined();
+    expect(elements[4].entrance!.delay).toBe(400);
   });
 
   it("returns empty for no children", () => {
@@ -814,7 +814,7 @@ describe("resolveComponent — grid", () => {
     );
     // 4 items, 3 cols → row 0 has 3, row 1 has 1
     // colW = (800 - 64) / 3 = 245.33
-    const colW = (800 - 64) / 3;
+    const _colW = (800 - 64) / 3; // eslint-disable-line @typescript-eslint/no-unused-vars
     // 4th item (index 6,7 for stat elements) at x ≈ 0, y > 0
     expect(elements[6].rect.x).toBeCloseTo(0, 0);
     expect(elements[6].rect.y).toBeGreaterThan(0);
@@ -872,9 +872,9 @@ describe("resolveComponent — grid", () => {
       makeCtx({ panel, animate: true, animationDelay: 200 }),
     );
     // Item 0 delay 200, item 1 delay 300, item 2 delay 400
-    expect(elements[0].animation!.delay).toBe(200);
-    expect(elements[2].animation!.delay).toBe(300);
-    expect(elements[4].animation!.delay).toBe(400);
+    expect(elements[0].entrance!.delay).toBe(200);
+    expect(elements[2].entrance!.delay).toBe(300);
+    expect(elements[4].entrance!.delay).toBe(400);
   });
 
   it("returns empty for no children", () => {
@@ -1579,7 +1579,7 @@ describe("stackComponents", () => {
       { animate: true },
     );
 
-    const delays = elements.map((el) => el.animation?.delay ?? 0);
+    const delays = elements.map((el) => el.entrance?.delay ?? 0);
     expect(delays[0]).toBeLessThan(delays[1]);
   });
 
@@ -1593,7 +1593,7 @@ describe("stackComponents", () => {
 
     // No animation should be added (heading resolver doesn't add one)
     elements.forEach((el) => {
-      expect(el.animation).toBeUndefined();
+      expect(el.entrance).toBeUndefined();
     });
   });
 

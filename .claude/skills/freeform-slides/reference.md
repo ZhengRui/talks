@@ -16,7 +16,7 @@ slides:
         rect: { x: 160, y: 200, w: 700, h: 80 }
         text: "Hello World"
         style: { fontFamily: "Inter, sans-serif", fontSize: 42, fontWeight: 700, color: "#1a1a2e", lineHeight: 1.2 }
-        animation: { type: fade-up, delay: 0, duration: 500 }
+        entrance: { type: fade-up, delay: 0, duration: 500 }
 ```
 
 ## Canvas & Content Area
@@ -47,7 +47,7 @@ slides:
     letterSpacing: 2       # px
     textTransform: uppercase  # uppercase | lowercase | none
     verticalAlign: middle  # top | middle | bottom
-  animation: { type: fade-up, delay: 0, duration: 500 }
+  entrance: { type: fade-up, delay: 0, duration: 500 }
 ```
 
 ### shape
@@ -73,7 +73,7 @@ slides:
     opacity: 0.8
     shadow: { offsetX: 0, offsetY: 4, blur: 24, color: "rgba(0,0,0,0.1)" }
   border: { width: 2, color: "#c41e3a", sides: ["left"] }  # optional
-  animation: { type: fade-in, delay: 100, duration: 500 }
+  entrance: { type: fade-in, delay: 100, duration: 500 }
 ```
 
 ### image
@@ -87,7 +87,7 @@ slides:
   borderRadius: 12          # optional
   clipCircle: true          # optional, clips to circle
   opacity: 0.9              # optional
-  animation: { type: fade-in, delay: 0, duration: 500 }
+  entrance: { type: fade-in, delay: 0, duration: 500 }
 ```
 
 ### group
@@ -115,7 +115,7 @@ Groups position children relative to the group's rect origin. Use for composite 
     shadow: { offsetX: 0, offsetY: 4, blur: 24, color: "rgba(0,0,0,0.1)" }
   border: { width: 3, color: "#4f6df5", sides: ["left"] }  # optional
   clipContent: true         # optional, clips children to group bounds
-  animation: { type: fade-in, delay: 400, duration: 500 }  # animates entire group
+  entrance: { type: fade-in, delay: 400, duration: 500 }  # animates entire group
 ```
 
 ### code
@@ -133,7 +133,7 @@ Groups position children relative to the group's rect origin. Use for composite 
     background: "#1e1e2e"
     borderRadius: 12
     padding: 32
-  animation: { type: fade-up, delay: 200, duration: 500 }
+  entrance: { type: fade-up, delay: 200, duration: 500 }
 ```
 
 ### table
@@ -162,7 +162,7 @@ Groups position children relative to the group's rect origin. Use for composite 
     background: "#ffffff"
     altBackground: "#f8f9fc"
   borderColor: "rgba(0,0,0,0.06)"
-  animation: { type: fade-up, delay: 200, duration: 500 }
+  entrance: { type: fade-up, delay: 200, duration: 500 }
 ```
 
 ### list
@@ -181,7 +181,7 @@ Groups position children relative to the group's rect origin. Use for composite 
     lineHeight: 1.6
   bulletColor: "#4f6df5"    # optional
   itemSpacing: 16
-  animation: { type: fade-up, delay: 200, duration: 500 }
+  entrance: { type: fade-up, delay: 200, duration: 500 }
 ```
 
 ### video
@@ -195,7 +195,7 @@ Renders a playable `<video>` tag for direct files (.mp4/.webm), or an `<iframe>`
   src: "demo.mp4"            # .mp4/.webm → <video>, YouTube/Vimeo → <iframe> embed
   poster: "thumbnail.jpg"   # optional preview image
   borderRadius: 12           # optional
-  animation: { type: fade-in, delay: 0, duration: 500 }
+  entrance: { type: fade-in, delay: 0, duration: 500 }
 ```
 
 ### iframe
@@ -208,7 +208,7 @@ Renders an embedded `<iframe>`. Subject to same-origin restrictions — some sit
   rect: { x: 160, y: 200, w: 1600, h: 700 }
   src: "https://en.wikipedia.org/wiki/Slide_deck"
   borderRadius: 12           # optional
-  animation: { type: fade-in, delay: 0, duration: 500 }
+  entrance: { type: fade-in, delay: 0, duration: 500 }
 ```
 
 ## Animations
@@ -374,13 +374,13 @@ slides:
   rect: { x: 200, y: 300, w: 400, h: 120 }
   text: "99%"
   style: { fontFamily: "Inter, sans-serif", fontSize: 96, fontWeight: 700, color: "#4f6df5", lineHeight: 1.0, textAlign: center }
-  animation: { type: scale-up, delay: 200, duration: 500 }
+  entrance: { type: scale-up, delay: 200, duration: 500 }
 - kind: text
   id: stat-label
   rect: { x: 200, y: 430, w: 400, h: 40 }
   text: "Uptime"
   style: { fontFamily: "Inter, sans-serif", fontSize: 20, fontWeight: 400, color: "#64648c", lineHeight: 1.4, textAlign: center }
-  animation: { type: fade-up, delay: 300, duration: 500 }
+  entrance: { type: fade-up, delay: 300, duration: 500 }
 ```
 
 ### Accent line (gradient divider)
@@ -397,7 +397,7 @@ slides:
       stops:
         - { color: "#4f6df5", position: 0 }
         - { color: "#a855f7", position: 1 }
-  animation: { type: fade-in, delay: 100, duration: 500 }
+  entrance: { type: fade-in, delay: 100, duration: 500 }
 ```
 
 ### Card with left border
@@ -419,7 +419,7 @@ slides:
       style: { fontFamily: "Inter, sans-serif", fontSize: 18, fontWeight: 400, color: "#64648c", lineHeight: 1.6 }
   style: { fill: "#ffffff", borderRadius: 8, shadow: { offsetX: 0, offsetY: 4, blur: 24, color: "rgba(0,0,0,0.06)" } }
   border: { width: 3, color: "#4f6df5", sides: ["left"] }
-  animation: { type: fade-up, delay: 200, duration: 500 }
+  entrance: { type: fade-up, delay: 200, duration: 500 }
 ```
 
 ### Seal / stamp
@@ -439,7 +439,7 @@ slides:
       rect: { x: 0, y: 10, w: 65, h: 45 }
       text: "验"
       style: { fontFamily: "Noto Serif SC, serif", fontSize: 28, fontWeight: 700, color: "#c41e3a", lineHeight: 1.0, textAlign: center }
-  animation: { type: fade-in, delay: 400, duration: 500 }
+  entrance: { type: fade-in, delay: 400, duration: 500 }
 ```
 
 ### Tag / pill
@@ -459,7 +459,7 @@ slides:
       rect: { x: 0, y: 0, w: 120, h: 36 }
       text: "NEW"
       style: { fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 600, color: "#4f6df5", lineHeight: 1.0, textAlign: center, verticalAlign: middle, letterSpacing: 1, textTransform: uppercase }
-  animation: { type: fade-in, delay: 100, duration: 500 }
+  entrance: { type: fade-in, delay: 100, duration: 500 }
 ```
 
 ## Sizing & Positioning Tips

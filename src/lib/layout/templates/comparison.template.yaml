@@ -33,7 +33,7 @@ children:
         padding: 32
         accentTop: true
         accentColor: "{{ style.leftAccent }}"
-        animationType: slide-left
+        entranceType: slide-left
         children:
           - type: heading
             text: "{{ left.heading }}"
@@ -50,7 +50,7 @@ children:
         padding: 32
         accentTop: true
         accentColor: "{{ style.rightAccent }}"
-        animationType: slide-right
+        entranceType: slide-right
         children:
           - type: heading
             text: "{{ right.heading }}"

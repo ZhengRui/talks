@@ -38,7 +38,7 @@ children:
     {% endif %}
     borderWidth: 2
     variant: panel
-    animationType: scale-up
+    entranceType: scale-up
     children:
       - type: body
         text: "{{ body }}"

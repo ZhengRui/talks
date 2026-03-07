@@ -14,6 +14,14 @@ export interface GradientDef {
   stops: { color: string; position: number }[];
 }
 
+export interface TransformDef {
+  rotate?: number;      // degrees (positive = clockwise)
+  scaleX?: number;      // default 1.0
+  scaleY?: number;      // default 1.0
+  flipH?: boolean;
+  flipV?: boolean;
+}
+
 export interface BoxShadow {
   offsetX: number;
   offsetY: number;
@@ -34,7 +42,31 @@ export interface TextStyle {
   letterSpacing?: number;
   textTransform?: "uppercase" | "lowercase" | "none";
   verticalAlign?: "top" | "middle" | "bottom";
+  /** Color applied to **bold** inline markdown segments. */
+  highlightColor?: string;
 }
+
+/** A styled run of text within a rich text block. */
+export interface TextRun {
+  text: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strikethrough?: boolean;
+  color?: string;
+  fontSize?: number;
+  fontFamily?: string;
+  letterSpacing?: number;
+  highlight?: string;     // background color on this run
+  superscript?: boolean;
+  subscript?: boolean;
+}
+
+/**
+ * Rich text content: plain string (backward compat) or array of styled runs.
+ * Markdown shorthand: "The **Fall** of *Tang*" is parsed by renderers.
+ */
+export type RichText = string | TextRun[];
 
 /** OOXML pattern fill presets supported for both web and PPTX. */
 export type PatternPreset =
@@ -88,7 +120,7 @@ export interface BorderDef {
   sides?: ("top" | "right" | "bottom" | "left")[];
 }
 
-export type AnimationType =
+export type EntranceType =
   | "fade-up"
   | "fade-in"
   | "slide-left"
@@ -97,22 +129,33 @@ export type AnimationType =
   | "count-up"
   | "none";
 
-export interface AnimationDef {
-  type: AnimationType;
+export interface EntranceDef {
+  type: EntranceType;
   delay: number;
   duration: number;
 }
 
 // --- Element types (discriminated union) ---
+// All elements support:
+//   entrance?   — one-shot entrance effect (fade-up, scale-up, etc.)
+//   animation?  — raw CSS `animation` shorthand for continuous/custom animations
+//                   e.g. "float 4s ease-in-out infinite"
+//                   Keyframes are defined in animations.css or per-presentation CSS.
+//   clipPath?   — CSS clip-path value, e.g. "polygon(0 0, 100% 0, 100% 35%, 0 35%)"
+//                   Useful for revealing portions of overlapping elements.
+//   transform? — rotation, scale, flip. Maps to CSS transform + OOXML <a:xfrm>.
 
 export interface TextElement {
   kind: "text";
   id: string;
   rect: Rect;
-  text: string;
+  text: RichText;
   style: TextStyle;
   effects?: ElementEffects;
-  animation?: AnimationDef;
+  entrance?: EntranceDef;
+  animation?: string;
+  clipPath?: string;
+  transform?: TransformDef;
 }
 
 export interface ImageElement {
@@ -124,7 +167,10 @@ export interface ImageElement {
   borderRadius?: number;
   clipCircle?: boolean;
   opacity?: number;
-  animation?: AnimationDef;
+  entrance?: EntranceDef;
+  animation?: string;
+  clipPath?: string;
+  transform?: TransformDef;
 }
 
 export interface ShapeElement {
@@ -135,7 +181,10 @@ export interface ShapeElement {
   style: ShapeStyle;
   border?: BorderDef;
   effects?: ElementEffects;
-  animation?: AnimationDef;
+  entrance?: EntranceDef;
+  animation?: string;
+  clipPath?: string;
+  transform?: TransformDef;
 }
 
 export interface GroupElement {
@@ -147,7 +196,10 @@ export interface GroupElement {
   border?: BorderDef;
   clipContent?: boolean;
   effects?: ElementEffects;
-  animation?: AnimationDef;
+  entrance?: EntranceDef;
+  animation?: string;
+  clipPath?: string;
+  transform?: TransformDef;
 }
 
 export interface CodeElement {
@@ -164,31 +216,40 @@ export interface CodeElement {
     borderRadius: number;
     padding: number;
   };
-  animation?: AnimationDef;
+  entrance?: EntranceDef;
+  animation?: string;
+  clipPath?: string;
+  transform?: TransformDef;
 }
 
 export interface TableElement {
   kind: "table";
   id: string;
   rect: Rect;
-  headers: string[];
-  rows: string[][];
+  headers: RichText[];
+  rows: RichText[][];
   headerStyle: TextStyle & { background: string };
   cellStyle: TextStyle & { background: string; altBackground: string };
   borderColor: string;
-  animation?: AnimationDef;
+  entrance?: EntranceDef;
+  animation?: string;
+  clipPath?: string;
+  transform?: TransformDef;
 }
 
 export interface ListElement {
   kind: "list";
   id: string;
   rect: Rect;
-  items: string[];
+  items: RichText[];
   ordered: boolean;
   itemStyle: TextStyle;
   bulletColor?: string;
   itemSpacing: number;
-  animation?: AnimationDef;
+  entrance?: EntranceDef;
+  animation?: string;
+  clipPath?: string;
+  transform?: TransformDef;
 }
 
 export interface VideoElement {
@@ -200,7 +261,10 @@ export interface VideoElement {
   borderRadius?: number;
   border?: BorderDef;
   shadow?: BoxShadow;
-  animation?: AnimationDef;
+  entrance?: EntranceDef;
+  animation?: string;
+  clipPath?: string;
+  transform?: TransformDef;
 }
 
 export interface IframeElement {
@@ -211,7 +275,10 @@ export interface IframeElement {
   borderRadius?: number;
   border?: BorderDef;
   shadow?: BoxShadow;
-  animation?: AnimationDef;
+  entrance?: EntranceDef;
+  animation?: string;
+  clipPath?: string;
+  transform?: TransformDef;
 }
 
 export type LayoutElement =

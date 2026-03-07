@@ -1,4 +1,4 @@
-import type { AnimationType, LayoutElement } from "../types";
+import type { EntranceType, LayoutElement } from "../types";
 
 // --- Composable slide components (v6) ---
 
@@ -22,7 +22,7 @@ export type SlideComponent =
   | ColumnsComponent
   | BoxComponent
   | GridComponent
-  ) & { animationType?: AnimationType; animationDelay?: number; opacity?: number };
+  ) & { entranceType?: EntranceType; entranceDelay?: number; opacity?: number };
 
 export interface TextComponent {
   type: "text";
@@ -48,6 +48,10 @@ export interface HeadingComponent {
   fontSize?: number;
   textAlign?: "left" | "center" | "right";
   color?: string;
+  fontFamily?: string;       // theme token ("heading"|"body"|"mono") or raw CSS font-family
+  fontWeight?: number;       // override default 700
+  letterSpacing?: number;    // CSS letter-spacing in px
+  textTransform?: "uppercase" | "lowercase" | "none";
 }
 
 export interface BodyComponent {
@@ -70,6 +74,7 @@ export interface BulletsComponent {
   gap?: number;
   ordered?: boolean;            // circle number badges instead of accent bar
   variant?: "card" | "plain" | "list";   // default "card"; "list" = native bullet dots
+  bulletColor?: string;         // override bullet dot / accent bar color (theme token or hex)
 }
 
 export interface StatComponent {
@@ -79,6 +84,12 @@ export interface StatComponent {
   textAlign?: "left" | "center";
   fontSize?: number;      // value font size, default 64
   labelFontSize?: number; // label font size, default 24
+  color?: string;         // value color, default theme.accent
+  labelColor?: string;    // label color (hex or theme token), default theme.textMuted
+  fontFamily?: string;    // value font: theme token or raw CSS font-family
+  labelFontWeight?: number; // label font weight, default 400
+  letterSpacing?: number; // label letter-spacing in px
+  textTransform?: "uppercase" | "lowercase" | "none"; // label text-transform
 }
 
 export interface TagComponent {
@@ -176,12 +187,13 @@ export interface BoxComponent {
   accentColor?: string;   // custom accent bar color (hex or theme token), default theme.accent
   height?: number;        // fixed height (content vertically centered when set)
   maxWidth?: number;      // constrain box width, centered within panel
-  animationType?: AnimationType; // override stacker/columns default fade-up (e.g. "slide-left")
+  entranceType?: EntranceType; // override stacker/columns default fade-up (e.g. "slide-left")
   variant?: "card" | "flat" | "panel"; // default "card"; "flat" = transparent, no bg/shadow/border; "panel" = bg + radius, no shadow/border
   background?: string;    // override card bg color (theme token or hex), default theme.cardBg
   borderColor?: string;   // custom border color (hex or theme token) — replaces default cardBorder
   borderWidth?: number;   // custom border width — replaces default cardBorder width
   borderSides?: ("top" | "right" | "bottom" | "left")[]; // restrict border to specific sides
+  borderRadius?: number;  // override theme.radius for card/panel corners
   fill?: boolean;         // expand to fill available panel height
   verticalAlign?: "top" | "center" | "bottom"; // align content within box, default "top"
   marginTop?: number;     // override gap before this box in stacker

@@ -42,14 +42,118 @@ export function radiusToInches(px: number): number {
 }
 
 /**
+ * Split a CSS value on top-level commas (not inside parentheses).
+ * "radial-gradient(...), #080808" → ["radial-gradient(...)", "#080808"]
+ */
+function splitTopLevel(css: string): string[] {
+  let depth = 0;
+  const segments: string[] = [];
+  let start = 0;
+  for (let i = 0; i < css.length; i++) {
+    if (css[i] === "(") depth++;
+    else if (css[i] === ")") depth--;
+    else if (css[i] === "," && depth === 0) {
+      segments.push(css.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  segments.push(css.slice(start).trim());
+  return segments;
+}
+
+/**
+ * Extract a solid fallback color from a CSS background that may contain gradients.
+ * "radial-gradient(...), radial-gradient(...), #080808" → "#080808"
+ * "#ff0000" → "#ff0000" (pass through)
+ */
+export function extractSolidColor(css: string): string {
+  if (!css || !css.includes("gradient(")) return css;
+  const segments = splitTopLevel(css);
+  for (let i = segments.length - 1; i >= 0; i--) {
+    if (!segments[i].includes("gradient(")) return segments[i];
+  }
+  return "";
+}
+
+/** Parsed CSS gradient layer from a background string. */
+export interface ParsedCssGradient {
+  type: "radial" | "linear";
+  centerX?: number; // 0-100, for radial (e.g. "at 20% 80%" → 20)
+  centerY?: number; // 0-100, for radial
+  angle?: number;   // CSS degrees, for linear
+  stops: { color: string; position: number }[]; // position 0-1
+}
+
+/**
+ * Parse CSS gradient layers from a background value.
+ * Returns only gradient layers (not the solid fallback).
+ */
+export function parseCssGradients(css: string): ParsedCssGradient[] {
+  if (!css || !css.includes("gradient(")) return [];
+  const segments = splitTopLevel(css);
+  const results: ParsedCssGradient[] = [];
+
+  for (const seg of segments) {
+    if (seg.startsWith("radial-gradient(")) {
+      const inner = seg.slice("radial-gradient(".length, -1);
+      // Parse "at X% Y%, color1 pos1, color2 pos2, ..."
+      const parts = splitTopLevel(inner);
+      let centerX = 50, centerY = 50;
+      let stopStart = 0;
+      // Check if first part has "at X% Y%"
+      const atMatch = parts[0]?.match(/at\s+([\d.]+)%\s+([\d.]+)%/);
+      if (atMatch) {
+        centerX = parseFloat(atMatch[1]);
+        centerY = parseFloat(atMatch[2]);
+        stopStart = 1;
+      }
+      const stops: { color: string; position: number }[] = [];
+      for (let i = stopStart; i < parts.length; i++) {
+        const m = parts[i].match(/^(.+?)\s+([\d.]+)%$/);
+        if (m) {
+          stops.push({ color: m[1].trim(), position: parseFloat(m[2]) / 100 });
+        }
+      }
+      if (stops.length >= 2) {
+        results.push({ type: "radial", centerX, centerY, stops });
+      }
+    } else if (seg.startsWith("linear-gradient(")) {
+      const inner = seg.slice("linear-gradient(".length, -1);
+      const parts = splitTopLevel(inner);
+      let angle = 180; // default: top-to-bottom
+      let stopStart = 0;
+      const angleMatch = parts[0]?.match(/^([\d.]+)deg$/);
+      if (angleMatch) {
+        angle = parseFloat(angleMatch[1]);
+        stopStart = 1;
+      }
+      const stops: { color: string; position: number }[] = [];
+      for (let i = stopStart; i < parts.length; i++) {
+        const m = parts[i].match(/^(.+?)\s+([\d.]+)%$/);
+        if (m) {
+          stops.push({ color: m[1].trim(), position: parseFloat(m[2]) / 100 });
+        }
+      }
+      if (stops.length >= 2) {
+        results.push({ type: "linear", angle, stops });
+      }
+    }
+  }
+  return results;
+}
+
+/**
  * Parse any CSS color string to 6-char uppercase hex WITHOUT '#'.
  * Handles: #RGB, #RRGGBB, rgb(r,g,b), rgba(r,g,b,a), named colors (limited).
+ * Also handles CSS gradient stacks by extracting the solid fallback color.
  * Returns "000000" as fallback.
  */
 export function hexColor(color: string): string {
   if (!color) return "000000";
 
-  const s = color.trim();
+  // Extract solid color from gradient stacks
+  const s = extractSolidColor(color).trim();
+  if (!s) return "000000";
 
   // #RRGGBB or #RGB
   if (s.startsWith("#")) {
@@ -157,7 +261,8 @@ const PPTX_FONT_FALLBACK: Record<string, string> = {
  * "Inter, system-ui, sans-serif" → "Calibri"
  * "'Playfair Display', Georgia, serif" → "Georgia"
  */
-export function parseFontFamily(fontFamily: string): string {
+export function parseFontFamily(fontFamily: string | undefined): string {
+  if (!fontFamily) return "Calibri";
   const first = fontFamily.split(",")[0].trim().replace(/^['"]|['"]$/g, "");
   return PPTX_FONT_FALLBACK[first] ?? first;
 }

@@ -8,21 +8,21 @@ describe("buildTimingXml", () => {
 
   it("skips 'none' animation type", () => {
     const entries: AnimationEntry[] = [
-      { spids: [3], animation: { type: "none", delay: 0, duration: 500 } },
+      { spids: [3], entrance: { type: "none", delay: 0, duration: 500 } },
     ];
     expect(buildTimingXml(entries)).toBe("");
   });
 
   it("skips 'count-up' animation type", () => {
     const entries: AnimationEntry[] = [
-      { spids: [3], animation: { type: "count-up", delay: 0, duration: 1000 } },
+      { spids: [3], entrance: { type: "count-up", delay: 0, duration: 1000 } },
     ];
     expect(buildTimingXml(entries)).toBe("");
   });
 
   it("generates timing XML for fade-in", () => {
     const entries: AnimationEntry[] = [
-      { spids: [3], animation: { type: "fade-in", delay: 0, duration: 600 } },
+      { spids: [3], entrance: { type: "fade-in", delay: 0, duration: 600 } },
     ];
     const xml = buildTimingXml(entries);
     expect(xml).toContain("<p:timing>");
@@ -42,7 +42,7 @@ describe("buildTimingXml", () => {
 
   it("generates timing XML for fade-up with subtle motion", () => {
     const entries: AnimationEntry[] = [
-      { spids: [3], animation: { type: "fade-up", delay: 200, duration: 600 } },
+      { spids: [3], entrance: { type: "fade-up", delay: 200, duration: 600 } },
     ];
     const xml = buildTimingXml(entries);
     expect(xml).toContain("p:animEffect");
@@ -55,7 +55,7 @@ describe("buildTimingXml", () => {
 
   it("generates timing XML for slide-left with subtle motion", () => {
     const entries: AnimationEntry[] = [
-      { spids: [3], animation: { type: "slide-left", delay: 0, duration: 500 } },
+      { spids: [3], entrance: { type: "slide-left", delay: 0, duration: 500 } },
     ];
     const xml = buildTimingXml(entries);
     expect(xml).toContain("ppt_x");
@@ -65,7 +65,7 @@ describe("buildTimingXml", () => {
 
   it("generates timing XML for slide-right", () => {
     const entries: AnimationEntry[] = [
-      { spids: [3], animation: { type: "slide-right", delay: 0, duration: 500 } },
+      { spids: [3], entrance: { type: "slide-right", delay: 0, duration: 500 } },
     ];
     const xml = buildTimingXml(entries);
     expect(xml).toContain("ppt_x");
@@ -74,7 +74,7 @@ describe("buildTimingXml", () => {
 
   it("generates timing XML for scale-up with 85% start", () => {
     const entries: AnimationEntry[] = [
-      { spids: [3], animation: { type: "scale-up", delay: 0, duration: 500 } },
+      { spids: [3], entrance: { type: "scale-up", delay: 0, duration: 500 } },
     ];
     const xml = buildTimingXml(entries);
     expect(xml).toContain("p:animScale");
@@ -85,7 +85,7 @@ describe("buildTimingXml", () => {
 
   it("reverses multi-spid pars (foreground first), no fade, unique grpIds", () => {
     const entries: AnimationEntry[] = [
-      { spids: [3, 4, 5], animation: { type: "fade-up", delay: 0, duration: 600 } },
+      { spids: [3, 4, 5], entrance: { type: "fade-up", delay: 0, duration: 600 } },
     ];
     const xml = buildTimingXml(entries);
     expect(xml).toContain('spid="3"');
@@ -109,7 +109,7 @@ describe("buildTimingXml", () => {
 
   it("generates bldLst with one bldP per animated shape", () => {
     const entries: AnimationEntry[] = [
-      { spids: [3, 4, 5], animation: { type: "fade-in", delay: 0, duration: 600 } },
+      { spids: [3, 4, 5], entrance: { type: "fade-in", delay: 0, duration: 600 } },
     ];
     const xml = buildTimingXml(entries);
     // bldLst tells apps which shapes to auto-hide before entrance animations
@@ -129,8 +129,8 @@ describe("buildTimingXml", () => {
 
   it("handles multiple animation entries with staggered delays", () => {
     const entries: AnimationEntry[] = [
-      { spids: [3], animation: { type: "fade-in", delay: 0, duration: 600 } },
-      { spids: [4], animation: { type: "fade-up", delay: 200, duration: 600 } },
+      { spids: [3], entrance: { type: "fade-in", delay: 0, duration: 600 } },
+      { spids: [4], entrance: { type: "fade-up", delay: 200, duration: 600 } },
     ];
     const xml = buildTimingXml(entries);
     expect(xml).toContain('spid="3"');
@@ -144,7 +144,7 @@ describe("buildTimingXml", () => {
 
   it("produces sequentially incrementing cTn ids", () => {
     const entries: AnimationEntry[] = [
-      { spids: [3], animation: { type: "fade-in", delay: 0, duration: 600 } },
+      { spids: [3], entrance: { type: "fade-in", delay: 0, duration: 600 } },
     ];
     const xml = buildTimingXml(entries);
     const ids = [...xml.matchAll(/p:cTn[^>]*\bid="(\d+)"/g)].map((m) =>
@@ -158,7 +158,7 @@ describe("buildTimingXml", () => {
 
   it("includes visibility set for each animated shape", () => {
     const entries: AnimationEntry[] = [
-      { spids: [3], animation: { type: "fade-in", delay: 0, duration: 600 } },
+      { spids: [3], entrance: { type: "fade-in", delay: 0, duration: 600 } },
     ];
     const xml = buildTimingXml(entries);
     expect(xml).toContain("p:set");
@@ -167,7 +167,7 @@ describe("buildTimingXml", () => {
 
   it("caps duration at 200ms for snappy PPTX playback", () => {
     const entries: AnimationEntry[] = [
-      { spids: [3], animation: { type: "fade-in", delay: 0, duration: 800 } },
+      { spids: [3], entrance: { type: "fade-in", delay: 0, duration: 800 } },
     ];
     const xml = buildTimingXml(entries);
     expect(xml).toContain('dur="200"');
@@ -176,9 +176,9 @@ describe("buildTimingXml", () => {
 
   it("filters out skippable types from mixed entries", () => {
     const entries: AnimationEntry[] = [
-      { spids: [3], animation: { type: "none", delay: 0, duration: 500 } },
-      { spids: [4], animation: { type: "fade-in", delay: 0, duration: 600 } },
-      { spids: [5], animation: { type: "count-up", delay: 0, duration: 1000 } },
+      { spids: [3], entrance: { type: "none", delay: 0, duration: 500 } },
+      { spids: [4], entrance: { type: "fade-in", delay: 0, duration: 600 } },
+      { spids: [5], entrance: { type: "count-up", delay: 0, duration: 1000 } },
     ];
     const xml = buildTimingXml(entries);
     expect(xml).toContain("<p:timing>");
@@ -194,7 +194,7 @@ describe("buildTimingXml", () => {
     for (let i = 0; i < delays.length; i++) {
       entries.push({
         spids: [i + 3],
-        animation: { type: "fade-in", delay: delays[i], duration: 600 },
+        entrance: { type: "fade-in", delay: delays[i], duration: 600 },
       });
     }
     const xml = buildTimingXml(entries);
@@ -220,9 +220,9 @@ describe("buildTimingXml", () => {
   it("assigns delay=0 for entries in the same delay group", () => {
     // Two entries share delay=200, one at delay=0
     const entries: AnimationEntry[] = [
-      { spids: [3], animation: { type: "fade-in", delay: 0, duration: 600 } },
-      { spids: [4], animation: { type: "fade-in", delay: 200, duration: 600 } },
-      { spids: [5], animation: { type: "fade-up", delay: 200, duration: 600 } },
+      { spids: [3], entrance: { type: "fade-in", delay: 0, duration: 600 } },
+      { spids: [4], entrance: { type: "fade-in", delay: 200, duration: 600 } },
+      { spids: [5], entrance: { type: "fade-up", delay: 200, duration: 600 } },
     ];
     const xml = buildTimingXml(entries);
 
@@ -239,8 +239,8 @@ describe("buildTimingXml", () => {
 
   it("preserves original spacing when under 100ms cap", () => {
     const entries: AnimationEntry[] = [
-      { spids: [3], animation: { type: "fade-in", delay: 0, duration: 600 } },
-      { spids: [4], animation: { type: "fade-up", delay: 80, duration: 600 } },
+      { spids: [3], entrance: { type: "fade-in", delay: 0, duration: 600 } },
+      { spids: [4], entrance: { type: "fade-up", delay: 80, duration: 600 } },
     ];
     const xml = buildTimingXml(entries);
     // Two groups, step = min(80, 100) / 1 = 80

@@ -21,31 +21,31 @@ left:
       text: "{{ title }}"
       textAlign: left
       fontSize: {{ style.titleSize }}
-      animationType: fade-up
-      animationDelay: 0
+      entranceType: fade-up
+      entranceDelay: 0
     - type: divider
       variant: gradient
       width: 80
       marginTop: 16
       marginBottom: 250
-      animationType: fade-up
-      animationDelay: 100
+      entranceType: fade-up
+      entranceDelay: 100
     {% if body %}
     - type: body
       text: "{{ body }}"
       fontSize: {{ style.bodySize }}
       lineHeight: 1.7
       marginBottom: 44
-      animationType: slide-left
-      animationDelay: 300
+      entranceType: slide-left
+      entranceDelay: 300
     {% endif %}
     {% if bullets %}
     - type: bullets
       items: {{ bullets }}
       variant: list
       fontSize: 26
-      animationType: fade-up
-      animationDelay: 400
+      entranceType: fade-up
+      entranceDelay: 400
     {% endif %}
 right:
   padding: [0, 160, 0, 20]
@@ -54,8 +54,8 @@ right:
       src: "{{ image }}"
       height: 1080
       objectFit: cover
-      animationType: slide-right
-      animationDelay: 200
+      entranceType: slide-right
+      entranceDelay: 200
 {% else %}
 left:
   padding: [0, 20, 0, 160]
@@ -64,8 +64,8 @@ left:
       src: "{{ image }}"
       height: 1080
       objectFit: cover
-      animationType: slide-left
-      animationDelay: 200
+      entranceType: slide-left
+      entranceDelay: 200
 right:
   background: theme.bg
   gap: 0
@@ -77,30 +77,30 @@ right:
       text: "{{ title }}"
       textAlign: left
       fontSize: {{ style.titleSize }}
-      animationType: fade-up
-      animationDelay: 0
+      entranceType: fade-up
+      entranceDelay: 0
     - type: divider
       variant: gradient
       width: 80
       marginTop: 16
       marginBottom: 250
-      animationType: fade-up
-      animationDelay: 100
+      entranceType: fade-up
+      entranceDelay: 100
     {% if body %}
     - type: body
       text: "{{ body }}"
       fontSize: {{ style.bodySize }}
       lineHeight: 1.7
       marginBottom: 44
-      animationType: slide-right
-      animationDelay: 300
+      entranceType: slide-right
+      entranceDelay: 300
     {% endif %}
     {% if bullets %}
     - type: bullets
       items: {{ bullets }}
       variant: list
       fontSize: 26
-      animationType: fade-up
-      animationDelay: 400
+      entranceType: fade-up
+      entranceDelay: 400
     {% endif %}
 {% endif %}

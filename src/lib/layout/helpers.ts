@@ -1,8 +1,8 @@
 import type {
   Rect,
   TextStyle,
-  AnimationDef,
-  AnimationType,
+  EntranceDef,
+  EntranceType,
   LayoutElement,
   TextElement,
   ShapeElement,
@@ -46,13 +46,13 @@ export function estimateTextHeight(
   return lineCount * fontSize * lineHeight + descenderPad;
 }
 
-// --- Animation helpers ---
+// --- Entrance helpers ---
 
-export function makeAnimation(
-  type: AnimationType,
+export function makeEntrance(
+  type: EntranceType,
   delay: number,
   duration = 600,
-): AnimationDef {
+): EntranceDef {
   return { type, delay, duration };
 }
 
@@ -156,7 +156,7 @@ export function titleBlock(
       ...(color !== undefined ? { color } : {}),
       ...(textShadow !== undefined ? { textShadow } : {}),
     }),
-    animation: makeAnimation("fade-up", 0),
+    entrance: makeEntrance("fade-up", 0),
   };
 
   const lineX = align === "center" ? (CANVAS_W - accentWidth) / 2 : CONTENT_X;
@@ -168,7 +168,7 @@ export function titleBlock(
     rect: { x: lineX, y: lineY, w: accentWidth, h: 4 },
     shape: "rect",
     style: { gradient: theme.accentGradient, borderRadius: 2 },
-    animation: makeAnimation("fade-up", 100),
+    entrance: makeEntrance("fade-up", 100),
   };
 
   return {

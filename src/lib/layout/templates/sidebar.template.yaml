@@ -19,27 +19,27 @@ children:
       - type: box
         variant: flat
         padding: 0
-        animationType: none
+        entranceType: none
         children:
           {% if title %}
           - type: heading
             text: "{{ title | yaml_string }}"
             fontSize: {{ style.titleSize }}
             textAlign: left
-            animationType: fade-up
-            animationDelay: 0
+            entranceType: fade-up
+            entranceDelay: 0
           - type: spacer
             height: 32
           {% endif %}
           - type: body
             text: "{{ main | yaml_string }}"
             fontSize: {{ style.mainSize }}
-            animationType: slide-left
-            animationDelay: 200
+            entranceType: slide-left
+            entranceDelay: 200
       - type: box
         variant: flat
         padding: 0
-        animationType: none
+        entranceType: none
         children:
           {% if title %}
           - type: spacer
@@ -49,8 +49,8 @@ children:
             variant: panel
             padding: 40
             background: theme.bgSecondary
-            animationType: slide-right
-            animationDelay: 200
+            entranceType: slide-right
+            entranceDelay: 200
             fill: true
             children:
               - type: body
@@ -64,7 +64,7 @@ children:
       - type: box
         variant: flat
         padding: 0
-        animationType: none
+        entranceType: none
         children:
           {% if title %}
           - type: spacer
@@ -74,8 +74,8 @@ children:
             variant: panel
             padding: 40
             background: theme.bgSecondary
-            animationType: slide-left
-            animationDelay: 200
+            entranceType: slide-left
+            entranceDelay: 200
             fill: true
             children:
               - type: body
@@ -84,21 +84,21 @@ children:
       - type: box
         variant: flat
         padding: 0
-        animationType: none
+        entranceType: none
         children:
           {% if title %}
           - type: heading
             text: "{{ title | yaml_string }}"
             fontSize: {{ style.titleSize }}
             textAlign: left
-            animationType: fade-up
-            animationDelay: 0
+            entranceType: fade-up
+            entranceDelay: 0
           - type: spacer
             height: 32
           {% endif %}
           - type: body
             text: "{{ main | yaml_string }}"
             fontSize: {{ style.mainSize }}
-            animationType: slide-right
-            animationDelay: 200
+            entranceType: slide-right
+            entranceDelay: 200
   {% endif %}

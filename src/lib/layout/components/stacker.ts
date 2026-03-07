@@ -1,7 +1,7 @@
 import type { LayoutElement, ResolvedTheme, Rect } from "../types";
 import type { SlideComponent } from "./types";
 import { resolveComponent, type ResolveContext, type ResolveResult } from "./resolvers";
-import { makeAnimation, staggerDelay } from "../helpers";
+import { makeEntrance, staggerDelay } from "../helpers";
 
 const DEFAULT_GAP = 28;
 
@@ -130,8 +130,8 @@ export function stackComponents(
     // Apply staggered animation to top-level elements
     if (animate) {
       positioned.forEach((el) => {
-        if (!el.animation) {
-          (el as { animation: unknown }).animation = makeAnimation(
+        if (!el.entrance) {
+          (el as { entrance: unknown }).entrance = makeEntrance(
             "fade-up",
             staggerDelay(aIdx, baseDelay),
           );

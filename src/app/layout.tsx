@@ -4,6 +4,7 @@ import {
   Manrope, Syne, Space_Mono, Cormorant, IBM_Plex_Sans,
   Bodoni_Moda, DM_Sans, Plus_Jakarta_Sans, Outfit, Fraunces,
   Work_Sans, Archivo, Nunito, Cormorant_Garamond, Source_Serif_4,
+  Staatliches, Figtree,
 } from "next/font/google";
 import "./globals.css";
 import "@/styles/engine.css";
@@ -150,11 +151,25 @@ const sourceSerif4 = Source_Serif_4({
   display: "swap",
 });
 
+const staatliches = Staatliches({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-staatliches",
+  display: "swap",
+});
+
+const figtree = Figtree({
+  subsets: ["latin"],
+  variable: "--font-figtree",
+  display: "swap",
+});
+
 const fontVariables = [
   inter, playfair, jetbrainsMono, archivoBlack, spaceGrotesk,
   manrope, syne, spaceMono, cormorant, ibmPlexSans,
   bodoniModa, dmSans, plusJakartaSans, outfit, fraunces,
   workSans, archivo, nunito, cormorantGaramond, sourceSerif4,
+  staatliches, figtree,
 ].map(f => f.variable).join(" ");
 
 export const metadata: Metadata = {

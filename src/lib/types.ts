@@ -26,6 +26,10 @@ export interface FullComposeSlideData {
   backgroundImage?: string;
   overlay?: "dark" | "light" | "none" | string;  // default "dark" when backgroundImage set
   verticalAlign?: "top" | "center" | "bottom";
+  /** CSS-style padding: number | [vert, horiz] | [top, right, bottom, left]. Overrides default CONTENT_X/PADDING_Y. */
+  padding?: number | number[];
+  /** Override default stacker gap (28) between children */
+  gap?: number;
   children: SlideComponent[];
 }
 

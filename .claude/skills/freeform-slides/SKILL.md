@@ -126,7 +126,7 @@ A thin colored strip between unequal panels:
   rect: { x: 1247, y: 80, w: 3, h: 920 }
   shape: rect
   style: { gradient: { type: linear, angle: 180, stops: [{ color: "#4f6df5", position: 0 }, { color: "rgba(79,109,245,0)", position: 1 }] } }
-  animation: { type: fade-in, delay: 200, duration: 600 }
+  entrance: { type: fade-in, delay: 200, duration: 600 }
 ```
 
 ### Overlapping elements for depth
@@ -152,19 +152,19 @@ A huge number with tiny label, placed off-center:
   rect: { x: 160, y: 200, w: 800, h: 300 }
   text: "4.2B"
   style: { fontFamily: "Inter, sans-serif", fontSize: 180, fontWeight: 900, color: "#0f0f23", lineHeight: 1.0 }
-  animation: { type: scale-up, delay: 0, duration: 600 }
+  entrance: { type: scale-up, delay: 0, duration: 600 }
 - kind: shape
   id: stat-underline
   rect: { x: 160, y: 500, w: 200, h: 3 }
   shape: rect
   style: { fill: "#4f6df5" }
-  animation: { type: fade-in, delay: 300, duration: 400 }
+  entrance: { type: fade-in, delay: 300, duration: 400 }
 - kind: text
   id: stat-label
   rect: { x: 160, y: 520, w: 800, h: 40 }
   text: "global internet users as of 2024"
   style: { fontFamily: "Inter, sans-serif", fontSize: 18, fontWeight: 400, color: "#64648c", lineHeight: 1.4, textTransform: uppercase, letterSpacing: 2 }
-  animation: { type: fade-up, delay: 400, duration: 500 }
+  entrance: { type: fade-up, delay: 400, duration: 500 }
 ```
 
 ### Floating tag cluster
@@ -185,7 +185,7 @@ Multiple pill tags scattered at slight offsets for an organic feel:
       rect: { x: 0, y: 0, w: 100, h: 32 }
       text: "AI"
       style: { fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: 600, color: "#4f6df5", lineHeight: 1.0, textAlign: center, verticalAlign: middle, textTransform: uppercase, letterSpacing: 1 }
-  animation: { type: fade-in, delay: 100, duration: 400 }
+  entrance: { type: fade-in, delay: 100, duration: 400 }
 - kind: group
   id: tag-ml
   rect: { x: 275, y: 192, w: 140, h: 32 }

@@ -5,7 +5,7 @@ import {
   titleBlock,
   distributeHorizontal,
   columnLayout,
-  makeAnimation,
+  makeEntrance,
   staggerDelay,
   CONTENT_X,
 } from "./helpers";
@@ -126,9 +126,9 @@ describe("columnLayout", () => {
   });
 });
 
-describe("makeAnimation", () => {
-  it("creates animation def", () => {
-    const anim = makeAnimation("fade-up", 100, 500);
+describe("makeEntrance", () => {
+  it("creates entrance def", () => {
+    const anim = makeEntrance("fade-up", 100, 500);
     expect(anim.type).toBe("fade-up");
     expect(anim.delay).toBe(100);
     expect(anim.duration).toBe(500);

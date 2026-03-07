@@ -154,6 +154,19 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
     }
   }, [next, prev]);
 
+  // Per-presentation CSS (e.g. content/<slug>/animations.css → public/<slug>/animations.css)
+  useEffect(() => {
+    if (!slug) return;
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = `/${slug}/animations.css`;
+    link.dataset.presentation = slug;
+    // Silently ignore 404 — CSS file is optional
+    link.onerror = () => link.remove();
+    document.head.appendChild(link);
+    return () => link.remove();
+  }, [slug]);
+
   // Viewport scaling
   useEffect(() => {
     function updateScale() {

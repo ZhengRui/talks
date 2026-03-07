@@ -441,8 +441,8 @@ All components are positioned automatically by the vertical stacker (28px gap, s
 
 **Common props** (available on all components):
 ```yaml
-  animationType: fade-up            # optional: fade-up | fade-in | slide-left | slide-right | scale-up | count-up | none
-  animationDelay: 200               # optional: ms offset
+  entranceType: fade-up             # optional: fade-up | fade-in | slide-left | slide-right | scale-up | count-up | none
+  entranceDelay: 200                # optional: ms offset
   opacity: 0.8                      # optional: 0-1
 ```
 
@@ -505,6 +505,7 @@ All components are positioned automatically by the vertical stacker (28px gap, s
   textAlign: left                   # optional: left | center
   fontSize: 64                      # optional, value font size
   labelFontSize: 24                 # optional, label font size
+  color: "#ff2d2d"                  # optional, value color (default: theme.accent)
 ```
 
 #### tag
@@ -681,7 +682,7 @@ Full pixel control on the 1920x1080 canvas. Every element has explicit position,
       rect: { x: 160, y: 200, w: 700, h: 80 }
       text: "Hello World"
       style: { fontFamily: "Inter, sans-serif", fontSize: 42, fontWeight: 700, color: "#1a1a2e" }
-      animation: { type: fade-up, delay: 0, duration: 500 }
+      entrance: { type: fade-up, delay: 0, duration: 500 }
 ```
 
 **Canvas**: 1920 x 1080 px. **Safe area**: x: 160..1760, y: 60..1020. **Center**: (960, 540).

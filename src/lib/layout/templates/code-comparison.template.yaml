@@ -29,7 +29,7 @@ children:
       - type: box
         variant: flat
         padding: 0
-        animationType: slide-left
+        entranceType: slide-left
         children:
           {% if before.label %}
           - type: text
@@ -51,7 +51,7 @@ children:
       - type: box
         variant: flat
         padding: 0
-        animationType: slide-right
+        entranceType: slide-right
         children:
           {% if after.label %}
           - type: text

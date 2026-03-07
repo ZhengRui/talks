@@ -32,7 +32,7 @@ children:
       - type: box
         padding: 32
         accentTop: true
-        animationType: fade-up
+        entranceType: fade-up
         children:
           {% if col.icon %}
           - type: text

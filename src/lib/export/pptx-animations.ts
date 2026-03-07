@@ -1,14 +1,14 @@
 // OOXML timing XML builder for PPTX animation post-processing.
 // Generates <p:timing> elements that auto-play on slide entry.
 
-import type { AnimationDef, AnimationType } from "@/lib/layout/types";
+import type { EntranceDef, EntranceType } from "@/lib/layout/types";
 
 export interface AnimationEntry {
   spids: number[];
-  animation: AnimationDef;
+  entrance: EntranceDef;
 }
 
-const SKIPPABLE: Set<AnimationType> = new Set(["none", "count-up"]);
+const SKIPPABLE: Set<EntranceType> = new Set(["none", "count-up"]);
 
 /** Maximum total stagger delay for PPTX animations (ms). */
 const MAX_PPTX_DELAY = 100;
@@ -35,9 +35,9 @@ const MAX_PPTX_DURATION = 200;
  */
 function compressForPptx(entries: AnimationEntry[]): AnimationEntry[] {
   // Sort by original delay (stable sort preserves element order within groups)
-  const sorted = [...entries].sort((a, b) => a.animation.delay - b.animation.delay);
+  const sorted = [...entries].sort((a, b) => a.entrance.delay - b.entrance.delay);
 
-  const uniqueDelays = [...new Set(sorted.map((e) => e.animation.delay))].sort(
+  const uniqueDelays = [...new Set(sorted.map((e) => e.entrance.delay))].sort(
     (a, b) => a - b,
   );
   const numGroups = uniqueDelays.length;
@@ -58,15 +58,15 @@ function compressForPptx(entries: AnimationEntry[]): AnimationEntry[] {
   // Assign relative delays: step for first entry of each new group, 0 otherwise
   let prevGroup = -1;
   return sorted.map((e) => {
-    const group = groupOf.get(e.animation.delay) ?? 0;
+    const group = groupOf.get(e.entrance.delay) ?? 0;
     const relDelay = group === prevGroup ? 0 : prevGroup === -1 ? 0 : step;
     prevGroup = group;
     return {
       ...e,
-      animation: {
-        ...e.animation,
+      entrance: {
+        ...e.entrance,
         delay: relDelay,
-        duration: Math.min(e.animation.duration, MAX_PPTX_DURATION),
+        duration: Math.min(e.entrance.duration, MAX_PPTX_DURATION),
       },
     };
   });
@@ -94,7 +94,7 @@ interface BuildEntry {
  * Returns empty string if no animatable entries exist.
  */
 export function buildTimingXml(entries: AnimationEntry[]): string {
-  const animatable = entries.filter((e) => !SKIPPABLE.has(e.animation.type));
+  const animatable = entries.filter((e) => !SKIPPABLE.has(e.entrance.type));
   if (animatable.length === 0) return "";
 
   const compressed = compressForPptx(animatable);
@@ -156,7 +156,7 @@ function buildEntryPars(
   id: () => number,
   grpId: () => number,
 ): { pars: string[]; builds: BuildEntry[] } {
-  const { animation, spids } = entry;
+  const { entrance, spids } = entry;
   const pars: string[] = [];
   const builds: BuildEntry[] = [];
   const isMultiShape = spids.length > 1;
@@ -168,10 +168,10 @@ function buildEntryPars(
     const spid = ordered[i];
     const parId = id();
     const gid = grpId();
-    const delay = i === 0 ? animation.delay : 0;
+    const delay = i === 0 ? entrance.delay : 0;
     const children: string[] = [];
     children.push(buildVisibilitySet(spid, id));
-    children.push(...buildBehaviorList(spid, animation, id, !isMultiShape));
+    children.push(...buildBehaviorList(spid, entrance, id, !isMultiShape));
     pars.push(`<p:par><p:cTn id="${parId}" fill="hold" grpId="${gid}" presetID="10" presetClass="entr" presetSubtype="0" nodeType="withEffect"><p:stCondLst><p:cond delay="${delay}"/></p:stCondLst><p:childTnLst>${children.join("")}</p:childTnLst></p:cTn></p:par>`);
     builds.push({ spid, grpId: gid });
   }
@@ -198,7 +198,7 @@ function buildVisibilitySet(spid: number, id: () => number): string {
  */
 function buildBehaviorList(
   spid: number,
-  anim: AnimationDef,
+  anim: EntranceDef,
   id: () => number,
   includeFade: boolean,
 ): string[] {
@@ -221,7 +221,7 @@ function buildBehaviorList(
 
 function buildFade(
   spid: number,
-  anim: AnimationDef,
+  anim: EntranceDef,
   id: () => number,
 ): string {
   const effectId = id();
@@ -230,7 +230,7 @@ function buildFade(
 
 function buildPositionY(
   spid: number,
-  anim: AnimationDef,
+  anim: EntranceDef,
   id: () => number,
   offset: number,
 ): string {
@@ -240,7 +240,7 @@ function buildPositionY(
 
 function buildPositionX(
   spid: number,
-  anim: AnimationDef,
+  anim: EntranceDef,
   id: () => number,
   offset: number,
 ): string {
@@ -250,7 +250,7 @@ function buildPositionX(
 
 function buildScale(
   spid: number,
-  anim: AnimationDef,
+  anim: EntranceDef,
   id: () => number,
 ): string {
   const scaleId = id();

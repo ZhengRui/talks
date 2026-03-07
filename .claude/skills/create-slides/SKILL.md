@@ -141,17 +141,17 @@ Check content density limits (see reference.md). If a slide feels crowded, split
       rect: { x: 160, y: 200, w: 800, h: 300 }
       text: "4.2B"
       style: { fontFamily: "Inter, sans-serif", fontSize: 180, fontWeight: 900, color: "#f5f5f5", lineHeight: 1.0 }
-      animation: { type: scale-up, delay: 0, duration: 600 }
+      entrance: { type: scale-up, delay: 0, duration: 600 }
     - kind: shape
       id: accent
       rect: { x: 160, y: 500, w: 200, h: 3 }
       shape: rect
       style: { fill: "#ff6b35" }
-      animation: { type: fade-in, delay: 300, duration: 400 }
+      entrance: { type: fade-in, delay: 300, duration: 400 }
     - kind: text
       id: label
       rect: { x: 160, y: 520, w: 800, h: 40 }
       text: "global internet users"
       style: { fontFamily: "Inter, sans-serif", fontSize: 18, fontWeight: 400, color: "#64648c", lineHeight: 1.4, textTransform: uppercase, letterSpacing: 2 }
-      animation: { type: fade-up, delay: 400, duration: 500 }
+      entrance: { type: fade-up, delay: 400, duration: 500 }
 ```

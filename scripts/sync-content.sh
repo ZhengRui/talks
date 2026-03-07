@@ -16,6 +16,12 @@ for dir in "$CONTENT_DIR"/*/; do
     mkdir -p "$PUBLIC_DIR/$slug"
     cp -r "$dir/images/"* "$PUBLIC_DIR/$slug/" 2>/dev/null || true
   fi
+  # Copy per-presentation CSS files (e.g. animations.css)
+  for css in "$dir"*.css; do
+    [ -f "$css" ] || continue
+    mkdir -p "$PUBLIC_DIR/$slug"
+    cp "$css" "$PUBLIC_DIR/$slug/" 2>/dev/null || true
+  done
 done
 
 # Clean and copy shared images

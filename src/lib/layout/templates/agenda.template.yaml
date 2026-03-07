@@ -43,7 +43,7 @@ children:
     borderWidth: 3
     borderSides: [left]
     {% endif %}
-    animationType: fade-up
+    entranceType: fade-up
     children:
       - type: text
         text: "{{ item }}"

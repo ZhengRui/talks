@@ -19,8 +19,12 @@ import type {
   ShapeStyle,
   BorderDef,
   GradientDef,
+  TransformDef,
+  TextRun,
+  RichText,
   Rect,
 } from "@/lib/layout/types";
+import { toPlainText, parseMarkdownToRuns } from "@/lib/layout/richtext";
 import {
   rectToInches,
   pxToInchesX,
@@ -31,9 +35,10 @@ import {
   colorAlpha,
   parseFontFamily,
   isBold,
+  parseCssGradients,
 } from "./pptx-helpers";
 import { buildTimingXml, type AnimationEntry } from "./pptx-animations";
-import { applyEffectsToSlideXml, applyCoverImagesToSlideXml, type EffectsEntry, type CoverImageEntry } from "./pptx-effects";
+import { applyEffectsToSlideXml, applyCoverImagesToSlideXml, applyFlipsToSlideXml, type EffectsEntry, type CoverImageEntry, type FlipEntry } from "./pptx-effects";
 
 /** Offset a child rect by the parent group's origin (children are relative to group). */
 function offsetRect(child: Rect, parent: Rect): Rect {
@@ -72,8 +77,10 @@ const SHAPES = {
 
 // Per-slide accumulators for OOXML post-processing (reset each slide in exportPptx)
 let slideGradientEntries: { spid: number; gradient: GradientDef }[] = [];
+let slideCssGradientEntries: { spid: number; gradient: import("./pptx-helpers").ParsedCssGradient }[] = [];
 let slideTextAlphaEntries: { spid: number; alpha: number }[] = [];
 let slideCoverImages: { spid: number; imagePath: string; containerW: number; containerH: number }[] = [];
+let slideFlipEntries: FlipEntry[] = [];
 
 /** Read the current object count from a PptxGenJS slide. */
 function slideObjectCount(slide: Slide): number {
@@ -94,15 +101,19 @@ export async function exportPptx(
   const slideAnimations: AnimationEntry[][] = [];
   const slideEffects: EffectsEntry[][] = [];
   const slideCoverImageEntries: CoverImageEntry[][] = [];
+  const slideFlips: FlipEntry[][] = [];
 
   for (const layoutSlide of layout.slides) {
     const slide = pres.addSlide();
-    renderSlideBackground(slide, layoutSlide);
 
     // Reset per-slide post-processing accumulators
     slideGradientEntries = [];
+    slideCssGradientEntries = [];
     slideTextAlphaEntries = [];
     slideCoverImages = [];
+    slideFlipEntries = [];
+
+    renderSlideBackground(slide, layoutSlide);
 
     const animations: AnimationEntry[] = [];
     const effects: EffectsEntry[] = [];
@@ -117,8 +128,8 @@ export async function exportPptx(
       }
 
       if (spids.length > 0) {
-        if (el.animation && el.animation.type !== "none") {
-          animations.push({ spids, animation: el.animation });
+        if (el.entrance && el.entrance.type !== "none") {
+          animations.push({ spids, entrance: el.entrance });
         }
 
         // Track effects and pattern fills for post-processing
@@ -138,6 +149,9 @@ export async function exportPptx(
     // Fold render-time gradient and text alpha entries into effects
     for (const g of slideGradientEntries) {
       effects.push({ spids: [g.spid], gradient: g.gradient });
+    }
+    for (const g of slideCssGradientEntries) {
+      effects.push({ spids: [g.spid], cssGradient: g.gradient });
     }
     for (const t of slideTextAlphaEntries) {
       effects.push({ spids: [t.spid], textAlpha: t.alpha });
@@ -177,6 +191,7 @@ export async function exportPptx(
     slideAnimations.push(animations);
     slideEffects.push(effects);
     slideCoverImageEntries.push(coverImages);
+    slideFlips.push([...slideFlipEntries]);
   }
 
   // Phase 2: Generate PPTX buffer
@@ -186,7 +201,8 @@ export async function exportPptx(
   const hasAnimations = slideAnimations.some((a) => a.length > 0);
   const hasEffects = slideEffects.some((e) => e.length > 0);
   const hasCoverImages = slideCoverImageEntries.some((c) => c.length > 0);
-  if (!hasAnimations && !hasEffects && !hasCoverImages) {
+  const hasFlips = slideFlips.some((f) => f.length > 0);
+  if (!hasAnimations && !hasEffects && !hasCoverImages && !hasFlips) {
     return Buffer.from(output);
   }
 
@@ -208,6 +224,12 @@ export async function exportPptx(
     // Inject effects (glow, softEdge, blur, patternFill)
     if (slideEffects[i]?.length > 0) {
       slideXml = applyEffectsToSlideXml(slideXml, slideEffects[i]);
+      modified = true;
+    }
+
+    // Apply flip transforms
+    if (slideFlips[i]?.length > 0) {
+      slideXml = applyFlipsToSlideXml(slideXml, slideFlips[i]);
       modified = true;
     }
 
@@ -236,7 +258,20 @@ function renderSlideBackground(slide: Slide, ls: LayoutSlide): void {
   if (ls.backgroundImage) {
     slide.background = { path: resolveImagePath(ls.backgroundImage) };
   } else {
+    // Extract solid fallback from potential CSS gradient string
     slide.background = { color: hexColor(ls.background) };
+
+    // Parse CSS gradient layers and create full-slide overlay shapes
+    const cssGradients = parseCssGradients(ls.background);
+    for (const g of cssGradients) {
+      // Add a full-slide rectangle with placeholder fill; post-processor replaces with gradient
+      const spid = slideObjectCount(slide) + 2;
+      slide.addShape(SHAPES.RECTANGLE, {
+        x: 0, y: 0, w: 13.3, h: 7.5,
+        fill: { color: "000000", transparency: 100 }, // placeholder — replaced by OOXML post-processor
+      });
+      slideCssGradientEntries.push({ spid, gradient: g });
+    }
   }
 
   // Overlay (semi-transparent rectangle over background image)
@@ -313,15 +348,60 @@ function textOpts(
   };
 }
 
+/** Convert RichText to PptxGenJS TextProps array for per-run styling. */
+function richTextToProps(
+  text: RichText,
+  baseStyle: TextStyle,
+): PptxGenJS.TextProps[] {
+  let runs: TextRun[];
+  if (typeof text === "string") {
+    if (!text.includes("**") && !text.includes("*") && !baseStyle.highlightColor) {
+      return [{ text, options: {} }];
+    }
+    runs = parseMarkdownToRuns(text, baseStyle.highlightColor);
+  } else {
+    runs = text;
+  }
+
+  return runs.map((run) => {
+    const opts: PptxGenJS.TextPropsOptions = {};
+    if (run.bold) opts.bold = true;
+    if (run.italic) opts.italic = true;
+    if (run.color) opts.color = hexColor(run.color);
+    if (run.fontSize) opts.fontSize = pxToPoints(run.fontSize);
+    if (run.fontFamily) opts.fontFace = parseFontFamily(run.fontFamily);
+    if (run.letterSpacing) opts.charSpacing = pxToPoints(run.letterSpacing);
+    if (run.superscript) opts.superscript = true;
+    if (run.subscript) opts.subscript = true;
+    return { text: run.text, options: opts };
+  });
+}
+
+/** Track flip transform for OOXML post-processing. */
+function trackTransform(spid: number, transform?: TransformDef): void {
+  if (transform?.flipH || transform?.flipV) {
+    slideFlipEntries.push({ spid, flipH: transform.flipH, flipV: transform.flipV });
+  }
+}
+
 function renderText(slide: Slide, el: TextElement): void {
   const spid = slideObjectCount(slide) + 2;
   const opts = textOpts(el.style, el.rect);
-  slide.addText(el.text, opts);
+  if (el.transform?.rotate) opts.rotate = el.transform.rotate;
+
+  // Use rich text props if text has runs or markdown formatting
+  const props = richTextToProps(el.text, el.style);
+  if (props.length === 1 && Object.keys(props[0].options ?? {}).length === 0) {
+    slide.addText(toPlainText(el.text), opts);
+  } else {
+    slide.addText(props, opts);
+  }
+
+  trackTransform(spid, el.transform);
 
   // Track text color alpha for OOXML post-processing
   const alpha = colorAlpha(el.style.color);
   if (alpha !== undefined && alpha > 0) {
-    // colorAlpha: 0 = opaque, 100 = transparent → OOXML: 100000 = opaque, 0 = transparent
     slideTextAlphaEntries.push({
       spid,
       alpha: Math.round((100 - alpha) * 1000),
@@ -373,7 +453,9 @@ function renderImage(slide: Slide, el: ImageElement): void {
     imgOpts.transparency = Math.round((1 - el.opacity) * 100);
   }
 
+  if (el.transform?.rotate) imgOpts.rotate = el.transform.rotate;
   slide.addImage(imgOpts);
+  trackTransform(slideObjectCount(slide) + 1, el.transform);
 
   // Track cover images for OOXML post-processing (PptxGenJS doesn't compute
   // srcRect correctly — it uses box dimensions instead of intrinsic image dims)
@@ -634,8 +716,11 @@ function renderShape(
   const shadow = makeShadow(el.style.shadow);
   if (shadow) opts.shadow = shadow;
 
+  if (el.transform?.rotate) opts.rotate = el.transform.rotate;
+
   const spid = slideObjectCount(slide) + 2;
   slide.addShape(shapeType, opts);
+  trackTransform(spid, el.transform);
 
   // Track gradient for OOXML post-processing (replaces solid fill placeholder)
   if (el.style.gradient?.stops?.length) {
@@ -873,7 +958,7 @@ function renderTable(slide: Slide, el: TableElement): void {
 
   // --- Header text ---
   el.headers.forEach((h, ci) => {
-    slide.addText(h, {
+    slide.addText(toPlainText(h), {
       x: r.x + ci * colW, y: r.y, w: colW, h: headerH,
       fontSize: pxToPoints(el.headerStyle.fontSize),
       fontFace: parseFontFamily(el.headerStyle.fontFamily),
@@ -890,7 +975,7 @@ function renderTable(slide: Slide, el: TableElement): void {
   el.rows.forEach((row, ri) => {
     const y = r.y + headerH + ri * dataRowH;
     row.forEach((cell, ci) => {
-      slide.addText(cell, {
+      slide.addText(toPlainText(cell), {
         x: r.x + ci * colW, y, w: colW, h: dataRowH,
         fontSize: pxToPoints(el.cellStyle.fontSize),
         fontFace: parseFontFamily(el.cellStyle.fontFamily),
@@ -913,7 +998,7 @@ function renderList(slide: Slide, el: ListElement): void {
   const r = rectToInches(el.rect);
 
   const items: PptxGenJS.TextProps[] = el.items.map((item, i) => ({
-    text: item,
+    text: toPlainText(item),
     options: {
       bullet: el.ordered ? { type: "number" as const } : true,
       breakLine: i < el.items.length - 1,

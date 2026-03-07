@@ -143,6 +143,8 @@ export function expandDslTemplate(
     ...(parsed.backgroundImage !== undefined ? { backgroundImage: String(parsed.backgroundImage) } : {}),
     ...(parsed.overlay !== undefined ? { overlay: String(parsed.overlay) } : {}),
     ...(parsed.verticalAlign !== undefined ? { verticalAlign: parsed.verticalAlign } : {}),
+    ...(parsed.padding !== undefined ? { padding: parsed.padding } : {}),
+    ...(parsed.gap !== undefined ? { gap: Number(parsed.gap) } : {}),
     children: (parsed.children ?? []) as FullComposeSlideData["children"],
     ...base,
   } as FullComposeSlideData & SlideBaseFields;

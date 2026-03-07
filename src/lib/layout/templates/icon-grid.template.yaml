@@ -39,7 +39,7 @@ children:
         {% else %}
         fill: true
         {% endif %}
-        animationType: scale-up
+        entranceType: scale-up
         children:
           - type: text
             text: "{{ item.icon }}"

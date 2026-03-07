@@ -20,15 +20,15 @@ children:
     height: {{ style.avatarSize }}
     objectFit: cover
     clipCircle: true
-    animationType: scale-up
-    animationDelay: 0
+    entranceType: scale-up
+    entranceDelay: 0
   {% endif %}
   - type: heading
     text: "{{ name }}"
     fontSize: {{ style.nameSize }}
     textAlign: center
-    animationType: fade-up
-    animationDelay: 200
+    entranceType: fade-up
+    entranceDelay: 200
   {% if title %}
   - type: text
     text: "{{ title }}"
@@ -37,8 +37,8 @@ children:
     color: theme.accent
     lineHeight: 1.3
     marginTop: 8
-    animationType: fade-up
-    animationDelay: 300
+    entranceType: fade-up
+    entranceDelay: 300
   {% endif %}
   - type: divider
     variant: gradient
@@ -46,8 +46,8 @@ children:
     align: center
     marginTop: 16
     marginBottom: 16
-    animationType: fade-up
-    animationDelay: 350
+    entranceType: fade-up
+    entranceDelay: 350
   {% if bio %}
   - type: text
     text: "{{ bio }}"
@@ -56,6 +56,6 @@ children:
     color: theme.textMuted
     lineHeight: 1.5
     maxWidth: {{ style.bioWidth }}
-    animationType: fade-up
-    animationDelay: 400
+    entranceType: fade-up
+    entranceDelay: 400
   {% endif %}

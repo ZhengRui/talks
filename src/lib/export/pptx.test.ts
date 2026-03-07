@@ -186,7 +186,7 @@ describe("exportPptx", () => {
                 color: "#1a1a2e",
                 lineHeight: 1.2,
               },
-              animation: { type: "fade-in", delay: 0, duration: 600 },
+              entrance: { type: "fade-in", delay: 0, duration: 600 },
             },
           ],
         },
@@ -257,7 +257,7 @@ describe("exportPptx", () => {
                 color: "#1a1a2e",
                 lineHeight: 1.2,
               },
-              animation: { type: "fade-up", delay: 200, duration: 600 },
+              entrance: { type: "fade-up", delay: 200, duration: 600 },
             },
           ],
         },
@@ -386,6 +386,152 @@ describe("exportPptx", () => {
     expect(slideXml).toContain('<a:pattFill prst="pct10">');
   });
 
+  it("applies rotation to text elements", async () => {
+    const layout: LayoutPresentation = {
+      title: "Rotation Test",
+      slides: [
+        {
+          width: 1920,
+          height: 1080,
+          background: "#ffffff",
+          elements: [
+            {
+              kind: "text",
+              id: "rotated",
+              rect: { x: 100, y: 100, w: 600, h: 80 },
+              text: "Rotated Text",
+              style: {
+                fontFamily: "Inter, sans-serif",
+                fontSize: 48,
+                fontWeight: 700,
+                color: "#1a1a2e",
+                lineHeight: 1.2,
+              },
+              transform: { rotate: 45 },
+            },
+          ],
+        },
+      ],
+    };
+
+    const buffer = await exportPptx(layout);
+    const zip = await JSZip.loadAsync(buffer);
+    const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string");
+    expect(slideXml).toBeDefined();
+    // PptxGenJS uses rotate in degrees × 60000
+    expect(slideXml).toContain("rot=");
+  });
+
+  it("applies flipH via post-processing", async () => {
+    const layout: LayoutPresentation = {
+      title: "Flip Test",
+      slides: [
+        {
+          width: 1920,
+          height: 1080,
+          background: "#ffffff",
+          elements: [
+            {
+              kind: "shape",
+              id: "flipped",
+              rect: { x: 100, y: 100, w: 200, h: 200 },
+              shape: "rect",
+              style: { fill: "#ff0000" },
+              transform: { flipH: true },
+            },
+          ],
+        },
+      ],
+    };
+
+    const buffer = await exportPptx(layout);
+    const zip = await JSZip.loadAsync(buffer);
+    const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string");
+    expect(slideXml).toBeDefined();
+    expect(slideXml).toContain('flipH="1"');
+  });
+
+  it("renders RichText runs with per-run styling", async () => {
+    const layout: LayoutPresentation = {
+      title: "RichText Test",
+      slides: [
+        {
+          width: 1920,
+          height: 1080,
+          background: "#ffffff",
+          elements: [
+            {
+              kind: "text",
+              id: "rich",
+              rect: { x: 100, y: 100, w: 600, h: 80 },
+              text: [
+                { text: "Bold ", bold: true, color: "#ff0000" },
+                { text: "Normal" },
+              ],
+              style: {
+                fontFamily: "Inter, sans-serif",
+                fontSize: 32,
+                fontWeight: 400,
+                color: "#1a1a2e",
+                lineHeight: 1.2,
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const buffer = await exportPptx(layout);
+    const zip = await JSZip.loadAsync(buffer);
+    const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string");
+    expect(slideXml).toBeDefined();
+    // Both text segments should appear
+    expect(slideXml).toContain("Bold ");
+    expect(slideXml).toContain("Normal");
+    // Bold run should have bold attribute
+    expect(slideXml).toContain('b="1"');
+    // Red color from the first run
+    expect(slideXml).toContain('val="FF0000"');
+  });
+
+  it("renders markdown bold/italic in text elements", async () => {
+    const layout: LayoutPresentation = {
+      title: "Markdown Test",
+      slides: [
+        {
+          width: 1920,
+          height: 1080,
+          background: "#ffffff",
+          elements: [
+            {
+              kind: "text",
+              id: "md",
+              rect: { x: 100, y: 100, w: 600, h: 80 },
+              text: "The **Fall** of *Tang*",
+              style: {
+                fontFamily: "Inter, sans-serif",
+                fontSize: 32,
+                fontWeight: 400,
+                color: "#1a1a2e",
+                lineHeight: 1.2,
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const buffer = await exportPptx(layout);
+    const zip = await JSZip.loadAsync(buffer);
+    const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string");
+    expect(slideXml).toBeDefined();
+    expect(slideXml).toContain("Fall");
+    expect(slideXml).toContain("Tang");
+    // Bold and italic formatting should be present
+    expect(slideXml).toContain('b="1"');
+    expect(slideXml).toContain('i="1"');
+  });
+
   it("tracks correct spids for group elements", async () => {
     const layout: LayoutPresentation = {
       title: "Group Animation",
@@ -415,7 +561,7 @@ describe("exportPptx", () => {
                   },
                 },
               ],
-              animation: { type: "scale-up", delay: 100, duration: 500 },
+              entrance: { type: "scale-up", delay: 100, duration: 500 },
             },
           ],
         },

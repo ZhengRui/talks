@@ -36,7 +36,7 @@ children:
             {% endif %}
             objectFit: cover
             borderRadius: 16
-            animationType: scale-up
+            entranceType: scale-up
           {% if img.caption %}
           - type: text
             text: "{{ img.caption }}"

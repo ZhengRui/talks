@@ -270,8 +270,8 @@ describe("DSL integration: template expansion + layout", () => {
     expect(fc.children[2]).toMatchObject({ type: "columns" });
     const cols = fc.children[2] as unknown as { children: unknown[] };
     expect(cols.children).toHaveLength(2);
-    expect(cols.children[0]).toMatchObject({ type: "box", animationType: "slide-left" });
-    expect(cols.children[1]).toMatchObject({ type: "box", animationType: "slide-right" });
+    expect(cols.children[0]).toMatchObject({ type: "box", entranceType: "slide-left" });
+    expect(cols.children[1]).toMatchObject({ type: "box", entranceType: "slide-right" });
     expect(cols.children[0]).not.toHaveProperty("height");
     expect(cols.children[1]).not.toHaveProperty("height");
 
@@ -328,10 +328,10 @@ describe("DSL integration: template expansion + layout", () => {
     const cols = fc.children[2] as unknown as { children: unknown[] };
     expect(cols.children).toHaveLength(2);
     expect(cols.children[0]).toMatchObject({
-      type: "box", accentTop: true, accentColor: "#22c55e", animationType: "slide-left",
+      type: "box", accentTop: true, accentColor: "#22c55e", entranceType: "slide-left",
     });
     expect(cols.children[1]).toMatchObject({
-      type: "box", accentTop: true, accentColor: "#ef4444", animationType: "slide-right",
+      type: "box", accentTop: true, accentColor: "#ef4444", entranceType: "slide-right",
     });
 
     expect(layout.elements.length).toBeGreaterThan(0);
@@ -432,8 +432,8 @@ describe("DSL integration: template expansion + layout", () => {
     const children = (slide as FullComposeSlideData).children;
     // heading + divider + image + text = 4
     expect(children).toHaveLength(4);
-    expect(children[2]).toMatchObject({ type: "image", src: "photo.jpg", borderRadius: 16, animationType: "scale-up", animationDelay: 200 });
-    expect(children[3]).toMatchObject({ type: "text", textAlign: "center", animationType: "fade-up", animationDelay: 400 });
+    expect(children[2]).toMatchObject({ type: "image", src: "photo.jpg", borderRadius: 16, entranceType: "scale-up", entranceDelay: 200 });
+    expect(children[3]).toMatchObject({ type: "text", textAlign: "center", entranceType: "fade-up", entranceDelay: 400 });
 
     expect(layout.elements.length).toBeGreaterThan(0);
   });
@@ -465,11 +465,11 @@ describe("DSL integration: template expansion + layout", () => {
     expect(raw.verticalAlign).toBe("center");
     // image + heading + text(title) + divider + text(bio) = 5
     expect(fc.children).toHaveLength(5);
-    expect(fc.children[0]).toMatchObject({ type: "image", clipCircle: true, animationType: "scale-up", animationDelay: 0 });
-    expect(fc.children[1]).toMatchObject({ type: "heading", text: "Jane Doe", animationType: "fade-up", animationDelay: 200 });
-    expect(fc.children[2]).toMatchObject({ type: "text", color: "theme.accent", lineHeight: 1.3, animationType: "fade-up", animationDelay: 300 });
-    expect(fc.children[3]).toMatchObject({ type: "divider", variant: "gradient", animationType: "fade-up", animationDelay: 350 });
-    expect(fc.children[4]).toMatchObject({ type: "text", color: "theme.textMuted", maxWidth: 700, animationType: "fade-up", animationDelay: 400 });
+    expect(fc.children[0]).toMatchObject({ type: "image", clipCircle: true, entranceType: "scale-up", entranceDelay: 0 });
+    expect(fc.children[1]).toMatchObject({ type: "heading", text: "Jane Doe", entranceType: "fade-up", entranceDelay: 200 });
+    expect(fc.children[2]).toMatchObject({ type: "text", color: "theme.accent", lineHeight: 1.3, entranceType: "fade-up", entranceDelay: 300 });
+    expect(fc.children[3]).toMatchObject({ type: "divider", variant: "gradient", entranceType: "fade-up", entranceDelay: 350 });
+    expect(fc.children[4]).toMatchObject({ type: "text", color: "theme.textMuted", maxWidth: 700, entranceType: "fade-up", entranceDelay: 400 });
 
     expect(layout.elements.length).toBeGreaterThan(0);
   });
@@ -500,8 +500,8 @@ describe("DSL integration: template expansion + layout", () => {
     expect(fc.children[2]).toMatchObject({ type: "columns", equalHeight: true });
     const cols = fc.children[2] as unknown as { children: unknown[] };
     expect(cols.children).toHaveLength(2);
-    expect(cols.children[0]).toMatchObject({ type: "box", padding: 24, animationType: "slide-left", animationDelay: 200 });
-    expect(cols.children[1]).toMatchObject({ type: "box", padding: 24, animationType: "slide-right", animationDelay: 200 });
+    expect(cols.children[0]).toMatchObject({ type: "box", padding: 24, entranceType: "slide-left", entranceDelay: 200 });
+    expect(cols.children[1]).toMatchObject({ type: "box", padding: 24, entranceType: "slide-right", entranceDelay: 200 });
 
     expect(layout.elements.length).toBeGreaterThan(0);
   });
@@ -530,7 +530,7 @@ describe("DSL integration: template expansion + layout", () => {
     // Default: image on left with inset padding, text on right
     expect(sc.left.padding).toEqual([0, 20, 0, 160]);
     expect(sc.left.children).toHaveLength(1);
-    expect(sc.left.children[0]).toMatchObject({ type: "image", objectFit: "cover", animationType: "slide-left", animationDelay: 200 });
+    expect(sc.left.children[0]).toMatchObject({ type: "image", objectFit: "cover", entranceType: "slide-left", entranceDelay: 200 });
     expect(sc.right.background).toBe("theme.bg");
     expect(sc.right.verticalAlign).toBeUndefined();
     expect(sc.right.gap).toBe(0);
@@ -538,10 +538,10 @@ describe("DSL integration: template expansion + layout", () => {
     // spacer + heading + divider + body + bullets = 5 children
     expect(sc.right.children).toHaveLength(5);
     expect(sc.right.children[0]).toMatchObject({ type: "spacer", height: 210 });
-    expect(sc.right.children[1]).toMatchObject({ type: "heading", text: "About Us", animationType: "fade-up", animationDelay: 0 });
-    expect(sc.right.children[2]).toMatchObject({ type: "divider", animationType: "fade-up", animationDelay: 100 });
-    expect(sc.right.children[3]).toMatchObject({ type: "body", lineHeight: 1.7, marginBottom: 44, animationType: "slide-right", animationDelay: 300 });
-    expect(sc.right.children[4]).toMatchObject({ type: "bullets", variant: "list", animationType: "fade-up", animationDelay: 400 });
+    expect(sc.right.children[1]).toMatchObject({ type: "heading", text: "About Us", entranceType: "fade-up", entranceDelay: 0 });
+    expect(sc.right.children[2]).toMatchObject({ type: "divider", entranceType: "fade-up", entranceDelay: 100 });
+    expect(sc.right.children[3]).toMatchObject({ type: "body", lineHeight: 1.7, marginBottom: 44, entranceType: "slide-right", entranceDelay: 300 });
+    expect(sc.right.children[4]).toMatchObject({ type: "bullets", variant: "list", entranceType: "fade-up", entranceDelay: 400 });
 
     expect(layout.elements.length).toBeGreaterThan(0);
   });
@@ -556,14 +556,14 @@ describe("DSL integration: template expansion + layout", () => {
     const sc = slide as unknown as SplitComposeSlideData;
     // Image on right with inset padding
     expect(sc.right.padding).toEqual([0, 160, 0, 20]);
-    expect(sc.right.children[0]).toMatchObject({ type: "image", animationType: "slide-right", animationDelay: 200 });
+    expect(sc.right.children[0]).toMatchObject({ type: "image", entranceType: "slide-right", entranceDelay: 200 });
     // Text on left — spacer first, then heading with animation overrides
     expect(sc.left.gap).toBe(0);
     expect(sc.left.padding).toEqual([60, 20, 60, 160]);
     expect(sc.left.verticalAlign).toBeUndefined();
     expect(sc.left.children[0]).toMatchObject({ type: "spacer", height: 210 });
-    expect(sc.left.children[1]).toMatchObject({ type: "heading", text: "Reverse", animationType: "fade-up", animationDelay: 0 });
-    expect(sc.left.children[2]).toMatchObject({ type: "divider", animationType: "fade-up", animationDelay: 100 });
+    expect(sc.left.children[1]).toMatchObject({ type: "heading", text: "Reverse", entranceType: "fade-up", entranceDelay: 0 });
+    expect(sc.left.children[2]).toMatchObject({ type: "divider", entranceType: "fade-up", entranceDelay: 100 });
   });
 
   it("image-text: omits body and bullets when not provided", () => {

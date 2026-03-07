@@ -28,8 +28,8 @@ import type {
   BoxComponent,
   GridComponent,
 } from "./types";
-import { estimateTextHeight, bodyStyle, makeAnimation, staggerDelay } from "../helpers";
-import { resolveColor, resolveThemeToken, resolveThemeTokenAny } from "./theme-tokens";
+import { estimateTextHeight, bodyStyle, makeEntrance, staggerDelay } from "../helpers";
+import { resolveColor, resolveThemeTokenAny } from "./theme-tokens";
 
 // --- Resolver result ---
 
@@ -66,17 +66,24 @@ export interface ResolveContext {
 
 // --- Text (generic primitive) ---
 
-const FONT_FAMILY_MAP = {
+const FONT_FAMILY_MAP: Record<string, (t: ResolvedTheme) => string> = {
   heading: (t: ResolvedTheme) => t.fontHeading,
   body: (t: ResolvedTheme) => t.fontBody,
   mono: (t: ResolvedTheme) => t.fontMono,
 };
 
+/** Resolve a fontFamily value: theme token ("heading"|"body"|"mono") or raw CSS font-family. */
+function resolveFontFamily(value: string | undefined, fallback: string, theme: ResolvedTheme): string {
+  if (!value) return fallback;
+  const mapper = FONT_FAMILY_MAP[value];
+  return mapper ? mapper(theme) : value;
+}
+
 function resolveText(c: TextComponent, ctx: ResolveContext): ResolveResult {
   const fontSize = c.fontSize ?? 28;
   const fontWeight = c.fontWeight === "bold" ? 700 : 400;
   const lineHeight = c.lineHeight ?? 1.6;
-  const fontFamily = FONT_FAMILY_MAP[c.fontFamily ?? "body"](ctx.theme);
+  const fontFamily = resolveFontFamily(c.fontFamily, ctx.theme.fontBody, ctx.theme);
   const color = c.color
     ? resolveColor(c.color, ctx.theme, ctx.theme.text)
     : (ctx.textColor ?? ctx.theme.text);
@@ -115,22 +122,33 @@ const HEADING_SIZES: Record<number, number> = { 1: 54, 2: 42, 3: 34 };
 
 function resolveHeading(c: HeadingComponent, ctx: ResolveContext): ResolveResult {
   const fontSize = c.fontSize ?? HEADING_SIZES[c.level ?? 1] ?? 54;
+  const fontWeight = c.fontWeight ?? 700;
+  const fontFamily = resolveFontFamily(c.fontFamily, ctx.theme.fontHeading, ctx.theme);
   const color = c.color
     ? resolveColor(c.color, ctx.theme, ctx.theme.heading)
     : (ctx.textColor ?? ctx.theme.heading);
-  return resolveText(
-    {
-      type: "text",
-      text: c.text,
+  const lineHeight = 1.15;
+  const w = ctx.panel.w;
+  const h = estimateTextHeight(c.text, fontSize, lineHeight, w, fontWeight);
+
+  const el: TextElement = {
+    kind: "text",
+    id: `${ctx.idPrefix}-heading`,
+    rect: { x: 0, y: 0, w, h },
+    text: c.text,
+    style: {
+      fontFamily,
       fontSize,
-      fontWeight: "bold",
-      fontFamily: "heading",
+      fontWeight,
       color,
-      textAlign: c.textAlign,
-      lineHeight: 1.15,
+      lineHeight,
+      textAlign: c.textAlign ?? "left",
+      ...(c.letterSpacing != null ? { letterSpacing: c.letterSpacing } : {}),
+      ...(c.textTransform ? { textTransform: c.textTransform } : {}),
     },
-    { ...ctx, idPrefix: `${ctx.idPrefix}-heading` },
-  );
+  };
+
+  return { elements: [el], height: h };
 }
 
 // --- Body (sugar for text with body defaults) ---
@@ -185,7 +203,7 @@ function resolveBulletsList(c: BulletsComponent, ctx: ResolveContext, ordered: b
     itemStyle: bodyStyle(ctx.theme, fontSize, {
       color: ctx.textColor ?? ctx.theme.text,
     }),
-    bulletColor: ctx.textColor ?? ctx.theme.text,
+    bulletColor: c.bulletColor ? resolveColor(c.bulletColor, ctx.theme, ctx.textColor ?? ctx.theme.text) : (ctx.textColor ?? ctx.theme.text),
     itemSpacing,
   };
 
@@ -257,11 +275,11 @@ function resolveBulletsCard(c: BulletsComponent, ctx: ResolveContext, ordered: b
         fill: ctx.theme.bgSecondary,
         borderRadius: ctx.theme.radiusSm,
       },
-      border: ordered ? undefined : { width: 3, color: ctx.theme.accent, sides: ["left"] },
+      border: ordered ? undefined : { width: 3, color: c.bulletColor ? resolveColor(c.bulletColor, ctx.theme, ctx.theme.accent) : ctx.theme.accent, sides: ["left"] },
     };
 
     if (ctx.animate) {
-      group.animation = makeAnimation(
+      group.entrance = makeEntrance(
         "fade-up",
         staggerDelay(i, ctx.animationDelay ?? 0),
       );
@@ -314,7 +332,7 @@ function resolveBulletsPlain(c: BulletsComponent, ctx: ResolveContext, ordered: 
       };
 
       if (ctx.animate) {
-        badge.animation = makeAnimation(
+        badge.entrance = makeEntrance(
           "fade-up",
           staggerDelay(i, ctx.animationDelay ?? 0),
         );
@@ -334,7 +352,7 @@ function resolveBulletsPlain(c: BulletsComponent, ctx: ResolveContext, ordered: 
     };
 
     if (ctx.animate) {
-      textEl.animation = makeAnimation(
+      textEl.entrance = makeEntrance(
         "fade-up",
         staggerDelay(i, ctx.animationDelay ?? 0),
       );
@@ -358,6 +376,7 @@ function resolveStat(c: StatComponent, ctx: ResolveContext): ResolveResult {
   const totalH = valueH + gap + labelH;
   const w = ctx.panel.w;
   const align = c.textAlign ?? "left";
+  const valueFontFamily = resolveFontFamily(c.fontFamily, ctx.theme.fontHeading, ctx.theme);
 
   const valueEl: TextElement = {
     kind: "text",
@@ -365,14 +384,18 @@ function resolveStat(c: StatComponent, ctx: ResolveContext): ResolveResult {
     rect: { x: 0, y: 0, w, h: valueH },
     text: c.value,
     style: {
-      fontFamily: ctx.theme.fontHeading,
+      fontFamily: valueFontFamily,
       fontSize: valueSize,
       fontWeight: 700,
-      color: ctx.theme.accent,
+      color: c.color ?? ctx.theme.accent,
       lineHeight: 1.15,
       textAlign: align,
     },
   };
+
+  const labelColor = c.labelColor
+    ? resolveColor(c.labelColor, ctx.theme, ctx.theme.textMuted)
+    : (ctx.textColor ?? ctx.theme.textMuted);
 
   const labelEl: TextElement = {
     kind: "text",
@@ -382,10 +405,12 @@ function resolveStat(c: StatComponent, ctx: ResolveContext): ResolveResult {
     style: {
       fontFamily: ctx.theme.fontBody,
       fontSize: labelSize,
-      fontWeight: 400,
-      color: ctx.textColor ?? ctx.theme.textMuted,
+      fontWeight: c.labelFontWeight ?? 400,
+      color: labelColor,
       lineHeight: 1.5,
       textAlign: align,
+      ...(c.letterSpacing != null ? { letterSpacing: c.letterSpacing } : {}),
+      ...(c.textTransform ? { textTransform: c.textTransform } : {}),
     },
   };
 
@@ -524,7 +549,7 @@ function resolveQuote(c: QuoteComponent, ctx: ResolveContext): ResolveResult {
       },
     };
     if (ctx.animate) {
-      markEl.animation = makeAnimation("fade-in", baseDelay);
+      markEl.entrance = makeEntrance("fade-in", baseDelay);
     }
     elements.push(markEl);
     cursorY += markSize + markGap;
@@ -563,7 +588,7 @@ function resolveQuote(c: QuoteComponent, ctx: ResolveContext): ResolveResult {
     },
   };
   if (ctx.animate) {
-    quoteEl.animation = makeAnimation(
+    quoteEl.entrance = makeEntrance(
       c.decorative ? "scale-up" : "fade-up",
       c.decorative ? baseDelay + 150 : baseDelay,
     );
@@ -592,7 +617,7 @@ function resolveQuote(c: QuoteComponent, ctx: ResolveContext): ResolveResult {
       },
     };
     if (ctx.animate) {
-      attrEl.animation = makeAnimation("fade-up", baseDelay + (c.decorative ? 400 : 200));
+      attrEl.entrance = makeEntrance("fade-up", baseDelay + (c.decorative ? 400 : 200));
     }
     elements.push(attrEl);
     barH += attrGap + attrH;
@@ -852,8 +877,8 @@ function resolveColumns(c: ColumnsComponent, ctx: ResolveContext): ResolveResult
     // Apply per-column staggered animation
     if (ctx.animate) {
       positioned.forEach((el) => {
-        if (!el.animation) {
-          (el as { animation: unknown }).animation = makeAnimation(
+        if (!el.entrance) {
+          (el as { entrance: unknown }).entrance = makeEntrance(
             "fade-up",
             staggerDelay(i, ctx.animationDelay ?? 0),
           );
@@ -933,11 +958,11 @@ function resolveGrid(c: GridComponent, ctx: ResolveContext): ResolveResult {
         rect: { ...el.rect, x: el.rect.x + colX, y: el.rect.y + totalH },
       }));
 
-      // Apply per-item staggered animation
+      // Apply per-item staggered entrance
       if (ctx.animate) {
         positioned.forEach((el) => {
-          if (!el.animation) {
-            (el as { animation: unknown }).animation = makeAnimation(
+          if (!el.entrance) {
+            (el as { entrance: unknown }).entrance = makeEntrance(
               "fade-up",
               staggerDelay(globalIdx, ctx.animationDelay ?? 0),
             );
@@ -1062,11 +1087,12 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
     ? resolveColor(c.background, ctx.theme, ctx.theme.cardBg)
     : ctx.theme.cardBg;
 
+  const radius = c.borderRadius ?? ctx.theme.radius;
   const style: GroupElement["style"] = isFlat
     ? {}
     : isPanel
-      ? { fill: bg, borderRadius: ctx.theme.radius }
-      : { fill: bg, borderRadius: ctx.theme.radius, shadow: ctx.theme.shadow };
+      ? { fill: bg, borderRadius: radius }
+      : { fill: bg, borderRadius: radius, shadow: ctx.theme.shadow };
 
   // Determine border: explicit borderColor/borderWidth > accentTop > theme cardBorder
   const customBorder = c.borderColor
@@ -1092,9 +1118,9 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
   };
 
   // Override default stacker/columns animation if component specifies one
-  if (c.animationType && ctx.animate) {
-    const boxDelay = (c as unknown as SlideComponent).animationDelay ?? ctx.animationDelay ?? 0;
-    group.animation = makeAnimation(c.animationType, boxDelay);
+  if (c.entranceType && ctx.animate) {
+    const boxDelay = (c as unknown as SlideComponent).entranceDelay ?? ctx.animationDelay ?? 0;
+    group.entrance = makeEntrance(c.entranceType, boxDelay);
   }
 
   return {
@@ -1153,18 +1179,18 @@ export function resolveComponent(
       result = resolveBox(component, ctx); break;
   }
 
-  // Generic animationType override — skip box (handles it internally) and columns (container)
+  // Generic entranceType override — skip box (handles it internally) and columns (container)
   if (
     component.type !== "box" &&
     component.type !== "columns" &&
     component.type !== "grid" &&
-    component.animationType &&
+    component.entranceType &&
     ctx.animate
   ) {
-    const delay = component.animationDelay ?? ctx.animationDelay ?? 0;
-    const anim = makeAnimation(component.animationType, delay);
+    const delay = component.entranceDelay ?? ctx.animationDelay ?? 0;
+    const anim = makeEntrance(component.entranceType, delay);
     result.elements.forEach((el) => {
-      (el as { animation: unknown }).animation = anim;
+      (el as { entrance: unknown }).entrance = anim;
     });
   }
 
@@ -1193,8 +1219,8 @@ export function resolveComponent(
         style: { opacity: op },
       };
       // Preserve animation from the first element (if any)
-      const firstAnim = result.elements.find((el) => el.animation)?.animation;
-      if (firstAnim) wrapped.animation = firstAnim;
+      const firstAnim = result.elements.find((el) => el.entrance)?.entrance;
+      if (firstAnim) wrapped.entrance = firstAnim;
       result = { ...result, elements: [wrapped] };
     }
   }

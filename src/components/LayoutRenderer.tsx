@@ -1,7 +1,8 @@
 import type {
   LayoutSlide,
   LayoutElement,
-  AnimationDef,
+  EntranceDef,
+  TransformDef,
   TextElement,
   ImageElement,
   ShapeElement,
@@ -16,8 +17,12 @@ import type {
   BorderDef,
   PatternFillDef,
   ElementEffects,
+  TextRun,
+  RichText,
 } from "@/lib/layout/types";
 import React from "react";
+import { transformToCSS } from "@/lib/layout/transform";
+import { parseMarkdownToRuns } from "@/lib/layout/richtext";
 
 // --- Animation mapping ---
 
@@ -30,17 +35,57 @@ const ANIM_CLASS: Record<string, string> = {
   "count-up": "anim-fade-up", // count-up uses same keyframe as fade-up
 };
 
-function animProps(anim?: AnimationDef): {
+/** Maps entrance animation types to their CSS keyframe names. */
+const ANIM_KEYFRAME: Record<string, string> = {
+  "fade-up": "fadeUp",
+  "fade-in": "fadeIn",
+  "slide-left": "slideInLeft",
+  "slide-right": "slideInRight",
+  "scale-up": "scaleUp",
+  "count-up": "fadeUp",
+};
+
+function animProps(
+  entrance?: EntranceDef,
+  animation?: string,
+  clipPath?: string,
+  transform?: TransformDef,
+): {
   className?: string;
   style?: React.CSSProperties;
 } {
-  if (!anim || anim.type === "none") return {};
-  const cls = ANIM_CLASS[anim.type];
-  if (!cls) return {};
-  return {
-    className: cls,
-    style: { "--delay": `${anim.delay}ms` } as React.CSSProperties,
-  };
+  const result: { className?: string; style?: React.CSSProperties } = {};
+  if (entrance && entrance.type !== "none") {
+    const cls = ANIM_CLASS[entrance.type];
+    if (cls) {
+      if (animation) {
+        // When both entrance + continuous animations exist, combine them in inline style.
+        // The CSS class still provides the initial opacity: 0.
+        const keyframe = ANIM_KEYFRAME[entrance.type] || "fadeUp";
+        const dur = entrance.duration || 600;
+        const delay = entrance.delay || 0;
+        result.className = cls;
+        result.style = {
+          animation: `${keyframe} ${dur}ms ${delay}ms ease both, ${animation}`,
+        };
+      } else {
+        result.className = cls;
+        result.style = { "--delay": `${entrance.delay}ms` } as React.CSSProperties;
+      }
+    }
+  } else if (animation) {
+    result.style = { animation };
+  }
+  if (clipPath) {
+    result.style = { ...result.style, clipPath };
+  }
+  if (transform) {
+    const txCSS = transformToCSS(transform);
+    if (txCSS.transform) {
+      result.style = { ...result.style, transform: txCSS.transform };
+    }
+  }
+  return result;
 }
 
 // --- Style converters ---
@@ -178,11 +223,53 @@ function borderToCSS(b: BorderDef, sides?: string[]): React.CSSProperties {
   return { border: `${b.width}px solid ${b.color}` };
 }
 
+// --- Rich text rendering ---
+
+/** Render a single TextRun as an inline <span>. */
+function renderTextRun(run: TextRun, index: number): React.ReactNode {
+  const style: React.CSSProperties = {};
+  if (run.bold) style.fontWeight = 700;
+  if (run.italic) style.fontStyle = "italic";
+  if (run.underline) style.textDecoration = "underline";
+  if (run.strikethrough) {
+    style.textDecoration = (style.textDecoration ? style.textDecoration + " " : "") + "line-through";
+  }
+  if (run.color) style.color = run.color;
+  if (run.fontSize) style.fontSize = run.fontSize;
+  if (run.fontFamily) style.fontFamily = run.fontFamily;
+  if (run.letterSpacing) style.letterSpacing = run.letterSpacing;
+  if (run.highlight) style.backgroundColor = run.highlight;
+  if (run.superscript) { style.verticalAlign = "super"; style.fontSize = "0.7em"; }
+  if (run.subscript) { style.verticalAlign = "sub"; style.fontSize = "0.7em"; }
+
+  const hasStyle = Object.keys(style).length > 0;
+  if (!hasStyle) return run.text;
+  return <span key={index} style={style}>{run.text}</span>;
+}
+
+/**
+ * Render RichText content (string or TextRun[]).
+ * Strings: parse **bold** and *italic* markdown, apply highlightColor if set.
+ * TextRun[]: render each run with its inline styles.
+ */
+function renderRichText(text: RichText, highlightColor?: string): React.ReactNode {
+  if (typeof text === "string") {
+    if (!highlightColor && !text.includes("**") && !text.includes("*")) {
+      return text;
+    }
+    const runs = parseMarkdownToRuns(text, highlightColor);
+    if (runs.length === 1 && !runs[0].bold && !runs[0].italic) return text;
+    return runs.map((run, i) => renderTextRun(run, i));
+  }
+  return text.map((run, i) => renderTextRun(run, i));
+}
+
 // --- Element renderers ---
 
 function renderText(el: TextElement): React.ReactNode {
-  const anim = animProps(el.animation);
+  const anim = animProps(el.entrance, el.animation, el.clipPath, el.transform);
   const vAlign = el.style.verticalAlign;
+  const hc = el.style.highlightColor;
   return (
     <div
       key={el.id}
@@ -203,6 +290,7 @@ function renderText(el: TextElement): React.ReactNode {
         textShadow: el.style.textShadow,
         letterSpacing: el.style.letterSpacing,
         textTransform: el.style.textTransform,
+        whiteSpace: "pre-line",
         overflow: "hidden",
         ...(vAlign ? {
           display: "flex",
@@ -213,13 +301,13 @@ function renderText(el: TextElement): React.ReactNode {
         ...anim.style,
       }}
     >
-      {el.text}
+      {renderRichText(el.text, hc)}
     </div>
   );
 }
 
 function renderImage(el: ImageElement): React.ReactNode {
-  const anim = animProps(el.animation);
+  const anim = animProps(el.entrance, el.animation, el.clipPath, el.transform);
   return (
     <div
       key={el.id}
@@ -251,7 +339,7 @@ function renderImage(el: ImageElement): React.ReactNode {
 }
 
 function renderShape(el: ShapeElement): React.ReactNode {
-  const anim = animProps(el.animation);
+  const anim = animProps(el.entrance, el.animation, el.clipPath, el.transform);
   const style: React.CSSProperties = {
     position: "absolute",
     left: el.rect.x,
@@ -310,7 +398,7 @@ function renderShape(el: ShapeElement): React.ReactNode {
 }
 
 function renderGroup(el: GroupElement): React.ReactNode {
-  const anim = animProps(el.animation);
+  const anim = animProps(el.entrance, el.animation, el.clipPath, el.transform);
   const style: React.CSSProperties = {
     position: "absolute",
     left: el.rect.x,
@@ -344,7 +432,7 @@ function renderGroup(el: GroupElement): React.ReactNode {
 }
 
 function renderCode(el: CodeElement): React.ReactNode {
-  const anim = animProps(el.animation);
+  const anim = animProps(el.entrance, el.animation, el.clipPath, el.transform);
   return (
     <div
       key={el.id}
@@ -389,7 +477,7 @@ function renderCode(el: CodeElement): React.ReactNode {
 }
 
 function renderTable(el: TableElement): React.ReactNode {
-  const anim = animProps(el.animation);
+  const anim = animProps(el.entrance, el.animation, el.clipPath, el.transform);
   return (
     <div
       key={el.id}
@@ -428,7 +516,7 @@ function renderTable(el: TableElement): React.ReactNode {
                   textAlign: el.headerStyle.textAlign ?? "left",
                 }}
               >
-                {h}
+                {renderRichText(h)}
               </th>
             ))}
           </tr>
@@ -451,7 +539,7 @@ function renderTable(el: TableElement): React.ReactNode {
                     borderBottom: `1px solid ${el.borderColor}`,
                   }}
                 >
-                  {cell}
+                  {renderRichText(cell)}
                 </td>
               ))}
             </tr>
@@ -463,8 +551,14 @@ function renderTable(el: TableElement): React.ReactNode {
 }
 
 function renderList(el: ListElement): React.ReactNode {
-  const anim = animProps(el.animation);
+  const anim = animProps(el.entrance, el.animation, el.clipPath, el.transform);
   const Tag = el.ordered ? "ol" : "ul";
+  const useCustomBullets = !el.ordered && el.bulletColor && el.bulletColor !== el.itemStyle.color;
+  const fontSize = typeof el.itemStyle.fontSize === "number" ? el.itemStyle.fontSize : parseFloat(String(el.itemStyle.fontSize));
+  const dotSize = Math.round(fontSize * 0.48);
+  const dotPadding = Math.round(fontSize * 1.5);
+  const rawLH = el.itemStyle.lineHeight;
+  const lineH = rawLH < 10 ? rawLH * fontSize : rawLH;  // unitless multiplier vs absolute px
   return (
     <div
       key={el.id}
@@ -481,27 +575,42 @@ function renderList(el: ListElement): React.ReactNode {
     >
       <Tag
         style={{
-          paddingLeft: "1.2em",
+          paddingLeft: useCustomBullets ? 0 : "1.2em",
           margin: 0,
-          listStyleType: el.ordered ? "decimal" : "disc",
-          color: el.bulletColor,
+          listStyleType: useCustomBullets ? "none" : (el.ordered ? "decimal" : "disc"),
         }}
       >
-        {el.items.map((item, i) => (
-          <li
-            key={i}
-            style={{
-              fontFamily: el.itemStyle.fontFamily,
-              fontSize: el.itemStyle.fontSize,
-              fontWeight: el.itemStyle.fontWeight,
-              color: el.itemStyle.color,
-              lineHeight: el.itemStyle.lineHeight,
-              marginBottom: el.itemSpacing,
-            }}
-          >
-            {item}
-          </li>
-        ))}
+        {el.items.map((item, i) => {
+          const content = renderRichText(item);
+          return (
+            <li
+              key={i}
+              style={{
+                position: useCustomBullets ? "relative" : undefined,
+                paddingLeft: useCustomBullets ? dotPadding : undefined,
+                fontFamily: el.itemStyle.fontFamily,
+                fontSize: el.itemStyle.fontSize,
+                fontWeight: el.itemStyle.fontWeight,
+                color: el.itemStyle.color,
+                lineHeight: el.itemStyle.lineHeight,
+                marginBottom: el.itemSpacing,
+              }}
+            >
+              {useCustomBullets && (
+                <span style={{
+                  position: "absolute",
+                  left: 0,
+                  top: (lineH - dotSize) / 2,
+                  width: dotSize,
+                  height: dotSize,
+                  borderRadius: "50%",
+                  backgroundColor: el.bulletColor,
+                }} />
+              )}
+              {content}
+            </li>
+          );
+        })}
       </Tag>
     </div>
   );
@@ -543,7 +652,7 @@ function mediaWrapperStyle(el: VideoElement | IframeElement, anim: ReturnType<ty
 }
 
 function renderVideo(el: VideoElement): React.ReactNode {
-  const anim = animProps(el.animation);
+  const anim = animProps(el.entrance, el.animation, el.clipPath, el.transform);
   const wrapperStyle = mediaWrapperStyle(el, anim);
 
   const embedUrl = toEmbedUrl(el.src);
@@ -578,7 +687,7 @@ function renderVideo(el: VideoElement): React.ReactNode {
 }
 
 function renderIframe(el: IframeElement): React.ReactNode {
-  const anim = animProps(el.animation);
+  const anim = animProps(el.entrance, el.animation, el.clipPath, el.transform);
   return (
     <div
       key={el.id}
@@ -643,6 +752,32 @@ export function LayoutSlideRenderer({
       className={animationNone ? "anim-none" : undefined}
       style={sectionStyle}
     >
+      {slide.backgroundImage && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: slide.backgroundImage.startsWith("url(")
+              ? slide.backgroundImage
+              : `url(${slide.backgroundImage})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            zIndex: 0,
+            pointerEvents: "none",
+          }}
+        />
+      )}
+      {slide.overlay && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: slide.overlay,
+            zIndex: 1,
+            pointerEvents: "none",
+          }}
+        />
+      )}
       {slide.elements.map(renderElement)}
     </section>
   );

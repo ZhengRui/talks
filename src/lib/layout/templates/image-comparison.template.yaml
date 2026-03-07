@@ -28,8 +28,8 @@ children:
     children:
       - type: box
         padding: 24
-        animationType: slide-left
-        animationDelay: 200
+        entranceType: slide-left
+        entranceDelay: 200
         children:
           - type: image
             src: "{{ before.image }}"
@@ -45,8 +45,8 @@ children:
           {% endif %}
       - type: box
         padding: 24
-        animationType: slide-right
-        animationDelay: 200
+        entranceType: slide-right
+        entranceDelay: 200
         children:
           - type: image
             src: "{{ after.image }}"

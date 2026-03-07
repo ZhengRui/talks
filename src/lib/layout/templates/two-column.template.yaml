@@ -33,7 +33,7 @@ children:
         {% if style.cardHeight %}
         height: {{ style.cardHeight }}
         {% endif %}
-        animationType: slide-left
+        entranceType: slide-left
         children:
           - type: body
             text: "{{ left }}"
@@ -45,7 +45,7 @@ children:
         {% if style.cardHeight %}
         height: {{ style.cardHeight }}
         {% endif %}
-        animationType: slide-right
+        entranceType: slide-right
         children:
           - type: body
             text: "{{ right }}"

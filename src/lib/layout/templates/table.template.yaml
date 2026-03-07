@@ -34,7 +34,7 @@ children:
       - kind: group
         id: tbl-group
         rect: { x: 0, y: 0, w: {{ pw }}, h: {{ tableH }} }
-        animation: { type: fade-in, delay: 200, duration: 500 }
+        entrance: { type: fade-in, delay: 200, duration: 500 }
         children:
           # Layer 1: Full-size rounded rect with accent fill
           # Provides outer rounded corners + header background color
