@@ -371,6 +371,8 @@ function richTextToProps(
     if (run.fontSize) opts.fontSize = pxToPoints(run.fontSize);
     if (run.fontFamily) opts.fontFace = parseFontFamily(run.fontFamily);
     if (run.letterSpacing) opts.charSpacing = pxToPoints(run.letterSpacing);
+    if (run.underline) opts.underline = { style: "sng" };
+    if (run.strikethrough) opts.strike = "sngStrike";
     if (run.superscript) opts.superscript = true;
     if (run.subscript) opts.subscript = true;
     return { text: run.text, options: opts };
@@ -384,9 +386,25 @@ function trackTransform(spid: number, transform?: TransformDef): void {
   }
 }
 
+/** Apply scaleX/scaleY by adjusting rect dimensions, keeping the element centered. */
+function applyScale(rect: Rect, transform?: TransformDef): Rect {
+  const sx = transform?.scaleX ?? 1;
+  const sy = transform?.scaleY ?? 1;
+  if (sx === 1 && sy === 1) return rect;
+  const newW = rect.w * sx;
+  const newH = rect.h * sy;
+  return {
+    x: rect.x - (newW - rect.w) / 2,
+    y: rect.y - (newH - rect.h) / 2,
+    w: newW,
+    h: newH,
+  };
+}
+
 function renderText(slide: Slide, el: TextElement): void {
   const spid = slideObjectCount(slide) + 2;
-  const opts = textOpts(el.style, el.rect);
+  const rect = applyScale(el.rect, el.transform);
+  const opts = textOpts(el.style, rect);
   if (el.transform?.rotate) opts.rotate = el.transform.rotate;
 
   // Use rich text props if text has runs or markdown formatting
@@ -428,7 +446,7 @@ function resolveImagePath(src: string): string {
 }
 
 function renderImage(slide: Slide, el: ImageElement): void {
-  const r = rectToInches(el.rect);
+  const r = rectToInches(applyScale(el.rect, el.transform));
   const spid = slideObjectCount(slide) + 2;
   const imgOpts: PptxGenJS.ImageProps = {
     x: r.x,
@@ -682,7 +700,7 @@ function renderShape(
     return;
   }
 
-  const r = rectToInches(el.rect);
+  const r = rectToInches(applyScale(el.rect, el.transform));
   const shapeType = getShapeType(el.shape, el.style);
 
   const opts: PptxGenJS.ShapeProps = {

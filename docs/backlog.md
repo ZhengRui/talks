@@ -18,6 +18,8 @@ Identified from `content/replicate-iran-war-2026` — first 10 slides look drama
 
 ### Not Feasible in PPTX
 
+**`flipH` on text elements** — PowerPoint's `flipH="1"` attribute on `<a:xfrm>` flips shape geometry but preserves text readability — text inside a flipped text box still renders left-to-right. CSS `transform: scaleX(-1)` mirrors everything including text. This is a fundamental PowerPoint text rendering behavior. `flipV` works as expected (text renders upside down). Shapes without text flip correctly.
+
 **Continuous/looping animations** — `float-up 6s infinite`, `drift`, `pulse-ring`, `glitch-anim` are CSS keyframe loops. PPTX's OOXML timing model only supports one-shot entrance/exit animations triggered on click or after delay. Looping animations are architecturally impossible in PowerPoint.
 
 ## Component/DSL Template Layer Redesign
