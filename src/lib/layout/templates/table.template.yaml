@@ -42,7 +42,8 @@ children:
             id: tbl-accent-bg
             rect: { x: 0, y: 0, w: {{ pw }}, h: {{ tableH }} }
             shape: rect
-            style: { fill: "theme.accent", borderRadius: 12 }
+            style: { fill: "theme.accent" }
+            borderRadius: 12
           # Layer 2: Data area rounded rect with cell bg
           # Rounded bottom corners match outer frame
           {% if rows.length > 0 %}
@@ -50,7 +51,8 @@ children:
             id: tbl-data-bg
             rect: { x: 0, y: {{ style.headerH }}, w: {{ pw }}, h: {{ tableH - style.headerH }} }
             shape: rect
-            style: { fill: "theme.cardBg", borderRadius: 12 }
+            style: { fill: "theme.cardBg" }
+            borderRadius: 12
           {% endif %}
           # Layer 3: Alternating row backgrounds (even rows only — odd show Layer 2)
           {% for row in rows %}
@@ -62,7 +64,8 @@ children:
             rect: { x: 0, y: {{ rowY }}, w: {{ pw }}, h: {{ style.rowH }} }
             shape: rect
             {% if loop.last %}
-            style: { fill: "theme.bgTertiary", borderRadius: 12 }
+            style: { fill: "theme.bgTertiary" }
+            borderRadius: 12
             {% else %}
             style: { fill: "theme.bgTertiary" }
             {% endif %}

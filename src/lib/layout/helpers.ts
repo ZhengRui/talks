@@ -167,7 +167,8 @@ export function titleBlock(
     id: "accent-line",
     rect: { x: lineX, y: lineY, w: accentWidth, h: 4 },
     shape: "rect",
-    style: { gradient: theme.accentGradient, borderRadius: 2 },
+    style: { gradient: theme.accentGradient },
+    borderRadius: 2,
     entrance: makeEntrance("fade-up", 100),
   };
 
@@ -263,11 +264,9 @@ export function cardElement(
     id,
     rect,
     children: offsetChildren,
-    style: {
-      fill: theme.cardBg,
-      borderRadius: theme.radius,
-      shadow: theme.shadow,
-    },
+    style: { fill: theme.cardBg },
+    borderRadius: theme.radius,
+    shadow: theme.shadow,
     border: accentTop
       ? { width: 3, color: accentColor ?? theme.accent, sides: ["top"] }
       : theme.cardBorder,
@@ -377,10 +376,8 @@ export function pillElement(
         },
       },
     ],
-    style: {
-      fill: opts.background ?? theme.bgTertiary,
-      borderRadius: 100,
-    },
+    style: { fill: opts.background ?? theme.bgTertiary },
+    borderRadius: 100,
     border: { width: 1, color: opts.borderColor ?? theme.border.color },
   };
 }

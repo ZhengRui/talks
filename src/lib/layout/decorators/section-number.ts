@@ -35,7 +35,8 @@ export function sectionNumber(
       id: "deco-section-num-fade",
       rect: { x: 1500, y: CANVAS_H - 320, w: 380, h: 280 },
       shape: "rect",
-      style: { fill: theme.bg, opacity: 0.85 },
+      style: { fill: theme.bg },
+      opacity: 0.85,
     },
   ];
 }

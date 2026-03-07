@@ -17,6 +17,7 @@ import type {
   IframeElement,
   TextStyle,
   ShapeStyle,
+  BoxShadow,
   BorderDef,
   GradientDef,
   TransformDef,
@@ -134,7 +135,7 @@ export async function exportPptx(
 
         // Track effects and pattern fills for post-processing
         // Skip patternFill for presets already rendered as actual shapes
-        const elEffects = "effects" in el ? el.effects : undefined;
+        const elEffects = el.effects;
         const elPatternFill = "style" in el && el.kind === "shape"
           && el.style.patternFill
           && !SHAPE_RENDERED_PATTERNS.has(el.style.patternFill.preset)
@@ -297,6 +298,9 @@ function renderElement(
   slide: Slide,
   el: LayoutElement,
 ): void {
+  if (el.cssStyle) {
+    console.warn(`[pptx] ${el.id}: cssStyle is web-only, skipped in PPTX`);
+  }
   switch (el.kind) {
     case "text":
       return renderText(slide, el);
@@ -488,7 +492,7 @@ function renderImage(slide: Slide, el: ImageElement): void {
 
 function getShapeType(
   shape: ShapeElement["shape"],
-  style: ShapeStyle,
+  elementRadius?: number,
 ): PptxGenJS.ShapeType {
   switch (shape) {
     case "circle":
@@ -499,7 +503,7 @@ function getShapeType(
       return SHAPES.ROUNDED_RECTANGLE;
     case "rect":
     default:
-      return style.borderRadius
+      return elementRadius
         ? SHAPES.ROUNDED_RECTANGLE
         : SHAPES.RECTANGLE;
   }
@@ -507,7 +511,9 @@ function getShapeType(
 
 function makeFill(
   style: ShapeStyle,
+  elementOpacity?: number,
 ): PptxGenJS.ShapeFillProps | undefined {
+  const opacity = elementOpacity;
   // Solid fill
   if (style.fill) {
     // Fully transparent fill → no fill at all
@@ -516,8 +522,8 @@ function makeFill(
 
     const fill: PptxGenJS.ShapeFillProps = { color: hexColor(style.fill) };
     if (alpha !== undefined) fill.transparency = alpha;
-    if (style.opacity !== undefined && style.opacity < 1) {
-      fill.transparency = Math.round((1 - style.opacity) * 100);
+    if (opacity !== undefined && opacity < 1) {
+      fill.transparency = Math.round((1 - opacity) * 100);
     }
     return fill;
   }
@@ -525,8 +531,8 @@ function makeFill(
   if (style.gradient?.stops?.length) {
     const lastStop = style.gradient.stops[style.gradient.stops.length - 1];
     const fill: PptxGenJS.ShapeFillProps = { color: hexColor(lastStop.color) };
-    if (style.opacity !== undefined && style.opacity < 1) {
-      fill.transparency = Math.round((1 - style.opacity) * 100);
+    if (opacity !== undefined && opacity < 1) {
+      fill.transparency = Math.round((1 - opacity) * 100);
     }
     return fill;
   }
@@ -562,7 +568,7 @@ function makeLine(
 }
 
 function makeShadow(
-  shadow: ShapeStyle["shadow"],
+  shadow?: BoxShadow,
 ): PptxGenJS.ShadowProps | undefined {
   if (!shadow) return undefined;
   return {
@@ -701,7 +707,7 @@ function renderShape(
   }
 
   const r = rectToInches(applyScale(el.rect, el.transform));
-  const shapeType = getShapeType(el.shape, el.style);
+  const shapeType = getShapeType(el.shape, el.borderRadius);
 
   const opts: PptxGenJS.ShapeProps = {
     x: r.x,
@@ -710,7 +716,7 @@ function renderShape(
     h: r.h,
   };
 
-  const fill = makeFill(el.style);
+  const fill = makeFill(el.style, el.opacity);
   if (fill) opts.fill = fill;
 
   // Handle borders: if sides are specified, render as overlay rects instead of line
@@ -727,11 +733,11 @@ function renderShape(
     if (line) opts.line = line;
   }
 
-  if (el.style.borderRadius) {
-    opts.rectRadius = radiusToInches(el.style.borderRadius);
+  if (el.borderRadius) {
+    opts.rectRadius = radiusToInches(el.borderRadius);
   }
 
-  const shadow = makeShadow(el.style.shadow);
+  const shadow = makeShadow(el.shadow);
   if (shadow) opts.shadow = shadow;
 
   if (el.transform?.rotate) opts.rotate = el.transform.rotate;
@@ -766,7 +772,8 @@ function renderGroup(
 
   if (fillVisible || borderVisible) {
     const r = rectToInches(el.rect);
-    const hasRadius = !!el.style?.borderRadius;
+    const groupRadius = el.borderRadius;
+    const hasRadius = !!groupRadius;
     const hasSideBorders = !!el.border?.sides?.length;
 
     // For visible side borders on rounded groups, use "backing shape" technique:
@@ -778,10 +785,10 @@ function renderGroup(
     const fillMostlyOpaque = fillAlpha < 5;
     if (hasSideBorders && hasRadius && borderVisible && fillVisible && fillMostlyOpaque) {
       const bw = pxToInchesY(el.border!.width);
-      const radius = radiusToInches(el.style!.borderRadius!);
+      const radius = radiusToInches(groupRadius!);
       const sides = el.border!.sides!;
 
-      const shadow = el.style?.shadow ? makeShadow(el.style.shadow) : undefined;
+      const shadow = el.shadow ? makeShadow(el.shadow) : undefined;
 
       // Step 1: Accent-colored backing shape (full size)
       slide.addShape(SHAPES.ROUNDED_RECTANGLE, {
@@ -802,7 +809,7 @@ function renderGroup(
         left: sides.includes("left") ? bw : -extend,
       };
 
-      const fill = makeFill(el.style!);
+      const fill = makeFill(el.style!, el.opacity);
       slide.addShape(SHAPES.ROUNDED_RECTANGLE, {
         x: r.x + inset.left,
         y: r.y + inset.top,
@@ -817,7 +824,7 @@ function renderGroup(
         x: r.x, y: r.y, w: r.w, h: r.h,
       };
 
-      const fill = el.style ? makeFill(el.style) : undefined;
+      const fill = el.style ? makeFill(el.style, el.opacity) : undefined;
       if (fill) bgOpts.fill = fill;
 
       // Handle borders: full-border uses line property
@@ -827,10 +834,10 @@ function renderGroup(
       }
 
       if (hasRadius) {
-        bgOpts.rectRadius = radiusToInches(el.style!.borderRadius!);
+        bgOpts.rectRadius = radiusToInches(groupRadius!);
       }
 
-      const shadow = el.style?.shadow ? makeShadow(el.style.shadow) : undefined;
+      const shadow = el.shadow ? makeShadow(el.shadow) : undefined;
       if (shadow) bgOpts.shadow = shadow;
 
       const shapeType = hasRadius ? SHAPES.ROUNDED_RECTANGLE : SHAPES.RECTANGLE;
@@ -868,8 +875,9 @@ function renderCode(
   const paddingInches = pxToInchesX(el.style.padding);
 
   // Background shape
+  const codeRadius = el.borderRadius ?? el.style.borderRadius;
   slide.addShape(
-    el.style.borderRadius
+    codeRadius
       ? SHAPES.ROUNDED_RECTANGLE
       : SHAPES.RECTANGLE,
     {
@@ -878,8 +886,8 @@ function renderCode(
       w: r.w,
       h: r.h,
       fill: { color: hexColor(el.style.background) },
-      rectRadius: el.style.borderRadius
-        ? radiusToInches(el.style.borderRadius)
+      rectRadius: codeRadius
+        ? radiusToInches(codeRadius)
         : undefined,
     },
   );

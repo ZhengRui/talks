@@ -21,8 +21,8 @@ export function geometricAccent(theme: ResolvedTheme): LayoutElement[] {
       style: {
         stroke: theme.accent,
         strokeWidth: 2,
-        opacity: 0.4,
       },
+      opacity: 0.4,
     },
     // Thin vertical line
     {
@@ -30,7 +30,8 @@ export function geometricAccent(theme: ResolvedTheme): LayoutElement[] {
       id: "deco-geo-line",
       rect: { x: baseX + 100, y: baseY + 10, w: 2, h: 60 },
       shape: "rect",
-      style: { fill: theme.accent, opacity: 0.3 },
+      style: { fill: theme.accent },
+      opacity: 0.3,
     },
     // Small filled dot
     {
@@ -38,7 +39,8 @@ export function geometricAccent(theme: ResolvedTheme): LayoutElement[] {
       id: "deco-geo-dot",
       rect: { x: baseX + 120, y: baseY + 30, w: 12, h: 12 },
       shape: "circle",
-      style: { fill: theme.accent, opacity: 0.5 },
+      style: { fill: theme.accent },
+      opacity: 0.5,
     },
   ];
 }

@@ -17,9 +17,9 @@ export function borderedBox(theme: ResolvedTheme): LayoutElement[] {
       style: {
         stroke: theme.accent,
         strokeWidth: 2,
-        opacity: 0.25,
-        borderRadius: theme.radiusSm,
       },
+      borderRadius: theme.radiusSm,
+      opacity: 0.25,
     },
   ];
 }

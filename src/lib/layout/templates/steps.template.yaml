@@ -55,7 +55,7 @@ children:
               verticalAlign: middle
         style:
           fill: "theme.accent"
-          borderRadius: 100
+        borderRadius: 100
         entrance: { type: scale-up, delay: {{ delay }}, duration: 500 }
       {% if not loop.last %}
       # Connector line between badges
@@ -100,7 +100,7 @@ children:
           {% endif %}
         style:
           fill: "theme.cardBg"
-          borderRadius: 16
+        borderRadius: 16
         border: { width: 1, color: "theme.border.color" }
         clipContent: true
         entrance: { type: fade-up, delay: {{ delay + 50 }}, duration: 500 }

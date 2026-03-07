@@ -1,4 +1,4 @@
-import type { EntranceType, LayoutElement } from "../types";
+import type { EntranceType, LayoutElement, TransformDef, ElementEffects, RichText } from "../types";
 
 // --- Composable slide components (v6) ---
 
@@ -22,11 +22,20 @@ export type SlideComponent =
   | ColumnsComponent
   | BoxComponent
   | GridComponent
-  ) & { entranceType?: EntranceType; entranceDelay?: number; opacity?: number };
+  ) & {
+  entranceType?: EntranceType;
+  entranceDelay?: number;
+  opacity?: number;
+  transform?: TransformDef;
+  effects?: ElementEffects;
+  borderRadius?: number;
+  clipPath?: string;
+  cssStyle?: Record<string, string>;
+};
 
 export interface TextComponent {
   type: "text";
-  text: string;
+  text: RichText;
   fontSize?: number;
   fontWeight?: "normal" | "bold";
   color?: string;                                 // theme token or hex
@@ -43,7 +52,7 @@ export interface TextComponent {
 
 export interface HeadingComponent {
   type: "heading";
-  text: string;
+  text: RichText;
   level?: 1 | 2 | 3;
   fontSize?: number;
   textAlign?: "left" | "center" | "right";
@@ -56,7 +65,7 @@ export interface HeadingComponent {
 
 export interface BodyComponent {
   type: "body";
-  text: string;
+  text: RichText;
   fontSize?: number;
   color?: string;
   textAlign?: "left" | "center" | "right";
@@ -69,7 +78,7 @@ export interface BodyComponent {
 
 export interface BulletsComponent {
   type: "bullets";
-  items: string[];
+  items: RichText[];
   fontSize?: number;
   gap?: number;
   ordered?: boolean;            // circle number badges instead of accent bar
@@ -79,8 +88,8 @@ export interface BulletsComponent {
 
 export interface StatComponent {
   type: "stat";
-  value: string;
-  label: string;
+  value: RichText;
+  label: RichText;
   textAlign?: "left" | "center";
   fontSize?: number;      // value font size, default 64
   labelFontSize?: number; // label font size, default 24
@@ -94,7 +103,7 @@ export interface StatComponent {
 
 export interface TagComponent {
   type: "tag";
-  text: string;
+  text: RichText;
   color?: string;
   align?: "left" | "center";
 }
@@ -112,7 +121,7 @@ export interface DividerComponent {
 
 export interface QuoteComponent {
   type: "quote";
-  text: string;
+  text: RichText;
   attribution?: string;
   textAlign?: "left" | "center" | "right";
   fontSize?: number;              // quote text font size, default 30
@@ -122,8 +131,8 @@ export interface QuoteComponent {
 
 export interface CardComponent {
   type: "card";
-  title: string;
-  body: string;
+  title: RichText;
+  body: RichText;
   dark?: boolean;
 }
 

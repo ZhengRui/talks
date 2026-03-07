@@ -16,7 +16,8 @@ export function softGradientCircles(theme: ResolvedTheme): LayoutElement[] {
       id: "deco-soft-circle-1",
       rect: { x: CANVAS_W - 600, y: -150, w: 600, h: 600 },
       shape: "circle",
-      style: { fill: theme.accent, opacity: 0.25 },
+      style: { fill: theme.accent },
+      opacity: 0.25,
       effects: { softEdge: 30 },
     },
     // Cool accent orb — lower left
@@ -25,7 +26,8 @@ export function softGradientCircles(theme: ResolvedTheme): LayoutElement[] {
       id: "deco-soft-circle-2",
       rect: { x: -100, y: 500, w: 500, h: 500 },
       shape: "circle",
-      style: { fill: theme.accent2, opacity: 0.2 },
+      style: { fill: theme.accent2 },
+      opacity: 0.2,
       effects: { softEdge: 25 },
     },
   ];

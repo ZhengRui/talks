@@ -16,7 +16,8 @@ export function glowAccent(theme: ResolvedTheme): LayoutElement[] {
       id: "deco-glow-1",
       rect: { x: CANVAS_W - 500, y: -100, w: 400, h: 400 },
       shape: "circle",
-      style: { fill: theme.accent, opacity: 0.18 },
+      style: { fill: theme.accent },
+      opacity: 0.18,
       effects: {
         glow: { color: theme.accent, radius: 100, opacity: 0.7 },
         softEdge: 20,
@@ -28,7 +29,8 @@ export function glowAccent(theme: ResolvedTheme): LayoutElement[] {
       id: "deco-glow-2",
       rect: { x: 100, y: CANVAS_H - 400, w: 280, h: 280 },
       shape: "circle",
-      style: { fill: theme.accent2, opacity: 0.14 },
+      style: { fill: theme.accent2 },
+      opacity: 0.14,
       effects: {
         glow: { color: theme.accent2, radius: 80, opacity: 0.6 },
         softEdge: 15,

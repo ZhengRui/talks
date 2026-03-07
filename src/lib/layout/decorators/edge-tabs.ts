@@ -30,9 +30,9 @@ export function edgeTabs(theme: ResolvedTheme): LayoutElement[] {
       shape: "rect",
       style: {
         fill: tab.color,
-        borderRadius: theme.radiusSm,
-        opacity: 0.7 + i * 0.06,
       },
+      borderRadius: theme.radiusSm,
+      opacity: 0.7 + i * 0.06,
     };
     y += tab.h + TAB_GAP;
     return el;

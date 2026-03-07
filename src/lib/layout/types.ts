@@ -93,11 +93,8 @@ export interface ShapeStyle {
   fill?: string;
   stroke?: string;
   strokeWidth?: number;
-  borderRadius?: number;
-  opacity?: number;
   gradient?: GradientDef;
   patternFill?: PatternFillDef;
-  shadow?: BoxShadow;
 }
 
 // --- Effects (glow, softEdge, blur) — applied via OOXML post-processing + CSS ---
@@ -135,77 +132,58 @@ export interface EntranceDef {
   duration: number;
 }
 
-// --- Element types (discriminated union) ---
-// All elements support:
+export interface ElementBase {
+  id: string;
+  rect: Rect;
+  opacity?: number;
+  borderRadius?: number;
+  shadow?: BoxShadow;
+  effects?: ElementEffects;
+  border?: BorderDef;
+  entrance?: EntranceDef;
+  animation?: string;
+  clipPath?: string;
+  transform?: TransformDef;
+  cssStyle?: Record<string, string>;
+}
+
+// --- Element types (discriminated union on `kind`) ---
+// All elements extend ElementBase which provides:
+//   opacity?, borderRadius?, shadow?, effects?, border?  — visual properties
 //   entrance?   — one-shot entrance effect (fade-up, scale-up, etc.)
 //   animation?  — raw CSS `animation` shorthand for continuous/custom animations
-//                   e.g. "float 4s ease-in-out infinite"
-//                   Keyframes are defined in animations.css or per-presentation CSS.
-//   clipPath?   — CSS clip-path value, e.g. "polygon(0 0, 100% 0, 100% 35%, 0 35%)"
-//                   Useful for revealing portions of overlapping elements.
-//   transform? — rotation, scale, flip. Maps to CSS transform + OOXML <a:xfrm>.
+//   clipPath?   — CSS clip-path value
+//   transform?  — rotation, scale, flip
+//   cssStyle?   — web-only inline CSS overrides
 
-export interface TextElement {
+export interface TextElement extends ElementBase {
   kind: "text";
-  id: string;
-  rect: Rect;
   text: RichText;
   style: TextStyle;
-  effects?: ElementEffects;
-  entrance?: EntranceDef;
-  animation?: string;
-  clipPath?: string;
-  transform?: TransformDef;
 }
 
-export interface ImageElement {
+export interface ImageElement extends ElementBase {
   kind: "image";
-  id: string;
-  rect: Rect;
   src: string;
   objectFit: "cover" | "contain";
-  borderRadius?: number;
   clipCircle?: boolean;
-  opacity?: number;
-  entrance?: EntranceDef;
-  animation?: string;
-  clipPath?: string;
-  transform?: TransformDef;
 }
 
-export interface ShapeElement {
+export interface ShapeElement extends ElementBase {
   kind: "shape";
-  id: string;
-  rect: Rect;
   shape: "rect" | "circle" | "line" | "pill";
   style: ShapeStyle;
-  border?: BorderDef;
-  effects?: ElementEffects;
-  entrance?: EntranceDef;
-  animation?: string;
-  clipPath?: string;
-  transform?: TransformDef;
 }
 
-export interface GroupElement {
+export interface GroupElement extends ElementBase {
   kind: "group";
-  id: string;
-  rect: Rect;
   children: LayoutElement[];
   style?: ShapeStyle;
-  border?: BorderDef;
   clipContent?: boolean;
-  effects?: ElementEffects;
-  entrance?: EntranceDef;
-  animation?: string;
-  clipPath?: string;
-  transform?: TransformDef;
 }
 
-export interface CodeElement {
+export interface CodeElement extends ElementBase {
   kind: "code";
-  id: string;
-  rect: Rect;
   code: string;
   language?: string;
   style: {
@@ -216,69 +194,35 @@ export interface CodeElement {
     borderRadius: number;
     padding: number;
   };
-  entrance?: EntranceDef;
-  animation?: string;
-  clipPath?: string;
-  transform?: TransformDef;
 }
 
-export interface TableElement {
+export interface TableElement extends ElementBase {
   kind: "table";
-  id: string;
-  rect: Rect;
   headers: RichText[];
   rows: RichText[][];
   headerStyle: TextStyle & { background: string };
   cellStyle: TextStyle & { background: string; altBackground: string };
   borderColor: string;
-  entrance?: EntranceDef;
-  animation?: string;
-  clipPath?: string;
-  transform?: TransformDef;
 }
 
-export interface ListElement {
+export interface ListElement extends ElementBase {
   kind: "list";
-  id: string;
-  rect: Rect;
   items: RichText[];
   ordered: boolean;
   itemStyle: TextStyle;
   bulletColor?: string;
   itemSpacing: number;
-  entrance?: EntranceDef;
-  animation?: string;
-  clipPath?: string;
-  transform?: TransformDef;
 }
 
-export interface VideoElement {
+export interface VideoElement extends ElementBase {
   kind: "video";
-  id: string;
-  rect: Rect;
   src: string;
   poster?: string;
-  borderRadius?: number;
-  border?: BorderDef;
-  shadow?: BoxShadow;
-  entrance?: EntranceDef;
-  animation?: string;
-  clipPath?: string;
-  transform?: TransformDef;
 }
 
-export interface IframeElement {
+export interface IframeElement extends ElementBase {
   kind: "iframe";
-  id: string;
-  rect: Rect;
   src: string;
-  borderRadius?: number;
-  border?: BorderDef;
-  shadow?: BoxShadow;
-  entrance?: EntranceDef;
-  animation?: string;
-  clipPath?: string;
-  transform?: TransformDef;
 }
 
 export type LayoutElement =

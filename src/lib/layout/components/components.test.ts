@@ -4,7 +4,7 @@ import { resolveComponent, type ResolveContext } from "./resolvers";
 import { stackComponents } from "./stacker";
 import { resolveThemeToken, resolveColor } from "./theme-tokens";
 import type { SlideComponent } from "./types";
-import type { Rect } from "../types";
+import type { Rect, RichText, GroupElement } from "../types";
 import { layoutPresentation } from "../index";
 import type { SlideData } from "@/lib/types";
 
@@ -243,9 +243,7 @@ describe("resolveComponent — opacity on any component", () => {
     );
     expect(elements).toHaveLength(1);
     expect(elements[0].kind).toBe("group");
-    if (elements[0].kind === "group") {
-      expect(elements[0].style?.opacity).toBe(0.5);
-    }
+    expect(elements[0].opacity).toBe(0.5);
   });
 
   it("sets opacity on image elements", () => {
@@ -254,23 +252,18 @@ describe("resolveComponent — opacity on any component", () => {
       makeCtx({ animate: false }),
     );
     expect(elements).toHaveLength(1);
-    if (elements[0].kind === "image") {
-      expect(elements[0].opacity).toBe(0.3);
-    }
+    expect(elements[0].opacity).toBe(0.3);
   });
 
-  it("wraps text elements in an opacity group", () => {
+  it("sets opacity directly on text elements (no wrapping)", () => {
     const { elements } = resolveComponent(
       { type: "heading", text: "Faded", opacity: 0.7 },
       makeCtx({ animate: false }),
     );
-    // Text element gets wrapped in a group with opacity
+    // All elements now support opacity via ElementBase — no group wrapping needed
     expect(elements).toHaveLength(1);
-    expect(elements[0].kind).toBe("group");
-    if (elements[0].kind === "group") {
-      expect(elements[0].style?.opacity).toBe(0.7);
-      expect(elements[0].children[0].kind).toBe("text");
-    }
+    expect(elements[0].kind).toBe("text");
+    expect(elements[0].opacity).toBe(0.7);
   });
 
   it("does not apply when opacity is 1 or undefined", () => {
@@ -278,23 +271,26 @@ describe("resolveComponent — opacity on any component", () => {
       { type: "heading", text: "Full", opacity: 1 },
       makeCtx({ animate: false }),
     );
-    // opacity=1 is not < 1, so no wrapping
+    // opacity=1 is not < 1, so no opacity set
     expect(result1.elements[0].kind).toBe("text");
+    expect(result1.elements[0].opacity).toBeUndefined();
 
     const result2 = resolveComponent(
       { type: "heading", text: "Default" },
       makeCtx({ animate: false }),
     );
     expect(result2.elements[0].kind).toBe("text");
+    expect(result2.elements[0].opacity).toBeUndefined();
   });
 
-  it("preserves animation when wrapping text in opacity group", () => {
+  it("preserves animation on text with opacity (no wrapping)", () => {
     const { elements } = resolveComponent(
       { type: "heading", text: "Faded", opacity: 0.5, entranceType: "fade-up" },
       makeCtx({ animate: true, animationDelay: 100 }),
     );
     expect(elements).toHaveLength(1);
-    expect(elements[0].kind).toBe("group");
+    expect(elements[0].kind).toBe("text");
+    expect(elements[0].opacity).toBe(0.5);
     expect(elements[0].entrance).toBeDefined();
     expect(elements[0].entrance!.type).toBe("fade-up");
   });
@@ -563,7 +559,7 @@ describe("resolveComponent — bullets", () => {
       const badge = elements[0].children[0];
       expect(badge.kind).toBe("group");
       if (badge.kind === "group") {
-        expect(badge.style?.borderRadius).toBe(100); // circle
+        expect(badge.borderRadius).toBe(100); // circle
         expect(badge.style?.fill).toBe(theme.accent);
       }
       // No left accent border for ordered
@@ -592,7 +588,7 @@ describe("resolveComponent — bullets", () => {
     expect(elements[2].kind).toBe("group"); // badge
     expect(elements[3].kind).toBe("text");  // text
     if (elements[0].kind === "group") {
-      expect(elements[0].style?.borderRadius).toBe(100);
+      expect(elements[0].borderRadius).toBe(100);
     }
   });
 });
@@ -925,8 +921,8 @@ describe("resolveComponent — box", () => {
     expect(elements[0].kind).toBe("group");
     if (elements[0].kind === "group") {
       expect(elements[0].style?.fill).toBe(theme.cardBg);
-      expect(elements[0].style?.borderRadius).toBe(theme.radius);
-      expect(elements[0].style?.shadow).toEqual(theme.shadow);
+      expect(elements[0].borderRadius).toBe(theme.radius);
+      expect(elements[0].shadow).toEqual(theme.shadow);
       expect(elements[0].children.length).toBeGreaterThan(0);
     }
     expect(height).toBeGreaterThan(0);
@@ -1023,8 +1019,8 @@ describe("resolveComponent — box", () => {
     );
     if (elements[0].kind === "group") {
       expect(elements[0].style?.fill).toBe(theme.bgSecondary);
-      expect(elements[0].style?.borderRadius).toBe(theme.radius);
-      expect(elements[0].style?.shadow).toBeUndefined();
+      expect(elements[0].borderRadius).toBe(theme.radius);
+      expect(elements[0].shadow).toBeUndefined();
       expect(elements[0].border).toBeUndefined();
     }
   });
@@ -2170,5 +2166,192 @@ describe("raw escape hatch in composable templates", () => {
     expect(sealEl).toBeDefined();
     // Should NOT be at y=0 — it should be offset below the heading
     expect(sealEl!.rect.y).toBeGreaterThan(0);
+  });
+});
+
+// ============================================================
+// Style passthrough (v8)
+// ============================================================
+
+describe("resolveComponent — style passthrough", () => {
+  it("applies transform to heading root element", () => {
+    const { elements } = resolveComponent(
+      { type: "heading", text: "Tilted", transform: { rotate: -5 } },
+      makeCtx({ animate: false }),
+    );
+    expect(elements).toHaveLength(1);
+    expect(elements[0].transform).toEqual({ rotate: -5 });
+  });
+
+  it("applies transform to box root group element", () => {
+    const { elements } = resolveComponent(
+      { type: "box", children: [{ type: "body", text: "Hi" }], transform: { scaleX: 1.2 } },
+      makeCtx({ animate: false }),
+    );
+    expect(elements).toHaveLength(1);
+    expect(elements[0].kind).toBe("group");
+    expect(elements[0].transform).toEqual({ scaleX: 1.2 });
+  });
+
+  it("applies clipPath to image element", () => {
+    const { elements } = resolveComponent(
+      { type: "image", src: "photo.jpg", clipPath: "polygon(0 0, 100% 0, 100% 50%, 0 50%)" },
+      makeCtx({ animate: false }),
+    );
+    expect(elements).toHaveLength(1);
+    expect(elements[0].clipPath).toBe("polygon(0 0, 100% 0, 100% 50%, 0 50%)");
+  });
+
+  it("applies borderRadius passthrough to box group", () => {
+    const { elements } = resolveComponent(
+      { type: "box", children: [{ type: "body", text: "Hi" }], borderRadius: 24, variant: "flat" },
+      makeCtx({ animate: false }),
+    );
+    expect(elements).toHaveLength(1);
+    expect(elements[0].kind).toBe("group");
+    expect(elements[0].borderRadius).toBe(24);
+  });
+
+  it("applies borderRadius passthrough to image element", () => {
+    const { elements } = resolveComponent(
+      { type: "image", src: "photo.jpg", borderRadius: 50 },
+      makeCtx({ animate: false }),
+    );
+    expect(elements).toHaveLength(1);
+    if (elements[0].kind === "image") {
+      expect(elements[0].borderRadius).toBe(50);
+    }
+  });
+
+  it("applies effects (glow) to heading text element", () => {
+    const { elements } = resolveComponent(
+      { type: "heading", text: "Glowing", effects: { glow: { color: "#ff6b35", radius: 15 } } },
+      makeCtx({ animate: false }),
+    );
+    expect(elements).toHaveLength(1);
+    if (elements[0].kind === "text") {
+      expect(elements[0].effects?.glow).toEqual({ color: "#ff6b35", radius: 15 });
+    }
+  });
+
+  it("applies cssStyle passthrough", () => {
+    const { elements } = resolveComponent(
+      { type: "heading", text: "Blended", cssStyle: { "mix-blend-mode": "overlay" } },
+      makeCtx({ animate: false }),
+    );
+    expect(elements).toHaveLength(1);
+    expect(elements[0].cssStyle).toEqual({ "mix-blend-mode": "overlay" });
+  });
+
+  it("does not apply passthrough when fields undefined", () => {
+    const { elements } = resolveComponent(
+      { type: "heading", text: "Plain" },
+      makeCtx({ animate: false }),
+    );
+    expect(elements).toHaveLength(1);
+    expect(elements[0].transform).toBeUndefined();
+    expect(elements[0].clipPath).toBeUndefined();
+    expect(elements[0].cssStyle).toBeUndefined();
+  });
+});
+
+// ============================================================
+// RichText in components
+// ============================================================
+
+describe("resolveComponent — RichText in components", () => {
+  const runs: RichText = [
+    { text: "Fall of " },
+    { text: "Tang", color: "#ff6b35", bold: true },
+  ];
+
+  it("heading accepts TextRun[] and passes through to TextElement", () => {
+    const { elements } = resolveComponent(
+      { type: "heading", text: runs },
+      makeCtx(),
+    );
+    expect(elements).toHaveLength(1);
+    expect(elements[0].kind).toBe("text");
+    expect((elements[0] as { text: RichText }).text).toEqual(runs);
+  });
+
+  it("heading still works with plain string (backward compat)", () => {
+    const { elements } = resolveComponent(
+      { type: "heading", text: "Plain" },
+      makeCtx(),
+    );
+    expect(elements).toHaveLength(1);
+    expect((elements[0] as { text: RichText }).text).toBe("Plain");
+  });
+
+  it("body accepts RichText", () => {
+    const { elements } = resolveComponent(
+      { type: "body", text: runs },
+      makeCtx(),
+    );
+    expect(elements).toHaveLength(1);
+    expect(elements[0].kind).toBe("text");
+    expect((elements[0] as { text: RichText }).text).toEqual(runs);
+  });
+
+  it("stat accepts RichText for value and label", () => {
+    const valueRuns: RichText = [{ text: "42", bold: true }];
+    const { elements } = resolveComponent(
+      { type: "stat", value: valueRuns, label: "items" },
+      makeCtx(),
+    );
+    const valueEl = elements.find((e) => e.id.includes("stat-value"));
+    expect(valueEl).toBeDefined();
+    expect((valueEl as { text: RichText }).text).toEqual(valueRuns);
+  });
+
+  it("bullets accepts RichText items (list variant)", () => {
+    const richItems: RichText[] = [
+      [{ text: "Item " }, { text: "one", bold: true }],
+      "plain item",
+    ];
+    const { elements } = resolveComponent(
+      { type: "bullets", items: richItems, variant: "list" },
+      makeCtx(),
+    );
+    const listEl = elements.find((e) => e.kind === "list");
+    expect(listEl).toBeDefined();
+    expect((listEl as { items: RichText[] }).items).toEqual(richItems);
+  });
+
+  it("tag with RichText computes width from plain text", () => {
+    const tagRuns: RichText = [{ text: "NEW" }];
+    const { elements } = resolveComponent(
+      { type: "tag", text: tagRuns },
+      makeCtx(),
+    );
+    // Should produce 2 elements (pill + text) without throwing
+    expect(elements).toHaveLength(2);
+    expect((elements[1] as { text: RichText }).text).toEqual(tagRuns);
+  });
+
+  it("card accepts RichText for title and body", () => {
+    const titleRuns: RichText = [{ text: "Card " }, { text: "Title", bold: true }];
+    const { elements } = resolveComponent(
+      { type: "card", title: titleRuns, body: "simple body" },
+      makeCtx(),
+    );
+    // card wraps in a group
+    expect(elements).toHaveLength(1);
+    expect(elements[0].kind).toBe("group");
+    const group = elements[0] as GroupElement;
+    const titleEl = group.children.find((e) => e.id.includes("card-title"));
+    expect(titleEl).toBeDefined();
+    expect((titleEl as { text: RichText }).text).toEqual(titleRuns);
+  });
+
+  it("quote accepts RichText", () => {
+    const { elements } = resolveComponent(
+      { type: "quote", text: runs },
+      makeCtx(),
+    );
+    const quoteEl = elements.find((e) => e.id.includes("quote-text"));
+    expect(quoteEl).toBeDefined();
+    expect((quoteEl as { text: RichText }).text).toEqual(runs);
   });
 });

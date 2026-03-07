@@ -737,14 +737,14 @@ describe("DSL integration: template expansion + layout", () => {
       const accentBg = group.children.find((e) => e.id === "tbl-accent-bg");
       expect(accentBg).toBeDefined();
       if (accentBg?.kind === "shape") {
-        expect(accentBg.style.borderRadius).toBe(12);
+        expect(accentBg.borderRadius).toBe(12);
         expect(accentBg.style.fill).not.toContain("theme.");
       }
       // Layer 2: data area bg with rounded corners
       const dataBg = group.children.find((e) => e.id === "tbl-data-bg");
       expect(dataBg).toBeDefined();
       if (dataBg?.kind === "shape") {
-        expect(dataBg.style.borderRadius).toBe(12);
+        expect(dataBg.borderRadius).toBe(12);
       }
       const hdrs = group.children.filter((e) => e.id.includes("tbl-hdr"));
       expect(hdrs).toHaveLength(2);

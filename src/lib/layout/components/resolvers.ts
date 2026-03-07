@@ -6,6 +6,7 @@ import type {
   TextElement,
   ShapeElement,
   GroupElement,
+  TransformDef,
 } from "../types";
 import type {
   SlideComponent,
@@ -29,6 +30,7 @@ import type {
   GridComponent,
 } from "./types";
 import { estimateTextHeight, bodyStyle, makeEntrance, staggerDelay } from "../helpers";
+import { toPlainText } from "../richtext";
 import { resolveColor, resolveThemeTokenAny } from "./theme-tokens";
 
 // --- Resolver result ---
@@ -89,7 +91,7 @@ function resolveText(c: TextComponent, ctx: ResolveContext): ResolveResult {
     : (ctx.textColor ?? ctx.theme.text);
   const textW = c.maxWidth ? Math.min(c.maxWidth, ctx.panel.w) : ctx.panel.w;
   const textX = c.maxWidth ? (ctx.panel.w - textW) / 2 : 0;
-  const h = estimateTextHeight(c.text, fontSize, lineHeight, textW, fontWeight);
+  const h = estimateTextHeight(toPlainText(c.text), fontSize, lineHeight, textW, fontWeight);
 
   const el: TextElement = {
     kind: "text",
@@ -129,7 +131,7 @@ function resolveHeading(c: HeadingComponent, ctx: ResolveContext): ResolveResult
     : (ctx.textColor ?? ctx.theme.heading);
   const lineHeight = 1.15;
   const w = ctx.panel.w;
-  const h = estimateTextHeight(c.text, fontSize, lineHeight, w, fontWeight);
+  const h = estimateTextHeight(toPlainText(c.text), fontSize, lineHeight, w, fontWeight);
 
   const el: TextElement = {
     kind: "text",
@@ -223,7 +225,7 @@ function resolveBulletsCard(c: BulletsComponent, ctx: ResolveContext, ordered: b
   let totalH = 0;
 
   c.items.forEach((item, i) => {
-    const textH = estimateTextHeight(item, fontSize, lineHeight, textW);
+    const textH = estimateTextHeight(toPlainText(item), fontSize, lineHeight, textW);
     const itemH = textH + bulletPadding * 2;
 
     const children: LayoutElement[] = [];
@@ -251,7 +253,8 @@ function resolveBulletsCard(c: BulletsComponent, ctx: ResolveContext, ordered: b
               verticalAlign: "middle",
             },
           }],
-          style: { fill: ctx.theme.accent, borderRadius: 100 },
+          style: { fill: ctx.theme.accent },
+          borderRadius: 100,
         } satisfies GroupElement,
       );
     }
@@ -271,10 +274,8 @@ function resolveBulletsCard(c: BulletsComponent, ctx: ResolveContext, ordered: b
       id: `${ctx.idPrefix}-bullet-${i}`,
       rect: { x: 0, y: totalH, w: bulletW, h: itemH },
       children,
-      style: {
-        fill: ctx.theme.bgSecondary,
-        borderRadius: ctx.theme.radiusSm,
-      },
+      style: { fill: ctx.theme.bgSecondary },
+      borderRadius: ctx.theme.radiusSm,
       border: ordered ? undefined : { width: 3, color: c.bulletColor ? resolveColor(c.bulletColor, ctx.theme, ctx.theme.accent) : ctx.theme.accent, sides: ["left"] },
     };
 
@@ -328,7 +329,8 @@ function resolveBulletsPlain(c: BulletsComponent, ctx: ResolveContext, ordered: 
             verticalAlign: "middle",
           },
         }],
-        style: { fill: ctx.theme.accent, borderRadius: 100 },
+        style: { fill: ctx.theme.accent },
+        borderRadius: 100,
       };
 
       if (ctx.animate) {
@@ -423,7 +425,7 @@ function resolveTag(c: TagComponent, ctx: ResolveContext): ResolveResult {
   const fontSize = 20;
   const paddingX = 20;
   const paddingY = 12;
-  const textW = c.text.length * fontSize * 0.7 + paddingX * 2;
+  const textW = toPlainText(c.text).length * fontSize * 0.7 + paddingX * 2;
   const h = fontSize + paddingY * 2;
   const color = c.color
     ? resolveColor(c.color, ctx.theme, ctx.theme.accent)
@@ -442,10 +444,8 @@ function resolveTag(c: TagComponent, ctx: ResolveContext): ResolveResult {
     id: `${ctx.idPrefix}-tag-bg`,
     rect: { x, y: 0, w: textW, h },
     shape: "pill",
-    style: {
-      fill: pillFill,
-      borderRadius: 100,
-    },
+    style: { fill: pillFill },
+    borderRadius: 100,
     border: { width: 1, color: pillBorder },
   };
 
@@ -482,7 +482,7 @@ function resolveDivider(c: DividerComponent, ctx: ResolveContext): ResolveResult
 
   const style: ShapeElement["style"] =
     variant === "gradient"
-      ? { gradient: ctx.theme.accentGradient, borderRadius: 2 }
+      ? { gradient: ctx.theme.accentGradient }
       : variant === "ink"
         ? {
             gradient: {
@@ -493,11 +493,13 @@ function resolveDivider(c: DividerComponent, ctx: ResolveContext): ResolveResult
                 { color: "transparent", position: 1 },
               ],
             },
-            borderRadius: 2,
           }
         : isBorder
           ? { fill: ctx.theme.border.color }
-          : { fill: ctx.theme.accent, borderRadius: 2, opacity: 0.4 };
+          : { fill: ctx.theme.accent };
+
+  const needsRadius = variant !== "border";
+  const isSolid = variant === "solid";
 
   const el: ShapeElement = {
     kind: "shape",
@@ -505,6 +507,8 @@ function resolveDivider(c: DividerComponent, ctx: ResolveContext): ResolveResult
     rect: { x, y: 0, w, h },
     shape: "rect",
     style,
+    ...(needsRadius ? { borderRadius: 2 } : {}),
+    ...(isSolid ? { opacity: 0.4 } : {}),
   };
 
   return {
@@ -564,12 +568,13 @@ function resolveQuote(c: QuoteComponent, ctx: ResolveContext): ResolveResult {
       id: `${ctx.idPrefix}-quote-bar`,
       rect: { x: 0, y: cursorY, w: barW, h: 0 }, // height set later
       shape: "rect",
-      style: { fill: ctx.theme.accent, borderRadius: 2 },
+      style: { fill: ctx.theme.accent },
+      borderRadius: 2,
     };
     elements.push(bar);
   }
 
-  const quoteH = estimateTextHeight(c.text, quoteFontSize, lineHeight, textW);
+  const quoteH = estimateTextHeight(toPlainText(c.text), quoteFontSize, lineHeight, textW);
 
   // Quote text
   const quoteEl: TextElement = {
@@ -638,7 +643,7 @@ function resolveCard(c: CardComponent, ctx: ResolveContext): ResolveResult {
   const bodySize = 24;
   const titleH = titleSize * 1.3;
   const bodyW = ctx.panel.w - padding * 2;
-  const bodyH = estimateTextHeight(c.body, bodySize, 1.6, bodyW);
+  const bodyH = estimateTextHeight(toPlainText(c.body), bodySize, 1.6, bodyW);
   const innerH = titleH + 12 + bodyH;
   const totalH = innerH + padding * 2;
 
@@ -679,11 +684,9 @@ function resolveCard(c: CardComponent, ctx: ResolveContext): ResolveResult {
         },
       },
     ],
-    style: {
-      fill: bg,
-      borderRadius: ctx.theme.radius,
-      shadow: ctx.theme.shadow,
-    },
+    style: { fill: bg },
+    borderRadius: ctx.theme.radius,
+    shadow: ctx.theme.shadow,
     border: ctx.theme.cardBorder,
     clipContent: true,
   };
@@ -1090,9 +1093,7 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
   const radius = c.borderRadius ?? ctx.theme.radius;
   const style: GroupElement["style"] = isFlat
     ? {}
-    : isPanel
-      ? { fill: bg, borderRadius: radius }
-      : { fill: bg, borderRadius: radius, shadow: ctx.theme.shadow };
+    : { fill: bg };
 
   // Determine border: explicit borderColor/borderWidth > accentTop > theme cardBorder
   const customBorder = c.borderColor
@@ -1108,6 +1109,8 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
     rect: { x: boxX, y: 0, w: boxW, h: totalH },
     children,
     style,
+    ...(!isFlat ? { borderRadius: radius } : {}),
+    ...(!isFlat && !isPanel ? { shadow: ctx.theme.shadow } : {}),
     ...(!isFlat && !isPanel && {
       border: customBorder ?? accentBorder ?? ctx.theme.cardBorder,
     }),
@@ -1179,6 +1182,25 @@ export function resolveComponent(
       result = resolveBox(component, ctx); break;
   }
 
+  // v8 style passthrough — apply to root element
+  if (result.elements.length > 0) {
+    const root = result.elements[0];
+    if (component.transform)
+      (root as { transform?: TransformDef }).transform = component.transform;
+    if (component.clipPath)
+      (root as { clipPath?: string }).clipPath = component.clipPath;
+    if (component.cssStyle)
+      (root as { cssStyle?: Record<string, string> }).cssStyle = component.cssStyle;
+
+    if (component.borderRadius != null) {
+      root.borderRadius = component.borderRadius;
+    }
+
+    if (component.effects) {
+      root.effects = { ...root.effects, ...component.effects };
+    }
+  }
+
   // Generic entranceType override — skip box (handles it internally) and columns (container)
   if (
     component.type !== "box" &&
@@ -1194,35 +1216,11 @@ export function resolveComponent(
     });
   }
 
-  // Generic opacity — apply to all emitted elements
+  // Generic opacity — apply to all emitted elements (all elements support opacity via ElementBase)
   if (component.opacity !== undefined && component.opacity < 1) {
-    const op = component.opacity;
     result.elements.forEach((el) => {
-      if (el.kind === "group" || el.kind === "shape") {
-        el.style = { ...(el.style ?? {}), opacity: op };
-      } else if (el.kind === "image") {
-        (el as { opacity?: number }).opacity = op;
-      }
-      // text/code/list: no direct opacity field — wrap below if needed
+      el.opacity = component.opacity;
     });
-
-    // Wrap non-group/shape/image elements in an opacity group
-    const needsWrap = result.elements.some(
-      (el) => el.kind !== "group" && el.kind !== "shape" && el.kind !== "image",
-    );
-    if (needsWrap) {
-      const wrapped: GroupElement = {
-        kind: "group",
-        id: `${ctx.idPrefix}-opacity`,
-        rect: { x: 0, y: 0, w: ctx.panel.w, h: result.height },
-        children: result.elements,
-        style: { opacity: op },
-      };
-      // Preserve animation from the first element (if any)
-      const firstAnim = result.elements.find((el) => el.entrance)?.entrance;
-      if (firstAnim) wrapped.entrance = firstAnim;
-      result = { ...result, elements: [wrapped] };
-    }
   }
 
   return result;

@@ -82,7 +82,13 @@ function animProps(
   if (transform) {
     const txCSS = transformToCSS(transform);
     if (txCSS.transform) {
-      result.style = { ...result.style, transform: txCSS.transform };
+      if (result.className) {
+        // Entrance animation keyframes set `transform`, which overrides inline transform.
+        // Use CSS custom property referenced by keyframes: var(--static-tx, )
+        result.style = { ...result.style, "--static-tx": txCSS.transform } as React.CSSProperties;
+      } else {
+        result.style = { ...result.style, transform: txCSS.transform };
+      }
     }
   }
   return result;
@@ -270,36 +276,42 @@ function renderText(el: TextElement): React.ReactNode {
   const anim = animProps(el.entrance, el.animation, el.clipPath, el.transform);
   const vAlign = el.style.verticalAlign;
   const hc = el.style.highlightColor;
+  const style: React.CSSProperties = {
+    position: "absolute",
+    left: el.rect.x,
+    top: el.rect.y,
+    width: el.rect.w,
+    height: el.rect.h,
+    fontFamily: el.style.fontFamily,
+    fontSize: el.style.fontSize,
+    fontWeight: el.style.fontWeight,
+    fontStyle: el.style.fontStyle,
+    color: el.style.color,
+    lineHeight: el.style.lineHeight,
+    textAlign: el.style.textAlign,
+    textShadow: el.style.textShadow,
+    letterSpacing: el.style.letterSpacing,
+    textTransform: el.style.textTransform,
+    whiteSpace: "pre-line",
+    overflow: "hidden",
+    ...(vAlign ? {
+      display: "flex",
+      alignItems: vAlign === "middle" ? "center" : vAlign === "bottom" ? "flex-end" : "flex-start",
+      justifyContent: el.style.textAlign === "center" ? "center" : el.style.textAlign === "right" ? "flex-end" : "flex-start",
+    } : {}),
+  };
+  if (el.opacity != null) style.opacity = el.opacity;
+  if (el.borderRadius != null) style.borderRadius = el.borderRadius;
+  if (el.shadow) style.boxShadow = shadowToCSS(el.shadow);
+  if (el.border) Object.assign(style, borderToCSS(el.border, el.border.sides));
+  Object.assign(style, effectsToCSS(el.effects));
+  if (el.cssStyle) Object.assign(style, el.cssStyle);
+  Object.assign(style, anim.style);
   return (
     <div
       key={el.id}
       className={anim.className}
-      style={{
-        position: "absolute",
-        left: el.rect.x,
-        top: el.rect.y,
-        width: el.rect.w,
-        height: el.rect.h,
-        fontFamily: el.style.fontFamily,
-        fontSize: el.style.fontSize,
-        fontWeight: el.style.fontWeight,
-        fontStyle: el.style.fontStyle,
-        color: el.style.color,
-        lineHeight: el.style.lineHeight,
-        textAlign: el.style.textAlign,
-        textShadow: el.style.textShadow,
-        letterSpacing: el.style.letterSpacing,
-        textTransform: el.style.textTransform,
-        whiteSpace: "pre-line",
-        overflow: "hidden",
-        ...(vAlign ? {
-          display: "flex",
-          alignItems: vAlign === "middle" ? "center" : vAlign === "bottom" ? "flex-end" : "flex-start",
-          justifyContent: el.style.textAlign === "center" ? "center" : el.style.textAlign === "right" ? "flex-end" : "flex-start",
-        } : {}),
-        ...effectsToCSS(el.effects),
-        ...anim.style,
-      }}
+      style={style}
     >
       {renderRichText(el.text, hc)}
     </div>
@@ -321,6 +333,7 @@ function renderImage(el: ImageElement): React.ReactNode {
         overflow: "hidden",
         borderRadius: el.clipCircle ? "50%" : el.borderRadius,
         opacity: el.opacity,
+        ...(el.cssStyle ?? {}),
         ...anim.style,
       }}
     >
@@ -346,7 +359,7 @@ function renderShape(el: ShapeElement): React.ReactNode {
     top: el.rect.y,
     width: el.rect.w,
     height: el.rect.h,
-    opacity: el.style.opacity,
+    opacity: el.opacity,
     ...anim.style,
   };
 
@@ -358,7 +371,7 @@ function renderShape(el: ShapeElement): React.ReactNode {
   } else if (el.shape === "line") {
     // Line rendered as a thin rect
   } else {
-    style.borderRadius = el.style.borderRadius;
+    style.borderRadius = el.borderRadius;
   }
 
   // Fill
@@ -376,8 +389,9 @@ function renderShape(el: ShapeElement): React.ReactNode {
   }
 
   // Shadow
-  if (el.style.shadow) {
-    style.boxShadow = shadowToCSS(el.style.shadow);
+  const shapeShadow = el.shadow;
+  if (shapeShadow) {
+    style.boxShadow = shadowToCSS(shapeShadow);
   }
 
   // Border override
@@ -393,6 +407,7 @@ function renderShape(el: ShapeElement): React.ReactNode {
       : fx.boxShadow;
   }
   if (fx.filter) style.filter = fx.filter;
+  if (el.cssStyle) Object.assign(style, el.cssStyle);
 
   return <div key={el.id} className={anim.className} style={style} />;
 }
@@ -412,10 +427,10 @@ function renderGroup(el: GroupElement): React.ReactNode {
   if (el.style) {
     if (el.style.fill) style.background = el.style.fill;
     if (el.style.gradient) style.background = gradientToCSS(el.style.gradient);
-    if (el.style.borderRadius != null) style.borderRadius = el.style.borderRadius;
-    if (el.style.opacity != null) style.opacity = el.style.opacity;
-    if (el.style.shadow) style.boxShadow = shadowToCSS(el.style.shadow);
   }
+  if (el.borderRadius != null) style.borderRadius = el.borderRadius;
+  if (el.opacity != null) style.opacity = el.opacity;
+  if (el.shadow) style.boxShadow = shadowToCSS(el.shadow);
 
   if (el.border) {
     Object.assign(style, borderToCSS(el.border, el.border.sides));
@@ -423,6 +438,7 @@ function renderGroup(el: GroupElement): React.ReactNode {
 
   // Effects (glow, blur, softEdge)
   Object.assign(style, effectsToCSS(el.effects));
+  if (el.cssStyle) Object.assign(style, el.cssStyle);
 
   return (
     <div key={el.id} className={anim.className} style={style}>
@@ -448,11 +464,12 @@ function renderCode(el: CodeElement): React.ReactNode {
         fontFamily: el.style.fontFamily,
         fontSize: el.style.fontSize,
         lineHeight: 1.6,
-        borderRadius: el.style.borderRadius,
+        borderRadius: el.borderRadius ?? el.style.borderRadius,
         padding: el.style.padding,
         whiteSpace: "pre-wrap",
         overflow: "auto",
         textAlign: "left",
+        ...(el.cssStyle ?? {}),
         ...anim.style,
       }}
     >
@@ -478,20 +495,26 @@ function renderCode(el: CodeElement): React.ReactNode {
 
 function renderTable(el: TableElement): React.ReactNode {
   const anim = animProps(el.entrance, el.animation, el.clipPath, el.transform);
+  const wrapperStyle: React.CSSProperties = {
+    position: "absolute",
+    left: el.rect.x,
+    top: el.rect.y,
+    width: el.rect.w,
+    height: el.rect.h,
+    overflow: "hidden",
+    borderRadius: el.borderRadius ?? 12,
+  };
+  if (el.opacity != null) wrapperStyle.opacity = el.opacity;
+  if (el.shadow) wrapperStyle.boxShadow = shadowToCSS(el.shadow);
+  if (el.border) Object.assign(wrapperStyle, borderToCSS(el.border, el.border.sides));
+  Object.assign(wrapperStyle, effectsToCSS(el.effects));
+  if (el.cssStyle) Object.assign(wrapperStyle, el.cssStyle);
+  Object.assign(wrapperStyle, anim.style);
   return (
     <div
       key={el.id}
       className={anim.className}
-      style={{
-        position: "absolute",
-        left: el.rect.x,
-        top: el.rect.y,
-        width: el.rect.w,
-        height: el.rect.h,
-        overflow: "hidden",
-        borderRadius: 12,
-        ...anim.style,
-      }}
+      style={wrapperStyle}
     >
       <table
         style={{
@@ -559,19 +582,26 @@ function renderList(el: ListElement): React.ReactNode {
   const dotPadding = Math.round(fontSize * 1.5);
   const rawLH = el.itemStyle.lineHeight;
   const lineH = rawLH < 10 ? rawLH * fontSize : rawLH;  // unitless multiplier vs absolute px
+  const listWrapperStyle: React.CSSProperties = {
+    position: "absolute",
+    left: el.rect.x,
+    top: el.rect.y,
+    width: el.rect.w,
+    height: el.rect.h,
+    overflow: "hidden",
+  };
+  if (el.opacity != null) listWrapperStyle.opacity = el.opacity;
+  if (el.borderRadius != null) listWrapperStyle.borderRadius = el.borderRadius;
+  if (el.shadow) listWrapperStyle.boxShadow = shadowToCSS(el.shadow);
+  if (el.border) Object.assign(listWrapperStyle, borderToCSS(el.border, el.border.sides));
+  Object.assign(listWrapperStyle, effectsToCSS(el.effects));
+  if (el.cssStyle) Object.assign(listWrapperStyle, el.cssStyle);
+  Object.assign(listWrapperStyle, anim.style);
   return (
     <div
       key={el.id}
       className={anim.className}
-      style={{
-        position: "absolute",
-        left: el.rect.x,
-        top: el.rect.y,
-        width: el.rect.w,
-        height: el.rect.h,
-        overflow: "hidden",
-        ...anim.style,
-      }}
+      style={listWrapperStyle}
     >
       <Tag
         style={{
@@ -646,8 +676,11 @@ function mediaWrapperStyle(el: VideoElement | IframeElement, anim: ReturnType<ty
     borderRadius: el.borderRadius,
     ...anim.style,
   };
+  if (el.opacity != null) style.opacity = el.opacity;
   if (el.shadow) style.boxShadow = shadowToCSS(el.shadow);
   if (el.border) Object.assign(style, borderToCSS(el.border, el.border.sides));
+  Object.assign(style, effectsToCSS(el.effects));
+  if (el.cssStyle) Object.assign(style, el.cssStyle);
   return style;
 }
 

@@ -15,10 +15,8 @@ export function accentLine(theme: ResolvedTheme): LayoutElement[] {
       id: "deco-accent-line",
       rect: { x: CONTENT_X - 40, y: 120, w: 2, h: CANVAS_H - 240 },
       shape: "rect",
-      style: {
-        fill: theme.accent,
-        opacity: 0.2,
-      },
+      style: { fill: theme.accent },
+      opacity: 0.2,
     },
   ];
 }

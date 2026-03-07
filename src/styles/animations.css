@@ -7,11 +7,11 @@
 @keyframes fadeUp {
   from {
     opacity: 0;
-    transform: translateY(30px);
+    transform: translateY(30px) var(--static-tx, );
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) var(--static-tx, );
   }
 }
 
@@ -27,33 +27,33 @@
 @keyframes slideInLeft {
   from {
     opacity: 0;
-    transform: translateX(-60px);
+    transform: translateX(-60px) var(--static-tx, );
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateX(0) var(--static-tx, );
   }
 }
 
 @keyframes slideInRight {
   from {
     opacity: 0;
-    transform: translateX(60px);
+    transform: translateX(60px) var(--static-tx, );
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateX(0) var(--static-tx, );
   }
 }
 
 @keyframes scaleUp {
   from {
     opacity: 0;
-    transform: scale(0.85);
+    transform: scale(0.85) var(--static-tx, );
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: scale(1) var(--static-tx, );
   }
 }
 
@@ -71,11 +71,11 @@
 @keyframes countUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(20px) var(--static-tx, );
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) var(--static-tx, );
   }
 }
 
