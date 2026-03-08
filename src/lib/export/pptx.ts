@@ -39,7 +39,7 @@ import {
   parseCssGradients,
 } from "./pptx-helpers";
 import { buildTimingXml, type AnimationEntry } from "./pptx-animations";
-import { applyEffectsToSlideXml, applyCoverImagesToSlideXml, applyFlipsToSlideXml, type EffectsEntry, type CoverImageEntry, type FlipEntry } from "./pptx-effects";
+import { applyEffectsToSlideXml, applyCoverImagesToSlideXml, applyFlipsToSlideXml, applyClipPolygonsToSlideXml, parsePolygon, type EffectsEntry, type CoverImageEntry, type FlipEntry, type ClipPolygonEntry } from "./pptx-effects";
 
 /** Offset a child rect by the parent group's origin (children are relative to group). */
 function offsetRect(child: Rect, parent: Rect): Rect {
@@ -49,6 +49,16 @@ function offsetRect(child: Rect, parent: Rect): Rect {
     w: child.w,
     h: child.h,
   };
+}
+
+/** Rotate a point (x, y) around a center (cx, cy) by angleDeg degrees clockwise. */
+function rotatePoint(x: number, y: number, cx: number, cy: number, angleDeg: number): { x: number; y: number } {
+  const rad = (angleDeg * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const dx = x - cx;
+  const dy = y - cy;
+  return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
 }
 
 /** Offset an element's rect by a parent origin. Children are NOT recursively
@@ -79,6 +89,7 @@ let slideCssGradientEntries: { spid: number; gradient: import("./pptx-helpers").
 let slideTextAlphaEntries: { spid: number; alpha: number }[] = [];
 let slideCoverImages: { spid: number; imagePath: string; containerW: number; containerH: number }[] = [];
 let slideFlipEntries: FlipEntry[] = [];
+let slideClipPolygonEntries: ClipPolygonEntry[] = [];
 // Per-element animation/effects tracking — populated by renderElement, consumed by exportPptx
 let slideElementAnimations: AnimationEntry[] = [];
 let slideElementEffects: EffectsEntry[] = [];
@@ -103,6 +114,7 @@ export async function exportPptx(
   const slideEffects: EffectsEntry[][] = [];
   const slideCoverImageEntries: CoverImageEntry[][] = [];
   const slideFlips: FlipEntry[][] = [];
+  const slideClipPolygons: ClipPolygonEntry[][] = [];
 
   for (const layoutSlide of layout.slides) {
     const slide = pres.addSlide();
@@ -113,6 +125,7 @@ export async function exportPptx(
     slideTextAlphaEntries = [];
     slideCoverImages = [];
     slideFlipEntries = [];
+    slideClipPolygonEntries = [];
     slideElementAnimations = [];
     slideElementEffects = [];
 
@@ -172,6 +185,7 @@ export async function exportPptx(
     slideEffects.push(effects);
     slideCoverImageEntries.push(coverImages);
     slideFlips.push([...slideFlipEntries]);
+    slideClipPolygons.push([...slideClipPolygonEntries]);
   }
 
   // Phase 2: Generate PPTX buffer
@@ -182,7 +196,8 @@ export async function exportPptx(
   const hasEffects = slideEffects.some((e) => e.length > 0);
   const hasCoverImages = slideCoverImageEntries.some((c) => c.length > 0);
   const hasFlips = slideFlips.some((f) => f.length > 0);
-  if (!hasAnimations && !hasEffects && !hasCoverImages && !hasFlips) {
+  const hasClipPolygons = slideClipPolygons.some((c) => c.length > 0);
+  if (!hasAnimations && !hasEffects && !hasCoverImages && !hasFlips && !hasClipPolygons) {
     return Buffer.from(output);
   }
 
@@ -210,6 +225,12 @@ export async function exportPptx(
     // Apply flip transforms
     if (slideFlips[i]?.length > 0) {
       slideXml = applyFlipsToSlideXml(slideXml, slideFlips[i]);
+      modified = true;
+    }
+
+    // Apply clipPath polygon geometry
+    if (slideClipPolygons[i]?.length > 0) {
+      slideXml = applyClipPolygonsToSlideXml(slideXml, slideClipPolygons[i]);
       modified = true;
     }
 
@@ -316,6 +337,16 @@ function renderElement(
     spids.push(i + 2);
   }
   if (spids.length > 0) {
+    // Track clipPath polygon for OOXML post-processing
+    if (el.clipPath) {
+      const vertices = parsePolygon(el.clipPath);
+      if (vertices) {
+        for (const spid of spids) {
+          slideClipPolygonEntries.push({ spid, vertices });
+        }
+      }
+    }
+
     if (el.entrance && el.entrance.type !== "none") {
       slideElementAnimations.push({ spids, entrance: el.entrance });
     }
@@ -575,6 +606,9 @@ function makeLine(
       width: pxToPoints(border.width),
     };
     if (alpha !== undefined) line.transparency = alpha;
+    if (border.dash && border.dash !== "solid") {
+      line.dashType = border.dash === "dash" ? "dash" : border.dash === "dot" ? "sysDot" : "dashDot";
+    }
     return line;
   }
   if (style.stroke) {
@@ -584,6 +618,9 @@ function makeLine(
     };
     const alpha = colorAlpha(style.stroke);
     if (alpha !== undefined) line.transparency = alpha;
+    if (style.strokeDash && style.strokeDash !== "solid") {
+      line.dashType = style.strokeDash === "dash" ? "dash" : style.strokeDash === "dot" ? "sysDot" : "dashDot";
+    }
     return line;
   }
   return undefined;
@@ -861,6 +898,7 @@ function renderGroup(
 
       const shadow = el.shadow ? makeShadow(el.shadow) : undefined;
       if (shadow) bgOpts.shadow = shadow;
+      if (el.transform?.rotate) bgOpts.rotate = el.transform.rotate;
 
       const shapeType = hasRadius ? SHAPES.ROUNDED_RECTANGLE : SHAPES.RECTANGLE;
       const bgSpid = slideObjectCount(slide) + 2;
@@ -882,8 +920,33 @@ function renderGroup(
   // If the group itself has an entrance, suppress children's individual entrances
   // to avoid duplicate animation entries on the same spids.
   const groupHasEntrance = el.entrance && el.entrance.type !== "none";
+  const groupRotate = el.transform?.rotate;
+
   for (const child of el.children) {
-    const offsetChild = offsetElement(child, el.rect);
+    let offsetChild = offsetElement(child, el.rect);
+
+    // Group rotation: rotate each child's position around the group center
+    // and add the group's rotation to each child's own rotation.
+    if (groupRotate) {
+      const cx = el.rect.x + el.rect.w / 2;
+      const cy = el.rect.y + el.rect.h / 2;
+      const childCx = offsetChild.rect.x + offsetChild.rect.w / 2;
+      const childCy = offsetChild.rect.y + offsetChild.rect.h / 2;
+      const rotated = rotatePoint(childCx, childCy, cx, cy, groupRotate);
+      offsetChild = {
+        ...offsetChild,
+        rect: {
+          ...offsetChild.rect,
+          x: rotated.x - offsetChild.rect.w / 2,
+          y: rotated.y - offsetChild.rect.h / 2,
+        },
+        transform: {
+          ...offsetChild.transform,
+          rotate: (offsetChild.transform?.rotate ?? 0) + groupRotate,
+        },
+      };
+    }
+
     const renderedChild = groupHasEntrance && child.entrance
       ? { ...offsetChild, entrance: undefined }
       : offsetChild;

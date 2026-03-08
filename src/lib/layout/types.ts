@@ -93,6 +93,7 @@ export interface ShapeStyle {
   fill?: string;
   stroke?: string;
   strokeWidth?: number;
+  strokeDash?: "solid" | "dash" | "dot" | "dashDot";
   gradient?: GradientDef;
   patternFill?: PatternFillDef;
 }
@@ -115,6 +116,7 @@ export interface BorderDef {
   width: number;
   color: string;
   sides?: ("top" | "right" | "bottom" | "left")[];
+  dash?: "solid" | "dash" | "dot" | "dashDot";
 }
 
 export type EntranceType =

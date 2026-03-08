@@ -563,6 +563,149 @@ describe("exportPptx", () => {
     expect(slideXml).toContain('i="1"');
   });
 
+  it("applies dashed stroke to shapes", async () => {
+    const layout: LayoutPresentation = {
+      title: "Dashed Strokes",
+      slides: [
+        {
+          width: 1920,
+          height: 1080,
+          background: "#ffffff",
+          elements: [
+            {
+              kind: "shape",
+              id: "dashed-rect",
+              rect: { x: 100, y: 100, w: 400, h: 200 },
+              shape: "rect",
+              style: { stroke: "#ff0000", strokeWidth: 3, strokeDash: "dash" },
+            },
+            {
+              kind: "shape",
+              id: "dotted-rect",
+              rect: { x: 600, y: 100, w: 400, h: 200 },
+              shape: "rect",
+              style: { stroke: "#00ff00", strokeWidth: 2, strokeDash: "dot" },
+            },
+          ],
+        },
+      ],
+    };
+
+    const buffer = await exportPptx(layout);
+    const zip = await JSZip.loadAsync(buffer);
+    const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string");
+    expect(slideXml).toBeDefined();
+    expect(slideXml).toContain('val="dash"');
+    expect(slideXml).toContain('val="sysDot"');
+  });
+
+  it("applies dashed border via BorderDef", async () => {
+    const layout: LayoutPresentation = {
+      title: "Dashed Border",
+      slides: [
+        {
+          width: 1920,
+          height: 1080,
+          background: "#ffffff",
+          elements: [
+            {
+              kind: "shape",
+              id: "dash-border",
+              rect: { x: 100, y: 100, w: 400, h: 200 },
+              shape: "rect",
+              style: {},
+              border: { width: 2, color: "#333333", dash: "dashDot" },
+            },
+          ],
+        },
+      ],
+    };
+
+    const buffer = await exportPptx(layout);
+    const zip = await JSZip.loadAsync(buffer);
+    const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string");
+    expect(slideXml).toBeDefined();
+    expect(slideXml).toContain('val="dashDot"');
+  });
+
+  it("rotates group children around group center", async () => {
+    const layout: LayoutPresentation = {
+      title: "Group Rotation",
+      slides: [
+        {
+          width: 1920,
+          height: 1080,
+          background: "#ffffff",
+          elements: [
+            {
+              kind: "group",
+              id: "rotated-group",
+              rect: { x: 400, y: 300, w: 600, h: 400 },
+              children: [
+                {
+                  kind: "text",
+                  id: "child-text",
+                  rect: { x: 50, y: 50, w: 200, h: 60 },
+                  text: "Rotated child",
+                  style: {
+                    fontFamily: "Inter, sans-serif",
+                    fontSize: 24,
+                    fontWeight: 400,
+                    color: "#1a1a2e",
+                    lineHeight: 1.2,
+                  },
+                },
+              ],
+              transform: { rotate: 45 },
+            },
+          ],
+        },
+      ],
+    };
+
+    const buffer = await exportPptx(layout);
+    const zip = await JSZip.loadAsync(buffer);
+    const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string");
+    expect(slideXml).toBeDefined();
+    // Child text should have rotation applied (group 45° + child 0° = 45°)
+    expect(slideXml).toContain("rot=");
+  });
+
+  it("applies clipPath polygon as custom geometry", async () => {
+    const layout: LayoutPresentation = {
+      title: "ClipPath Polygon",
+      slides: [
+        {
+          width: 1920,
+          height: 1080,
+          background: "#ffffff",
+          elements: [
+            {
+              kind: "shape",
+              id: "clipped",
+              rect: { x: 100, y: 100, w: 800, h: 600 },
+              shape: "rect",
+              style: { fill: "#4f6df5" },
+              clipPath: "polygon(0% 0%, 100% 0%, 100% 35%, 0% 35%)",
+            },
+          ],
+        },
+      ],
+    };
+
+    const buffer = await exportPptx(layout);
+    const zip = await JSZip.loadAsync(buffer);
+    const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string");
+    expect(slideXml).toBeDefined();
+    // Should contain custom geometry instead of preset
+    expect(slideXml).toContain("<a:custGeom>");
+    expect(slideXml).toContain("<a:moveTo>");
+    expect(slideXml).toContain("<a:lnTo>");
+    expect(slideXml).toContain("<a:close/>");
+    // Should NOT contain preset geometry anymore
+    expect(slideXml).not.toContain("<a:prstGeom");
+  });
+
   it("tracks correct spids for group elements", async () => {
     const layout: LayoutPresentation = {
       title: "Group Animation",

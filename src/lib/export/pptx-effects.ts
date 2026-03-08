@@ -339,3 +339,66 @@ export function applyFlipsToSlideXml(
   }
   return xml;
 }
+
+// ---------------------------------------------------------------------------
+// clipPath polygon — replace <a:prstGeom> with <a:custGeom> polygon
+// ---------------------------------------------------------------------------
+
+export interface ClipPolygonEntry {
+  spid: number;
+  /** Polygon vertices as fraction 0–1 (from CSS polygon % values). */
+  vertices: { x: number; y: number }[];
+}
+
+/**
+ * Parse CSS `polygon(x y, x y, ...)` into normalized 0–1 coordinates.
+ * Supports `%` values (e.g. "50% 0") and plain numbers (treated as %).
+ */
+export function parsePolygon(clipPath: string): { x: number; y: number }[] | null {
+  const match = clipPath.match(/polygon\(([^)]+)\)/);
+  if (!match) return null;
+  const pairs = match[1].split(",");
+  return pairs.map((pair) => {
+    const parts = pair.trim().split(/\s+/);
+    if (parts.length < 2) return { x: 0, y: 0 };
+    const parseVal = (s: string) =>
+      s.endsWith("%") ? parseFloat(s) / 100 : parseFloat(s) / 100;
+    return { x: parseVal(parts[0]), y: parseVal(parts[1]) };
+  });
+}
+
+/**
+ * Apply clipPath polygons by replacing <a:prstGeom> with <a:custGeom>.
+ * Uses a 100000×100000 coordinate space (percentage × 1000).
+ */
+export function applyClipPolygonsToSlideXml(
+  slideXml: string,
+  entries: ClipPolygonEntry[],
+): string {
+  let xml = slideXml;
+  const SCALE = 100000;
+
+  for (const entry of entries) {
+    if (entry.vertices.length < 3) continue;
+
+    const [first, ...rest] = entry.vertices;
+    const moveTo = `<a:moveTo><a:pt x="${Math.round(first.x * SCALE)}" y="${Math.round(first.y * SCALE)}"/></a:moveTo>`;
+    const lineTos = rest
+      .map((v) => `<a:lnTo><a:pt x="${Math.round(v.x * SCALE)}" y="${Math.round(v.y * SCALE)}"/></a:lnTo>`)
+      .join("");
+    const custGeom = `<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst><a:path w="${SCALE}" h="${SCALE}">${moveTo}${lineTos}<a:close/></a:path></a:pathLst></a:custGeom>`;
+
+    // Find the shape by spid and replace its <a:prstGeom>
+    const spIdPattern = new RegExp(
+      `(<p:cNvPr\\s+id="${entry.spid}"[\\s\\S]*?)(</p:spPr>)`,
+    );
+    const spMatch = xml.match(spIdPattern);
+    if (!spMatch) continue;
+
+    let shapeXml = spMatch[1];
+    shapeXml = shapeXml.replace(/<a:prstGeom[^>]*>[\s\S]*?<\/a:prstGeom>/, custGeom);
+    shapeXml = shapeXml.replace(/<a:prstGeom[^/]*\/>/, custGeom);
+    xml = xml.replace(spMatch[0], shapeXml + spMatch[2]);
+  }
+  return xml;
+}

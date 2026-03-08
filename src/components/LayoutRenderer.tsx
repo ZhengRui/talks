@@ -426,6 +426,7 @@ function renderShape(el: ShapeElement): React.ReactNode {
             fill={gradientId ? `url(#${gradientId})` : svgFill}
             stroke={el.style.stroke ?? "none"}
             strokeWidth={el.style.stroke ? (el.style.strokeWidth ?? 1) : 0}
+            strokeDasharray={el.style.strokeDash === "dash" ? "12 6" : el.style.strokeDash === "dot" ? "2 4" : el.style.strokeDash === "dashDot" ? "12 4 2 4" : undefined}
             vectorEffect="non-scaling-stroke"
           />
         </svg>
@@ -465,7 +466,8 @@ function renderShape(el: ShapeElement): React.ReactNode {
 
   // Stroke
   if (el.style.stroke) {
-    style.border = `${el.style.strokeWidth ?? 1}px solid ${el.style.stroke}`;
+    const dashStyle = el.style.strokeDash === "dash" ? "dashed" : el.style.strokeDash === "dot" ? "dotted" : "solid";
+    style.border = `${el.style.strokeWidth ?? 1}px ${dashStyle} ${el.style.stroke}`;
   }
 
   // Shadow
