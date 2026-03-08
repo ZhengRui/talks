@@ -65,6 +65,12 @@ const SHAPES = {
   ROUNDED_RECTANGLE: "roundRect" as PptxGenJS.ShapeType,
   OVAL: "ellipse" as PptxGenJS.ShapeType,
   LINE: "line" as PptxGenJS.ShapeType,
+  RIGHT_ARROW: "rightArrow" as PptxGenJS.ShapeType,
+  TRIANGLE: "triangle" as PptxGenJS.ShapeType,
+  CHEVRON: "chevron" as PptxGenJS.ShapeType,
+  DIAMOND: "diamond" as PptxGenJS.ShapeType,
+  STAR_5: "star5" as PptxGenJS.ShapeType,
+  WEDGE_ROUND_RECT_CALLOUT: "wedgeRoundRectCallout" as PptxGenJS.ShapeType,
 };
 
 // Per-slide accumulators for OOXML post-processing (reset each slide in exportPptx)
@@ -505,6 +511,18 @@ function getShapeType(
       return SHAPES.LINE;
     case "pill":
       return SHAPES.ROUNDED_RECTANGLE;
+    case "arrow":
+      return SHAPES.RIGHT_ARROW;
+    case "triangle":
+      return SHAPES.TRIANGLE;
+    case "chevron":
+      return SHAPES.CHEVRON;
+    case "diamond":
+      return SHAPES.DIAMOND;
+    case "star":
+      return SHAPES.STAR_5;
+    case "callout":
+      return SHAPES.WEDGE_ROUND_RECT_CALLOUT;
     case "rect":
     default:
       return elementRadius

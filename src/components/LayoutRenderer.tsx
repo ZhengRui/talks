@@ -351,8 +351,89 @@ function renderImage(el: ImageElement): React.ReactNode {
   );
 }
 
+// SVG path data for vector shapes (viewBox 0 0 100 100)
+const SVG_SHAPE_PATHS: Record<string, string> = {
+  arrow: "M 0 25 L 60 25 L 60 0 L 100 50 L 60 100 L 60 75 L 0 75 Z",
+  triangle: "M 50 0 L 100 100 L 0 100 Z",
+  chevron: "M 0 0 L 75 0 L 100 50 L 75 100 L 0 100 L 25 50 Z",
+  diamond: "M 50 0 L 100 50 L 50 100 L 0 50 Z",
+  star: (() => {
+    const cx = 50, cy = 50, outerR = 50, innerR = 20;
+    const pts: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      const r = i % 2 === 0 ? outerR : innerR;
+      const angle = -Math.PI / 2 + (i * Math.PI) / 5;
+      const x = cx + r * Math.cos(angle);
+      const y = cy + r * Math.sin(angle);
+      pts.push(`${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`);
+    }
+    return pts.join(" ") + " Z";
+  })(),
+  callout: "M 5 0 L 95 0 Q 100 0 100 5 L 100 70 Q 100 75 95 75 L 30 75 L 10 100 L 20 75 L 5 75 Q 0 75 0 5 Q 0 0 5 0 Z",
+};
+
 function renderShape(el: ShapeElement): React.ReactNode {
   const anim = animProps(el.entrance, el.animation, el.clipPath, el.transform);
+
+  // --- SVG-based shapes (arrow, triangle, chevron, diamond, star, callout) ---
+  const svgPath = SVG_SHAPE_PATHS[el.shape];
+  if (svgPath) {
+    const style: React.CSSProperties = {
+      position: "absolute",
+      left: el.rect.x,
+      top: el.rect.y,
+      width: el.rect.w,
+      height: el.rect.h,
+      opacity: el.opacity,
+      ...anim.style,
+    };
+
+    // Shadow via drop-shadow (follows SVG outline, unlike box-shadow)
+    const filters: string[] = [];
+    if (el.shadow) {
+      filters.push(
+        `drop-shadow(${el.shadow.offsetX}px ${el.shadow.offsetY}px ${el.shadow.blur}px ${el.shadow.color})`,
+      );
+    }
+    const fx = effectsToCSS(el.effects);
+    if (fx.filter) filters.push(fx.filter);
+    if (filters.length) style.filter = filters.join(" ");
+    if (el.cssStyle) Object.assign(style, el.cssStyle);
+
+    const svgFill = el.style.gradient ? undefined : (el.style.fill ?? "none");
+    const gradientId = el.style.gradient ? `grad-${el.id}` : undefined;
+
+    return (
+      <div key={el.id} className={anim.className} style={style}>
+        <svg
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          width="100%"
+          height="100%"
+          style={{ display: "block" }}
+        >
+          {gradientId && el.style.gradient && (
+            <defs>
+              <linearGradient id={gradientId} gradientTransform={`rotate(${el.style.gradient.angle})`}>
+                {el.style.gradient.stops.map((s, i) => (
+                  <stop key={i} offset={`${s.position * 100}%`} stopColor={s.color} />
+                ))}
+              </linearGradient>
+            </defs>
+          )}
+          <path
+            d={svgPath}
+            fill={gradientId ? `url(#${gradientId})` : svgFill}
+            stroke={el.style.stroke ?? "none"}
+            strokeWidth={el.style.stroke ? (el.style.strokeWidth ?? 1) : 0}
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+      </div>
+    );
+  }
+
+  // --- CSS-based shapes (rect, circle, line, pill) ---
   const style: React.CSSProperties = {
     position: "absolute",
     left: el.rect.x,
@@ -363,7 +444,6 @@ function renderShape(el: ShapeElement): React.ReactNode {
     ...anim.style,
   };
 
-  // Shape-specific styling
   if (el.shape === "circle") {
     style.borderRadius = "50%";
   } else if (el.shape === "pill") {

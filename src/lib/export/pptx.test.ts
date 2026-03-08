@@ -102,6 +102,37 @@ describe("exportPptx", () => {
     expect(buffer[1]).toBe(0x4b);
   });
 
+  it("handles new shape presets (arrow, triangle, chevron, diamond, star, callout)", async () => {
+    const shapes = ["arrow", "triangle", "chevron", "diamond", "star", "callout"] as const;
+    const layout: LayoutPresentation = {
+      title: "Shape Presets",
+      slides: [
+        {
+          width: 1920,
+          height: 1080,
+          background: "#ffffff",
+          elements: shapes.map((shape, i) => ({
+            kind: "shape" as const,
+            id: `shape-${shape}`,
+            rect: { x: 100 + i * 280, y: 400, w: 240, h: 240 },
+            shape,
+            style: { fill: "#4f6df5", stroke: "#1a1a2e", strokeWidth: 2 },
+          })),
+        },
+      ],
+    };
+
+    const buffer = await exportPptx(layout);
+    expect(buffer.length).toBeGreaterThan(0);
+    // Valid ZIP with shapes
+    const zip = await JSZip.loadAsync(buffer);
+    const slideXml = await zip.file("ppt/slides/slide1.xml")?.async("string");
+    expect(slideXml).toBeDefined();
+    // Each shape should produce a <p:sp> element
+    const spCount = (slideXml!.match(/<p:sp>/g) ?? []).length;
+    expect(spCount).toBe(6);
+  });
+
   it("handles empty slides array", async () => {
     const layout: LayoutPresentation = {
       title: "Empty",

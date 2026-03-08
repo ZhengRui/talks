@@ -194,7 +194,7 @@ export interface ImageElement extends ElementBase {
 
 export interface ShapeElement extends ElementBase {
   kind: "shape";
-  shape: "rect" | "circle" | "line" | "pill";
+  shape: "rect" | "circle" | "line" | "pill" | "arrow" | "triangle" | "chevron" | "diamond" | "star" | "callout";
   style: ShapeStyle;
 }
 
