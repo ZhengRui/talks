@@ -1018,7 +1018,7 @@ function buildBoxGroup(
 
   const radius = c.borderRadius ?? ctx.theme.radius;
   const style: GroupElement["style"] = isFlat
-    ? {}
+    ? (c.background ? { fill: bg } : {})
     : { fill: bg };
 
   // Determine border: explicit borderColor/borderWidth > accentTop > theme cardBorder
@@ -1035,7 +1035,7 @@ function buildBoxGroup(
     rect: { x: boxX, y: 0, w: boxW, h: totalH },
     children,
     style,
-    ...(!isFlat ? { borderRadius: radius } : {}),
+    ...(!isFlat || c.borderRadius != null ? { borderRadius: c.borderRadius ?? radius } : {}),
     ...(!isFlat && !isPanel ? { shadow: ctx.theme.shadow } : {}),
     ...(!isFlat && !isPanel && {
       border: customBorder ?? accentBorder ?? ctx.theme.cardBorder,
@@ -1083,23 +1083,24 @@ function resolveBoxWithLayout(
 
   if (layout.type === "flex" && layout.direction === "row") {
     // --- Flex-row: delegate to auto-layout engine for justify support ---
+    const children = c.children ?? [];
 
     // 1. Compute assigned widths (explicit `width` prop or auto-fill)
-    const childExplicitWidths = c.children.map(child => child.width);
+    const childExplicitWidths = children.map(child => child.width);
     const explicitTotalW = childExplicitWidths
       .filter((w): w is number => w != null)
       .reduce((s, w) => s + w, 0);
     const autoCount = childExplicitWidths.filter(w => w == null).length;
-    const totalGap = (c.children.length - 1) * gap;
+    const totalGap = (children.length - 1) * gap;
     const autoW = autoCount > 0
       ? (innerW - explicitTotalW - totalGap) / autoCount
       : 0;
-    const assignedWidths = c.children.map((_, i) =>
+    const assignedWidths = children.map((_, i) =>
       childExplicitWidths[i] ?? autoW,
     );
 
     // 2. Resolve each child with its assigned width
-    const resolved = c.children.map((child, i) => {
+    const resolved = children.map((child, i) => {
       const childCtx: ResolveContext = {
         ...ctx,
         panel: { x: 0, y: 0, w: assignedWidths[i], h: innerH },
@@ -1159,7 +1160,7 @@ function resolveBoxWithLayout(
     contentH = maxChildH;
   } else {
     // --- Grid: column-based layout ---
-    const resolved = c.children.map((child, i) => {
+    const resolved = (c.children ?? []).map((child, i) => {
       const childCtx: ResolveContext = {
         ...ctx,
         panel: { x: 0, y: 0, w: innerW, h: innerH },
@@ -1256,7 +1257,7 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
   let fixedH = innerY; // start with top padding + accent
   let flexCount = 0;
 
-  c.children.forEach((child, i) => {
+  (c.children ?? []).forEach((child, i) => {
     const childCtx: ResolveContext = {
       ...ctx,
       panel: { x: pad.left, y: 0, w: innerW, h: ctx.panel.h },

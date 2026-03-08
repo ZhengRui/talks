@@ -350,16 +350,14 @@ function renderElement(
     if (el.entrance && el.entrance.type !== "none") {
       slideElementAnimations.push({ spids, entrance: el.entrance });
     }
-    if (el.kind !== "group") {
-      const elEffects = el.effects;
-      const elPatternFill = "style" in el && el.kind === "shape"
-        && el.style.patternFill
-        && !SHAPE_RENDERED_PATTERNS.has(el.style.patternFill.preset)
-        ? el.style.patternFill
-        : undefined;
-      if (elEffects || elPatternFill) {
-        slideElementEffects.push({ spids, effects: elEffects, patternFill: elPatternFill });
-      }
+    const elEffects = el.effects;
+    const elPatternFill = "style" in el && el.kind === "shape"
+      && el.style.patternFill
+      && !SHAPE_RENDERED_PATTERNS.has(el.style.patternFill.preset)
+      ? el.style.patternFill
+      : undefined;
+    if (elEffects || elPatternFill) {
+      slideElementEffects.push({ spids, effects: elEffects, patternFill: elPatternFill });
     }
   }
 }
@@ -849,12 +847,15 @@ function renderGroup(
 
       const shadow = el.shadow ? makeShadow(el.shadow) : undefined;
 
+      const rotate = el.transform?.rotate;
+
       // Step 1: Accent-colored backing shape (full size)
       slide.addShape(SHAPES.ROUNDED_RECTANGLE, {
         x: r.x, y: r.y, w: r.w, h: r.h,
         fill: { color: hexColor(el.border!.color) },
         rectRadius: radius,
         ...(shadow ? { shadow } : {}),
+        ...(rotate ? { rotate } : {}),
       });
 
       // Step 2: Card fill shape inset by border width on bordered sides
@@ -876,6 +877,7 @@ function renderGroup(
         h: r.h - inset.top - inset.bottom,
         fill: fill ?? { color: "FFFFFF" },
         rectRadius: radius,
+        ...(rotate ? { rotate } : {}),
       });
     } else {
       // Standard rendering: single background shape
