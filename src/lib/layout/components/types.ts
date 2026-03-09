@@ -34,6 +34,9 @@ export type SlideComponent =
   /** Explicit width for this component — enables justify in flex-row boxes.
    *  Without this, flex-row children auto-fill the container (no space for justify). */
   width?: number;
+  /** CSS-style margin: number | [vert, horiz] | [top, right, bottom, left].
+   *  Applied by Box resolver in all layout modes (flex-row, flex-column, grid, no-layout). */
+  margin?: number | number[];
 };
 
 export interface TextComponent {

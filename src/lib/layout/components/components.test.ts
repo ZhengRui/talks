@@ -2929,3 +2929,171 @@ describe("autoEntrance", () => {
     expect(entrances[0].type).toBe("slide-left");
   });
 });
+
+// ============================================================
+// Unified margin on SlideComponent
+// ============================================================
+
+describe("unified margin", () => {
+  /** Get group children excluding background shape */
+  function getContentElements(elements: LayoutElement[]) {
+    const group = elements[0] as GroupElement;
+    return group.children.filter((e) => e.kind !== "shape");
+  }
+
+  it("applies vertical margin between children in flex-column", () => {
+    const box: SlideComponent = {
+      type: "box",
+      variant: "flat",
+      layout: { type: "flex", direction: "column", gap: 0 },
+      height: 600,
+      padding: 0,
+      children: [
+        { type: "heading", text: "A" },
+        { type: "heading", text: "B", margin: [20, 0] },
+        { type: "heading", text: "C" },
+      ],
+    };
+    const { elements } = resolveComponent(box, makeCtx());
+    const els = getContentElements(elements);
+    // B should have 20px margin-top, pushing it down from A
+    // A is at y=0, height ~54 (default heading size)
+    const yA = els[0].rect.y;
+    const yB = els[1].rect.y;
+    const yC = els[2].rect.y;
+    const hA = els[0].rect.h;
+    const hB = els[1].rect.h;
+    // B starts after A + 20px margin-top (gap is 0)
+    expect(yB).toBeCloseTo(yA + hA + 20, 5);
+    // B also has 20px margin-bottom (margin: [20,0] = vert 20, horiz 0)
+    // So C starts after B's content + B's margin-bottom
+    expect(yC).toBeCloseTo(yA + hA + 20 + hB + 20, 5);
+  });
+
+  it("applies horizontal margin in flex-column", () => {
+    const box: SlideComponent = {
+      type: "box",
+      variant: "flat",
+      layout: { type: "flex", direction: "column", gap: 0 },
+      height: 400,
+      padding: 0,
+      children: [
+        { type: "heading", text: "Normal" },
+        { type: "heading", text: "Inset", margin: [0, 30] },
+      ],
+    };
+    const { elements } = resolveComponent(box, makeCtx());
+    const els = getContentElements(elements);
+    // Normal heading x should be 0 (no margin)
+    expect(els[0].rect.x).toBe(0);
+    // Inset heading x should be 30 (left margin)
+    expect(els[1].rect.x).toBe(30);
+  });
+
+  it("applies margin between children in flex-row", () => {
+    const box: SlideComponent = {
+      type: "box",
+      variant: "flat",
+      layout: { type: "flex", direction: "row", gap: 0 },
+      height: 200,
+      padding: 0,
+      children: [
+        { type: "heading", text: "A", width: 100 },
+        { type: "heading", text: "B", width: 100, margin: [0, 20] },
+        { type: "heading", text: "C", width: 100 },
+      ],
+    };
+    const { elements } = resolveComponent(box, makeCtx());
+    const els = getContentElements(elements);
+    // A at x=0, B should have 20px left margin
+    const xA = els[0].rect.x;
+    const xB = els[1].rect.x;
+    const xC = els[2].rect.x;
+    expect(xA).toBe(0);
+    expect(xB).toBe(100 + 20); // A's width + B's left margin
+    expect(xC).toBe(100 + 20 + 100 + 20); // + B's width + B's right margin
+  });
+
+  it("applies margin in grid layout", () => {
+    const box: SlideComponent = {
+      type: "box",
+      variant: "flat",
+      layout: { type: "grid", columns: 2, gap: 0 },
+      height: 400,
+      padding: 0,
+      children: [
+        { type: "heading", text: "A" },
+        { type: "heading", text: "B", margin: [10, 20] },
+      ],
+    };
+    const { elements } = resolveComponent(box, makeCtx({ panel: { x: 0, y: 0, w: 400, h: 400 } }));
+    const els = getContentElements(elements);
+    // B should be offset from A by margin
+    expect(els[1].rect.x - els[0].rect.x).toBe(200 + 20); // column width + left margin
+    expect(els[1].rect.y - els[0].rect.y).toBe(10); // top margin
+  });
+
+  it("applies margin in no-layout box (default stacking)", () => {
+    const box: SlideComponent = {
+      type: "box",
+      variant: "flat",
+      height: 600,
+      padding: 0,
+      children: [
+        { type: "heading", text: "A" },
+        { type: "heading", text: "B", margin: [30, 0] },
+        { type: "heading", text: "C" },
+      ],
+    };
+    const { elements } = resolveComponent(box, makeCtx());
+    const els = getContentElements(elements);
+    const yA = els[0].rect.y;
+    const yB = els[1].rect.y;
+    const yC = els[2].rect.y;
+    const hA = els[0].rect.h;
+    const hB = els[1].rect.h;
+    // Default box gap is 8px between children (no layout mode)
+    // B has margin-top 30, which should add 30px before B (on top of the 8px gap)
+    // B also has margin-bottom 30
+    expect(yB).toBeCloseTo(yA + hA + 8 + 30, 5);
+    expect(yC).toBeCloseTo(yB + hB + 30 + 8, 5); // margin-bottom + gap
+  });
+
+  it("scalar margin applies to all sides", () => {
+    const box: SlideComponent = {
+      type: "box",
+      variant: "flat",
+      layout: { type: "flex", direction: "column", gap: 0 },
+      height: 600,
+      padding: 0,
+      children: [
+        { type: "heading", text: "A" },
+        { type: "heading", text: "B", margin: 15 },
+      ],
+    };
+    const { elements } = resolveComponent(box, makeCtx());
+    const els = getContentElements(elements);
+    // B should have 15px margin on all sides
+    expect(els[1].rect.x).toBe(15); // left margin
+    expect(els[1].rect.y).toBeCloseTo(els[0].rect.y + els[0].rect.h + 15, 5); // top margin
+  });
+
+  it("4-value margin applies per-side", () => {
+    const box: SlideComponent = {
+      type: "box",
+      variant: "flat",
+      layout: { type: "flex", direction: "column", gap: 0 },
+      height: 600,
+      padding: 0,
+      children: [
+        { type: "heading", text: "A" },
+        { type: "heading", text: "B", margin: [10, 20, 30, 40] },
+      ],
+    };
+    const { elements } = resolveComponent(box, makeCtx());
+    const els = getContentElements(elements);
+    // B: margin-top=10, margin-left=40
+    expect(els[1].rect.x).toBe(40);
+    expect(els[1].rect.y).toBeCloseTo(els[0].rect.y + els[0].rect.h + 10, 5);
+  });
+});

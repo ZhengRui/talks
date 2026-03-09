@@ -1064,6 +1064,15 @@ function resolveBoxPadding(p: number | number[] | undefined): { top: number; rig
   return { top: p[0], right: p[0], bottom: p[0], left: p[0] };
 }
 
+/** Parse CSS-style margin: number | [vert, horiz] | [top, right, bottom, left]. */
+function resolveMargin(m: number | number[] | undefined): { top: number; right: number; bottom: number; left: number } {
+  if (m === undefined) return { top: 0, right: 0, bottom: 0, left: 0 };
+  if (typeof m === "number") return { top: m, right: m, bottom: m, left: m };
+  if (m.length === 4) return { top: m[0], right: m[1], bottom: m[2], left: m[3] };
+  if (m.length === 2) return { top: m[0], right: m[1], bottom: m[0], left: m[1] };
+  return { top: m[0], right: m[0], bottom: m[0], left: m[0] };
+}
+
 /** Apply staggered entrance animations to box children.
  *  Elements belonging to each child component get the same delay.
  *  Spacers are skipped in the stagger count. */
@@ -1119,15 +1128,17 @@ function resolveBoxWithLayout(
     // --- Flex-row: delegate to auto-layout engine for justify support ---
     const children = c.children ?? [];
 
-    // 1. Compute assigned widths (explicit `width` prop or auto-fill)
+    // 1. Parse per-child margins and compute assigned widths
+    const childMarginsRow = children.map((child) => resolveMargin((child as SlideComponent).margin));
     const childExplicitWidths = children.map(child => child.width);
+    const totalMarginW = childMarginsRow.reduce((s, m) => s + m.left + m.right, 0);
     const explicitTotalW = childExplicitWidths
       .filter((w): w is number => w != null)
       .reduce((s, w) => s + w, 0);
     const autoCount = childExplicitWidths.filter(w => w == null).length;
     const totalGap = (children.length - 1) * gap;
     const autoW = autoCount > 0
-      ? (innerW - explicitTotalW - totalGap) / autoCount
+      ? (innerW - explicitTotalW - totalMarginW - totalGap) / autoCount
       : 0;
     const assignedWidths = children.map((_, i) =>
       childExplicitWidths[i] ?? autoW,
@@ -1150,14 +1161,18 @@ function resolveBoxWithLayout(
       return resolveComponent(child, childCtx);
     });
 
-    // 3. Build placeholder elements and delegate positioning to auto-layout
-    const placeholders: LayoutElement[] = resolved.map((r, i) => ({
-      kind: "shape" as const,
-      id: `ph-${i}`,
-      rect: { x: 0, y: 0, w: assignedWidths[i], h: r.height },
-      shape: "rect" as const,
-      style: {},
-    }));
+    // 3. Build placeholder elements — bake horizontal margin into placeholder width,
+    //    vertical margin into placeholder height
+    const placeholders: LayoutElement[] = resolved.map((r, i) => {
+      const m = childMarginsRow[i];
+      return {
+        kind: "shape" as const,
+        id: `ph-${i}`,
+        rect: { x: 0, y: 0, w: assignedWidths[i] + m.left + m.right, h: r.height + m.top + m.bottom },
+        shape: "rect" as const,
+        style: {},
+      };
+    });
 
     const flexLayout: FlexLayout = {
       type: "flex",
@@ -1179,18 +1194,19 @@ function resolveBoxWithLayout(
     const [resolvedGroup] = resolveLayouts([virtualGroup]);
     const positioned = (resolvedGroup as GroupElement).children;
 
-    // 4. Map auto-layout positions to actual resolved elements
+    // 4. Map auto-layout positions to actual resolved elements, offsetting by margin
     let maxChildH = 0;
     resolved.forEach((r) => { maxChildH = Math.max(maxChildH, r.height); });
 
     resolved.forEach((result, i) => {
       const pos = positioned[i].rect;
+      const m = childMarginsRow[i];
       result.elements.forEach((el) => {
         allChildren.push({
           ...el,
           rect: {
-            x: el.rect.x + pos.x + pad.left,
-            y: el.rect.y + pos.y + innerY,
+            x: el.rect.x + pos.x + pad.left + m.left,
+            y: el.rect.y + pos.y + innerY + m.top,
             w: el.rect.w,
             h: el.rect.h,
           },
@@ -1224,14 +1240,21 @@ function resolveBoxWithLayout(
       return resolveComponent(child, childCtx);
     });
 
-    // 2. Build placeholders: flex spacers get h=0 (auto-fill), others get measured height
-    const placeholders: LayoutElement[] = resolved.map((r, i) => ({
-      kind: "shape" as const,
-      id: `ph-${i}`,
-      rect: { x: 0, y: 0, w: innerW, h: r.flex ? 0 : r.height },
-      shape: "rect" as const,
-      style: {},
-    }));
+    // 2. Parse per-child margins and build placeholders
+    //    Vertical margin is baked into placeholder height so the auto-layout engine
+    //    handles spacing. Horizontal margin offsets elements in the map-back step.
+    const childMargins = children.map((child) => resolveMargin((child as SlideComponent).margin));
+    const placeholders: LayoutElement[] = resolved.map((r, i) => {
+      const m = childMargins[i];
+      const h = r.flex ? 0 : r.height + m.top + m.bottom;
+      return {
+        kind: "shape" as const,
+        id: `ph-${i}`,
+        rect: { x: 0, y: 0, w: innerW, h },
+        shape: "rect" as const,
+        style: {},
+      };
+    });
 
     // 3. Build virtual group and delegate to auto-layout
     const flexLayout: FlexLayout = {
@@ -1254,15 +1277,19 @@ function resolveBoxWithLayout(
     const positioned = (resolvedGroup as GroupElement).children;
 
     // 4. Map positions back to actual resolved elements
+    //    Offset by child margin (top pushes content down within placeholder,
+    //    left/right inset horizontally).
     let maxBottom = 0;
     resolved.forEach((result, i) => {
       const pos = positioned[i].rect;
+      const m = childMargins[i];
       const childH = result.flex ? pos.h : result.height;
 
-      // Update flex elements to their computed height
+      // Update flex elements to their computed height (subtract margin from placeholder height)
       if (result.flex && pos.h > 0) {
+        const flexChildH = pos.h - m.top - m.bottom;
         result.elements.forEach((el) => {
-          el.rect = { ...el.rect, h: pos.h };
+          el.rect = { ...el.rect, h: flexChildH };
         });
       }
 
@@ -1270,8 +1297,8 @@ function resolveBoxWithLayout(
         allChildren.push({
           ...el,
           rect: {
-            x: el.rect.x + pos.x + pad.left,
-            y: el.rect.y + pos.y + innerY,
+            x: el.rect.x + pos.x + pad.left + m.left,
+            y: el.rect.y + pos.y + innerY + m.top,
             w: el.rect.w,
             h: el.rect.h,
           },
@@ -1280,14 +1307,16 @@ function resolveBoxWithLayout(
       childElementCounts.push(result.elements.length);
       childIsSpacer.push(children[i]?.type === "spacer");
 
-      maxBottom = Math.max(maxBottom, pos.y + childH);
+      maxBottom = Math.max(maxBottom, pos.y + m.top + childH + m.bottom);
     });
 
     contentH = maxBottom;
   } else {
     // --- Grid: column-based layout ---
+    const gridChildren = c.children ?? [];
+    const childMarginsGrid = gridChildren.map((child) => resolveMargin((child as SlideComponent).margin));
     let aeStaggerIdxGrid = 0;
-    const resolved = (c.children ?? []).map((child, i) => {
+    const resolved = gridChildren.map((child, i) => {
       const isSpacer = child.type === "spacer";
       const aeDelay = c.autoEntrance
         ? (c.autoEntrance.baseDelay ?? 0) + aeStaggerIdxGrid * (c.autoEntrance.stagger ?? 100)
@@ -1313,11 +1342,13 @@ function resolveBoxWithLayout(
       const rowResults = resolved.slice(start, start + cols);
       let rowMaxH = 0;
 
-      rowResults.forEach((r) => {
-        rowMaxH = Math.max(rowMaxH, r.height);
+      rowResults.forEach((r, colIdx) => {
+        const m = childMarginsGrid[start + colIdx];
+        rowMaxH = Math.max(rowMaxH, r.height + m.top + m.bottom);
       });
 
       rowResults.forEach((result, colIdx) => {
+        const m = childMarginsGrid[start + colIdx];
         const colX = pad.left + colIdx * (colW + colGap);
         const childY = innerY + totalH;
 
@@ -1326,15 +1357,15 @@ function resolveBoxWithLayout(
           allChildren.push({
             ...el,
             rect: {
-              x: el.rect.x * scaleX + colX,
-              y: el.rect.y + childY,
+              x: el.rect.x * scaleX + colX + m.left,
+              y: el.rect.y + childY + m.top,
               w: el.kind === "group" ? colW : el.rect.w * scaleX,
               h: el.rect.h,
             },
           });
         });
         childElementCounts.push(result.elements.length);
-        childIsSpacer.push((c.children ?? [])[start + colIdx]?.type === "spacer");
+        childIsSpacer.push(gridChildren[start + colIdx]?.type === "spacer");
       });
 
       totalH += rowMaxH + (start + cols < count ? rGap : 0);
@@ -1389,6 +1420,8 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
   // Stack children manually in local coords (like resolveCard)
   // Two-pass approach: measure fixed children, then distribute flex space
   const childGap = 8;
+  const noLayoutChildren = c.children ?? [];
+  const childMarginsNoLayout = noLayoutChildren.map((child) => resolveMargin((child as SlideComponent).margin));
 
   // Pass 1: resolve all children, measure fixed content
   interface BoxChild { result: ResolveResult; gapBefore: number; }
@@ -1397,7 +1430,7 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
   let flexCount = 0;
 
   let aeStaggerIdxStack = 0;
-  (c.children ?? []).forEach((child, i) => {
+  noLayoutChildren.forEach((child, i) => {
     const isSpacer = child.type === "spacer";
     const aeDelay = c.autoEntrance
       ? (c.autoEntrance.baseDelay ?? 0) + aeStaggerIdxStack * (c.autoEntrance.stagger ?? 100)
@@ -1410,10 +1443,11 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
     };
     if (!isSpacer) aeStaggerIdxStack++;
 
+    const m = childMarginsNoLayout[i];
     const result = resolveComponent(child, childCtx);
     const gapBefore = i > 0 ? childGap : 0;
     resolved.push({ result, gapBefore });
-    fixedH += gapBefore + (result.flex ? 0 : result.height);
+    fixedH += gapBefore + m.top + (result.flex ? 0 : result.height) + m.bottom;
     if (result.flex) flexCount++;
   });
 
@@ -1429,7 +1463,8 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
   let cursorY = innerY;
 
   resolved.forEach(({ result, gapBefore }, idx) => {
-    cursorY += gapBefore;
+    const m = childMarginsNoLayout[idx];
+    cursorY += gapBefore + m.top;
     const h = result.flex ? flexH : result.height;
 
     // Resize flex elements to computed height
@@ -1443,13 +1478,13 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
     result.elements.forEach((el) => {
       boxChildren.push({
         ...el,
-        rect: { ...el.rect, x: el.rect.x + pad.left, y: el.rect.y + cursorY },
+        rect: { ...el.rect, x: el.rect.x + pad.left + m.left, y: el.rect.y + cursorY },
       });
     });
     boxChildElementCounts.push(result.elements.length);
-    boxChildIsSpacer.push((c.children ?? [])[idx]?.type === "spacer");
+    boxChildIsSpacer.push(noLayoutChildren[idx]?.type === "spacer");
 
-    cursorY += h;
+    cursorY += h + m.bottom;
   });
 
   cursorY += pad.bottom;
