@@ -1,0 +1,27 @@
+name: numbered-list-v2
+params:
+  title: { type: string, required: true }
+  items: { type: "string[]", required: true }
+style:
+  titleSize: { type: number, default: 56 }
+
+children:
+  - type: box
+    variant: flat
+    padding: [60, 160]
+    height: 1080
+    verticalAlign: top
+    layout: { type: flex, direction: column, gap: 0 }
+    autoEntrance: { type: fade-up, stagger: 100 }
+    children:
+      - type: heading
+        text: "{{ title }}"
+        fontSize: {{ style.titleSize }}
+      - type: divider
+        variant: gradient
+        width: 80
+        margin: [16, 0, 40, 0]
+      - type: bullets
+        ordered: true
+        variant: plain
+        items: {{ items }}

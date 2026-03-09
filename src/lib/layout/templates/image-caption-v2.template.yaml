@@ -1,0 +1,50 @@
+name: image-caption-v2
+params:
+  title: { type: string }
+  image: { type: string, required: true }
+  caption: { type: string, required: true }
+style:
+  titleSize: { type: number, default: 56 }
+  imageHeight: { type: number }
+  captionSize: { type: number, default: 26 }
+  captionWidth: { type: number, default: 900 }
+  captionLineHeight: { type: number, default: 1.5 }
+
+children:
+  - type: box
+    variant: flat
+    padding: [60, 160]
+    height: 1080
+    verticalAlign: top
+    layout: { type: flex, direction: column, gap: 0 }
+    autoEntrance: { type: fade-up, stagger: 100 }
+    children:
+      {% if title %}
+      - type: heading
+        text: "{{ title }}"
+        fontSize: {{ style.titleSize }}
+        textAlign: center
+      - type: divider
+        variant: gradient
+        width: 80
+        align: center
+        margin: [16, 0, 40, 0]
+      {% endif %}
+      - type: image
+        src: "{{ image }}"
+        {% if style.imageHeight %}
+        height: {{ style.imageHeight }}
+        {% endif %}
+        borderRadius: 16
+        entranceType: scale-up
+        entranceDelay: 200
+      - type: text
+        text: "{{ caption }}"
+        fontSize: {{ style.captionSize }}
+        textAlign: center
+        color: theme.textMuted
+        lineHeight: {{ style.captionLineHeight }}
+        maxWidth: {{ style.captionWidth }}
+        margin: [20, 0, 0, 0]
+        entranceType: fade-up
+        entranceDelay: 400

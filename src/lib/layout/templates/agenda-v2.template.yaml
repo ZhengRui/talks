@@ -1,0 +1,60 @@
+name: agenda-v2
+params:
+  title: { type: string, required: true }
+  items: { type: array, required: true }
+  activeIndex: { type: number }
+style:
+  titleSize: { type: number, default: 56 }
+  itemSize: { type: number, default: 30 }
+
+children:
+  - type: box
+    variant: flat
+    padding: [60, 160]
+    height: 1080
+    verticalAlign: top
+    layout: { type: flex, direction: column, gap: 0 }
+    autoEntrance: { type: fade-up, stagger: 100 }
+    children:
+      - type: heading
+        text: "{{ title }}"
+        fontSize: {{ style.titleSize }}
+        textAlign: left
+      - type: divider
+        variant: gradient
+        width: 80
+        align: left
+        margin: [16, 0, 40, 0]
+      {% for item in items %}
+      - type: box
+        padding: [16, 24]
+        {% if not loop.first %}
+        margin: [12, 0, 0, 0]
+        {% endif %}
+        {% if activeIndex is defined %}
+        {% if loop.index0 == activeIndex %}
+        variant: panel
+        background: theme.bgSecondary
+        borderColor: theme.accent
+        borderWidth: 3
+        borderSides: [left]
+        {% else %}
+        variant: flat
+        opacity: 0.5
+        {% endif %}
+        {% else %}
+        variant: panel
+        background: theme.bgSecondary
+        borderColor: theme.accent
+        borderWidth: 3
+        borderSides: [left]
+        {% endif %}
+        entranceType: fade-up
+        children:
+          - type: text
+            text: "{{ item }}"
+            fontSize: {{ style.itemSize }}
+            {% if activeIndex is defined and loop.index0 == activeIndex %}
+            fontWeight: bold
+            {% endif %}
+      {% endfor %}

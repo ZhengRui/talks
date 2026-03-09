@@ -1276,7 +1276,30 @@ function resolveBoxWithLayout(
     const [resolvedGroup] = resolveLayouts([virtualGroup]);
     const positioned = (resolvedGroup as GroupElement).children;
 
-    // 4. Map positions back to actual resolved elements
+    // 4. Re-resolve flex children with their actual distributed height.
+    //    Like CSS flexbox: flex-grow items get remaining space, then their
+    //    children are laid out WITHIN that final height — not the full container.
+    resolved.forEach((result, i) => {
+      if (result.flex && positioned[i].rect.h > 0) {
+        const m = childMargins[i];
+        const flexH = positioned[i].rect.h - m.top - m.bottom;
+        const isSpacer = children[i].type === "spacer";
+        const aeDelay = c.autoEntrance
+          ? (c.autoEntrance.baseDelay ?? 0) +
+            (isSpacer ? 0 : children.slice(0, i).filter((ch) => ch.type !== "spacer").length) *
+              (c.autoEntrance.stagger ?? 100)
+          : undefined;
+        const childCtx: ResolveContext = {
+          ...ctx,
+          panel: { x: 0, y: 0, w: innerW, h: flexH },
+          idPrefix: `${ctx.idPrefix}-box${i}`,
+          ...(c.autoEntrance ? { animate: true, animationDelay: aeDelay } : {}),
+        };
+        resolved[i] = resolveComponent(children[i], childCtx);
+      }
+    });
+
+    // 5. Map positions back to actual resolved elements
     //    Offset by child margin (top pushes content down within placeholder,
     //    left/right inset horizontally).
     let maxBottom = 0;

@@ -313,3 +313,51 @@ describe("per-slide theme override", () => {
   });
 });
 
+// --- Component slide (children directly, no template/base layer) ---
+
+describe("component slide", () => {
+  it("resolves root component tree without stacker", () => {
+    const slide: SlideData = {
+      children: [
+        {
+          type: "box",
+          variant: "flat",
+          padding: 0,
+          height: 1080,
+          layout: { type: "flex", direction: "column", gap: 28 },
+          children: [
+            { type: "heading", text: "Hello Component" },
+          ],
+        },
+      ],
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img");
+    const layout = result.slides[0];
+    expect(layout.width).toBe(1920);
+    expect(layout.height).toBe(1080);
+    expect(layout.elements.length).toBeGreaterThan(0);
+    // Find the heading text element inside the box group
+    const heading = layout.elements.flatMap((el) =>
+      el.kind === "group" ? (el as { children: typeof layout.elements }).children : [el],
+    ).find((el) => el.kind === "text" && el.id.includes("heading"));
+    expect(heading).toBeDefined();
+  });
+
+  it("uses theme background", () => {
+    const slide: SlideData = {
+      children: [{ type: "heading", text: "Test" }],
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img");
+    expect(result.slides[0].background).toBe("#f8f9fc");
+  });
+
+  it("uses custom background", () => {
+    const slide: SlideData = {
+      background: "#111111",
+      children: [{ type: "heading", text: "Test" }],
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img");
+    expect(result.slides[0].background).toBe("#111111");
+  });
+});
+

@@ -1338,6 +1338,52 @@ describe("resolveComponent — box layout modes", () => {
     expect(group.children.length).toBeLessThanOrEqual(1);
   });
 
+  it("flex-column re-resolves fill children with correct remaining height", () => {
+    // In CSS flexbox, flex-grow items get distributed remaining space,
+    // and their children are laid out WITHIN that final height.
+    // A fill box (flex-grow equivalent) containing a grid should have
+    // the grid use the remaining height, not the full container height.
+    const panel: Rect = { x: 0, y: 0, w: 600, h: 600 };
+    const result = resolveComponent(
+      {
+        type: "box",
+        padding: 0,
+        height: 600,
+        layout: { type: "flex", direction: "column", gap: 0 },
+        children: [
+          // Fixed child: 200px tall
+          { type: "box", height: 200, padding: 0, variant: "flat", children: [] },
+          // Fill child (flex-grow equivalent) wrapping a grid with fill cells
+          {
+            type: "box", fill: true, padding: 0, variant: "flat",
+            children: [
+              {
+                type: "grid", columns: 1, equalHeight: true, gap: 0,
+                children: [
+                  { type: "box", fill: true, padding: 0, variant: "flat",
+                    children: [{ type: "text", text: "A", fontSize: 20 }] },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+
+    const outer = result.elements[0] as GroupElement;
+    // Fill box should be 400px (600 - 200)
+    const fillBox = outer.children[1] as GroupElement;
+    expect(fillBox.rect.h).toBeCloseTo(400, 0);
+
+    // Grid cell inside fill box should use 400px, not 600px
+    const gridCell = fillBox.children.find(
+      (c) => c.kind === "group" && c.id?.includes("g0"),
+    ) as GroupElement;
+    expect(gridCell).toBeDefined();
+    expect(gridCell.rect.h).toBeCloseTo(400, 0);
+  });
+
   it("flex-row preserves card styling on group wrapper", () => {
     const panel: Rect = { x: 0, y: 0, w: 600, h: 600 };
     const { elements } = resolveComponent(

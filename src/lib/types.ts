@@ -36,12 +36,22 @@ export interface FullComposeSlideData {
 // Re-export for convenience
 export type { SlideComponent, PanelDef };
 
+// Component slide (v8 — root component tree, no base layout layer)
+export interface ComponentSlideData {
+  template?: never;  // discriminant: no template field
+  children: SlideComponent[];
+  background?: string;
+  backgroundImage?: string;
+  overlay?: "dark" | "light" | "none" | string;
+}
+
 // --- Discriminated union ---
 
 export type SlideData = (
   | FreeformSlideData
   | SplitComposeSlideData
   | FullComposeSlideData
+  | ComponentSlideData
 ) & SlideBaseFields;
 
 // --- Animation override ---

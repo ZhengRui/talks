@@ -1,0 +1,38 @@
+name: iframe-v2
+params:
+  src: { type: string, required: true }
+  title: { type: string }
+style:
+  titleSize: { type: number, default: 56 }
+  height: { type: number }
+
+children:
+  - type: box
+    variant: flat
+    padding: [60, 160]
+    height: 1080
+    verticalAlign: top
+    layout: { type: flex, direction: column, gap: 0 }
+    autoEntrance: { type: fade-up, stagger: 100 }
+    children:
+      {% if title %}
+      - type: heading
+        text: "{{ title }}"
+        fontSize: {{ style.titleSize }}
+        textAlign: center
+      - type: divider
+        variant: gradient
+        width: 80
+        align: center
+        margin: [16, 0, 40, 0]
+      {% endif %}
+      - type: box
+        fill: true
+        variant: flat
+        padding: 0
+        children:
+          - type: iframe
+            src: "{{ src }}"
+            {% if style.height %}
+            height: {{ style.height }}
+            {% endif %}

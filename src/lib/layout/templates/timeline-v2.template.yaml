@@ -6,115 +6,110 @@ style:
   titleSize: { type: number, default: 56 }
   dotSize: { type: number, default: 16 }
 
-base: full-compose
 children:
-  {% if title %}
-  - type: heading
-    text: "{{ title }}"
-    fontSize: {{ style.titleSize }}
-    textAlign: center
-  - type: divider
-    variant: gradient
-    width: 80
-    align: center
-    marginTop: 16
-    marginBottom: 40
-  {% endif %}
-  {% set pw = 1600 %}
-  {% set count = events.length %}
-  {% set lineY = 18 %}
-  {% set segW = pw / count %}
-  {% set dotY = lineY - style.dotSize / 2 + 1 %}
-  - type: raw
-    height: 300
-    elements:
-      # Horizontal connector line (behind everything)
-      - kind: shape
-        id: tl-line
-        rect: { x: 0, y: {{ lineY - 1 }}, w: {{ pw }}, h: 3 }
-        shape: rect
-        style: { fill: "theme.border.color" }
-        entrance: { type: fade-in, delay: 100, duration: 500 }
-      # Events container — flex-row layout distributes event columns
-      # entrance: none prevents stacker from adding fade-up to the container,
-      # which would compound with children's individual entrance animations.
-      - kind: group
-        id: events-container
-        rect: { x: 0, y: 0, w: {{ pw }}, h: 300 }
-        layout: { type: flex, direction: row }
-        entrance: { type: none }
-        children:
+  - type: box
+    variant: flat
+    padding: [60, 160]
+    height: 1080
+    verticalAlign: top
+    layout: { type: flex, direction: column, gap: 0 }
+    autoEntrance: { type: fade-up, stagger: 100 }
+    children:
+      {% if title %}
+      - type: heading
+        text: "{{ title }}"
+        fontSize: {{ style.titleSize }}
+        textAlign: center
+      - type: divider
+        variant: gradient
+        width: 80
+        align: center
+        margin: [16, 0, 40, 0]
+      {% endif %}
+      {% set pw = 1600 %}
+      {% set count = events.length %}
+      {% set lineY = 18 %}
+      {% set segW = pw / count %}
+      - type: raw
+        height: 300
+        elements:
+          # Horizontal connector line (appears first)
+          - kind: shape
+            id: tl-line
+            rect: { x: 0, y: {{ lineY - 1 }}, w: {{ pw }}, h: 3 }
+            shape: rect
+            style: { fill: "theme.border.color" }
+            entrance: { type: fade-in, delay: 100, duration: 500 }
           {% for event in events %}
+          {% set cx = loop.index0 * segW + segW / 2 %}
+          {% set dotX = cx - style.dotSize / 2 %}
+          {% set dotY = lineY - style.dotSize / 2 + 1 %}
           {% set delay = 200 + loop.index0 * 150 %}
-          {% set relDotX = segW / 2 - style.dotSize / 2 %}
+          # Dot ring
+          - kind: shape
+            id: "tl-ring-{{ loop.index0 }}"
+            rect: { x: {{ dotX - 2 }}, y: {{ dotY - 2 }}, w: {{ style.dotSize + 4 }}, h: {{ style.dotSize + 4 }} }
+            shape: circle
+            style: { fill: "theme.accent" }
+            entrance: { type: scale-up, delay: {{ delay }}, duration: 500 }
+          # Inner bg circle (simulates border)
+          - kind: shape
+            id: "tl-inner-{{ loop.index0 }}"
+            rect: { x: {{ dotX + 1 }}, y: {{ dotY + 1 }}, w: {{ style.dotSize - 2 }}, h: {{ style.dotSize - 2 }} }
+            shape: circle
+            style: { fill: "theme.bg" }
+            entrance: { type: scale-up, delay: {{ delay }}, duration: 500 }
+          # Core accent dot
+          - kind: shape
+            id: "tl-core-{{ loop.index0 }}"
+            rect: { x: {{ dotX + 1 }}, y: {{ dotY + 1 }}, w: {{ style.dotSize - 2 }}, h: {{ style.dotSize - 2 }} }
+            shape: circle
+            style: { fill: "theme.accent" }
+            entrance: { type: scale-up, delay: {{ delay }}, duration: 500 }
+          # Date text (accent, bold)
+          {% set textX = loop.index0 * segW + 16 %}
+          {% set textW = segW - 32 %}
           {% set dateY = dotY + style.dotSize + 16 %}
+          - kind: text
+            id: "tl-date-{{ loop.index0 }}"
+            rect: { x: {{ textX }}, y: {{ dateY }}, w: {{ textW }}, h: 32 }
+            text: "{{ event.date }}"
+            style:
+              fontFamily: "theme.fontBody"
+              fontSize: 26
+              fontWeight: 700
+              color: "theme.accent"
+              lineHeight: 1.2
+              textAlign: center
+            entrance: { type: fade-up, delay: {{ delay + 50 }}, duration: 500 }
+          # Label text (bold heading)
           {% set labelY = dateY + 40 %}
-          # Each event column — dots and text positioned within
-          - kind: group
-            id: "tl-event-{{ loop.index0 }}"
-            rect: { x: 0, y: 0, w: 0, h: 300 }
-            children:
-              # Dot ring
-              - kind: shape
-                id: "tl-ring-{{ loop.index0 }}"
-                rect: { x: {{ relDotX - 2 }}, y: {{ dotY - 2 }}, w: {{ style.dotSize + 4 }}, h: {{ style.dotSize + 4 }} }
-                shape: circle
-                style: { fill: "theme.accent" }
-                entrance: { type: scale-up, delay: {{ delay }}, duration: 500 }
-              # Inner bg circle (simulates border)
-              - kind: shape
-                id: "tl-inner-{{ loop.index0 }}"
-                rect: { x: {{ relDotX + 1 }}, y: {{ dotY + 1 }}, w: {{ style.dotSize - 2 }}, h: {{ style.dotSize - 2 }} }
-                shape: circle
-                style: { fill: "theme.bg" }
-                entrance: { type: scale-up, delay: {{ delay }}, duration: 500 }
-              # Core accent dot
-              - kind: shape
-                id: "tl-core-{{ loop.index0 }}"
-                rect: { x: {{ relDotX + 1 }}, y: {{ dotY + 1 }}, w: {{ style.dotSize - 2 }}, h: {{ style.dotSize - 2 }} }
-                shape: circle
-                style: { fill: "theme.accent" }
-                entrance: { type: scale-up, delay: {{ delay }}, duration: 500 }
-              # Date text (accent, bold)
-              - kind: text
-                id: "tl-date-{{ loop.index0 }}"
-                rect: { x: 16, y: {{ dateY }}, w: {{ segW - 32 }}, h: 32 }
-                text: "{{ event.date }}"
-                style:
-                  fontFamily: "theme.fontBody"
-                  fontSize: 26
-                  fontWeight: 700
-                  color: "theme.accent"
-                  lineHeight: 1.2
-                  textAlign: center
-                entrance: { type: fade-up, delay: {{ delay + 50 }}, duration: 500 }
-              # Label text (bold heading)
-              - kind: text
-                id: "tl-label-{{ loop.index0 }}"
-                rect: { x: 16, y: {{ labelY }}, w: {{ segW - 32 }}, h: 32 }
-                text: "{{ event.label }}"
-                style:
-                  fontFamily: "theme.fontHeading"
-                  fontSize: 26
-                  fontWeight: 700
-                  color: "theme.heading"
-                  lineHeight: 1.1
-                  textAlign: center
-                entrance: { type: fade-up, delay: {{ delay + 100 }}, duration: 500 }
-              {% if event.description %}
-              # Description text (muted)
-              {% set descY = labelY + 40 %}
-              - kind: text
-                id: "tl-desc-{{ loop.index0 }}"
-                rect: { x: 16, y: {{ descY }}, w: {{ segW - 32 }}, h: 100 }
-                text: "{{ event.description }}"
-                style:
-                  fontFamily: "theme.fontBody"
-                  fontSize: 24
-                  fontWeight: 400
-                  color: "theme.textMuted"
-                  lineHeight: 1.5
-                  textAlign: center
-                entrance: { type: fade-up, delay: {{ delay + 150 }}, duration: 500 }
-              {% endif %}
+          - kind: text
+            id: "tl-label-{{ loop.index0 }}"
+            rect: { x: {{ textX }}, y: {{ labelY }}, w: {{ textW }}, h: 32 }
+            text: "{{ event.label }}"
+            style:
+              fontFamily: "theme.fontHeading"
+              fontSize: 26
+              fontWeight: 700
+              color: "theme.heading"
+              lineHeight: 1.1
+              textAlign: center
+            entrance: { type: fade-up, delay: {{ delay + 100 }}, duration: 500 }
+          {% if event.description %}
+          # Description text (muted)
+          {% set descY = labelY + 40 %}
+          - kind: text
+            id: "tl-desc-{{ loop.index0 }}"
+            rect: { x: {{ textX }}, y: {{ descY }}, w: {{ textW }}, h: 100 }
+            text: "{{ event.description }}"
+            style:
+              fontFamily: "theme.fontBody"
+              fontSize: 24
+              fontWeight: 400
+              color: "theme.textMuted"
+              lineHeight: 1.5
+              textAlign: center
+            entrance: { type: fade-up, delay: {{ delay + 150 }}, duration: 500 }
+          {% endif %}
           {% endfor %}

@@ -1,0 +1,66 @@
+name: image-comparison-v2
+params:
+  title: { type: string }
+  before: { type: object, required: true }
+  after: { type: object, required: true }
+style:
+  titleSize: { type: number, default: 56 }
+  labelSize: { type: number, default: 24 }
+  imageHeight: { type: number, default: 730 }
+
+children:
+  - type: box
+    variant: flat
+    padding: [60, 160]
+    height: 1080
+    verticalAlign: top
+    layout: { type: flex, direction: column, gap: 0 }
+    autoEntrance: { type: fade-up, stagger: 100 }
+    children:
+      {% if title %}
+      - type: heading
+        text: "{{ title }}"
+        fontSize: {{ style.titleSize }}
+        textAlign: center
+      - type: divider
+        variant: gradient
+        width: 80
+        align: center
+        margin: [16, 0, 40, 0]
+      {% endif %}
+      - type: columns
+        gap: 32
+        equalHeight: true
+        children:
+          - type: box
+            padding: 24
+            entranceType: slide-left
+            entranceDelay: 200
+            children:
+              - type: image
+                src: "{{ before.image }}"
+                height: {{ style.imageHeight }}
+                objectFit: cover
+              {% if before.label %}
+              - type: text
+                text: "{{ before.label }}"
+                textAlign: center
+                fontSize: {{ style.labelSize }}
+                fontWeight: bold
+              {% endif %}
+          - type: box
+            padding: 24
+            entranceType: slide-right
+            entranceDelay: 200
+            children:
+              - type: image
+                src: "{{ after.image }}"
+                height: {{ style.imageHeight }}
+                objectFit: cover
+              {% if after.label %}
+              - type: text
+                text: "{{ after.label }}"
+                textAlign: center
+                fontSize: {{ style.labelSize }}
+                fontWeight: bold
+              {% endif %}

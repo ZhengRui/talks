@@ -1,0 +1,49 @@
+name: stats-v2
+params:
+  title: { type: string }
+  stats: { type: array, required: true }
+style:
+  titleSize: { type: number, default: 56 }
+  statFontSize: { type: number, default: 72 }
+  labelFontSize: { type: number, default: 26 }
+  cardHeight: { type: number, default: 200 }
+
+children:
+  - type: box
+    variant: flat
+    padding: [60, 160]
+    height: 1080
+    verticalAlign: top
+    layout: { type: flex, direction: column, gap: 0 }
+    autoEntrance: { type: fade-up, stagger: 100 }
+    children:
+      {% if title %}
+      - type: heading
+        text: "{{ title }}"
+        fontSize: {{ style.titleSize }}
+        textAlign: center
+      - type: divider
+        variant: gradient
+        width: 80
+        align: center
+        margin: [16, 0, 40, 0]
+      {% endif %}
+      - type: spacer
+        flex: true
+      - type: columns
+        gap: 32
+        children:
+          {% for s in stats %}
+          - type: box
+            accentTop: true
+            height: {{ style.cardHeight }}
+            children:
+              - type: stat
+                value: "{{ s.value }}"
+                label: "{{ s.label }}"
+                textAlign: center
+                fontSize: {{ style.statFontSize }}
+                labelFontSize: {{ style.labelFontSize }}
+          {% endfor %}
+      - type: spacer
+        flex: true

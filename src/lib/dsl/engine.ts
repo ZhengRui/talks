@@ -4,6 +4,7 @@ import type { DslTemplateDef } from "./types";
 import type {
   FullComposeSlideData,
   SplitComposeSlideData,
+  ComponentSlideData,
   SlideBaseFields,
 } from "@/lib/types";
 
@@ -69,7 +70,7 @@ function smartify(val: unknown): unknown {
 export function expandDslTemplate(
   slideData: Record<string, unknown>,
   templateDef: DslTemplateDef,
-): (FullComposeSlideData | SplitComposeSlideData) & SlideBaseFields {
+): (FullComposeSlideData | SplitComposeSlideData | ComponentSlideData) & SlideBaseFields {
   // 1. Validate required params
   for (const [name, def] of Object.entries(templateDef.params)) {
     if (def.required && !(name in slideData)) {
@@ -135,6 +136,17 @@ export function expandDslTemplate(
       right: parsed.right as SplitComposeSlideData["right"],
       ...base,
     } as SplitComposeSlideData & SlideBaseFields;
+  }
+
+  // No base → ComponentSlideData (v8: root component tree, no layout layer)
+  if (!parsed.base) {
+    return {
+      ...(parsed.background !== undefined ? { background: String(parsed.background) } : {}),
+      ...(parsed.backgroundImage !== undefined ? { backgroundImage: String(parsed.backgroundImage) } : {}),
+      ...(parsed.overlay !== undefined ? { overlay: String(parsed.overlay) } : {}),
+      children: (parsed.children ?? []) as ComponentSlideData["children"],
+      ...base,
+    } as ComponentSlideData & SlideBaseFields;
   }
 
   return {

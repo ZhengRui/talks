@@ -1,0 +1,29 @@
+name: statement-v2
+params:
+  statement: { type: string, required: true }
+  subtitle: { type: string }
+
+children:
+  - type: box
+    variant: flat
+    padding: [60, 160]
+    height: 1080
+    verticalAlign: center
+    layout: { type: flex, direction: column, gap: 28 }
+    autoEntrance: { type: fade-up, stagger: 100 }
+    children:
+      - type: heading
+        text: "{{ statement }}"
+        fontSize: 72
+        textAlign: center
+      {% if subtitle %}
+      - type: divider
+        variant: gradient
+        width: 120
+        align: center
+      - type: body
+        text: "{{ subtitle }}"
+        fontSize: 32
+        color: theme.textMuted
+        textAlign: center
+      {% endif %}

@@ -3,7 +3,6 @@ import type { LayoutSlide, ResolvedTheme } from "../types";
 import { layoutFreeform } from "./bases/freeform";
 import { layoutSplitCompose } from "./bases/split-compose";
 import { layoutFullCompose } from "./bases/full-compose";
-
 export type LayoutFunction = (
   slide: SlideData,
   theme: ResolvedTheme,

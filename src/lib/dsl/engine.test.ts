@@ -296,4 +296,27 @@ children:
       (withoutTitle as unknown as { children: Record<string, unknown>[] }).children[0].text,
     ).toBe("Thank You");
   });
+
+  it("outputs ComponentSlideData when no base field", () => {
+    const def = makeDef({
+      params: { title: { type: "string", required: true } },
+      rawBody: `
+children:
+  - type: box
+    variant: flat
+    padding: [60, 160]
+    height: 1080
+    children:
+      - type: heading
+        text: "{{ title }}"
+`,
+    });
+
+    const result = expandDslTemplate({ template: "test", title: "No Base" }, def);
+    // Should NOT have a template field — it's a ComponentSlideData
+    expect(result).not.toHaveProperty("template");
+    expect(result).toHaveProperty("children");
+    const children = (result as unknown as { children: Record<string, unknown>[] }).children;
+    expect(children[0].type).toBe("box");
+  });
 });
