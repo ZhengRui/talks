@@ -1064,6 +1064,36 @@ function resolveBoxPadding(p: number | number[] | undefined): { top: number; rig
   return { top: p[0], right: p[0], bottom: p[0], left: p[0] };
 }
 
+/** Apply staggered entrance animations to box children.
+ *  Elements belonging to each child component get the same delay.
+ *  Spacers are skipped in the stagger count. */
+function applyAutoEntrance(
+  elements: LayoutElement[],
+  childElementCounts: number[],
+  childIsSpacer: boolean[],
+  autoEntrance: NonNullable<BoxComponent["autoEntrance"]>,
+): void {
+  const { type, stagger = 100, baseDelay = 0 } = autoEntrance;
+  let elementIdx = 0;
+  let staggerIdx = 0;
+
+  for (let childIdx = 0; childIdx < childElementCounts.length; childIdx++) {
+    const count = childElementCounts[childIdx];
+    const isSpacer = childIsSpacer[childIdx];
+    const delay = baseDelay + staggerIdx * stagger;
+
+    for (let j = 0; j < count; j++) {
+      const el = elements[elementIdx + j];
+      if (!el.entrance) {
+        (el as { entrance: unknown }).entrance = makeEntrance(type, delay);
+      }
+    }
+
+    elementIdx += count;
+    if (!isSpacer) staggerIdx++;
+  }
+}
+
 /** Layout-based child positioning for flex-row, flex-column, and grid modes. */
 function resolveBoxWithLayout(
   c: BoxComponent,
@@ -1080,6 +1110,9 @@ function resolveBoxWithLayout(
   const innerH = (c.height ?? ctx.panel.h) - pad.top - pad.bottom - accentH;
 
   const allChildren: LayoutElement[] = [];
+  // Track per-component element counts for autoEntrance staggering
+  const childElementCounts: number[] = [];
+  const childIsSpacer: boolean[] = [];
   let contentH = 0;
 
   if (layout.type === "flex" && layout.direction === "row") {
@@ -1101,12 +1134,19 @@ function resolveBoxWithLayout(
     );
 
     // 2. Resolve each child with its assigned width
+    let aeStaggerIdxRow = 0;
     const resolved = children.map((child, i) => {
+      const isSpacer = child.type === "spacer";
+      const aeDelay = c.autoEntrance
+        ? (c.autoEntrance.baseDelay ?? 0) + aeStaggerIdxRow * (c.autoEntrance.stagger ?? 100)
+        : undefined;
       const childCtx: ResolveContext = {
         ...ctx,
         panel: { x: 0, y: 0, w: assignedWidths[i], h: innerH },
         idPrefix: `${ctx.idPrefix}-box${i}`,
+        ...(c.autoEntrance ? { animate: true, animationDelay: aeDelay } : {}),
       };
+      if (!isSpacer) aeStaggerIdxRow++;
       return resolveComponent(child, childCtx);
     });
 
@@ -1156,6 +1196,8 @@ function resolveBoxWithLayout(
           },
         });
       });
+      childElementCounts.push(result.elements.length);
+      childIsSpacer.push((c.children ?? [])[i]?.type === "spacer");
     });
 
     contentH = maxChildH;
@@ -1164,12 +1206,21 @@ function resolveBoxWithLayout(
     const children = c.children ?? [];
 
     // 1. Resolve each child at full innerW
+    // When autoEntrance is set, pass animate + animationDelay so component
+    // resolvers (e.g. bullets) can apply their own internal staggering.
+    let aeStaggerIdx = 0;
     const resolved = children.map((child, i) => {
+      const isSpacer = child.type === "spacer";
+      const aeDelay = c.autoEntrance
+        ? (c.autoEntrance.baseDelay ?? 0) + aeStaggerIdx * (c.autoEntrance.stagger ?? 100)
+        : undefined;
       const childCtx: ResolveContext = {
         ...ctx,
         panel: { x: 0, y: 0, w: innerW, h: innerH },
         idPrefix: `${ctx.idPrefix}-box${i}`,
+        ...(c.autoEntrance ? { animate: true, animationDelay: aeDelay } : {}),
       };
+      if (!isSpacer) aeStaggerIdx++;
       return resolveComponent(child, childCtx);
     });
 
@@ -1226,6 +1277,8 @@ function resolveBoxWithLayout(
           },
         });
       });
+      childElementCounts.push(result.elements.length);
+      childIsSpacer.push(children[i]?.type === "spacer");
 
       maxBottom = Math.max(maxBottom, pos.y + childH);
     });
@@ -1233,12 +1286,19 @@ function resolveBoxWithLayout(
     contentH = maxBottom;
   } else {
     // --- Grid: column-based layout ---
+    let aeStaggerIdxGrid = 0;
     const resolved = (c.children ?? []).map((child, i) => {
+      const isSpacer = child.type === "spacer";
+      const aeDelay = c.autoEntrance
+        ? (c.autoEntrance.baseDelay ?? 0) + aeStaggerIdxGrid * (c.autoEntrance.stagger ?? 100)
+        : undefined;
       const childCtx: ResolveContext = {
         ...ctx,
         panel: { x: 0, y: 0, w: innerW, h: innerH },
         idPrefix: `${ctx.idPrefix}-box${i}`,
+        ...(c.autoEntrance ? { animate: true, animationDelay: aeDelay } : {}),
       };
+      if (!isSpacer) aeStaggerIdxGrid++;
       return resolveComponent(child, childCtx);
     });
 
@@ -1273,6 +1333,8 @@ function resolveBoxWithLayout(
             },
           });
         });
+        childElementCounts.push(result.elements.length);
+        childIsSpacer.push((c.children ?? [])[start + colIdx]?.type === "spacer");
       });
 
       totalH += rowMaxH + (start + cols < count ? rGap : 0);
@@ -1293,6 +1355,11 @@ function resolveBoxWithLayout(
     allChildren.forEach((el) => {
       el.rect = { ...el.rect, y: el.rect.y + dy };
     });
+  }
+
+  // Apply autoEntrance staggering
+  if (c.autoEntrance) {
+    applyAutoEntrance(allChildren, childElementCounts, childIsSpacer, c.autoEntrance);
   }
 
   const group = buildBoxGroup(c, ctx, boxX, boxW, totalH, allChildren);
@@ -1329,12 +1396,19 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
   let fixedH = innerY; // start with top padding + accent
   let flexCount = 0;
 
+  let aeStaggerIdxStack = 0;
   (c.children ?? []).forEach((child, i) => {
+    const isSpacer = child.type === "spacer";
+    const aeDelay = c.autoEntrance
+      ? (c.autoEntrance.baseDelay ?? 0) + aeStaggerIdxStack * (c.autoEntrance.stagger ?? 100)
+      : undefined;
     const childCtx: ResolveContext = {
       ...ctx,
       panel: { x: pad.left, y: 0, w: innerW, h: ctx.panel.h },
       idPrefix: `${ctx.idPrefix}-box${i}`,
+      ...(c.autoEntrance ? { animate: true, animationDelay: aeDelay } : {}),
     };
+    if (!isSpacer) aeStaggerIdxStack++;
 
     const result = resolveComponent(child, childCtx);
     const gapBefore = i > 0 ? childGap : 0;
@@ -1349,10 +1423,12 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
   const flexH = flexCount > 0 ? Math.max(0, (boxTotalH - fixedH) / flexCount) : 0;
 
   // Pass 2: position children with flex heights applied
-  const children: LayoutElement[] = [];
+  const boxChildren: LayoutElement[] = [];
+  const boxChildElementCounts: number[] = [];
+  const boxChildIsSpacer: boolean[] = [];
   let cursorY = innerY;
 
-  resolved.forEach(({ result, gapBefore }) => {
+  resolved.forEach(({ result, gapBefore }, idx) => {
     cursorY += gapBefore;
     const h = result.flex ? flexH : result.height;
 
@@ -1365,11 +1441,13 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
 
     // Position children in group-local coords
     result.elements.forEach((el) => {
-      children.push({
+      boxChildren.push({
         ...el,
         rect: { ...el.rect, x: el.rect.x + pad.left, y: el.rect.y + cursorY },
       });
     });
+    boxChildElementCounts.push(result.elements.length);
+    boxChildIsSpacer.push((c.children ?? [])[idx]?.type === "spacer");
 
     cursorY += h;
   });
@@ -1383,12 +1461,17 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
     const dy = vAlign === "center"
       ? (totalH - cursorY) / 2
       : totalH - cursorY; // bottom
-    children.forEach((el) => {
+    boxChildren.forEach((el) => {
       el.rect = { ...el.rect, y: el.rect.y + dy };
     });
   }
 
-  const group = buildBoxGroup(c, ctx, boxX, boxW, totalH, children);
+  // Apply autoEntrance staggering
+  if (c.autoEntrance) {
+    applyAutoEntrance(boxChildren, boxChildElementCounts, boxChildIsSpacer, c.autoEntrance);
+  }
+
+  const group = buildBoxGroup(c, ctx, boxX, boxW, totalH, boxChildren);
 
   return {
     elements: [group],

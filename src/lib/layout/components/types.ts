@@ -210,6 +210,14 @@ export interface BoxComponent {
   verticalAlign?: "top" | "center" | "bottom"; // align content within box, default "top"
   marginTop?: number;     // override gap before this box in stacker
   marginBottom?: number;  // override gap after this box in stacker
+  /** Auto-apply staggered entrance animations to children without explicit entrance.
+   *  Each child gets the specified type with delay = baseDelay + childIndex * stagger.
+   *  Spacers are skipped in the stagger count. */
+  autoEntrance?: {
+    type: EntranceType;
+    stagger?: number;    // delay increment per child (ms), default 100
+    baseDelay?: number;  // starting delay (ms), default 0
+  };
   /** Layout mode for children: flex-row or grid (default is vertical stacking).
    *  justify requires children with explicit `width` — without it, children auto-fill
    *  the container and all justify modes produce the same result as "start". */

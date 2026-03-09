@@ -2804,3 +2804,128 @@ describe("resolveComponent — RichText in components", () => {
     expect((quoteEl as { text: RichText }).text).toEqual(runs);
   });
 });
+
+// ============================================================
+// autoEntrance on BoxComponent
+// ============================================================
+
+describe("autoEntrance", () => {
+  /** Get group children (box wraps everything in a GroupElement) */
+  function getGroupChildren(elements: LayoutElement[]) {
+    const group = elements[0] as GroupElement;
+    // Skip the background shape (first child is usually the card bg)
+    return group.children.filter((e) => e.kind !== "shape");
+  }
+
+  it("applies staggered entrance to children without explicit entrance", () => {
+    const box: SlideComponent = {
+      type: "box",
+      children: [
+        { type: "heading", text: "Title" },
+        { type: "body", text: "Body text" },
+        { type: "body", text: "More text" },
+      ],
+      height: 600,
+      autoEntrance: { type: "fade-up", stagger: 100 },
+    };
+    const { elements } = resolveComponent(box, makeCtx());
+    const contentEls = getGroupChildren(elements);
+
+    const entrances = contentEls
+      .filter((e) => e.entrance)
+      .map((e) => e.entrance!);
+    expect(entrances.length).toBeGreaterThan(0);
+
+    // Delays should increment by stagger amount
+    const delays = [...new Set(entrances.map((e) => e.delay))].sort((a, b) => a - b);
+    expect(delays).toEqual([0, 100, 200]);
+    expect(entrances[0].type).toBe("fade-up");
+  });
+
+  it("respects baseDelay", () => {
+    const box: SlideComponent = {
+      type: "box",
+      children: [
+        { type: "heading", text: "A" },
+        { type: "body", text: "B" },
+      ],
+      height: 400,
+      autoEntrance: { type: "fade-in", stagger: 150, baseDelay: 300 },
+    };
+    const { elements } = resolveComponent(box, makeCtx());
+    const contentEls = getGroupChildren(elements);
+    const entrances = contentEls
+      .filter((e) => e.entrance)
+      .map((e) => e.entrance!);
+    const delays = [...new Set(entrances.map((e) => e.delay))].sort((a, b) => a - b);
+    expect(delays).toEqual([300, 450]);
+    expect(entrances[0].type).toBe("fade-in");
+  });
+
+  it("preserves explicit entrance on children", () => {
+    const box: SlideComponent = {
+      type: "box",
+      children: [
+        { type: "heading", text: "A", entranceType: "scale-up", entranceDelay: 500 },
+        { type: "body", text: "B" },
+      ],
+      height: 400,
+      autoEntrance: { type: "fade-up", stagger: 100 },
+    };
+    // animate: true so the child's entranceType mixin kicks in
+    const { elements } = resolveComponent(box, makeCtx({ animate: true }));
+    const group = elements[0] as GroupElement;
+    // The heading should keep its explicit entrance
+    const headingEls = group.children.filter((e) => e.id.includes("heading"));
+    expect(headingEls.length).toBeGreaterThan(0);
+    expect(headingEls[0].entrance?.type).toBe("scale-up");
+    expect(headingEls[0].entrance?.delay).toBe(500);
+
+    // The body should get the autoEntrance
+    const bodyEls = group.children.filter((e) => e.id.includes("body"));
+    expect(bodyEls.length).toBeGreaterThan(0);
+    expect(bodyEls[0].entrance?.type).toBe("fade-up");
+  });
+
+  it("skips spacers in stagger count", () => {
+    const box: SlideComponent = {
+      type: "box",
+      children: [
+        { type: "heading", text: "Top" },
+        { type: "spacer" },
+        { type: "body", text: "Bottom" },
+      ],
+      height: 600,
+      autoEntrance: { type: "fade-up", stagger: 100 },
+    };
+    const { elements } = resolveComponent(box, makeCtx());
+    const contentEls = getGroupChildren(elements);
+    const entrances = contentEls
+      .filter((e) => e.entrance)
+      .map((e) => e.entrance!);
+    // Spacer produces no elements, so we should see delays 0 and 100 (not 0 and 200)
+    const delays = [...new Set(entrances.map((e) => e.delay))].sort((a, b) => a - b);
+    expect(delays).toEqual([0, 100]);
+  });
+
+  it("works with flex-row layout", () => {
+    const box: SlideComponent = {
+      type: "box",
+      children: [
+        { type: "body", text: "Col A" },
+        { type: "body", text: "Col B" },
+      ],
+      height: 300,
+      layout: { type: "flex", direction: "row", gap: 16 },
+      autoEntrance: { type: "slide-left", stagger: 200 },
+    };
+    const { elements } = resolveComponent(box, makeCtx());
+    const contentEls = getGroupChildren(elements);
+    const entrances = contentEls
+      .filter((e) => e.entrance)
+      .map((e) => e.entrance!);
+    const delays = [...new Set(entrances.map((e) => e.delay))].sort((a, b) => a - b);
+    expect(delays).toEqual([0, 200]);
+    expect(entrances[0].type).toBe("slide-left");
+  });
+});
