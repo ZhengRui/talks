@@ -1183,9 +1183,9 @@ describe("resolveComponent — box layout modes", () => {
     expect(group.style?.fill).toBe(theme.cardBg);
   });
 
-  it("flex-column layout falls through to vertical stacking", () => {
+  it("flex-column layout routes through resolveBoxWithLayout", () => {
     const panel: Rect = { x: 0, y: 0, w: 600, h: 600 };
-    const withLayout = resolveComponent(
+    const result = resolveComponent(
       {
         type: "box",
         layout: { type: "flex", direction: "column" },
@@ -1196,9 +1196,21 @@ describe("resolveComponent — box layout modes", () => {
       },
       makeCtx({ panel, animate: false }),
     );
-    const withoutLayout = resolveComponent(
+    // Should produce a valid result with positive height
+    expect(result.height).toBeGreaterThan(0);
+    expect(result.elements.length).toBe(1);
+    // The group should contain children from both stats
+    const group = result.elements[0] as GroupElement;
+    expect(group.kind).toBe("group");
+    expect(group.children.length).toBeGreaterThan(0);
+  });
+
+  it("flex-column distributes children vertically via auto-layout", () => {
+    const panel: Rect = { x: 0, y: 0, w: 600, h: 600 };
+    const result = resolveComponent(
       {
         type: "box",
+        layout: { type: "flex", direction: "column" },
         children: [
           { type: "stat", value: "1", label: "A" },
           { type: "stat", value: "2", label: "B" },
@@ -1206,8 +1218,124 @@ describe("resolveComponent — box layout modes", () => {
       },
       makeCtx({ panel, animate: false }),
     );
-    // Both should produce the same height (same stacking logic)
-    expect(withLayout.height).toBe(withoutLayout.height);
+    const group = result.elements[0] as GroupElement;
+    // Find the first element of each stat child by looking at y positions
+    const ys = group.children.map((c) => c.rect.y);
+    const firstChildY = ys[0];
+    // Second stat's elements should be at a larger y
+    const secondStatY = group.children.find(
+      (c) => c.rect.y > firstChildY + 10,
+    );
+    expect(secondStatY).toBeDefined();
+    expect(secondStatY!.rect.y).toBeGreaterThan(firstChildY);
+    // All children should be at similar x positions (column layout)
+    const xs = group.children.map((c) => c.rect.x);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    // Allow some variance for label vs value alignment, but should be in same column
+    expect(maxX - minX).toBeLessThan(200);
+  });
+
+  it("flex-column uses layout.gap (not hardcoded 8px)", () => {
+    const panel: Rect = { x: 0, y: 0, w: 600, h: 600 };
+    const makeBox = (gap: number) =>
+      resolveComponent(
+        {
+          type: "box",
+          padding: 0,
+          layout: { type: "flex", direction: "column", gap },
+          children: [
+            { type: "stat", value: "1", label: "A" },
+            { type: "stat", value: "2", label: "B" },
+          ],
+        },
+        makeCtx({ panel, animate: false }),
+      );
+    const resultGap0 = makeBox(0);
+    const resultGap40 = makeBox(40);
+    // Both should produce valid results
+    expect(resultGap0.height).toBeGreaterThan(0);
+    expect(resultGap40.height).toBeGreaterThan(0);
+    // The result with gap 40 should be taller than gap 0
+    expect(resultGap40.height).toBeGreaterThan(resultGap0.height);
+    // The difference should be approximately 40px (one gap between 2 children)
+    const diff = resultGap40.height - resultGap0.height;
+    expect(diff).toBeCloseTo(40, 0);
+  });
+
+  it("flex-column with justify: center centers content", () => {
+    const panel: Rect = { x: 0, y: 0, w: 600, h: 600 };
+    const result = resolveComponent(
+      {
+        type: "box",
+        padding: 0,
+        height: 600,
+        layout: { type: "flex", direction: "column", justify: "center" },
+        children: [
+          { type: "stat", value: "1", label: "A" },
+          { type: "stat", value: "2", label: "B" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    const group = result.elements[0] as GroupElement;
+    const firstChildY = group.children[0].rect.y;
+    // With centering in a 600px box, the first child should not start at y=0
+    // It should be offset downward to center the content
+    expect(firstChildY).toBeGreaterThan(10);
+    // The content should not be at the very bottom either
+    const lastChild = group.children[group.children.length - 1];
+    const contentBottom = lastChild.rect.y + lastChild.rect.h;
+    expect(contentBottom).toBeLessThan(590);
+  });
+
+  it("flex-column spacer fills remaining space", () => {
+    const panel: Rect = { x: 0, y: 0, w: 600, h: 600 };
+    const result = resolveComponent(
+      {
+        type: "box",
+        padding: 0,
+        height: 600,
+        layout: { type: "flex", direction: "column" },
+        children: [
+          { type: "stat", value: "1", label: "A" },
+          { type: "spacer" },
+          { type: "stat", value: "2", label: "B" },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    expect(result.height).toBeGreaterThan(0);
+    const group = result.elements[0] as GroupElement;
+    // The last child (second stat) should be pushed toward the bottom by the spacer
+    const lastChild = group.children[group.children.length - 1];
+    const lastChildBottom = lastChild.rect.y + lastChild.rect.h;
+    // The last child should be near the bottom of the 600px box
+    expect(lastChildBottom).toBeGreaterThan(500);
+    // The first child should be near the top
+    const firstChildY = group.children[0].rect.y;
+    expect(firstChildY).toBeLessThan(100);
+    // The gap between first group of elements and last should be large (spacer expanded)
+    expect(lastChild.rect.y - firstChildY).toBeGreaterThan(300);
+  });
+
+  it("flex-column with empty children produces valid result", () => {
+    const panel: Rect = { x: 0, y: 0, w: 600, h: 600 };
+    const result = resolveComponent(
+      {
+        type: "box",
+        layout: { type: "flex", direction: "column" },
+        children: [],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    // Should return a valid result with at least padding height
+    expect(result.height).toBeGreaterThan(0);
+    expect(result.elements.length).toBe(1);
+    const group = result.elements[0] as GroupElement;
+    expect(group.kind).toBe("group");
+    // Empty box should have no content children (or very few)
+    expect(group.children.length).toBeLessThanOrEqual(1);
   });
 
   it("flex-row preserves card styling on group wrapper", () => {

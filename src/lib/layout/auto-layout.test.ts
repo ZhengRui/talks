@@ -746,4 +746,190 @@ describe("resolveLayouts", () => {
       expect(rects[0].y).toBe(rects[1].y);
     });
   });
+
+  // =========================================================================
+  // Absolute Positioning
+  // =========================================================================
+  describe("absolute positioning", () => {
+    it("absolute children keep rects in flex-row", () => {
+      const absChild = {
+        ...makeShape("abs", { x: 100, y: 50, w: 200, h: 80 }),
+        position: "absolute" as const,
+      };
+      const group = makeGroup(
+        "g",
+        { x: 0, y: 0, w: 1200, h: 400 },
+        [
+          makeText("a", { x: 0, y: 0, w: 0, h: 0 }),
+          absChild,
+          makeText("c", { x: 0, y: 0, w: 0, h: 0 }),
+        ],
+        { type: "flex", direction: "row", gap: 20 },
+      );
+
+      const [resolved] = resolveLayouts([group]) as GroupElement[];
+      const rects = resolved.children.map((c) => roundRect(c.rect));
+
+      // Absolute child keeps its exact rect
+      expect(rects[1]).toEqual({ x: 100, y: 50, w: 200, h: 80 });
+
+      // Two flow children share the full container (1200 wide, gap 20)
+      // autoW = (1200 - 20) / 2 = 590
+      expect(rects[0].w).toBe(590);
+      expect(rects[2].w).toBe(590);
+      expect(rects[0].x).toBe(0);
+      expect(rects[2].x).toBe(610); // 590 + 20
+    });
+
+    it("absolute children keep rects in flex-column", () => {
+      const absChild = {
+        ...makeShape("abs", { x: 50, y: 100, w: 150, h: 60 }),
+        position: "absolute" as const,
+      };
+      const group = makeGroup(
+        "g",
+        { x: 0, y: 0, w: 400, h: 600 },
+        [
+          makeText("a", { x: 0, y: 0, w: 0, h: 0 }),
+          absChild,
+          makeText("c", { x: 0, y: 0, w: 0, h: 0 }),
+        ],
+        { type: "flex", direction: "column", gap: 20 },
+      );
+
+      const [resolved] = resolveLayouts([group]) as GroupElement[];
+      const rects = resolved.children.map((c) => roundRect(c.rect));
+
+      // Absolute child keeps its exact rect
+      expect(rects[1]).toEqual({ x: 50, y: 100, w: 150, h: 60 });
+
+      // Two flow children share the full container height (600, gap 20)
+      // autoH = (600 - 20) / 2 = 290
+      expect(rects[0].h).toBe(290);
+      expect(rects[2].h).toBe(290);
+      expect(rects[0].y).toBe(0);
+      expect(rects[2].y).toBe(310); // 290 + 20
+    });
+
+    it("z-order preserved after layout", () => {
+      const absChild = {
+        ...makeShape("abs-mid", { x: 10, y: 10, w: 50, h: 50 }),
+        position: "absolute" as const,
+      };
+      const group = makeGroup(
+        "g",
+        { x: 0, y: 0, w: 600, h: 200 },
+        [
+          makeText("flow-0", { x: 0, y: 0, w: 0, h: 0 }),
+          absChild,
+          makeText("flow-2", { x: 0, y: 0, w: 0, h: 0 }),
+        ],
+        { type: "flex", direction: "row", gap: 10 },
+      );
+
+      const [resolved] = resolveLayouts([group]) as GroupElement[];
+
+      // Children should be in their original order by id
+      expect(resolved.children[0].id).toBe("flow-0");
+      expect(resolved.children[1].id).toBe("abs-mid");
+      expect(resolved.children[2].id).toBe("flow-2");
+    });
+
+    it("all-absolute children (no crash)", () => {
+      const children = [
+        { ...makeShape("a1", { x: 0, y: 0, w: 100, h: 100 }), position: "absolute" as const },
+        { ...makeShape("a2", { x: 200, y: 200, w: 50, h: 50 }), position: "absolute" as const },
+        { ...makeShape("a3", { x: 500, y: 300, w: 80, h: 40 }), position: "absolute" as const },
+      ];
+      const group = makeGroup(
+        "g",
+        { x: 0, y: 0, w: 1000, h: 600 },
+        children,
+        { type: "flex", direction: "row", gap: 20 },
+      );
+
+      const [resolved] = resolveLayouts([group]) as GroupElement[];
+
+      // All children should keep their original rects unchanged
+      expect(resolved.children[0].rect).toEqual({ x: 0, y: 0, w: 100, h: 100 });
+      expect(resolved.children[1].rect).toEqual({ x: 200, y: 200, w: 50, h: 50 });
+      expect(resolved.children[2].rect).toEqual({ x: 500, y: 300, w: 80, h: 40 });
+    });
+
+    it("absolute child in grid layout", () => {
+      const absChild = {
+        ...makeShape("abs", { x: 777, y: 333, w: 120, h: 45 }),
+        position: "absolute" as const,
+      };
+      const group = makeGroup(
+        "g",
+        { x: 0, y: 0, w: 800, h: 600 },
+        [
+          makeShape("g1", { x: 0, y: 0, w: 0, h: 0 }),
+          absChild,
+          makeShape("g2", { x: 0, y: 0, w: 0, h: 0 }),
+          makeShape("g3", { x: 0, y: 0, w: 0, h: 0 }),
+        ],
+        { type: "grid", columns: 2, gap: 20 },
+      );
+
+      const [resolved] = resolveLayouts([group]) as GroupElement[];
+      const rects = resolved.children.map((c) => roundRect(c.rect));
+
+      // Absolute child keeps its rect
+      expect(rects[1]).toEqual({ x: 777, y: 333, w: 120, h: 45 });
+
+      // 3 flow children in a 2-column grid:
+      // Row 1: g1, g2  Row 2: g3
+      // colW = (800 - 20) / 2 = 390
+      // 2 rows → rowH = (600 - 20) / 2 = 290
+      expect(rects[0]).toEqual({ x: 0, y: 0, w: 390, h: 290 }); // g1: row 0, col 0
+      expect(rects[2]).toEqual({ x: 410, y: 0, w: 390, h: 290 }); // g2: row 0, col 1
+      expect(rects[3]).toEqual({ x: 0, y: 310, w: 390, h: 290 }); // g3: row 1, col 0
+    });
+
+    it("recursion into absolute groups with layout", () => {
+      // An inner group that is absolute-positioned but has its own flex layout
+      const innerGroup: GroupElement = {
+        ...makeGroup(
+          "inner",
+          { x: 100, y: 100, w: 400, h: 200 },
+          [
+            makeShape("ia", { x: 0, y: 0, w: 0, h: 0 }),
+            makeShape("ib", { x: 0, y: 0, w: 0, h: 0 }),
+          ],
+          { type: "flex", direction: "row", gap: 20 },
+        ),
+        position: "absolute" as const,
+      };
+
+      const group = makeGroup(
+        "outer",
+        { x: 0, y: 0, w: 1200, h: 600 },
+        [
+          makeText("flow", { x: 0, y: 0, w: 0, h: 0 }),
+          innerGroup,
+        ],
+        { type: "flex", direction: "row" },
+      );
+
+      const [resolved] = resolveLayouts([group]) as GroupElement[];
+
+      // The outer group's absolute child keeps its rect
+      const inner = resolved.children[1] as GroupElement;
+      expect(inner.rect).toEqual({ x: 100, y: 100, w: 400, h: 200 });
+
+      // The flow child takes full container width (only 1 flow child, no gap)
+      expect(resolved.children[0].rect.w).toBe(1200);
+
+      // The inner group's children should be laid out by its flex-row layout
+      // innerW = 400, gap = 20, 2 auto children → each w = (400 - 20) / 2 = 190
+      expect(inner.children[0].rect.w).toBe(190);
+      expect(inner.children[1].rect.w).toBe(190);
+      expect(inner.children[0].rect.x).toBe(0);
+      expect(inner.children[1].rect.x).toBe(210); // 190 + 20
+      expect(inner.children[0].rect.h).toBe(200);
+      expect(inner.children[1].rect.h).toBe(200);
+    });
+  });
 });

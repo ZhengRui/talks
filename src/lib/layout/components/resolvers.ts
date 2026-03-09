@@ -795,7 +795,8 @@ function resolveCode(c: CodeComponent, ctx: ResolveContext): ResolveResult {
 // --- Spacer ---
 
 function resolveSpacer(c: SpacerComponent): ResolveResult {
-  if (c.flex) {
+  // Default to flex when no explicit height — a zero-height non-flex spacer is useless
+  if (c.flex ?? (c.height == null)) {
     return { elements: [], height: 0, flex: true };
   }
   return { elements: [], height: c.height ?? 0 };
@@ -1063,7 +1064,7 @@ function resolveBoxPadding(p: number | number[] | undefined): { top: number; rig
   return { top: p[0], right: p[0], bottom: p[0], left: p[0] };
 }
 
-/** Layout-based child positioning for flex-row and grid modes. */
+/** Layout-based child positioning for flex-row, flex-column, and grid modes. */
 function resolveBoxWithLayout(
   c: BoxComponent,
   ctx: ResolveContext,
@@ -1158,6 +1159,78 @@ function resolveBoxWithLayout(
     });
 
     contentH = maxChildH;
+  } else if (layout.type === "flex" && (!layout.direction || layout.direction === "column")) {
+    // --- Flex-column: delegate to auto-layout engine ---
+    const children = c.children ?? [];
+
+    // 1. Resolve each child at full innerW
+    const resolved = children.map((child, i) => {
+      const childCtx: ResolveContext = {
+        ...ctx,
+        panel: { x: 0, y: 0, w: innerW, h: innerH },
+        idPrefix: `${ctx.idPrefix}-box${i}`,
+      };
+      return resolveComponent(child, childCtx);
+    });
+
+    // 2. Build placeholders: flex spacers get h=0 (auto-fill), others get measured height
+    const placeholders: LayoutElement[] = resolved.map((r, i) => ({
+      kind: "shape" as const,
+      id: `ph-${i}`,
+      rect: { x: 0, y: 0, w: innerW, h: r.flex ? 0 : r.height },
+      shape: "rect" as const,
+      style: {},
+    }));
+
+    // 3. Build virtual group and delegate to auto-layout
+    const flexLayout: FlexLayout = {
+      type: "flex",
+      direction: "column",
+      gap,
+      align: layout.align,
+      justify: layout.justify,
+    };
+
+    const virtualGroup: GroupElement = {
+      kind: "group",
+      id: "box-flex-col",
+      rect: { x: 0, y: 0, w: innerW, h: innerH },
+      layout: flexLayout,
+      children: placeholders,
+    };
+
+    const [resolvedGroup] = resolveLayouts([virtualGroup]);
+    const positioned = (resolvedGroup as GroupElement).children;
+
+    // 4. Map positions back to actual resolved elements
+    let maxBottom = 0;
+    resolved.forEach((result, i) => {
+      const pos = positioned[i].rect;
+      const childH = result.flex ? pos.h : result.height;
+
+      // Update flex elements to their computed height
+      if (result.flex && pos.h > 0) {
+        result.elements.forEach((el) => {
+          el.rect = { ...el.rect, h: pos.h };
+        });
+      }
+
+      result.elements.forEach((el) => {
+        allChildren.push({
+          ...el,
+          rect: {
+            x: el.rect.x + pos.x + pad.left,
+            y: el.rect.y + pos.y + innerY,
+            w: el.rect.w,
+            h: el.rect.h,
+          },
+        });
+      });
+
+      maxBottom = Math.max(maxBottom, pos.y + childH);
+    });
+
+    contentH = maxBottom;
   } else {
     // --- Grid: column-based layout ---
     const resolved = (c.children ?? []).map((child, i) => {
@@ -1241,9 +1314,8 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
   const innerY = pad.top + accentH;
   const innerW = boxW - pad.left - pad.right;
 
-  // Dispatch to layout-based positioning for flex-row and grid modes
-  // (flex-column or no layout falls through to existing two-pass stacker)
-  if (c.layout && !(c.layout.type === "flex" && (!c.layout.direction || c.layout.direction === "column"))) {
+  // Dispatch to layout-based positioning for flex-row, flex-column, and grid modes
+  if (c.layout) {
     return resolveBoxWithLayout(c, ctx, boxW, boxX, pad, accentH, innerW);
   }
 

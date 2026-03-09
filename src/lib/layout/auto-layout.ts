@@ -457,16 +457,40 @@ export function resolveLayouts(
       return { ...group, children: resolveLayouts(group.children) };
     }
 
-    // Step 1: Apply this group's layout to assign rects to direct children
-    let laidOut: LayoutElement[];
-    if (group.layout.type === "flex") {
-      laidOut = resolveFlex(group.children, group.rect, group.layout);
-    } else {
-      laidOut = resolveGrid(group.children, group.rect, group.layout);
+    // Step 1: Partition children into flow vs absolute
+    const absoluteIndices = new Set<number>();
+    const flowChildren: LayoutElement[] = [];
+    for (let i = 0; i < group.children.length; i++) {
+      if (group.children[i].position === "absolute") {
+        absoluteIndices.add(i);
+      } else {
+        flowChildren.push(group.children[i]);
+      }
     }
 
-    // Step 2: Recursively resolve any child groups (now that they have rects)
-    laidOut = resolveLayouts(laidOut);
+    // Step 2: Apply this group's layout to flow children only
+    let laidOutFlow: LayoutElement[];
+    if (flowChildren.length === 0) {
+      laidOutFlow = [];
+    } else if (group.layout.type === "flex") {
+      laidOutFlow = resolveFlex(flowChildren, group.rect, group.layout);
+    } else {
+      laidOutFlow = resolveGrid(flowChildren, group.rect, group.layout);
+    }
+
+    // Step 3: Merge back at original indices (preserve z-order)
+    const merged: LayoutElement[] = [];
+    let flowIdx = 0;
+    for (let i = 0; i < group.children.length; i++) {
+      if (absoluteIndices.has(i)) {
+        merged.push(group.children[i]); // keep rect unchanged
+      } else {
+        merged.push(laidOutFlow[flowIdx++]);
+      }
+    }
+
+    // Step 4: Recursively resolve any child groups (now that they have rects)
+    const laidOut = resolveLayouts(merged);
 
     return { ...group, children: laidOut };
   });

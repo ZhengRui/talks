@@ -14,11 +14,11 @@ Identified from `content/replicate-iran-war-2026` — first 10 slides look drama
 
 **Stacked radial gradients** — Slide backgrounds use multiple `radial-gradient()` layers (e.g., `radial-gradient(ellipse at 20% 80%, rgba(255,45,45,0.2)...), radial-gradient(ellipse at 80% 20%,...), #080808`). Each becomes a separate OOXML shape; opacity blending between layers is approximate. Could improve alpha math in `buildCssGradFillXml()`.
 
-**clipPath polygon** — Glitch title effect uses `clipPath: "polygon(0 0, 100% 0, 100% 35%, 0 35%)"` to slice text into layers. No OOXML equivalent for arbitrary polygon clipping. Could approximate by adjusting element rects or using OOXML `<a:custGeom>` custom geometry.
+~~**clipPath polygon**~~ — Done. `parsePolygon()` + `<a:custGeom>` post-processing in `pptx-effects.ts`.
 
 ### Medium Impact, High Effort
 
-**Group rotation in PPTX** — `transform.rotate` on compose components (boxes, columns) creates rotated `GroupElement`s. The PPTX exporter renders groups as flat children (no `<p:grpSp>`), so rotation is lost. Recommended approach: per-child rotation — rotate each child element's position around the group center mathematically, add group rotation to each child's own rotation. Works within current flat-rendering model. Alternative: OOXML post-processing to wrap children in `<p:grpSp>` with `<a:xfrm rot=...>` — pixel-perfect but very invasive.
+~~**Group rotation in PPTX**~~ — Done. Per-child rotation approach: each child's position rotated around group center, group rotation added to child's own rotation. Both standard and side-border backing-shape paths handle rotation.
 
 ### Not Feasible in PPTX
 
@@ -57,7 +57,9 @@ Core auto-layout engine is complete (`auto-layout.ts`, pipeline integration, `Bo
 
 ~~**`wrap` on FlexLayout**~~ — Done. `wrap?: boolean` on `FlexLayout`. Splits children into rows when total width exceeds container.
 
-**Stacker unification** — Deferred to Phase 5. Stacker has flex spacers (`SpacerComponent` with `flex: true`), per-component custom gaps (`marginTop`/`marginBottom`), and animation staggering that `resolveLayouts()` doesn't handle. Different layers: stacker resolves `SlideComponent[]` → `LayoutElement[]`, auto-layout resolves `LayoutElement[]` → `LayoutElement[]`.
+**Box flex-column → auto-layout** — `resolveBox` flex-column path currently uses manual two-pass stacking instead of delegating to `resolveLayouts()` like flex-row does. Fix: route flex-column through the same placeholder→`resolveLayouts()`→map-back pattern. Gives vertical box layouts full justify/align support. Also add mixed absolute+flow positioning: children with `position: "absolute"` opt out of flow and keep their explicit rects, like HTML. Works at any nesting depth since the resolver is recursive.
+
+~~**Stacker unification**~~ — Superseded by "Remove base layout layer" (see below). No point rewriting the stacker when the plan is to remove it entirely.
 
 **Template switchover** — `steps-v2` and `timeline-v2` templates created as auto-layout comparisons. Need visual + PPTX comparison before replacing originals. Table template rewrite deferred — complex layered backgrounds (accent rect, alternating row stripes, border lines) don't benefit from auto-layout.
 
@@ -82,6 +84,33 @@ Differences between `docs/design-v8.md` and actual implementation, with rational
 **`ImageElement.clipCircle` not removed** — Design says use `clipPath` instead. Kept for backward compat with existing templates.
 
 **Component passthrough missing `fill`/`stroke`/`zIndex`** — Blocked on FillDef/StrokeDef migration. Will add when those types exist.
+
+## Remove Base Layout Layer
+
+The current architecture has a rigid base layout layer between templates and components:
+
+```
+Templates → Base Layouts (full-compose/split-compose/freeform) → Components → IR
+```
+
+This forces templates to pick a layout mode upfront. When a slide doesn't fit neatly into full-compose or split-compose, templates need hacks. The base layout layer limits the expressive power of templates.
+
+**Target architecture:** Everything is freeform. Components and IR elements are composed with auto-layout (flex/grid) or absolute positioning — just like HTML.
+
+```
+Templates → Components (with auto-layout) → IR
+```
+
+- **full-compose** = root Box, `layout: { type: flex, direction: column }`, slide-sized
+- **split-compose** = root Box, `layout: { type: flex, direction: row }`, two child Boxes with ratio
+- **freeform** = children with absolute rects (already works this way)
+
+**Prerequisites:**
+1. Box flex-column delegates to `resolveLayouts()` (see Auto-Layout section above)
+2. DSL `base` field becomes optional — templates can output a root component tree directly
+3. Existing templates migrated gradually (old `base:` templates coexist with new ones)
+
+**Files to eventually remove:** `src/lib/layout/templates/bases/full-compose.ts`, `split-compose.ts`, `stacker.ts`. `freeform.ts` may remain as a thin helper for absolute-positioned elements.
 
 ## Phase 4 Prerequisite
 

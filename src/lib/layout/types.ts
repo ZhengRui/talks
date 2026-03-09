@@ -147,6 +147,7 @@ export interface ElementBase {
   clipPath?: string;
   transform?: TransformDef;
   cssStyle?: Record<string, string>;
+  position?: "absolute";
 }
 
 // --- Auto-layout modes for GroupElement ---
