@@ -1,6 +1,15 @@
-# Slide Generation — Prompt Guide
+# Slide Prompt Guide
 
-How to prompt the `create-slides` skill to get different kinds of slides. The more specific your intent, the smarter the output.
+How to prompt the slide skills to get the best results. Two skills, two purposes:
+
+- **`create-slides`** — generate slides from intent ("make a pitch deck about X")
+- **`replicate-slides`** — reproduce slides from visual sources (screenshots, HTML, descriptions)
+
+---
+
+# Part 1: Creating Slides
+
+How to prompt `create-slides` to get different kinds of slides. The more specific your intent, the smarter the output.
 
 ---
 
@@ -573,3 +582,156 @@ These kill visual impact. Mention them in your prompt to steer away:
 | Wall of text (>5 bullets) | Split into multiple slides |
 | Centered symmetry everywhere | Off-center heading, left-aligned stats, asymmetric padding |
 | Uniform animations | Mix fade-up, scale-up, slide-left. Leave some elements static. |
+
+---
+
+# Part 2: Replicating Slides
+
+How to prompt `replicate-slides` to reproduce existing slides. Give it a visual source, say "replicate", and get back: analysis + reusable template + instantiated YAML.
+
+## Quick Reference
+
+| What you provide | What happens |
+|---|---|
+| Screenshot only | Claude analyzes visually — layout, approximate colors/sizes/fonts |
+| HTML file only | Claude extracts exact CSS values — precise colors, sizes, spacing |
+| Screenshot + HTML | Best fidelity — screenshot for composition, HTML for exact numbers |
+| Screenshot + corrections | Your verbal overrides take priority over visual detection |
+| Description only | Claude builds from your words — no guessing needed |
+| Any combination | Claude adapts — more inputs = more precise output |
+
+---
+
+## Prompt Patterns
+
+### 1. Screenshot only — fast and easy
+
+```
+replicate this slide [attach/paste screenshot]
+slug: my-talk
+```
+
+Claude reads the image, detects layout structure, estimates colors/fonts/sizes, finds or creates a template, outputs YAML. Good enough for most cases.
+
+---
+
+### 2. Screenshot + verbal corrections — best for screenshots
+
+```
+replicate this slide [screenshot]
+the left panel is about 65%, the accent color is exactly #b8860b,
+and the heading font is Playfair Display
+slug: quarterly-review
+```
+
+Screenshots compress colors and can't distinguish similar fonts. Your corrections override what Claude detects:
+- **Exact colors** — avoids guessing from JPEG compression
+- **Font names** — Inter vs Helvetica looks identical in screenshots
+- **Split ratios** — hard to measure precisely from a screenshot
+- **Spacing values** — "padding is 80px" is more reliable than visual estimation
+
+---
+
+### 3. HTML file — exact values
+
+```
+replicate this slide from the HTML: /path/to/slide.html
+slug: my-talk
+```
+
+Claude reads the markup and extracts exact CSS values — no guessing. Best when you have the source HTML.
+
+---
+
+### 4. Screenshot + HTML — maximum fidelity
+
+```
+replicate this slide [screenshot]
+here's the HTML for exact values: /path/to/slide.html
+slug: quarterly-review
+```
+
+Screenshot for visual composition and element identification. HTML for exact colors, sizes, spacing, fonts. Best of both worlds.
+
+---
+
+### 5. Description only — no visual needed
+
+```
+replicate a slide with: dark background (#0a0a0a), 65/35 split,
+left panel has a tag "Chapter 3", heading "Revenue Growth" with
+"Revenue" in gold (#b8860b), gradient divider, 3 bullets.
+Right panel is #1a1714 with two stats stacked vertically.
+slug: my-talk
+```
+
+When you know exactly what you want but don't have a screenshot. Claude builds from your description directly.
+
+---
+
+### 6. Batch replication — multiple slides
+
+```
+replicate these slides for my-talk presentation:
+1. [screenshot-1.png] — the cover slide
+2. [screenshot-2.png] — the stats overview
+3. [screenshot-3.png] — the two-panel comparison
+```
+
+Claude processes each slide through the 3-phase pipeline. Templates created for earlier slides may be reused for later ones if the structure matches.
+
+---
+
+## The Most Effective Prompt Pattern
+
+> Replicate this slide **[source]** for **[slug]**. **[corrections/overrides]**.
+
+Examples:
+
+> Replicate this slide screenshot.png for my-talk. The accent is #b8860b and the split is 65/35.
+
+> Replicate this slide from the HTML at src/slides/intro.html for quarterly-review. Use the elegant theme.
+
+---
+
+## Key Details That Improve Fidelity
+
+| Detail | Why it helps | Example |
+|--------|-------------|---------|
+| **Slug** | Required — where to save the template | `slug: my-talk` |
+| **Exact hex colors** | Screenshots compress colors | `accent is #b8860b` |
+| **Font names** | Can't distinguish from pixels | `heading is Playfair Display` |
+| **Split ratios** | Hard to measure visually | `65/35 split` or `left panel is 1250px` |
+| **Theme name** | Enables theme tokens instead of hardcoded colors | `use elegant theme` |
+| **Spacing values** | Padding/gap precision | `80px vertical padding, 16px gap` |
+| **Font sizes** | Approximate from screenshots | `heading is 54px, body is 26px` |
+
+---
+
+## What You Get Back
+
+The skill outputs three things in order:
+
+### 1. Analysis
+Structured breakdown of every detected element — layout, typography, colors, spacing. Printed to conversation so you can verify.
+
+### 2. Template
+Either an existing template name (if pixel-level match is possible) or a new `.template.yaml` saved to `content/[slug]/templates/`. The template has smart params (text content) and style overrides (colors, sizes, ratios) with defaults matching the original.
+
+### 3. Instantiated YAML
+Ready-to-paste slide YAML using the template. All params filled to replicate the source.
+
+---
+
+## Template Accumulation
+
+Each replication potentially creates a new reusable template. Over time:
+
+```
+content/my-talk/templates/
+├── hero-watermark.template.yaml        # from replicating slide 1
+├── split-content-stats.template.yaml   # from replicating slide 3
+├── editorial-quote-cards.template.yaml # from replicating slide 7
+```
+
+Future slides with similar structures reuse these templates instead of creating new ones. The skill checks existing per-presentation templates before creating duplicates.
