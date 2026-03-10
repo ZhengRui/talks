@@ -34,6 +34,7 @@ children:
         variant: flat
         padding: 0
         verticalAlign: center
+        entranceType: none
         children:
           - type: grid
             columns: {{ columns or 3 }}

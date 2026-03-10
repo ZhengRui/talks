@@ -111,7 +111,7 @@ describe("resolveComponent — text", () => {
         type: "text",
         text: "Styled",
         fontSize: 36,
-        fontWeight: "bold",
+        fontWeight: 700,
         fontFamily: "heading",
         color: "theme.accent",
         textAlign: "center",
@@ -128,6 +128,47 @@ describe("resolveComponent — text", () => {
       expect(elements[0].style.textAlign).toBe("center");
       expect(elements[0].style.fontStyle).toBe("italic");
       expect(elements[0].style.lineHeight).toBe(1.2);
+    }
+  });
+
+  it("supports numeric fontWeight", () => {
+    const { elements } = resolveComponent(
+      { type: "text", text: "Heavy", fontWeight: 900 },
+      makeCtx(),
+    );
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.fontWeight).toBe(900);
+    }
+  });
+
+  it("supports letterSpacing and textTransform", () => {
+    const { elements } = resolveComponent(
+      { type: "text", text: "spaced", letterSpacing: 2, textTransform: "uppercase" },
+      makeCtx(),
+    );
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.letterSpacing).toBe(2);
+      expect(elements[0].style.textTransform).toBe("uppercase");
+    }
+  });
+
+  it("suppresses inherited textShadow when textShadow is false", () => {
+    const { elements } = resolveComponent(
+      { type: "text", text: "no shadow", textShadow: false } as SlideComponent,
+      makeCtx({ textShadow: "0 2px 12px rgba(0,0,0,0.7)" }),
+    );
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.textShadow).toBeUndefined();
+    }
+  });
+
+  it("allows custom textShadow override", () => {
+    const { elements } = resolveComponent(
+      { type: "text", text: "custom", textShadow: "0 1px 4px red" } as SlideComponent,
+      makeCtx({ textShadow: "0 2px 12px rgba(0,0,0,0.7)" }),
+    );
+    if (elements[0].kind === "text") {
+      expect(elements[0].style.textShadow).toBe("0 1px 4px red");
     }
   });
 
@@ -1384,6 +1425,120 @@ describe("resolveComponent — box layout modes", () => {
     expect(gridCell.rect.h).toBeCloseTo(400, 0);
   });
 
+  it("absolute-positioned children skip flow and keep explicit coords", () => {
+    const panel: Rect = { x: 0, y: 0, w: 800, h: 600 };
+    const result = resolveComponent(
+      {
+        type: "box",
+        padding: 0,
+        height: 600,
+        layout: { type: "flex", direction: "column", gap: 0 },
+        children: [
+          // Flow child
+          { type: "text", text: "Flow", fontSize: 20 },
+          // Absolute child — should NOT affect flow, keeps its x/y
+          {
+            type: "text",
+            text: "Ghost",
+            fontSize: 100,
+            position: "absolute",
+            x: 50,
+            y: 100,
+            width: 400,
+            height: 300,
+          } as SlideComponent,
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    const outer = result.elements[0] as GroupElement;
+    // The absolute child should have position: "absolute" and be at x=50, y=100
+    const absChild = outer.children.find(
+      (c) => c.kind === "text" && c.id?.includes("box1"),
+    );
+    expect(absChild).toBeDefined();
+    expect(absChild!.position).toBe("absolute");
+    expect(absChild!.rect.x).toBe(50);
+    expect(absChild!.rect.y).toBe(100);
+    expect(absChild!.rect.w).toBe(400);
+    expect(absChild!.rect.h).toBe(300);
+  });
+
+  it("absolute children preserve z-order from original children array", () => {
+    const panel: Rect = { x: 0, y: 0, w: 800, h: 600 };
+    const result = resolveComponent(
+      {
+        type: "box",
+        padding: 0,
+        height: 600,
+        layout: { type: "flex", direction: "column", gap: 0 },
+        children: [
+          // Absolute at index 0 — should render BEFORE flow children
+          {
+            type: "text",
+            text: "Behind",
+            fontSize: 100,
+            position: "absolute",
+            x: 0,
+            y: 0,
+            width: 800,
+            height: 600,
+          } as SlideComponent,
+          // Flow at index 1
+          { type: "text", text: "Front", fontSize: 20 },
+          // Absolute at index 2 — should render AFTER flow
+          {
+            type: "text",
+            text: "OnTop",
+            fontSize: 50,
+            position: "absolute",
+            x: 100,
+            y: 100,
+            width: 200,
+            height: 100,
+          } as SlideComponent,
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    const outer = result.elements[0] as GroupElement;
+    const texts = outer.children.filter((c) => c.kind === "text").map((c) => (c as TextElement).text);
+    // Order should match original YAML: Behind, Front, OnTop
+    expect(texts).toEqual(["Behind", "Front", "OnTop"]);
+  });
+
+  it("absolute children at index 0 do not collide IDs with flow children", () => {
+    const panel: Rect = { x: 0, y: 0, w: 800, h: 600 };
+    const result = resolveComponent(
+      {
+        type: "box",
+        padding: 0,
+        height: 600,
+        layout: { type: "flex", direction: "column", gap: 0 },
+        children: [
+          // Absolute child at index 0
+          {
+            type: "text",
+            text: "Ghost",
+            fontSize: 100,
+            position: "absolute",
+            x: 50,
+            y: 100,
+            width: 400,
+            height: 300,
+          } as SlideComponent,
+          // Flow child at index 1 — should NOT get same ID as absolute child
+          { type: "text", text: "Flow", fontSize: 20 },
+        ],
+      },
+      makeCtx({ panel, animate: false }),
+    );
+    const outer = result.elements[0] as GroupElement;
+    const ids = outer.children.map((c) => c.id);
+    const unique = new Set(ids);
+    expect(unique.size).toBe(ids.length);
+  });
+
   it("flex-row preserves card styling on group wrapper", () => {
     const panel: Rect = { x: 0, y: 0, w: 600, h: 600 };
     const { elements } = resolveComponent(
@@ -1523,6 +1678,51 @@ describe("resolveComponent — box layout modes", () => {
     expect(startGroup.children[0].rect.x).toBe(betweenGroup.children[0].rect.x);
   });
 
+  it("flex-row without explicit height centers children relative to tallest child, not container", () => {
+    // A flex-row with align:center inside a tall parent should center children
+    // relative to the tallest child, not the parent's full height.
+    const box: SlideComponent = {
+      type: "box",
+      variant: "flat",
+      padding: 0,
+      layout: { type: "flex", direction: "row", gap: 0, align: "center" },
+      children: [
+        { type: "text", text: "Short", fontSize: 20, lineHeight: 1.2 } as SlideComponent,
+        { type: "text", text: "Tall", fontSize: 60, lineHeight: 1.2 } as SlideComponent,
+      ],
+    };
+    // Large parent panel to expose the bug: if centered in 1000px, y ≈ 464
+    const ctx = makeCtx({ panel: { x: 0, y: 0, w: 800, h: 1000 } });
+    const { elements } = resolveComponent(box, ctx);
+    const group = elements[0] as GroupElement;
+    const shortText = group.children[0];
+    const tallText = group.children[1];
+    // Short text must be centered relative to tall text height, not h=1000
+    // With tallText.h ≈ 72 and shortText.h ≈ 24: y ≈ (72-24)/2 = 24
+    // Bug: y ≈ (1000-24)/2 = 488
+    expect(shortText.rect.y).toBeLessThan(tallText.rect.h);
+  });
+
+  it("flex-row with fill centers children relative to container height", () => {
+    // fill: true (CSS flex-grow) → cross-axis = parent container height
+    const box: SlideComponent = {
+      type: "box",
+      variant: "flat",
+      padding: 0,
+      fill: true,
+      layout: { type: "flex", direction: "row", gap: 0, align: "center" },
+      children: [
+        { type: "text", text: "Short", fontSize: 20, lineHeight: 1.2 } as SlideComponent,
+      ],
+    };
+    const ctx = makeCtx({ panel: { x: 0, y: 0, w: 800, h: 400 } });
+    const { elements } = resolveComponent(box, ctx);
+    const group = elements[0] as GroupElement;
+    const text = group.children[0];
+    // text.h ≈ 24; centered in h=400 → y ≈ (400-24)/2 ≈ 188
+    expect(text.rect.y).toBeGreaterThan(100);
+  });
+
   it("grid uses separate rowGap and columnGap", () => {
     const panel: Rect = { x: 0, y: 0, w: 800, h: 600 };
     const { elements } = resolveComponent(
@@ -1576,6 +1776,48 @@ describe("resolveComponent — tag", () => {
     );
     if (elements[1].kind === "text") {
       expect(elements[1].style.color).toBe(theme.accent);
+    }
+  });
+
+  it("supports custom fontSize and padding", () => {
+    const { elements, height } = resolveComponent(
+      { type: "tag", text: "Small", fontSize: 13, padding: [6, 24] },
+      makeCtx(),
+    );
+    if (elements[1].kind === "text") {
+      expect(elements[1].style.fontSize).toBe(13);
+    }
+    // height = fontSize + paddingY*2 = 13 + 6*2 = 25
+    expect(height).toBe(25);
+  });
+
+  it("supports borderWidth: 0 to remove border", () => {
+    const { elements } = resolveComponent(
+      { type: "tag", text: "No border", borderWidth: 0 },
+      makeCtx(),
+    );
+    if (elements[0].kind === "shape") {
+      expect(elements[0].border).toBeUndefined();
+    }
+  });
+
+  it("supports custom borderWidth and borderColor", () => {
+    const { elements } = resolveComponent(
+      { type: "tag", text: "Custom", borderWidth: 2, borderColor: "#00ff00" },
+      makeCtx(),
+    );
+    if (elements[0].kind === "shape") {
+      expect(elements[0].border).toEqual({ width: 2, color: "#00ff00" });
+    }
+  });
+
+  it("supports letterSpacing", () => {
+    const { elements } = resolveComponent(
+      { type: "tag", text: "Spaced", letterSpacing: 3 },
+      makeCtx(),
+    );
+    if (elements[1].kind === "text") {
+      expect(elements[1].style.letterSpacing).toBe(3);
     }
   });
 });
@@ -1652,6 +1894,43 @@ describe("resolveComponent — divider", () => {
     );
     expect(result.gapBefore).toBeUndefined();
     expect(result.gapAfter).toBeUndefined();
+  });
+
+  it("uses custom color when provided", () => {
+    const { elements } = resolveComponent(
+      { type: "divider", variant: "solid", color: "#00d4ff" } as SlideComponent,
+      makeCtx(),
+    );
+    if (elements[0].kind === "shape") {
+      expect(elements[0].style.fill).toBe("#00d4ff");
+    }
+  });
+
+  it("solid divider with explicit color does not get 0.4 opacity", () => {
+    const { elements } = resolveComponent(
+      { type: "divider", variant: "solid", color: "rgba(255,107,53,0.3)" } as SlideComponent,
+      makeCtx(),
+    );
+    expect(elements[0]).not.toHaveProperty("opacity");
+  });
+
+  it("divider inside box with align center is centered within box inner width", () => {
+    const box: SlideComponent = {
+      type: "box",
+      variant: "flat",
+      padding: 0,
+      children: [
+        { type: "divider", variant: "solid", width: 180, align: "center" } as SlideComponent,
+      ],
+    };
+    const ctx = makeCtx({ panel: { x: 0, y: 0, w: 600, h: 400 } });
+    const { elements } = resolveComponent(box, ctx);
+    // The box group is elements[0]; find the divider shape inside
+    const group = elements[0] as GroupElement;
+    const divider = group.children.find((el) => el.id.includes("divider"))!;
+    // Divider (w=180) should be centered in 600px container: x = (600-180)/2 = 210
+    expect(divider.rect.x).toBe((600 - 180) / 2);
+    expect(divider.rect.w).toBe(180);
   });
 });
 
@@ -3141,5 +3420,47 @@ describe("unified margin", () => {
     // B: margin-top=10, margin-left=40
     expect(els[1].rect.x).toBe(40);
     expect(els[1].rect.y).toBeCloseTo(els[0].rect.y + els[0].rect.h + 10, 5);
+  });
+
+  it("flex-column respects child explicit width for text wrapping", () => {
+    // Long text that fits in 1 line at 1200px but wraps to multiple lines at 540px
+    const longText = "In 1967, the AFL-NFL championship game became the first Super Bowl. The Green Bay Packers crushed the Kansas City Chiefs 35-10.";
+    const box: SlideComponent = {
+      type: "box",
+      variant: "flat",
+      padding: 0,
+      layout: { type: "flex", direction: "column", gap: 0 },
+      children: [
+        { type: "text", text: longText, fontSize: 18, lineHeight: 1.8, width: 540 } as SlideComponent,
+      ],
+    };
+    const panel: Rect = { x: 0, y: 0, w: 1200, h: 1080 };
+    const result = resolveComponent(box, makeCtx({ panel, animate: false }));
+    const group = result.elements[0] as GroupElement;
+    const textEl = group.children[0];
+    // Text should be constrained to 540px width, not the full 1200px
+    expect(textEl.rect.w).toBe(540);
+    // At 540px width, the text should wrap to multiple lines → height > single line
+    const singleLineH = 18 * 1.8; // ~32.4
+    expect(textEl.rect.h).toBeGreaterThan(singleLineH * 1.5); // at least 2 lines
+  });
+
+  it("no-layout box respects child explicit width for text wrapping", () => {
+    const longText = "In 1967, the AFL-NFL championship game became the first Super Bowl. The Green Bay Packers crushed the Kansas City Chiefs 35-10.";
+    const box: SlideComponent = {
+      type: "box",
+      variant: "flat",
+      padding: 0,
+      children: [
+        { type: "text", text: longText, fontSize: 18, lineHeight: 1.8, width: 540 } as SlideComponent,
+      ],
+    };
+    const panel: Rect = { x: 0, y: 0, w: 1200, h: 1080 };
+    const result = resolveComponent(box, makeCtx({ panel, animate: false }));
+    const group = result.elements[0] as GroupElement;
+    const textEl = group.children[0];
+    expect(textEl.rect.w).toBe(540);
+    const singleLineH = 18 * 1.8;
+    expect(textEl.rect.h).toBeGreaterThan(singleLineH * 1.5);
   });
 });

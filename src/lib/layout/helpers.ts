@@ -34,16 +34,20 @@ export function estimateTextHeight(
   containerWidth: number,
   fontWeight?: number,
 ): number {
-  // Calculate total text width accounting for CJK full-width characters and bold text
   const charRatio = fontWeight && fontWeight >= 700 ? BOLD_CHAR_WIDTH_RATIO : AVG_CHAR_WIDTH_RATIO;
-  let totalTextWidth = 0;
-  for (const ch of text) {
-    totalTextWidth += fontSize * (CJK_RE.test(ch) ? CJK_CHAR_WIDTH_RATIO : charRatio);
+  // Split on explicit newlines — each paragraph wraps independently
+  const paragraphs = text.split("\n");
+  let totalLines = 0;
+  for (const para of paragraphs) {
+    let paraWidth = 0;
+    for (const ch of para) {
+      paraWidth += fontSize * (CJK_RE.test(ch) ? CJK_CHAR_WIDTH_RATIO : charRatio);
+    }
+    totalLines += containerWidth > 0 ? Math.max(1, Math.ceil(paraWidth / containerWidth)) : 1;
   }
-  const lineCount = containerWidth > 0 ? Math.max(1, Math.ceil(totalTextWidth / containerWidth)) : 1;
   // Extra space for descenders (g, y, p, q, j) — needed with tight lineHeight
   const descenderPad = lineHeight < 1.3 ? fontSize * 0.15 : 0;
-  return lineCount * fontSize * lineHeight + descenderPad;
+  return totalLines * fontSize * lineHeight + descenderPad;
 }
 
 // --- Entrance helpers ---

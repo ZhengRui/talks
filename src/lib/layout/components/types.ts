@@ -37,18 +37,29 @@ export type SlideComponent =
   /** CSS-style margin: number | [vert, horiz] | [top, right, bottom, left].
    *  Applied by Box resolver in all layout modes (flex-row, flex-column, grid, no-layout). */
   margin?: number | number[];
+  /** Opt out of parent flow layout — keep explicit x/y coords (like CSS position: absolute). */
+  position?: "absolute";
+  /** Explicit x position within parent (only used with position: "absolute"). */
+  x?: number;
+  /** Explicit y position within parent (only used with position: "absolute"). */
+  y?: number;
+  /** Explicit height for this component. */
+  height?: number;
 };
 
 export interface TextComponent {
   type: "text";
   text: RichText;
   fontSize?: number;
-  fontWeight?: "normal" | "bold";
+  fontWeight?: number;                            // numeric weight (100-900), default 400
   color?: string;                                 // theme token or hex
   textAlign?: "left" | "center" | "right";
   fontStyle?: "normal" | "italic";
   fontFamily?: "heading" | "body" | "mono";       // maps to theme fonts, default "body"
   lineHeight?: number;
+  letterSpacing?: number;                         // CSS letter-spacing in px
+  textTransform?: "uppercase" | "lowercase" | "none";
+  textShadow?: string | false;                    // override or suppress inherited textShadow
   maxWidth?: number;                              // constrain width, centered within panel
   /** Gap before this component, replaces default stacker gap */
   marginTop?: number;
@@ -112,12 +123,18 @@ export interface TagComponent {
   text: RichText;
   color?: string;
   align?: "left" | "center";
+  fontSize?: number;                              // default 20
+  padding?: number | number[];                    // CSS-style: number | [vert, horiz] | [top, right, bottom, left], default [12, 20]
+  borderWidth?: number;                           // default 1, set to 0 for no border
+  borderColor?: string;                           // default derived from tag color
+  letterSpacing?: number;                         // CSS letter-spacing in px
 }
 
 export interface DividerComponent {
   type: "divider";
   variant?: "solid" | "gradient" | "ink" | "border";
   width?: number;
+  color?: string;                                     // override fill color (theme token or hex)
   align?: "left" | "center";
   /** Gap before this divider, replaces default stacker gap */
   marginTop?: number;

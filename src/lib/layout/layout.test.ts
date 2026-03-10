@@ -69,6 +69,13 @@ describe("estimateTextHeight", () => {
     const h = estimateTextHeight(longText, 28, 1.6, 400);
     expect(h).toBeGreaterThan(28 * 1.6); // multiple lines
   });
+
+  it("counts explicit newlines as line breaks", () => {
+    const text = "Line one\nLine two";
+    const h = estimateTextHeight(text, 26, 1.6, 1600);
+    // Both lines are short enough to fit in 1600px, so height = 2 lines
+    expect(h).toBeCloseTo(2 * 26 * 1.6, 0);
+  });
 });
 
 describe("titleBlock", () => {

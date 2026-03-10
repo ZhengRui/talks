@@ -85,7 +85,7 @@ function resolveFontFamily(value: string | undefined, fallback: string, theme: R
 
 function resolveText(c: TextComponent, ctx: ResolveContext): ResolveResult {
   const fontSize = c.fontSize ?? 28;
-  const fontWeight = c.fontWeight === "bold" ? 700 : 400;
+  const fontWeight = c.fontWeight ?? 400;
   const lineHeight = c.lineHeight ?? 1.6;
   const fontFamily = resolveFontFamily(c.fontFamily, ctx.theme.fontBody, ctx.theme);
   const color = c.color
@@ -94,6 +94,9 @@ function resolveText(c: TextComponent, ctx: ResolveContext): ResolveResult {
   const textW = c.maxWidth ? Math.min(c.maxWidth, ctx.panel.w) : ctx.panel.w;
   const textX = c.maxWidth ? (ctx.panel.w - textW) / 2 : 0;
   const h = estimateTextHeight(toPlainText(c.text), fontSize, lineHeight, textW, fontWeight);
+  // textShadow: false suppresses inherited, string overrides, undefined inherits
+  const textShadow = c.textShadow === false ? undefined
+    : (c.textShadow ?? ctx.textShadow ?? undefined);
 
   const el: TextElement = {
     kind: "text",
@@ -108,7 +111,9 @@ function resolveText(c: TextComponent, ctx: ResolveContext): ResolveResult {
       lineHeight,
       textAlign: c.textAlign ?? "left",
       ...(c.fontStyle ? { fontStyle: c.fontStyle } : {}),
-      ...(ctx.textShadow ? { textShadow: ctx.textShadow } : {}),
+      ...(textShadow ? { textShadow } : {}),
+      ...(c.letterSpacing != null ? { letterSpacing: c.letterSpacing } : {}),
+      ...(c.textTransform ? { textTransform: c.textTransform } : {}),
     },
   };
 
@@ -424,11 +429,12 @@ function resolveStat(c: StatComponent, ctx: ResolveContext): ResolveResult {
 // --- Tag ---
 
 function resolveTag(c: TagComponent, ctx: ResolveContext): ResolveResult {
-  const fontSize = 20;
-  const paddingX = 20;
-  const paddingY = 12;
-  const textW = toPlainText(c.text).length * fontSize * 0.7 + paddingX * 2;
-  const h = fontSize + paddingY * 2;
+  const fontSize = c.fontSize ?? 20;
+  const pad = resolveMargin(c.padding ?? [12, 20]);
+  const paddingX = pad.left + pad.right;
+  const paddingY = pad.top + pad.bottom;
+  const textW = toPlainText(c.text).length * fontSize * 0.7 + paddingX;
+  const h = fontSize + paddingY;
   const color = c.color
     ? resolveColor(c.color, ctx.theme, ctx.theme.accent)
     : (ctx.textColor ?? ctx.theme.accent);
@@ -441,6 +447,11 @@ function resolveTag(c: TagComponent, ctx: ResolveContext): ResolveResult {
 
   const x = c.align === "center" ? (ctx.panel.w - textW) / 2 : 0;
 
+  const borderWidth = c.borderWidth ?? 1;
+  const borderColor = c.borderColor
+    ? resolveColor(c.borderColor, ctx.theme, pillBorder)
+    : pillBorder;
+
   const pill: ShapeElement = {
     kind: "shape",
     id: `${ctx.idPrefix}-tag-bg`,
@@ -448,7 +459,7 @@ function resolveTag(c: TagComponent, ctx: ResolveContext): ResolveResult {
     shape: "pill",
     style: { fill: pillFill },
     borderRadius: 100,
-    border: { width: 1, color: pillBorder },
+    ...(borderWidth > 0 ? { border: { width: borderWidth, color: borderColor } } : {}),
   };
 
   const text: TextElement = {
@@ -464,6 +475,7 @@ function resolveTag(c: TagComponent, ctx: ResolveContext): ResolveResult {
       lineHeight: 1,
       textAlign: "center",
       verticalAlign: "middle",
+      ...(c.letterSpacing != null ? { letterSpacing: c.letterSpacing } : {}),
     },
   };
 
@@ -482,6 +494,7 @@ function resolveDivider(c: DividerComponent, ctx: ResolveContext): ResolveResult
   const align = c.align ?? "left";
   const x = align === "center" ? (ctx.panel.w - w) / 2 : 0;
 
+  const fillColor = c.color ? resolveColor(c.color, ctx.theme, ctx.theme.accent) : ctx.theme.accent;
   const style: ShapeElement["style"] =
     variant === "gradient"
       ? { gradient: ctx.theme.accentGradient }
@@ -491,14 +504,14 @@ function resolveDivider(c: DividerComponent, ctx: ResolveContext): ResolveResult
               type: "linear",
               angle: 90,
               stops: [
-                { color: ctx.theme.accent, position: 0 },
+                { color: fillColor, position: 0 },
                 { color: "transparent", position: 1 },
               ],
             },
           }
         : isBorder
           ? { fill: ctx.theme.border.color }
-          : { fill: ctx.theme.accent };
+          : { fill: fillColor };
 
   const needsRadius = variant !== "border";
   const isSolid = variant === "solid";
@@ -510,7 +523,7 @@ function resolveDivider(c: DividerComponent, ctx: ResolveContext): ResolveResult
     shape: "rect",
     style,
     ...(needsRadius ? { borderRadius: 2 } : {}),
-    ...(isSolid ? { opacity: 0.4 } : {}),
+    ...(isSolid && !c.color ? { opacity: 0.4 } : {}),
   };
 
   return {
@@ -1049,8 +1062,13 @@ function buildBoxGroup(
 
   // Override default stacker/columns animation if component specifies one
   if (c.entranceType && ctx.animate) {
-    const boxDelay = (c as unknown as SlideComponent).entranceDelay ?? ctx.animationDelay ?? 0;
-    group.entrance = makeEntrance(c.entranceType, boxDelay);
+    if (c.entranceType === "none") {
+      // Sentinel: prevents autoEntrance from assigning an animation to this group
+      group.entrance = { type: "none", delay: 0, duration: 0 };
+    } else {
+      const boxDelay = (c as unknown as SlideComponent).entranceDelay ?? ctx.animationDelay ?? 0;
+      group.entrance = makeEntrance(c.entranceType, boxDelay);
+    }
   }
 
   return group;
@@ -1124,9 +1142,54 @@ function resolveBoxWithLayout(
   const childIsSpacer: boolean[] = [];
   let contentH = 0;
 
+  // --- Partition absolute children out of flow ---
+  // Components with position: "absolute" are resolved at their explicit coords
+  // and excluded from flow layout (like CSS position: absolute).
+  // Absolute elements stored with their original index for z-order preservation
+  const absoluteSlots: { index: number; elements: LayoutElement[] }[] = [];
+  const rawChildren = c.children ?? [];
+  const flowChildren: SlideComponent[] = [];
+  const flowOriginalIndices: number[] = [];
+  rawChildren.forEach((child, i) => {
+    const sc = child as SlideComponent;
+    if (sc.position === "absolute") {
+      const w = sc.width ?? innerW;
+      const h = sc.height ?? innerH;
+      const x = sc.x ?? 0;
+      const y = sc.y ?? 0;
+      const aeDelay = c.autoEntrance
+        ? (c.autoEntrance.baseDelay ?? 0) + i * (c.autoEntrance.stagger ?? 100)
+        : undefined;
+      const childCtx: ResolveContext = {
+        ...ctx,
+        panel: { x: 0, y: 0, w, h },
+        idPrefix: `${ctx.idPrefix}-box${i}`,
+        ...(c.autoEntrance ? { animate: true, animationDelay: aeDelay } : {}),
+      };
+      const result = resolveComponent(child, childCtx);
+      const isSingle = result.elements.length === 1;
+      const positioned = result.elements.map((el) => ({
+        ...el,
+        rect: isSingle
+          ? { x: x + pad.left, y: y + innerY, w, h }
+          : {
+              x: el.rect.x + x + pad.left,
+              y: el.rect.y + y + innerY,
+              w: el.rect.w,
+              h: el.rect.h,
+            },
+        position: "absolute" as const,
+      }));
+      absoluteSlots.push({ index: i, elements: positioned });
+    } else {
+      flowChildren.push(child);
+      flowOriginalIndices.push(i);
+    }
+  });
+
   if (layout.type === "flex" && layout.direction === "row") {
     // --- Flex-row: delegate to auto-layout engine for justify support ---
-    const children = c.children ?? [];
+    const children = flowChildren;
 
     // 1. Parse per-child margins and compute assigned widths
     const childMarginsRow = children.map((child) => resolveMargin((child as SlideComponent).margin));
@@ -1154,7 +1217,7 @@ function resolveBoxWithLayout(
       const childCtx: ResolveContext = {
         ...ctx,
         panel: { x: 0, y: 0, w: assignedWidths[i], h: innerH },
-        idPrefix: `${ctx.idPrefix}-box${i}`,
+        idPrefix: `${ctx.idPrefix}-box${flowOriginalIndices[i]}`,
         ...(c.autoEntrance ? { animate: true, animationDelay: aeDelay } : {}),
       };
       if (!isSpacer) aeStaggerIdxRow++;
@@ -1183,10 +1246,17 @@ function resolveBoxWithLayout(
       wrap: layout.wrap,
     };
 
+    // CSS flexbox cross-axis sizing for flex-row:
+    //  - explicit height or fill (flex-grow) → use container height (innerH)
+    //  - otherwise (height: auto) → tallest child content
+    const crossAxisH = (c.height != null || c.fill)
+      ? innerH
+      : Math.max(...placeholders.map((p) => p.rect.h), 0);
+
     const virtualGroup: GroupElement = {
       kind: "group",
       id: "box-flex",
-      rect: { x: 0, y: 0, w: innerW, h: innerH },
+      rect: { x: 0, y: 0, w: innerW, h: crossAxisH },
       layout: flexLayout,
       children: placeholders,
     };
@@ -1213,13 +1283,13 @@ function resolveBoxWithLayout(
         });
       });
       childElementCounts.push(result.elements.length);
-      childIsSpacer.push((c.children ?? [])[i]?.type === "spacer");
+      childIsSpacer.push(flowChildren[i]?.type === "spacer");
     });
 
     contentH = maxChildH;
   } else if (layout.type === "flex" && (!layout.direction || layout.direction === "column")) {
     // --- Flex-column: delegate to auto-layout engine ---
-    const children = c.children ?? [];
+    const children = flowChildren;
 
     // 1. Resolve each child at full innerW
     // When autoEntrance is set, pass animate + animationDelay so component
@@ -1230,10 +1300,12 @@ function resolveBoxWithLayout(
       const aeDelay = c.autoEntrance
         ? (c.autoEntrance.baseDelay ?? 0) + aeStaggerIdx * (c.autoEntrance.stagger ?? 100)
         : undefined;
+      // Divider's `width` means line width, not component layout width — skip it for panel sizing
+      const childW = (child.type !== "divider" ? (child as SlideComponent).width : undefined) ?? innerW;
       const childCtx: ResolveContext = {
         ...ctx,
-        panel: { x: 0, y: 0, w: innerW, h: innerH },
-        idPrefix: `${ctx.idPrefix}-box${i}`,
+        panel: { x: 0, y: 0, w: childW, h: innerH },
+        idPrefix: `${ctx.idPrefix}-box${flowOriginalIndices[i]}`,
         ...(c.autoEntrance ? { animate: true, animationDelay: aeDelay } : {}),
       };
       if (!isSpacer) aeStaggerIdx++;
@@ -1289,10 +1361,11 @@ function resolveBoxWithLayout(
             (isSpacer ? 0 : children.slice(0, i).filter((ch) => ch.type !== "spacer").length) *
               (c.autoEntrance.stagger ?? 100)
           : undefined;
+        const childW = (children[i].type !== "divider" ? (children[i] as SlideComponent).width : undefined) ?? innerW;
         const childCtx: ResolveContext = {
           ...ctx,
-          panel: { x: 0, y: 0, w: innerW, h: flexH },
-          idPrefix: `${ctx.idPrefix}-box${i}`,
+          panel: { x: 0, y: 0, w: childW, h: flexH },
+          idPrefix: `${ctx.idPrefix}-box${flowOriginalIndices[i]}`,
           ...(c.autoEntrance ? { animate: true, animationDelay: aeDelay } : {}),
         };
         resolved[i] = resolveComponent(children[i], childCtx);
@@ -1336,7 +1409,7 @@ function resolveBoxWithLayout(
     contentH = maxBottom;
   } else {
     // --- Grid: column-based layout ---
-    const gridChildren = c.children ?? [];
+    const gridChildren = flowChildren;
     const childMarginsGrid = gridChildren.map((child) => resolveMargin((child as SlideComponent).margin));
     let aeStaggerIdxGrid = 0;
     const resolved = gridChildren.map((child, i) => {
@@ -1347,7 +1420,7 @@ function resolveBoxWithLayout(
       const childCtx: ResolveContext = {
         ...ctx,
         panel: { x: 0, y: 0, w: innerW, h: innerH },
-        idPrefix: `${ctx.idPrefix}-box${i}`,
+        idPrefix: `${ctx.idPrefix}-box${flowOriginalIndices[i]}`,
         ...(c.autoEntrance ? { animate: true, animationDelay: aeDelay } : {}),
       };
       if (!isSpacer) aeStaggerIdxGrid++;
@@ -1416,6 +1489,32 @@ function resolveBoxWithLayout(
     applyAutoEntrance(allChildren, childElementCounts, childIsSpacer, c.autoEntrance);
   }
 
+  // Merge absolute-positioned children at their original z-order positions.
+  // Flow elements occupy slots at their original indices; absolute elements
+  // are interleaved at their original indices to preserve YAML child order.
+  if (absoluteSlots.length > 0) {
+    // Build a mapping: original index → elements (flow or absolute)
+    const merged: LayoutElement[] = [];
+    // Collect flow elements grouped by original child index
+    const flowSlots: { index: number; elements: LayoutElement[] }[] = [];
+    let flowElOffset = 0;
+    for (let fi = 0; fi < flowOriginalIndices.length; fi++) {
+      const count = childElementCounts[fi];
+      flowSlots.push({
+        index: flowOriginalIndices[fi],
+        elements: allChildren.slice(flowElOffset, flowElOffset + count),
+      });
+      flowElOffset += count;
+    }
+    // Merge both lists sorted by original index
+    const allSlots = [...flowSlots, ...absoluteSlots].sort((a, b) => a.index - b.index);
+    for (const slot of allSlots) {
+      merged.push(...slot.elements);
+    }
+    allChildren.length = 0;
+    allChildren.push(...merged);
+  }
+
   const group = buildBoxGroup(c, ctx, boxX, boxW, totalH, allChildren);
 
   return {
@@ -1458,9 +1557,11 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
     const aeDelay = c.autoEntrance
       ? (c.autoEntrance.baseDelay ?? 0) + aeStaggerIdxStack * (c.autoEntrance.stagger ?? 100)
       : undefined;
+    // Divider's `width` means line width, not component layout width — skip it for panel sizing
+    const childW = (child.type !== "divider" ? (child as SlideComponent).width : undefined) ?? innerW;
     const childCtx: ResolveContext = {
       ...ctx,
-      panel: { x: pad.left, y: 0, w: innerW, h: ctx.panel.h },
+      panel: { x: pad.left, y: 0, w: childW, h: ctx.panel.h },
       idPrefix: `${ctx.idPrefix}-box${i}`,
       ...(c.autoEntrance ? { animate: true, animationDelay: aeDelay } : {}),
     };
