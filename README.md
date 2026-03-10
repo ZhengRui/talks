@@ -32,35 +32,37 @@ slides:
       - Second point
       - Third point
 
-  - template: split-compose
-    ratio: 0.55
-    left:
-      background: theme.bg
-      children:
-        - type: heading
-          text: "Custom Layout"
-        - type: bullets
-          items: ["Mix components freely", "Theme-aware colors"]
-    right:
-      background: theme.bgSecondary
-      children:
-        - type: stat
-          value: "42"
-          label: "The Answer"
+  - children:
+      - type: box
+        variant: flat
+        layout: { type: flex, direction: row, gap: 32 }
+        children:
+          - type: box
+            variant: flat
+            children:
+              - type: heading
+                text: "Custom Layout"
+              - type: bullets
+                items: ["Mix components freely", "Theme-aware colors"]
+          - type: box
+            variant: flat
+            children:
+              - type: stat
+                value: "42"
+                label: "The Answer"
 ```
 
 2. Put images in `content/my-talk/images/`, then run `bun run sync-content`
 3. The home page auto-discovers it — no code changes needed
 
-## Three Approaches
+## Two Approaches
 
 | Approach | When to use | YAML verbosity |
 |----------|-------------|----------------|
 | **Shortcut templates** | Standard layouts (bullets, stats, cover, comparison) | Low — fill in props |
-| **Compose templates** | Custom content combinations, two-panel layouts | Medium — declare components |
-| **Freeform** | Hero slides, visual inventions, pixel-precise layouts | High — position every element |
+| **Component trees** | Custom layouts using Box with auto-layout (flex/grid) | Medium — compose components |
 
-Mix all three in one presentation.
+All slides are component trees. Templates are shortcuts that expand into components. For pixel-precise control, use `raw` components with IR elements or `position: absolute` on children.
 
 ## PPTX Export
 
@@ -138,8 +140,6 @@ All templates are DSL YAML files (`.template.yaml`) that expand into composable 
 | `blank` | Empty slide |
 | `end` | Closing slide |
 
-Plus 2 compose templates (`split-compose`, `full-compose`) and `freeform` for pixel-level control.
-
 Preview all templates at `/example`.
 
 ## Animations
@@ -163,23 +163,23 @@ slides.yaml → loadPresentation() → layoutPresentation() → LayoutPresentati
 
 Both renderers consume the same intermediate layout model — a JSON structure with absolute-positioned elements on a 1920×1080 canvas. This guarantees consistent positioning between web and PPTX output.
 
-Templates are DSL YAML files processed by a Nunjucks compiler into composable components, which are then resolved into layout elements by the stacker algorithm.
+Templates are DSL YAML files processed by a Nunjucks compiler into composable components, which are resolved into layout elements by the component resolvers. Auto-layout (flex/grid) computes absolute rects in a pre-pass before rendering.
 
 ## Project Structure
 
 ```
 content/[slug]/slides.yaml          # Presentation content (YAML)
 content/[slug]/images/              # Source images
-src/lib/types.ts                    # TypeScript types (discriminated union)
+src/lib/types.ts                    # TypeScript types (SlideData, ThemeName)
 src/lib/loadPresentation.ts         # YAML parser + auto-discovery
 src/lib/layout/                     # Layout model
-  types.ts                          #   9 element kinds, ResolvedTheme
+  types.ts                          #   9 element kinds, ResolvedTheme, RichText, LayoutMode
+  auto-layout.ts                    #   resolveLayouts() — flex/grid pre-pass
   theme.ts                          #   16 theme definitions, resolveTheme()
   helpers.ts                        #   Shared layout utilities
   index.ts                          #   layoutPresentation() dispatcher
   components/                       #   18 composable component types + resolvers
   templates/                        #   35 DSL YAML templates (.template.yaml)
-  templates/bases/                  #   3 base layout engines (freeform, split-compose, full-compose)
 src/lib/dsl/                        # DSL template loader + Nunjucks compiler
 src/lib/export/                     # PPTX export
   pptx.ts                           #   exportPptx() via PptxGenJS

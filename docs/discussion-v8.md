@@ -1,135 +1,247 @@
-# Discussion v8: Framework Expressiveness and PPTX Fidelity
+# v8 Discussion: History, Decisions, and Remaining Work
 
-## Context
+This document consolidates the v8 design discussion, implementation decisions, intentional divergences from the original spec, and remaining backlog. For the current design spec, see `design-v8.md`.
 
-After replicating 10 slides from an external HTML presentation (`localhost:8765/index.html`) into the YAML framework (`content/replicate-iran-war-2026/slides.yaml`), we found significant gaps in the framework's expressive power and PPTX export fidelity. This document captures the analysis.
+## Origin
 
-## What We Built During Replication
+After replicating 10 slides from an external HTML presentation into the YAML framework (`content/replicate-iran-war-2026`), we found significant gaps in the framework's expressive power and PPTX export fidelity. 28 commits, 145 files changed (+15,089/-1,387 lines). The analysis identified core limitations: no transforms, no rich text, no auto-layout, prop-by-prop CSS patching, and silent PPTX export failures.
 
-28 commits on the branch, 145 files changed (+15,089/-1,387 lines) in `src/`. The uncommitted replication-session work alone: 40 files, +788/-307 lines.
+~85% of the code changes were genuinely generic. The main hacks were (1) no rotation forcing clipPath abuse, and (2) no auto-layout forcing verbose freeform YAML.
 
-## Categorizing Changes: Generic vs Hack
+## Design Principles
 
-### Generic Improvements (Benefit Any Presentation)
+1. **CSS-OOXML intersection** — every IR property has both a CSS rendering and an OOXML rendering
+2. **Typed values, CSS-standard names** — `borderRadius`, `opacity` with typed values instead of raw CSS strings
+3. **Consolidated, not scattered** — visual properties on a unified `ElementBase`, not per-element
+4. **Web-only escape hatch** — `cssStyle?: Record<string, string>` for properties outside the intersection
+5. **Auto-layout resolves to absolute** — flex/grid compute absolute `Rect` positions before rendering; both renderers receive concrete coordinates
 
-| Change | Files | Why It's Generic |
-|--------|-------|-----------------|
-| `entrance`/`animation` rename | 37 files | Clears up confusing naming — `entrance` = one-shot reveal, `animation` = continuous CSS animation. Every future presentation benefits. |
-| `highlightColor` on TextStyle | types.ts, LayoutRenderer, resolvers | Enables `**bold**` markdown segments to render in a distinct color. Common pattern in real presentations. |
-| `clipPath` field on all elements | types.ts, LayoutRenderer | Genuine CSS/SVG capability. Useful for reveal effects, masking, non-rectangular crops. |
-| `animation` (CSS shorthand) on elements | types.ts, LayoutRenderer | Enables continuous CSS animations (`float 4s infinite`). Standard capability. |
-| `whiteSpace: "pre-line"` in renderer | LayoutRenderer.tsx | Fixes newline rendering in text blocks. Was a bug. |
-| `renderInlineHighlight()` | LayoutRenderer.tsx | `**bold**` markdown parsing with optional highlight color. Common need. |
-| `parseFontFamily` undefined guard | pptx-helpers.ts | Bug fix — undefined font crashed PPTX export. |
-| `extractSolidColor()` / `parseCssGradients()` | pptx-helpers.ts | Proper CSS gradient stack parsing. Any slide with gradient backgrounds needs this. |
-| PPTX radial gradient support | pptx-effects.ts | `buildCssGradFillXml()` with OOXML `<a:path path="circle">`. Generic capability. |
-| CSS gradient → PPTX background overlays | pptx.ts | Detects gradient layers in `background` string, creates full-slide shapes with proper OOXML gradient fills. Any gradient background now exports. |
-| Per-presentation CSS loading | SlideEngine.tsx | Loads `/<slug>/animations.css` if present. Lets presentations define custom keyframes without polluting global CSS. |
+## Implementation Status
 
-### Hacks (Workarounds for Missing Capabilities)
+### Phase 1: Transform + Rich Text — Done
 
-| Hack | Root Cause | What's Really Needed |
-|------|-----------|---------------------|
-| `clipPath: "polygon(0% 98%, 0% 100%, 100% 2%, 100% 0%)"` for diagonal lines | **No rotation support.** Can't rotate a 1px-tall rect 45deg. Faked it with a polygon clip that reveals only a thin diagonal strip. | `transform: { rotate: 45 }` on any element |
-| Glitch keyframes in global `animations.css` | **No per-presentation keyframe system.** Had to define `glitch-anim`, `glitch-anim2`, `glitch-skew` globally. | Per-presentation CSS (partially solved by SlideEngine change, but keyframes are still in global CSS) |
-| Massive freeform YAML for every slide | **No mid-level abstraction for custom layouts.** A hub-spoke diagram with 8 nodes required ~100 lines of YAML with every rect hand-calculated. | Relative positioning, auto-layout components, reusable snippets |
-| Manual scale/offset calculations | **No viewport mapping.** Source was 1200x948, canvas is 1920x1080. Had to manually compute `x * 1.6`, `y * 1.6 - 219` for every coordinate. | Source viewport declaration + auto-scaling |
-| Emoji text elements without fontFamily | **TextStyle requires fontFamily but some elements are just emoji.** | Optional fontFamily with sensible default (fixed by the guard, but shows the type was too rigid) |
-| CSS gradient strings as background | **No structured background model.** Background is a raw CSS string parsed at export time. | Typed `BackgroundLayer[]` in the IR |
+- `TransformDef` on `ElementBase`: `rotate`, `scaleX`, `scaleY`, `flipH`, `flipV`
+- `RichText = string | TextRun[]` on `TextElement` and 8 text-bearing components
+- `TextRun` supports: bold, italic, underline, strikethrough, color, fontSize, fontFamily, letterSpacing, highlight, superscript, subscript
+- Both web renderer (`<span>` per run) and PPTX exporter (`text: [{text, options}]`) handle rich text
+- Markdown shorthand (`**bold**`, `*italic*`) still works with `highlightColor`
 
-### Verdict
+### Phase 2: Component Passthrough + Style Mixin — Done (Partial)
 
-~85% of the code changes are genuinely generic. The gradient parsing, inline highlight, entrance/animation rename, clipPath field — these all make the framework more capable for any presentation. The main hacks are (1) no rotation forcing clipPath abuse, and (2) no relative/auto-layout forcing verbose freeform YAML.
+Shared mixin on all 18 component types provides: `entranceType`, `entranceDelay`, `opacity`, `transform`, `effects`, `borderRadius`, `clipPath`, `cssStyle`, `width`, `height`, `margin`, `position`, `x`, `y`.
 
-## Core Limitations Exposed by Replication
+Component-specific duplicates removed: `borderRadius` on Image/Video/Iframe/Box, `entranceType` on Box.
 
-### A. No Transforms (Rotation, Scale, Skew)
+**Not done:** `fill`, `stroke`, `zIndex` passthrough — blocked on FillDef/StrokeDef type migration (see Deferred section).
 
-The single biggest gap. Diagonal lines, rotated text, skewed backgrounds — all impossible. The `clipPath` hack works for thin lines but breaks down for rotated text or images. Both CSS `transform` and OOXML `<a:xfrm rot="...">` support rotation natively.
+### Phase 3: Auto-Layout — Done
 
-### B. No Relative/Auto-Layout
+- `auto-layout.ts` engine: flex-row, flex-column, grid with `resolveLayouts()` pre-pass
+- `GroupElement.layout?: LayoutMode` (flex or grid)
+- `BoxComponent.layout` with full flex/grid support
+- `justify`: start, center, end, space-between, space-around (both directions)
+- `align`: start, center, end, stretch
+- `wrap?: boolean` on flex-row
+- `rowGap`/`columnGap` on grid
+- `position: "absolute"` on any child — opts out of flow, keeps rects unchanged, z-order preserved
+- Spacer component: defaults to `flex: true` when no height given (fills remaining space)
 
-Every freeform element needs `rect: { x, y, w, h }` in absolute pixels. A hub-spoke diagram with 8 nodes is 100+ lines because you manually position each rect. There's no "center this below that" or "distribute these evenly in a row."
+### Phase 5: Shape Presets — Done
 
-### C. Primitive Text Model
+6 presets added: `arrow`, `triangle`, `chevron`, `diamond`, `star`, `callout`. Mapped to OOXML `<a:prstGeom>` presets and CSS/SVG for web.
 
-Text is a plain string with one style. Real presentations have:
-- Mixed inline formatting (bold word in red, rest in white)
-- Superscripts, subscripts
-- Inline icons/emoji with different sizing
-- Multi-paragraph with different styles
+### Base Layout Layer Removal — Done
 
-We added `highlightColor` for `**bold**` segments, but this is a narrow solution. A proper rich-text model with styled runs would handle all cases.
+Removed `full-compose.ts`, `split-compose.ts`, `freeform.ts`, `stacker.ts`. All templates now output component trees directly. `SlideData` is `ComponentSlideData & SlideBaseFields` — no discriminated union.
 
-### D. No Multi-Layer Backgrounds in the IR
+- `full-compose` = root Box, `layout: { type: flex, direction: column }`, slide-sized
+- `split-compose` = root Box, `layout: { type: flex, direction: row }`, two child Boxes with ratio
+- `freeform` = children with absolute rects
 
-The `background` field is a string. When it contains CSS gradients like `"radial-gradient(...), radial-gradient(...), #080808"`, we parse it into OOXML on the export side — but the IR doesn't model this. It's a string-in, string-out hack.
+Boxes without explicit `layout` default to `flex-column` (16px gap).
 
-### E. No Reusable Element Groups / Snippets
+### PPTX Fidelity Fixes — Done
 
-The hub-spoke diagram on slide 10 is a pattern (central node + N satellite nodes + connector lines). But there's no way to define this as a reusable component. If another presentation needs a hub-spoke, you write 100 lines of freeform YAML again.
+- Rotation: `<a:xfrm rot>` with center-of-rect calculation
+- Group rotation: per-child rotation around group center
+- clipPath polygon: `parsePolygon()` + `<a:custGeom>` post-processing
+- Dashed strokes: `<a:prstDash val="dash/dot/dashDot">`
+- Text underline/strikethrough: `<a:rPr u="sng" strike="sngStrike">`
+- Rich text runs in PPTX: PptxGenJS `text: [{text, options}]` format
+- Card rotation, group glow, childless box support
 
-### F. Template-to-Freeform Cliff
+## CSS-OOXML Intersection Reference
 
-There are three levels: shortcut template -> compose template -> freeform. The jump from compose to freeform is steep. Compose gives you typed components in panels, but the moment you need one element positioned freely (an overlapping accent shape, a diagonal line), you drop to full freeform and lose all the convenience.
+### Transform
 
-### G. Prop-by-Prop Patching
+| Property | CSS | OOXML |
+|----------|-----|-------|
+| Rotation | `transform: rotate(Ndeg)` | `<a:xfrm rot="N*60000">` |
+| Scale X/Y | `transform: scale(x, y)` | Adjusted `<a:ext cx/cy>` |
+| Flip H/V | `transform: scaleX(-1)` | `<a:xfrm flipH="1">` |
 
-Each time we replicate a new presentation, we discover missing CSS properties and bolt them on: `clipPath`, `animation`, `highlightColor`, `opacity`. This ad-hoc approach means non-standard naming, inconsistent placement across element types, and no guarantee of PPTX export support.
+**Not in intersection:** `skew` (no OOXML), `translate` (use rect offset), `originX`/`originY` (no use case yet).
 
-### H. PPTX Fidelity Gaps
+### Fill
 
-Several IR features silently fail in PPTX export:
-- `clipPath` — ignored
-- `animation` (CSS) — inherently unexportable
-- Box shadow on groups — partial
-- Border on groups — partial
-- Multi-layer gradient backgrounds — hacked via overlay shapes
+| Fill Type | CSS | OOXML |
+|-----------|-----|-------|
+| Solid + alpha | `background: rgba(r,g,b,a)` | `<a:solidFill>` + `<a:alpha>` |
+| Linear gradient | `linear-gradient(angle, stops)` | `<a:gradFill><a:lin ang="N">` |
+| Radial gradient | `radial-gradient(at X% Y%, stops)` | `<a:gradFill><a:path path="circle">` |
+| Pattern | SVG/CSS patterns | `<a:pattFill prst="preset">` (10 presets implemented) |
+| Image | `background-image` + `background-size` | `<a:blipFill>` + `<a:srcRect>` |
+| Multi-layer | Multiple CSS backgrounds | Multiple stacked shapes |
 
-## The Template Accumulation Vision
+### Stroke / Border
+
+| Property | CSS | OOXML |
+|----------|-----|-------|
+| Color + width | `border: Npx solid color` | `<a:ln w="N"><a:solidFill>` |
+| Dash style | `border-style: dashed/dotted` | `<a:prstDash val="dash/dot">` |
+| Per-side | `border-top`, etc. | Separate line shapes per side |
+| Radius (uniform) | `border-radius: Npx` | `<a:prstGeom prst="roundRect">` + `<a:avLst>` |
+
+### Effects
+
+| Effect | CSS | OOXML |
+|--------|-----|-------|
+| Outer shadow | `box-shadow: x y blur spread color` | `<a:outerShdw>` |
+| Glow | `box-shadow: 0 0 R color` | `<a:glow rad="N">` |
+| Soft edge | `mask-image` gradient | `<a:softEdge rad="N">` |
+| Blur | `filter: blur(Npx)` | `<a:blur rad="N">` |
+| Opacity | `opacity: N` | Shape/fill alpha |
+
+### Text (Per-Run)
+
+| Property | CSS `<span>` | OOXML `<a:rPr>` |
+|----------|-------------|-----------------|
+| Font family | `font-family` | `<a:latin typeface>` |
+| Font size | `font-size` | `sz` (hundredths of pt) |
+| Bold/Italic | `font-weight`/`font-style` | `b`/`i` |
+| Color | `color` | `<a:solidFill>` |
+| Underline | `text-decoration: underline` | `u="sng"` |
+| Strikethrough | `text-decoration: line-through` | `strike="sngStrike"` |
+| Letter spacing | `letter-spacing` | `spc` (hundredths of pt) |
+| Highlight | `background-color` on span | `<a:highlight>` |
+
+### Clipping
+
+| Property | CSS | OOXML |
+|----------|-----|-------|
+| Clip to rect | `overflow: hidden` | `<a:xfrm>` bounds |
+| Clip path polygon | `clip-path: polygon(...)` | `<a:custGeom>` custom path |
+| Circle clip | `clip-path: circle(50%)` | `<a:prstGeom prst="ellipse">` |
+
+### CSS-Only (Web Escape Hatch)
+
+No OOXML equivalent. Available via `cssStyle`:
+
+- `mix-blend-mode`, `backdrop-filter`, `filter: brightness/contrast/grayscale/sepia`
+- CSS transitions and animations (continuous/looping)
+- `mask-image`, `calc()`, `clamp()`, CSS custom properties
+
+## PPTX Fidelity Audit
+
+| Feature | Status |
+|---------|--------|
+| Solid/gradient/pattern/image fill | Complete |
+| Multi-layer fill | Complete (stacked shapes) |
+| Stroke (solid + dashed) | Complete |
+| Border per-side | Complete (separate line shapes) |
+| Border radius (uniform) | Complete (roundRect) |
+| Rotation | Complete |
+| Scale | Complete (adjusted dimensions) |
+| Flip H/V | Complete (shapes only — text elements preserve readability in PPT) |
+| Opacity | Complete (fill/shape alpha) |
+| Outer shadow | Complete |
+| Glow | Complete |
+| Soft edge | Complete |
+| Blur | Complete |
+| clipPath (polygon) | Complete |
+| clipPath (circle) | Complete (ellipse preset) |
+| Overflow hidden | Complete (group clipping) |
+| Text: bold/italic/color/size/family | Complete |
+| Text: underline/strikethrough | Complete |
+| Text: letter spacing/text-transform | Complete |
+| Text: vertical align | Complete |
+| Rich text runs | Complete |
+| Entrance animations | Complete (OOXML timing) |
+| Shape presets (6 types) | Complete |
+| zIndex | Complete (shape ordering) |
+| Auto-layout | N/A (resolves to rects before rendering) |
+| Inner shadow | Not implemented (rare) |
+| Border radius per-corner | Not implemented (needs custGeom) |
+| Reflection | Not implemented (OOXML-only, low priority) |
+| CSS animations | N/A (web-only, not exportable) |
+
+## Intentional Design Divergences
+
+Differences between the original `design-v8.md` spec and actual implementation:
+
+| Spec | Implementation | Rationale |
+|------|---------------|-----------|
+| `rect?: Rect` (optional when parent has layout) | `rect: Rect` always required | `ensureRects()` fills `{x:0,y:0,w:0,h:0}`, `resolveLayouts()` overwrites. Avoids type changes across every renderer. |
+| `{ type: "absolute" }` in LayoutMode | Absence of `layout` = absolute | Simpler types. |
+| `ParagraphStyle` | `TextStyle` | Same shape, different name. Missing `spaceBefore`/`spaceAfter`/`indent`. |
+| `borderRadius: number \| [n,n,n,n]` | `borderRadius: number` only | Per-corner requires OOXML `<a:custGeom>` path. No use case. |
+| `zIndex` on ElementBase | Not implemented | Array order determines stacking. Sufficient. |
+| `overflow` on ElementBase | `clipContent?: boolean` on GroupElement only | Narrower scope, works. |
+| `originX`/`originY` on TransformDef | Not implemented | No templates use non-center transform origin. |
+| Remove `ImageElement.clipCircle` | Kept | Backward compat with existing templates. |
+| `fill`/`stroke`/`zIndex` on component passthrough | Not implemented | Blocked on FillDef/StrokeDef migration. |
+
+## Deferred Work
+
+### FillDef / StrokeDef / EffectsDef Type Consolidation
+
+Originally scoped for Phase 2 but deferred — code aesthetics, not capability gaps.
+
+- **FillDef union** — Replace `style.fill`, `style.gradient`, `style.patternFill` with `fill: FillDef | FillDef[]` discriminated union. Revisit if Phase 4 multi-layer backgrounds provide real motivation.
+- **StrokeDef** — Unify `border: BorderDef` and `style.stroke/strokeWidth`. Currently serve different purposes (`border` has `sides`, `stroke` is shape outline). Skip unless a concrete use case demands it.
+- **EffectsDef** — Consolidate `effects`, `shadow`, `opacity` into one type. All three already live on `ElementBase` separately — consistent and accessible. Wrapping adds indirection without new capability.
+
+### Phase 4: Multi-Layer Backgrounds
+
+Replace `LayoutSlide.background: string` with `backgroundLayers: FillDef[]`. Blocked on FillDef existing. Options:
+
+1. Implement FillDef first (~35 files)
+2. Design simpler typed background without FillDef
+3. Skip Phase 4 — current CSS-string backgrounds work
+
+### PPTX Fidelity Gaps
+
+**High impact, low effort:**
+- **Font fallback map** — Staatliches and Figtree not in `pptx-helpers.ts`. Fix: add Staatliches → Impact, Figtree → Calibri.
+- **`repeating-linear-gradient` parser** — `parseCssGradients()` doesn't handle repeating variants. Fix: extend regex.
+
+**Medium impact, medium effort:**
+- **Stacked radial gradients** — Multiple `radial-gradient()` layers have approximate alpha blending. Could improve in `buildCssGradFillXml()`.
+
+**Not feasible in PPTX:**
+- **`flipH` on text elements** — PowerPoint preserves text readability in flipped shapes. CSS mirrors everything. Fundamental PPT behavior.
+- **Continuous/looping animations** — CSS keyframe loops. PPTX only supports one-shot entrance/exit. Architecturally impossible.
+
+### Template Switchover
+
+`steps-v2` and `timeline-v2` templates exist as auto-layout comparisons. Need visual + PPTX comparison before replacing originals. Table template rewrite deferred — complex layered backgrounds don't benefit from auto-layout.
+
+## Template Accumulation Vision
 
 The end-state workflow:
 
 ```
-New presentation encountered
-    |
-    v
-Replicate using existing templates where possible
-(cover -> use cover template, bullet list -> use bullets template)
-    |
-    v
-For novel layouts, use compose or freeform
-    |
-    v
-Once a freeform slide looks good, run "save as template"
-    |
-    v
-Tool extracts parameters -> generates .template.yaml
-    |
-    v
-Human reviews, adjusts parameter names, adds defaults
-    |
-    v
-Template registered and available for future presentations
-    |
-    v
-PPTX export works automatically (template uses IR elements)
+New slide encountered
+    ↓
+Compose with components + style passthrough + auto-layout
+    ↓
+YAML is already parameterizable (component props = template params)
+    ↓
+Replace concrete values with {{ params }} → .template.yaml
+    ↓
+Template works with any theme (components use theme tokens)
+    ↓
+PPTX export works (components → IR → OOXML)
 ```
 
-### What's Needed to Make This Real
-
-1. **IR expressiveness** (transforms, rich text, auto-layout, comprehensive styles) — without these, too many slides require verbose hacks that can't be cleanly templated
-2. **"Save as template" tool** — the extraction step that turns freeform YAML into parameterized templates
-3. **Template testing** — each new template should have a sample rendering + PPTX export verification
-
-### What's Already Working Well
-
-- The DSL engine (Nunjucks templates) is solid and expressive
-- The component layer (18 types) covers most content patterns
-- The 3-tier approach (shortcut -> compose -> freeform) is the right architecture
-- PPTX export with post-processing handles effects, gradients, animations
-- Theme system with resolved concrete values works for both renderers
-
-## Conclusion
-
-The framework's layered architecture is sound. The gap is in the IR's expressive power (transforms, rich text, relative positioning, comprehensive styling) and the PPTX export's fidelity coverage. Filling these gaps — detailed in `design-v8.md` — would make the "replicate -> templatize -> accumulate" cycle fast enough to be practical.
+With v8 components covering >80% of real-world slides (up from ~50%), the replicate → templatize → accumulate cycle is practical. What still needs freeform: overlapping elements at precise positions, arbitrary paths, pixel-perfect reproductions, non-flex/grid spatial patterns (circular, radial, Bezier connectors).

@@ -27,20 +27,20 @@ Follow TDD: write failing test → implement → green. Enforced by Superpowers 
 
 ## Architecture
 
-YAML + layout-model-driven presentation hub. See `docs/design-v3.md` for layout model, `docs/design-v6.md` for composable components, `docs/design-v7.md` for DSL template system.
+YAML + layout-model-driven presentation hub. See `docs/design-v8.md` for current architecture, `docs/discussion-v8.md` for design history and remaining work.
 
-**Data flow:** `content/[slug]/slides.yaml` → `loadPresentation()` → `layoutPresentation()` → `LayoutPresentation` JSON → `LayoutRenderer` (web) or `exportPptx()` (PPTX)
+**Data flow:** `content/[slug]/slides.yaml` → `loadPresentation()` → `layoutPresentation()` → `resolveLayouts()` (auto-layout pre-pass) → `LayoutPresentation` JSON → `LayoutRenderer` (web) or `exportPptx()` (PPTX)
 
 ### Key Files
 
-- `src/lib/types.ts` — `SlideData` discriminated union, `PresentationData`, `ThemeName`, `AnimationOverride`
+- `src/lib/types.ts` — `SlideData` (component tree), `PresentationData`, `ThemeName`, `AnimationOverride`
 - `src/lib/loadPresentation.ts` — `loadPresentation()`, `discoverPresentations()`, `getAllSlugs()`
-- `src/lib/layout/types.ts` — `LayoutSlide`, `LayoutElement` (9 kinds: text, image, shape, group, code, table, list, video, iframe), `ResolvedTheme`, `AnimationDef`
+- `src/lib/layout/types.ts` — `LayoutSlide`, `LayoutElement` (9 kinds: text, image, shape, group, code, table, list, video, iframe), `ResolvedTheme`, `TransformDef`, `RichText`, `LayoutMode` (flex/grid)
+- `src/lib/layout/auto-layout.ts` — `resolveLayouts()` pre-pass: flex-row, flex-column, grid, wrap, absolute positioning
 - `src/lib/layout/theme.ts` — 16 resolved theme definitions, `resolveTheme()`
 - `src/lib/layout/helpers.ts` — shared layout utilities (`titleBlock`, `stackVertical`, etc.)
-- `src/lib/layout/components/` — composable component layer: types (18 components), resolvers, stacker, theme tokens
+- `src/lib/layout/components/` — composable component layer: types (18 components), resolvers, theme tokens
 - `src/lib/layout/templates/` — 35 DSL YAML templates (`.template.yaml`), registry in `index.ts`
-- `src/lib/layout/templates/bases/` — 3 base layout engines: freeform, split-compose, full-compose
 - `src/lib/dsl/` — DSL template loader, Nunjucks compiler, integration tests
 - `src/lib/export/pptx.ts` — `exportPptx()` via PptxGenJS, spid tracking + JSZip post-processing for animations
 - `src/lib/export/pptx-animations.ts` — OOXML `<p:timing>` XML builder for entrance animations
@@ -61,7 +61,7 @@ YAML + layout-model-driven presentation hub. See `docs/design-v3.md` for layout 
 
 **Preview all templates:** Visit `/example` — one slide per template with sample content.
 
-**New template:** Create `src/lib/layout/templates/foo.template.yaml` with `name`, `params`, `style`, `base` (full-compose/split-compose/freeform), and `children`. Auto-discovered by DSL loader — no registry update needed.
+**New template:** Create `src/lib/layout/templates/foo.template.yaml` with `name`, `params`, `style`, and `children` (component tree). Auto-discovered by DSL loader — no registry update needed.
 
 **New theme:** Add a new `ResolvedTheme` object in `src/lib/layout/theme.ts` → add to `ThemeName` union in `types.ts`. Both web and PPTX renderers use the same resolved values.
 

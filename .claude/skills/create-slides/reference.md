@@ -1,6 +1,6 @@
 # Slide Generation Reference
 
-Complete syntax spec for all three approaches: shortcut templates, compose templates, and freeform.
+Complete syntax spec for shortcut templates and component tree slides.
 
 ## Presentation Structure
 
@@ -9,16 +9,16 @@ title: "Presentation Title"
 author: "Speaker Name"           # shown on home page listing
 theme: modern                    # see Theme Palettes below
 slides:
-  - template: cover              # shortcut, compose, or freeform
+  - template: cover              # shortcut template
     title: "..."
   - template: bullets
     title: "..."
     bullets: [...]
-  - template: split-compose      # compose
-    left: { ... }
-    right: { ... }
-  - template: freeform           # freeform
-    elements: [...]
+  - children:                    # component tree (no template field)
+      - type: heading
+        text: "Custom Slide"
+      - type: bullets
+        items: [...]
 ```
 
 **Save to**: `content/<slug>/slides.yaml`. Images in `content/<slug>/images/`. Run `bun run sync-content` after adding images.
@@ -27,9 +27,9 @@ slides:
 
 ## Shortcut Templates
 
-Concise YAML for standard layouts. Each has specific props — internally they expand to compose templates via DSL.
+Concise YAML for standard layouts. Each has specific props — internally they expand to component trees via DSL.
 
-### Title & Section Slides
+### Title & Section
 
 #### cover
 ```yaml
@@ -64,7 +64,7 @@ Concise YAML for standard layouts. Each has specific props — internally they e
   image: "bg.jpg"                     # optional background
 ```
 
-### Content Slides
+### Content
 
 #### bullets
 ```yaml
@@ -73,7 +73,6 @@ Concise YAML for standard layouts. Each has specific props — internally they e
   bullets:
     - "First point"
     - "Second point"
-    - "Third point"
   image: "bg.jpg"                     # optional background
 ```
 
@@ -84,7 +83,6 @@ Concise YAML for standard layouts. Each has specific props — internally they e
   items:
     - "Research the problem"
     - "Design the solution"
-    - "Implement and test"
 ```
 
 #### comparison
@@ -144,7 +142,7 @@ Concise YAML for standard layouts. Each has specific props — internally they e
   image: "bg.jpg"                     # optional background
 ```
 
-### Data & Technical Slides
+### Data & Technical
 
 #### stats
 ```yaml
@@ -201,8 +199,6 @@ Concise YAML for standard layouts. Each has specific props — internally they e
       description: "Started with 3 engineers"   # optional
     - date: "2024"
       label: "Series A"
-    - date: "2025"
-      label: "Global Launch"
 ```
 
 #### steps
@@ -233,7 +229,7 @@ Concise YAML for standard layouts. Each has specific props — internally they e
   caption: "Source: Internal data"   # optional
 ```
 
-### Media Slides
+### Media
 
 #### image-text
 ```yaml
@@ -264,7 +260,6 @@ Concise YAML for standard layouts. Each has specific props — internally they e
     - src: "img1.jpg"
       caption: "First"              # optional
     - src: "img2.jpg"
-      caption: "Second"
 ```
 
 #### image-comparison
@@ -298,14 +293,14 @@ Concise YAML for standard layouts. Each has specific props — internally they e
   overlay: dark                      # optional: dark | light
 ```
 
-### Layout Slides
+### Layout
 
 #### two-column
 ```yaml
 - template: two-column
   title: "Two Perspectives"          # optional
-  left: "Left column content as a paragraph."
-  right: "Right column content as a paragraph."
+  left: "Left column content."
+  right: "Right column content."
 ```
 
 #### three-column
@@ -329,7 +324,7 @@ Concise YAML for standard layouts. Each has specific props — internally they e
 - template: sidebar
   title: "Deep Dive"                # optional
   sidebar: "Context or navigation content"
-  main: "Primary content goes here with more detail."
+  main: "Primary content goes here."
   sidebarPosition: left             # optional: left | right (default left)
 ```
 
@@ -341,7 +336,7 @@ Concise YAML for standard layouts. Each has specific props — internally they e
   bottom: "Bottom section content"
 ```
 
-### Special Slides
+### Special
 
 #### profile
 ```yaml
@@ -362,24 +357,16 @@ Concise YAML for standard layouts. Each has specific props — internally they e
       label: "Design"
     - icon: "💻"
       label: "Development"
-    - icon: "📊"
-      label: "Analytics"
-```
-
-#### blank
-```yaml
-- template: blank
-  image: "bg.jpg"                   # optional background
 ```
 
 #### video
 ```yaml
 - template: video
-  src: "demo.mp4"                    # .mp4/.webm → <video>, YouTube/Vimeo → <iframe> embed
+  src: "demo.mp4"                    # .mp4/.webm or YouTube/Vimeo URL
   title: "Product Demo"             # optional
-  poster: "thumbnail.jpg"           # optional preview image
+  poster: "thumbnail.jpg"           # optional
   style:
-    height: 600                     # optional, omit to fill available space
+    height: 600                     # optional
 ```
 
 #### iframe
@@ -388,130 +375,178 @@ Concise YAML for standard layouts. Each has specific props — internally they e
   src: "https://example.com"
   title: "Live Demo"                # optional
   style:
-    height: 600                     # optional, omit to fill available space
+    height: 600                     # optional
+```
+
+#### blank
+```yaml
+- template: blank
+  image: "bg.jpg"                   # optional background
 ```
 
 ---
 
-## Compose Templates
+## Component Tree Slides
 
-Declare typed components — the layout engine handles spacing, positioning, and animation automatically.
-
-### split-compose
-
-Two-panel layout with configurable ratio.
+Slides without a `template` field are component trees. They have `children` (array of components) and optional `background`, `backgroundImage`, `overlay`.
 
 ```yaml
-- template: split-compose
-  ratio: 0.55                        # left panel width (0.0-1.0), default 0.5
-  left:
-    background: theme.bg             # theme token or hex
-    textColor: "#e8e0d0"            # override text color for panel
-    verticalAlign: center            # optional: top | center | bottom
-    fill: false                      # optional: true = edge-to-edge, no padding
-    padding: 60                      # optional: number or [vert, horiz] or [top, right, bottom, left]
-    gap: 28                          # optional: override default stacker gap
-    children: []                     # SlideComponent[]
-  right:
-    background: "#1a1714"
-    textColor: "#e8e0d0"
-    children: []
+- background: "#0a0a0a"
+  backgroundImage: "hero.jpg"        # optional
+  overlay: "rgba(0,0,0,0.5)"        # optional
+  children:
+    - type: heading
+      text: "Hello World"
+    - type: body
+      text: "This is a component tree slide."
 ```
 
-- 60px padding on all sides per panel (unless `fill: true` or custom `padding`)
-- Right panel animations start with 300ms base delay
+Top-level children are wrapped in a slide-sized Box with default flex-column layout (16px gap, 60px padding).
 
-### full-compose
+### Shared Mixin
 
-Single content area, full width or centered.
+All 18 component types accept these props. Applied to the component's root element after component-specific resolution.
 
 ```yaml
-- template: full-compose
-  background: theme.bg               # theme token or hex
-  backgroundImage: "hero.jpg"        # optional background image
-  overlay: dark                      # optional: dark | light | "rgba(0,0,0,0.5)"
-  align: left                        # left (1600px wide) | center (1200px wide)
-  verticalAlign: center              # optional: top | center | bottom
-  children: []                       # SlideComponent[]
+# Style passthrough
+entranceType: fade-up              # fade-up | fade-in | slide-left | slide-right | scale-up | count-up | none
+entranceDelay: 200                 # ms offset
+opacity: 0.8                      # 0-1
+transform: { rotate: -5 }         # rotate (degrees), scaleX, scaleY, flipH, flipV
+effects: { glow: { color: "#ff6b35", radius: 15, opacity: 0.4 } }  # glow, softEdge, blur
+borderRadius: 12                   # px
+clipPath: "polygon(0 0, 100% 0, 100% 85%, 0 100%)"  # CSS clip-path
+cssStyle: { mixBlendMode: "overlay" }  # web-only CSS overrides
+
+# Layout control
+width: 600                         # explicit width (enables justify in flex-row)
+height: 400                        # explicit height
+margin: [20, 0]                    # CSS-style: number | [vert, horiz] | [top, right, bottom, left]
+position: "absolute"               # opt out of parent flow layout
+x: 100                            # absolute x position within parent
+y: 200                            # absolute y position within parent
+```
+
+### Rich Text
+
+All text-bearing components (`text`, `heading`, `body`, `bullets`, `stat`, `tag`, `quote`, `card`) accept `RichText` — either a plain string or an array of styled runs.
+
+```yaml
+# Plain string (backward compatible)
+text: "Simple text"
+
+# Markdown shorthand — **bold** and *italic* parsed by renderers
+text: "The **Fall** of *Tang*"
+
+# Styled runs — full control per segment
+text:
+  - "The "
+  - text: "Fall"
+    color: "#c41e3a"
+    bold: true
+  - " of Tang"
+
+# TextRun properties:
+# bold, italic, underline, strikethrough, color, fontSize, fontFamily,
+# letterSpacing, highlight (background color), superscript, subscript
+```
+
+For `bullets`, each item can be RichText:
+```yaml
+- type: bullets
+  items:
+    - "Plain bullet"
+    - - "Revenue grew "
+      - text: "47%"
+        bold: true
+        color: "#22c55e"
+      - " year over year"
 ```
 
 ### Components
 
-All components are positioned automatically by the vertical stacker (28px gap, staggered fade-up animations).
-
-**Common props** (available on all components):
-```yaml
-  entranceType: fade-up             # optional: fade-up | fade-in | slide-left | slide-right | scale-up | count-up | none
-  entranceDelay: 200                # optional: ms offset
-  opacity: 0.8                      # optional: 0-1
-```
-
 #### text
 ```yaml
 - type: text
-  text: "Custom styled text"
+  text: "Custom styled text"          # RichText
   fontSize: 24                       # optional
-  fontWeight: bold                   # optional: normal | bold
+  fontWeight: 700                    # optional: 100-900
   color: theme.accent               # optional, theme token or hex
   textAlign: left                    # optional: left | center | right
   fontStyle: italic                  # optional: normal | italic
   fontFamily: heading                # optional: heading | body | mono (maps to theme fonts)
   lineHeight: 1.4                    # optional
+  letterSpacing: 2                   # optional, px
+  textTransform: uppercase           # optional: uppercase | lowercase | none
+  textShadow: "0 2px 4px rgba(0,0,0,0.3)"  # optional, string or false to suppress
   maxWidth: 800                      # optional, centered within panel
-  margin: [20, 0]                    # optional, CSS-style: number | [vert, horiz] | [top, right, bottom, left]
 ```
 
 #### heading
 ```yaml
 - type: heading
-  text: "Title Text"
+  text: "Title Text"                 # RichText
   level: 1                          # optional: 1 (54px), 2 (42px), 3 (34px)
   fontSize: 54                      # optional, overrides level default
   textAlign: left                   # optional: left | center | right
-  color: theme.heading              # optional, theme token or hex
+  color: theme.heading              # optional
+  fontFamily: heading               # optional, theme token or raw CSS font-family
+  fontWeight: 700                   # optional
+  letterSpacing: -1                 # optional, px
+  textTransform: uppercase          # optional
 ```
 
 #### body
 ```yaml
 - type: body
-  text: "Paragraph text that can wrap across multiple lines."
+  text: "Paragraph text."           # RichText
   fontSize: 28                      # optional
-  color: theme.text                 # optional, theme token or hex
-  textAlign: left                   # optional: left | center | right
+  color: theme.text                 # optional
+  textAlign: left                   # optional
   lineHeight: 1.6                   # optional
-  margin: [20, 0]                   # optional, CSS-style: number | [vert, horiz] | [top, right, bottom, left]
 ```
 
 #### bullets
 ```yaml
 - type: bullets
-  items:
+  items:                             # RichText[]
     - "Point one"
     - "Point two"
-    - "Point three"
   fontSize: 26                      # optional
   gap: 16                           # optional, spacing between items
-  ordered: false                    # optional: true = numbered circles, false = accent bars
-  variant: card                     # optional: card | plain | list (list = native bullet dots)
+  ordered: false                    # optional: true = numbered, false = accent bars
+  variant: card                     # optional: card | plain | list
+  bulletColor: theme.accent         # optional
+  highlightColor: "#ff6b35"         # optional, color for **bold** segments
 ```
 
 #### stat
 ```yaml
 - type: stat
-  value: "907"
-  label: "Year of Tang's Fall"
+  value: "907"                       # RichText
+  label: "Year of Tang's Fall"      # RichText
   textAlign: left                   # optional: left | center
   fontSize: 64                      # optional, value font size
-  labelFontSize: 24                 # optional, label font size
-  color: "#ff2d2d"                  # optional, value color (default: theme.accent)
+  labelFontSize: 24                 # optional
+  color: theme.accent               # optional, value color
+  labelColor: theme.textMuted       # optional
+  fontFamily: heading               # optional, value font
+  labelFontWeight: 400              # optional
+  letterSpacing: 2                  # optional, label letter-spacing
+  textTransform: uppercase          # optional, label text-transform
 ```
 
 #### tag
 ```yaml
 - type: tag
-  text: "Chapter 1"
-  color: theme.accent               # optional, theme token or hex
+  text: "Chapter 1"                 # RichText
+  color: theme.accent               # optional
   align: left                       # optional: left | center
+  fontSize: 20                      # optional
+  padding: [12, 20]                 # optional, CSS-style
+  borderWidth: 1                    # optional, set 0 for no border
+  borderColor: "#ccc"               # optional
+  letterSpacing: 2                  # optional, px
 ```
 
 #### divider
@@ -519,27 +554,27 @@ All components are positioned automatically by the vertical stacker (28px gap, s
 - type: divider
   variant: gradient                  # optional: solid | gradient | ink | border
   width: 80                         # optional, percentage of panel width
+  color: theme.accent               # optional
   align: left                       # optional: left | center
-  margin: [16, 0, 40, 0]            # optional, CSS-style: number | [vert, horiz] | [top, right, bottom, left]
 ```
 
 #### quote
 ```yaml
 - type: quote
-  text: "The empire, long united, must divide."
+  text: "The empire, long united, must divide."  # RichText
   attribution: "Romance of the Three Kingdoms"   # optional
   textAlign: left                   # optional: left | center | right
-  fontSize: 30                      # optional, quote text font size
+  fontSize: 30                      # optional
   attributionFontSize: 22           # optional
-  decorative: true                  # optional, large opening quote mark above text
+  decorative: true                  # optional, large opening quote mark
 ```
 
 #### card
 ```yaml
 - type: card
-  title: "Card Title"
-  body: "Card description text."
-  dark: false                        # optional, uses dark background variant
+  title: "Card Title"               # RichText
+  body: "Card description."         # RichText
+  dark: false                        # optional, dark background variant
 ```
 
 #### image
@@ -549,24 +584,21 @@ All components are positioned automatically by the vertical stacker (28px gap, s
   height: 400                        # optional, omit to fill remaining space
   objectFit: cover                   # optional: cover | contain
   clipCircle: false                  # optional, circular crop
-  borderRadius: 12                   # optional, overrides theme default
 ```
 
 #### video
 ```yaml
 - type: video
-  src: "demo.mp4"                    # .mp4/.webm → <video>, YouTube/Vimeo → <iframe> embed
-  poster: "thumbnail.jpg"           # optional preview image
-  height: 500                        # optional, omit to fill remaining space
-  borderRadius: 12                   # optional, overrides theme default
+  src: "demo.mp4"                    # .mp4/.webm or YouTube/Vimeo URL
+  poster: "thumbnail.jpg"           # optional
+  height: 500                        # optional
 ```
 
 #### iframe
 ```yaml
 - type: iframe
   src: "https://example.com"
-  height: 500                        # optional, omit to fill remaining space
-  borderRadius: 12                   # optional, overrides theme default
+  height: 500                        # optional
 ```
 
 #### code
@@ -574,47 +606,137 @@ All components are positioned automatically by the vertical stacker (28px gap, s
 - type: code
   code: "const x = 42;\nconsole.log(x);"
   language: typescript               # optional
-  fontSize: 24                       # optional, default 24
-  padding: 32                        # optional, default 32
+  fontSize: 24                       # optional
+  padding: 32                        # optional
 ```
 
 #### spacer
 ```yaml
 - type: spacer
-  height: 200                        # px, optional
+  height: 200                        # optional, px
   flex: true                         # optional, fills remaining vertical space
 ```
 
-#### box (container)
+#### box (layout container)
+
+The primary layout container. Children stack vertically by default (flex-column, 16px gap). Use `layout` for flex-row or grid arrangements.
+
 ```yaml
 - type: box
-  variant: card                      # optional: card (bg+shadow+border) | flat (transparent) | panel (bg+radius, no shadow)
-  maxWidth: 800                      # optional, centered within panel
-  height: 300                        # optional, fixed height (content vertically centered)
-  fill: false                        # optional, expand to fill available panel height
+  variant: card                      # optional: card | flat | panel
+  padding: 28                        # optional: number | [vert, horiz] | [top, right, bottom, left]
+  background: theme.cardBg           # optional
+  maxWidth: 800                      # optional, centered
+  height: 300                        # optional, fixed height
+  fill: false                        # optional, expand to fill panel height
   verticalAlign: top                 # optional: top | center | bottom
-  padding: 28                        # optional: number or [vert, horiz] or [top, right, bottom, left]
-  background: theme.cardBg           # optional, theme token or hex
-  accentTop: true                    # optional, 3px accent bar on top
-  accentColor: theme.accent          # optional, accent bar color
-  borderColor: "#ccc"               # optional, custom border color
-  borderWidth: 2                     # optional, custom border width
+  accentTop: true                    # optional, 3px accent bar
+  accentColor: theme.accent          # optional
+  borderColor: "#ccc"               # optional
+  borderWidth: 2                     # optional
   borderSides: [left]               # optional: top | right | bottom | left
-  marginTop: 20                      # optional, overrides stacker gap
-  marginBottom: 20                   # optional
+  autoEntrance:                      # optional, stagger animations on children
+    type: fade-up
+    stagger: 100                     # ms per child
+    baseDelay: 0                     # ms
+  layout:                            # optional, default is flex-column
+    type: flex                       # flex | grid
+    direction: row                   # flex only: row | column (default column)
+    gap: 24                          # px between items
+    align: center                    # cross-axis: start | center | end | stretch
+    justify: space-between           # main-axis: start | center | end | space-between | space-around
+    wrap: true                       # flex-row only: wrap to next row
+    columns: 3                       # grid only: items per row
+    rowGap: 16                       # grid only
+    columnGap: 24                    # grid only
   children:
     - type: heading
       text: "Inside a box"
     - type: body
-      text: "Box children are stacked vertically."
+      text: "Children stack vertically by default."
+```
+
+**Layout examples:**
+
+```yaml
+# Flex row — horizontal arrangement
+- type: box
+  variant: flat
+  layout: { type: flex, direction: row, gap: 32, align: center }
+  children:
+    - type: stat
+      value: "100"
+      label: "First"
+      width: 300
+    - type: stat
+      value: "200"
+      label: "Second"
+      width: 300
+
+# Grid — 2x2 card layout
+- type: box
+  variant: flat
+  layout: { type: grid, columns: 2, gap: 24 }
+  children:
+    - type: card
+      title: "Card 1"
+      body: "Description"
+    - type: card
+      title: "Card 2"
+      body: "Description"
+    - type: card
+      title: "Card 3"
+      body: "Description"
+    - type: card
+      title: "Card 4"
+      body: "Description"
+
+# Flex column with justify center (vertically centered)
+- type: box
+  variant: flat
+  height: 800
+  layout: { type: flex, direction: column, gap: 24, justify: center }
+  children:
+    - type: heading
+      text: "Centered Content"
+    - type: body
+      text: "This group is vertically centered."
+```
+
+**Absolute positioning within a box:**
+
+Children with `position: "absolute"` are taken out of flow. They use `x`/`y` coordinates relative to the box's content area. Other children flow normally.
+
+```yaml
+- type: box
+  variant: flat
+  children:
+    # This decorative shape is positioned absolutely
+    - type: raw
+      position: "absolute"
+      x: 0
+      y: 0
+      width: 200
+      height: 200
+      elements:
+        - kind: shape
+          id: accent
+          rect: { x: 0, y: 0, w: 200, h: 200 }
+          shape: circle
+          style: { fill: "rgba(79,109,245,0.08)" }
+    # These children flow normally
+    - type: heading
+      text: "Title"
+    - type: body
+      text: "Content flows around the absolute element."
 ```
 
 #### columns (horizontal split)
 ```yaml
 - type: columns
   gap: 32                            # optional, default 32
-  ratio: 0.3                         # optional, first column width fraction (for 2-column)
-  equalHeight: true                  # optional, stretch all columns to same height
+  ratio: 0.3                         # optional, first column width fraction (2-column)
+  equalHeight: true                  # optional
   children:
     - type: stat
       value: "100"
@@ -627,9 +749,9 @@ All components are positioned automatically by the vertical stacker (28px gap, s
 #### grid (multi-row)
 ```yaml
 - type: grid
-  columns: 3                         # optional, items per row, default 3
+  columns: 3                         # optional, default 3
   gap: 32                            # optional, default 32
-  equalHeight: true                  # optional, stretch cells to same height per row
+  equalHeight: true                  # optional
   children:
     - type: card
       title: "Card 1"
@@ -637,18 +759,15 @@ All components are positioned automatically by the vertical stacker (28px gap, s
     - type: card
       title: "Card 2"
       body: "Description"
-    - type: card
-      title: "Card 3"
-      body: "Description"
 ```
 
-#### raw (escape hatch)
+#### raw (IR element escape hatch)
 
-Embeds LayoutElement[] directly. Coordinates relative to the component's bounding box.
+Embeds raw `LayoutElement[]` directly. Coordinates relative to the component's bounding box. Use for pixel-precise elements within a component tree.
 
 ```yaml
 - type: raw
-  height: 65                         # required
+  height: 65                         # required (unless position: absolute)
   elements:
     - kind: shape
       id: seal-border
@@ -662,36 +781,77 @@ Embeds LayoutElement[] directly. Coordinates relative to the component's boundin
       style: { fontFamily: "Noto Serif SC, serif", fontSize: 28, fontWeight: 700, color: "#c41e3a", textAlign: center }
 ```
 
----
+### Two-Panel Layout Pattern
 
-## Freeform Template
-
-Full pixel control on the 1920x1080 canvas. Every element has explicit position, size, and style.
+The old `split-compose` template is now a component tree pattern:
 
 ```yaml
-- template: freeform
-  background: "#f5f0e8"             # optional
-  backgroundImage: "hero.jpg"       # optional
-  overlay: "rgba(0,0,0,0.5)"       # optional
-  elements:
-    - kind: text
-      id: title
-      rect: { x: 160, y: 200, w: 700, h: 80 }
-      text: "Hello World"
-      style: { fontFamily: "Inter, sans-serif", fontSize: 42, fontWeight: 700, color: "#1a1a2e" }
-      entrance: { type: fade-up, delay: 0, duration: 500 }
+- children:
+    - type: box
+      variant: flat
+      layout: { type: flex, direction: row }
+      padding: 0
+      height: 1080
+      children:
+        - type: box
+          width: 1056                  # 55% of 1920
+          padding: [80, 60]
+          variant: flat
+          children: [...]              # left panel content
+        - type: box
+          background: "#1a1714"
+          padding: [80, 60]
+          verticalAlign: center
+          children: [...]              # right panel content
 ```
+
+### Full-Width Centered Layout Pattern
+
+The old `full-compose` template is now:
+
+```yaml
+- children:
+    - type: box
+      variant: flat
+      padding: [80, 160]
+      maxWidth: 1200                   # or omit for full width (1600px with padding)
+      children: [...]
+```
+
+---
+
+## IR Element Types
+
+Used inside `raw` components and for understanding the underlying layout model. Each element has `kind`, `id`, `rect: {x, y, w, h}`, and type-specific props.
 
 **Canvas**: 1920 x 1080 px. **Safe area**: x: 160..1760, y: 60..1020. **Center**: (960, 540).
 
-### LayoutElement Types
+### Common props (ElementBase)
 
-#### text
+All elements support:
+
+```yaml
+opacity: 0.8                        # 0-1
+borderRadius: 12                     # px
+shadow: { offsetX: 0, offsetY: 4, blur: 24, color: "rgba(0,0,0,0.1)" }
+effects:
+  glow: { color: "#ff6b35", radius: 15, opacity: 0.6 }
+  softEdge: 8                        # feather radius
+  blur: 4                            # Gaussian blur radius
+border: { width: 2, color: "#c41e3a", sides: ["left"], dash: "dash" }  # dash: solid | dash | dot | dashDot
+entrance: { type: fade-up, delay: 0, duration: 500 }
+animation: "float 4s infinite"       # CSS animation (web-only)
+clipPath: "polygon(0 0, 100% 0, 100% 85%, 0 100%)"
+transform: { rotate: 45, scaleX: 1.2, flipH: true }
+cssStyle: { mixBlendMode: "overlay" }  # web-only
+```
+
+### text
 ```yaml
 - kind: text
   id: unique-id
-  rect: { x: 0, y: 0, w: 600, h: 80 }
-  text: "Your text"
+  rect: { x: 160, y: 200, w: 700, h: 80 }
+  text: "Your text"                  # string or TextRun[]
   style:
     fontFamily: "Inter, sans-serif"
     fontSize: 42
@@ -703,18 +863,18 @@ Full pixel control on the 1920x1080 canvas. Every element has explicit position,
     letterSpacing: 2                 # optional, px
     textTransform: uppercase         # optional
     verticalAlign: middle            # optional: top | middle | bottom
+    highlightColor: "#ff6b35"        # optional, color for **bold** segments
 ```
 
-#### shape
+### shape
 ```yaml
 - kind: shape
   id: unique-id
   rect: { x: 0, y: 0, w: 200, h: 200 }
-  shape: rect                        # rect | circle | line | pill
+  shape: rect                        # rect | circle | line | pill | arrow | triangle | chevron | diamond | star | callout
   style:
     fill: "#1a1714"
-    # Or gradient:
-    gradient:
+    gradient:                        # alternative to fill
       type: linear
       angle: 90
       stops:
@@ -722,25 +882,24 @@ Full pixel control on the 1920x1080 canvas. Every element has explicit position,
         - { color: "#c8a96e", position: 1 }
     stroke: "#ffffff"                # optional
     strokeWidth: 2                   # optional
-    borderRadius: 12                 # optional
-    opacity: 0.8                     # optional
-    shadow: { offsetX: 0, offsetY: 4, blur: 24, color: "rgba(0,0,0,0.1)" }
-  border: { width: 2, color: "#c41e3a", sides: ["left"] }   # optional
+    strokeDash: dash                 # optional: solid | dash | dot | dashDot
+    patternFill:                     # optional, alternative to fill/gradient
+      preset: narHorz               # narHorz | narVert | smGrid | lgGrid | dotGrid | pct5 | pct10 | dnDiag | upDiag | diagCross
+      fgColor: "#ffffff"
+      fgOpacity: 0.1
 ```
 
-#### image
+### image
 ```yaml
 - kind: image
   id: unique-id
   rect: { x: 0, y: 0, w: 400, h: 300 }
   src: "photo.jpg"
   objectFit: cover                   # cover | contain
-  borderRadius: 12                   # optional
   clipCircle: true                   # optional
-  opacity: 0.9                       # optional
 ```
 
-#### group
+### group
 ```yaml
 - kind: group
   id: card
@@ -751,17 +910,15 @@ Full pixel control on the 1920x1080 canvas. Every element has explicit position,
       rect: { x: 24, y: 20, w: 712, h: 40 }  # relative to group
       text: "Title"
       style: { fontFamily: "Inter", fontSize: 24, fontWeight: 700, color: "#1a1a2e" }
-    - kind: text
-      id: card-body
-      rect: { x: 24, y: 68, w: 712, h: 80 }
-      text: "Body text"
-      style: { fontFamily: "Inter", fontSize: 18, fontWeight: 400, color: "#64648c", lineHeight: 1.6 }
-  style: { fill: "#ffffff", borderRadius: 8, shadow: { offsetX: 0, offsetY: 4, blur: 24, color: "rgba(0,0,0,0.06)" } }
-  border: { width: 3, color: "#4f6df5", sides: ["left"] }
+  style: { fill: "#ffffff" }
   clipContent: true                  # optional
+  layout:                            # optional auto-layout
+    type: flex
+    direction: row
+    gap: 16
 ```
 
-#### code
+### code
 ```yaml
 - kind: code
   id: unique-id
@@ -777,7 +934,7 @@ Full pixel control on the 1920x1080 canvas. Every element has explicit position,
     padding: 32
 ```
 
-#### table
+### table
 ```yaml
 - kind: table
   id: unique-id
@@ -791,7 +948,7 @@ Full pixel control on the 1920x1080 canvas. Every element has explicit position,
   borderColor: "rgba(0,0,0,0.06)"
 ```
 
-#### list
+### list
 ```yaml
 - kind: list
   id: unique-id
@@ -803,26 +960,26 @@ Full pixel control on the 1920x1080 canvas. Every element has explicit position,
   itemSpacing: 16
 ```
 
-#### video
+### video
 ```yaml
 - kind: video
   id: unique-id
   rect: { x: 0, y: 0, w: 800, h: 450 }
-  src: "demo.mp4"                    # .mp4/.webm → <video>, YouTube/Vimeo → <iframe> embed
+  src: "demo.mp4"
   poster: "thumbnail.jpg"           # optional
-  borderRadius: 12                   # optional
 ```
 
-#### iframe
+### iframe
 ```yaml
 - kind: iframe
   id: unique-id
   rect: { x: 0, y: 0, w: 800, h: 450 }
   src: "https://example.com"
-  borderRadius: 12                   # optional
 ```
 
-### Animations
+---
+
+## Animations
 
 | Type | Effect | Best for |
 |------|--------|----------|
@@ -834,7 +991,7 @@ Full pixel control on the 1920x1080 canvas. Every element has explicit position,
 | `count-up` | Number count-up (web only) | Stat values |
 | `none` | No animation | Static elements |
 
-**Stagger**: Increment delay by 100-150ms between sequential elements. Compose templates handle this automatically.
+**Stagger**: Increment delay by 100-150ms between sequential elements. Compose templates handle this automatically. Use `autoEntrance` on Box for automatic staggering.
 
 ---
 
@@ -910,7 +1067,7 @@ Full pixel control on the 1920x1080 canvas. Every element has explicit position,
 
 ### Theme Token Reference
 
-Use in compose template `background`, `textColor`, and `color` fields:
+Use in component `color`, `background`, and style fields:
 
 | Token | Resolves to |
 |-------|-------------|
@@ -927,6 +1084,16 @@ Use in compose template `background`, `textColor`, and `color` fields:
 | `theme.codeText` | Code text color |
 
 ---
+
+## Canvas & Sizing
+
+- **Canvas**: 1920 x 1080 px (16:9, fixed)
+- **Safe area**: x: 160..1760, y: 60..1020
+- **Center**: (960, 540)
+- **Estimate text height**: `lines * fontSize * lineHeight`
+- **Estimate text width**: ~0.55 * fontSize * characterCount
+- **z-order** (raw elements): Later elements render on top. Background shapes first, text last.
+- **Group children**: Coordinates relative to the group's `rect` origin.
 
 ## Content Density Limits
 
@@ -949,3 +1116,94 @@ Use in compose template `background`, `textColor`, and `color` fields:
 - **Same layout twice**: Two consecutive identical compositions. Alternate types.
 - **Wall of text**: More than 5 bullets per panel. Split slides.
 - **Centered symmetry**: Everything centered. Off-center creates energy.
+- **Uniform animation**: Every element with fade-up. Mix types. Leave some static.
+
+## Creative Techniques
+
+### Giant background text
+```yaml
+- type: raw
+  position: "absolute"
+  x: -50
+  y: 100
+  width: 1000
+  height: 600
+  elements:
+    - kind: text
+      id: bg-number
+      rect: { x: 0, y: 0, w: 1000, h: 600 }
+      text: "01"
+      style: { fontFamily: "Inter, sans-serif", fontSize: 400, fontWeight: 900, color: "rgba(0,0,0,0.03)", lineHeight: 1.0 }
+```
+
+### Overlapping elements for depth
+```yaml
+- type: raw
+  position: "absolute"
+  x: 0
+  y: 250
+  width: 300
+  height: 300
+  elements:
+    - kind: shape
+      id: accent-block
+      rect: { x: 0, y: 0, w: 300, h: 300 }
+      shape: rect
+      style: { fill: "rgba(79,109,245,0.08)", borderRadius: 16 }
+# Text that flows over the shape via normal layout
+- type: heading
+  text: "Design is how it works."
+  margin: [60, 0, 0, 0]
+```
+
+### Rotated accent shape
+```yaml
+- type: raw
+  position: "absolute"
+  x: 1400
+  y: -100
+  width: 400
+  height: 400
+  elements:
+    - kind: shape
+      id: rotated-accent
+      rect: { x: 0, y: 0, w: 400, h: 400 }
+      shape: rect
+      style: { fill: "rgba(79,109,245,0.05)", borderRadius: 24 }
+      transform: { rotate: 25 }
+```
+
+### Asymmetric split with gradient divider
+```yaml
+- children:
+    - type: box
+      variant: flat
+      layout: { type: flex, direction: row }
+      padding: 0
+      height: 1080
+      children:
+        - type: box
+          variant: flat
+          width: 1250
+          padding: [100, 80]
+          children: [...]
+        # Gradient divider
+        - type: raw
+          position: "absolute"
+          x: 1247
+          y: 80
+          width: 3
+          height: 920
+          elements:
+            - kind: shape
+              id: divider
+              rect: { x: 0, y: 0, w: 3, h: 920 }
+              shape: rect
+              style:
+                gradient: { type: linear, angle: 180, stops: [{ color: "#4f6df5", position: 0 }, { color: "rgba(79,109,245,0)", position: 1 }] }
+        - type: box
+          background: "#0a0a0a"
+          padding: [100, 60]
+          verticalAlign: center
+          children: [...]
+```
