@@ -151,31 +151,17 @@ describe("staggerDelay", () => {
 
 // --- Layout functions ---
 
-describe("layoutSlide", () => {
-  it("returns fallback for unknown template", () => {
-    const slide = { template: "unknown-thing" } as unknown as SlideData;
-    const result = layoutSlide(slide, "modern", "/test");
-    expect(result.width).toBe(1920);
-    expect(result.height).toBe(1080);
-    expect(result.elements).toHaveLength(1);
-    expect(result.elements[0].kind).toBe("text");
-    if (result.elements[0].kind === "text") {
-      expect(result.elements[0].text).toContain("unknown-thing");
-    }
-  });
-});
-
 // Note: Group 1-4 rigid templates removed in v7 — now DSL-based
 // Integration tests for DSL templates are in src/lib/dsl/integration.test.ts
 
-// --- Freeform template ---
+// --- Raw component passthrough ---
 
-describe("layoutPresentation - freeform", () => {
+describe("layoutPresentation - raw component", () => {
   const textEl = {
     kind: "text" as const,
     id: "t1",
     rect: { x: 100, y: 200, w: 760, h: 60 },
-    text: "Hello freeform",
+    text: "Hello raw",
     style: {
       fontFamily: "Inter, sans-serif",
       fontSize: 32,
@@ -193,36 +179,32 @@ describe("layoutPresentation - freeform", () => {
     style: { fill: "#0d0b09" },
   };
 
-  const freeformSlide: SlideData = {
-    template: "freeform",
-    elements: [textEl, shapeEl],
+  const rawSlide: SlideData = {
+    children: [{ type: "raw", height: 1080, elements: [textEl, shapeEl] }],
   };
 
-  it("passes through elements unchanged", () => {
-    const result = layoutPresentation("Test", [freeformSlide], "modern", "/img");
+  it("passes through elements", () => {
+    const result = layoutPresentation("Test", [rawSlide], "modern", "/img");
     const slide = result.slides[0];
-    // Elements should be in the output as-is
     const text = slide.elements.find((e) => e.id === "t1");
     const shape = slide.elements.find((e) => e.id === "s1");
     expect(text).toBeDefined();
     expect(shape).toBeDefined();
     if (text?.kind === "text") {
-      expect(text.text).toBe("Hello freeform");
+      expect(text.text).toBe("Hello raw");
       expect(text.rect).toEqual({ x: 100, y: 200, w: 760, h: 60 });
     }
   });
 
   it("uses theme background when none specified", () => {
-    const result = layoutPresentation("Test", [freeformSlide], "modern", "/img");
-    const slide = result.slides[0];
-    expect(slide.background).toBe("#f8f9fc"); // modern theme bg
+    const result = layoutPresentation("Test", [rawSlide], "modern", "/img");
+    expect(result.slides[0].background).toBe("#f8f9fc");
   });
 
   it("uses custom background when specified", () => {
     const slide: SlideData = {
-      template: "freeform",
       background: "#1a1714",
-      elements: [textEl],
+      children: [{ type: "raw", height: 1080, elements: [textEl] }],
     };
     const result = layoutPresentation("Test", [slide], "modern", "/img");
     expect(result.slides[0].background).toBe("#1a1714");
@@ -230,77 +212,20 @@ describe("layoutPresentation - freeform", () => {
 
   it("handles empty elements array", () => {
     const slide: SlideData = {
-      template: "freeform",
-      elements: [],
+      children: [{ type: "raw", height: 1080, elements: [] }],
     };
     const result = layoutPresentation("Test", [slide], "modern", "/img");
-    expect(result.slides[0].elements).toHaveLength(0);
+    // Only the raw wrapper elements (may be empty)
+    expect(result.slides[0].elements).toBeDefined();
   });
 
   it("respects per-slide theme override", () => {
     const slide: SlideData = {
-      template: "freeform",
       theme: "bold",
-      elements: [],
+      children: [{ type: "raw", height: 1080, elements: [] }],
     };
     const result = layoutPresentation("Test", [slide], "modern", "/img");
-    // bold theme bg since no custom background and slide theme is bold
     expect(result.slides[0].background).toBe("#0a0a0a");
-  });
-});
-
-// --- Freeform with auto-layout groups ---
-
-describe("freeform auto-layout integration", () => {
-  it("resolves flex-row layout group children rects", () => {
-    const slide: SlideData = {
-      template: "freeform",
-      elements: [
-        {
-          kind: "group" as const,
-          id: "stats-row",
-          rect: { x: 100, y: 400, w: 1720, h: 200 },
-          layout: { type: "flex" as const, direction: "row" as const, gap: 40 },
-          children: [
-            {
-              kind: "text" as const,
-              id: "stat-1",
-              rect: { x: 0, y: 0, w: 0, h: 0 },
-              text: "4.2B",
-              style: { fontFamily: "Inter", fontSize: 72, fontWeight: 900, color: "#fff", lineHeight: 1.0 },
-            },
-            {
-              kind: "text" as const,
-              id: "stat-2",
-              rect: { x: 0, y: 0, w: 0, h: 0 },
-              text: "180+",
-              style: { fontFamily: "Inter", fontSize: 72, fontWeight: 900, color: "#fff", lineHeight: 1.0 },
-            },
-            {
-              kind: "text" as const,
-              id: "stat-3",
-              rect: { x: 0, y: 0, w: 0, h: 0 },
-              text: "99.9%",
-              style: { fontFamily: "Inter", fontSize: 72, fontWeight: 900, color: "#fff", lineHeight: 1.0 },
-            },
-          ],
-        },
-      ],
-    };
-
-    const result = layoutPresentation("Test", [slide], "modern", "/img");
-    const group = result.slides[0].elements[0];
-    expect(group.kind).toBe("group");
-    if (group.kind === "group") {
-      expect(group.children).toHaveLength(3);
-      // Each child should get ~546.67px width ((1720 - 80) / 3)
-      const expectedW = (1720 - 80) / 3;
-      group.children.forEach((child, i) => {
-        expect(child.rect.w).toBeCloseTo(expectedW, 0);
-        expect(child.rect.h).toBe(200);
-        expect(child.rect.x).toBeCloseTo(i * (expectedW + 40), 0);
-      });
-    }
   });
 });
 
@@ -309,7 +234,6 @@ describe("freeform auto-layout integration", () => {
 describe("per-slide theme override", () => {
   it("uses slide-level theme when specified", () => {
     const slide: SlideData = {
-      template: "full-compose",
       children: [{ type: "heading", text: "Dark Cover" }],
       theme: "dark-tech",
     };

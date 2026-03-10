@@ -7,42 +7,53 @@ style:
   imageHeight: { type: number }
   captionSize: { type: number, default: 22 }
 
-base: full-compose
 children:
-  {% if title %}
-  - type: heading
-    text: "{{ title }}"
-    fontSize: {{ style.titleSize }}
-    textAlign: center
-  - type: divider
-    variant: gradient
-    width: 80
-    align: center
-    marginTop: 16
-    marginBottom: 40
-  {% endif %}
-  - type: columns
-    gap: 32
+  - type: box
+    variant: flat
+    padding: [60, 160]
+    height: 1080
+    verticalAlign: top
+    layout: { type: flex, direction: column, gap: 0 }
+    autoEntrance: { type: fade-up, stagger: 100 }
     children:
-      {% for img in images %}
+      {% if title %}
+      - type: heading
+        text: "{{ title }}"
+        fontSize: {{ style.titleSize }}
+        textAlign: center
+      - type: divider
+        variant: gradient
+        width: 80
+        align: center
+        margin: [16, 0, 40, 0]
+      {% endif %}
       - type: box
+        fill: true
         variant: flat
         padding: 0
         children:
-          - type: image
-            src: "{{ img.src }}"
-            {% if style.imageHeight %}
-            height: {{ style.imageHeight }}
-            {% endif %}
-            objectFit: cover
-            borderRadius: 16
-            entranceType: scale-up
-          {% if img.caption %}
-          - type: text
-            text: "{{ img.caption }}"
-            fontSize: {{ style.captionSize }}
-            textAlign: center
-            color: theme.textMuted
-            marginTop: 12
-          {% endif %}
-      {% endfor %}
+          - type: columns
+            gap: 32
+            children:
+              {% for img in images %}
+              - type: box
+                variant: flat
+                padding: 0
+                children:
+                  - type: image
+                    src: "{{ img.src }}"
+                    {% if style.imageHeight %}
+                    height: {{ style.imageHeight }}
+                    {% endif %}
+                    objectFit: cover
+                    borderRadius: 16
+                    entranceType: scale-up
+                  {% if img.caption %}
+                  - type: text
+                    text: "{{ img.caption }}"
+                    fontSize: {{ style.captionSize }}
+                    textAlign: center
+                    color: theme.textMuted
+                    margin: [12, 0, 0, 0]
+                  {% endif %}
+              {% endfor %}

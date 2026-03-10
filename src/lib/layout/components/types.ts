@@ -61,10 +61,6 @@ export interface TextComponent {
   textTransform?: "uppercase" | "lowercase" | "none";
   textShadow?: string | false;                    // override or suppress inherited textShadow
   maxWidth?: number;                              // constrain width, centered within panel
-  /** Gap before this component, replaces default stacker gap */
-  marginTop?: number;
-  /** Gap after this component, replaces default stacker gap */
-  marginBottom?: number;
 }
 
 export interface HeadingComponent {
@@ -87,10 +83,6 @@ export interface BodyComponent {
   color?: string;
   textAlign?: "left" | "center" | "right";
   lineHeight?: number;
-  /** Gap before this component, replaces default stacker gap */
-  marginTop?: number;
-  /** Gap after this component, replaces default stacker gap */
-  marginBottom?: number;
 }
 
 export interface BulletsComponent {
@@ -101,6 +93,7 @@ export interface BulletsComponent {
   ordered?: boolean;            // circle number badges instead of accent bar
   variant?: "card" | "plain" | "list";   // default "card"; "list" = native bullet dots
   bulletColor?: string;         // override bullet dot / accent bar color (theme token or hex)
+  highlightColor?: string;      // color applied to **bold** segments
 }
 
 export interface StatComponent {
@@ -136,10 +129,6 @@ export interface DividerComponent {
   width?: number;
   color?: string;                                     // override fill color (theme token or hex)
   align?: "left" | "center";
-  /** Gap before this divider, replaces default stacker gap */
-  marginTop?: number;
-  /** Gap after this divider, replaces default stacker gap */
-  marginBottom?: number;
 }
 
 export interface QuoteComponent {
@@ -165,7 +154,6 @@ export interface ImageComponent {
   height?: number;
   objectFit?: "contain" | "cover";
   clipCircle?: boolean;
-  borderRadius?: number;   // override default theme.radiusSm
 }
 
 export interface VideoComponent {
@@ -173,14 +161,12 @@ export interface VideoComponent {
   src: string;
   poster?: string;
   height?: number;
-  borderRadius?: number;
 }
 
 export interface IframeComponent {
   type: "iframe";
   src: string;
   height?: number;
-  borderRadius?: number;
 }
 
 export interface CodeComponent {
@@ -219,17 +205,13 @@ export interface BoxComponent {
   accentColor?: string;   // custom accent bar color (hex or theme token), default theme.accent
   height?: number;        // fixed height (content vertically centered when set)
   maxWidth?: number;      // constrain box width, centered within panel
-  entranceType?: EntranceType; // override stacker/columns default fade-up (e.g. "slide-left")
   variant?: "card" | "flat" | "panel"; // default "card"; "flat" = transparent, no bg/shadow/border; "panel" = bg + radius, no shadow/border
   background?: string;    // override card bg color (theme token or hex), default theme.cardBg
   borderColor?: string;   // custom border color (hex or theme token) — replaces default cardBorder
   borderWidth?: number;   // custom border width — replaces default cardBorder width
   borderSides?: ("top" | "right" | "bottom" | "left")[]; // restrict border to specific sides
-  borderRadius?: number;  // override theme.radius for card/panel corners
   fill?: boolean;         // expand to fill available panel height
   verticalAlign?: "top" | "center" | "bottom"; // align content within box, default "top"
-  marginTop?: number;     // override gap before this box in stacker
-  marginBottom?: number;  // override gap after this box in stacker
   /** Auto-apply staggered entrance animations to children without explicit entrance.
    *  Each child gets the specified type with delay = baseDelay + childIndex * stagger.
    *  Spacers are skipped in the stagger count. */
@@ -260,19 +242,4 @@ export interface GridComponent {
   columns?: number;      // items per row, default 3
   gap?: number;          // default 32
   equalHeight?: boolean; // stretch cells to same height per row
-}
-
-// --- Panel definition for split-compose ---
-
-export interface PanelDef {
-  background?: string;
-  textColor?: string;
-  verticalAlign?: "top" | "center" | "bottom";
-  /** Edge-to-edge mode: zero padding so content fills the entire panel */
-  fill?: boolean;
-  /** CSS-style padding: number | [vert, horiz] | [top, right, bottom, left]. Overrides fill when set. */
-  padding?: number | number[];
-  /** Override default stacker gap (28) between children */
-  gap?: number;
-  children: SlideComponent[];
 }

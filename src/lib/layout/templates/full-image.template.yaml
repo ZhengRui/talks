@@ -8,23 +8,29 @@ style:
   titleSize: { type: number, default: 64 }
   bodySize: { type: number, default: 30 }
 
-base: full-compose
 backgroundImage: {{ image }}
 overlay: {{ overlay or "dark" }}
-verticalAlign: center
 children:
-  {% if title %}
-  - type: heading
-    text: "{{ title }}"
-    fontSize: {{ style.titleSize }}
-    textAlign: center
-    {% if body %}
-    marginBottom: 24
-    {% endif %}
-  {% endif %}
-  {% if body %}
-  - type: body
-    text: "{{ body }}"
-    fontSize: {{ style.bodySize }}
-    textAlign: center
-  {% endif %}
+  - type: box
+    variant: flat
+    padding: [60, 160]
+    height: 1080
+    verticalAlign: center
+    layout: { type: flex, direction: column, gap: 0 }
+    autoEntrance: { type: fade-up, stagger: 100 }
+    children:
+      {% if title %}
+      - type: heading
+        text: "{{ title }}"
+        fontSize: {{ style.titleSize }}
+        textAlign: center
+        {% if body %}
+        margin: [0, 0, 28, 0]
+        {% endif %}
+      {% endif %}
+      {% if body %}
+      - type: body
+        text: "{{ body }}"
+        fontSize: {{ style.bodySize }}
+        textAlign: center
+      {% endif %}

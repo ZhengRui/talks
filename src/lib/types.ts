@@ -1,58 +1,19 @@
-import type { LayoutElement } from "./layout/types";
-import type { SlideComponent, PanelDef } from "./layout/components/types";
-
-// --- Per-template slide data ---
-
-// Freeform (v6 — direct Level 2 IR passthrough)
-export interface FreeformSlideData {
-  template: "freeform";
-  background?: string;
-  backgroundImage?: string;
-  overlay?: string;
-  elements: LayoutElement[];
-}
-
-// Composable (v6 — component tree → vertical stacker → Level 2 IR)
-export interface SplitComposeSlideData {
-  template: "split-compose";
-  ratio?: number;
-  left: PanelDef;
-  right: PanelDef;
-}
-
-export interface FullComposeSlideData {
-  template: "full-compose";
-  background?: string;
-  backgroundImage?: string;
-  overlay?: "dark" | "light" | "none" | string;  // default "dark" when backgroundImage set
-  verticalAlign?: "top" | "center" | "bottom";
-  /** CSS-style padding: number | [vert, horiz] | [top, right, bottom, left]. Overrides default CONTENT_X/PADDING_Y. */
-  padding?: number | number[];
-  /** Override default stacker gap (28) between children */
-  gap?: number;
-  children: SlideComponent[];
-}
+import type { SlideComponent } from "./layout/components/types";
 
 // Re-export for convenience
-export type { SlideComponent, PanelDef };
+export type { SlideComponent };
 
-// Component slide (v8 — root component tree, no base layout layer)
+// Component slide (root component tree)
 export interface ComponentSlideData {
-  template?: never;  // discriminant: no template field
   children: SlideComponent[];
   background?: string;
   backgroundImage?: string;
   overlay?: "dark" | "light" | "none" | string;
 }
 
-// --- Discriminated union ---
+// --- Slide data ---
 
-export type SlideData = (
-  | FreeformSlideData
-  | SplitComposeSlideData
-  | FullComposeSlideData
-  | ComponentSlideData
-) & SlideBaseFields;
+export type SlideData = ComponentSlideData & SlideBaseFields;
 
 // --- Animation override ---
 

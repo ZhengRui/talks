@@ -19,7 +19,6 @@ describe("expandDslTemplate", () => {
 name: test
 params:
   title: { type: string, required: true }
-base: full-compose
 children:
   - type: heading
     text: "{{ title }}"
@@ -28,7 +27,7 @@ children:
     });
 
     const result = expandDslTemplate({ template: "test", title: "Hello World" }, def);
-    expect(result.template).toBe("full-compose");
+    expect(result).not.toHaveProperty("template");
     expect((result as unknown as { children: unknown[] }).children).toHaveLength(1);
     expect((result as unknown as { children: Record<string, unknown>[] }).children[0]).toMatchObject({
       type: "heading",
@@ -42,7 +41,6 @@ children:
       params: { bullets: { type: "string[]", required: true } },
       rawBody: `
 name: test
-base: full-compose
 children:
   - type: bullets
     items: {{ bullets }}
@@ -66,8 +64,6 @@ children:
       },
       rawBody: `
 name: test
-base: full-compose
-verticalAlign: center
 children:
   - type: heading
     text: "{{ statement }}"
@@ -97,7 +93,6 @@ children:
       params: { stats: { type: "array", required: true } },
       rawBody: `
 name: test
-base: full-compose
 children:
   - type: columns
     children:
@@ -132,7 +127,6 @@ children:
       params: { defs: { type: "array", required: true } },
       rawBody: `
 name: test
-base: full-compose
 children:
   {% for d in defs %}
   - type: text
@@ -171,7 +165,6 @@ children:
       style: { titleSize: { type: "number", default: 56 } },
       rawBody: `
 name: test
-base: full-compose
 children:
   - type: heading
     text: "{{ title }}"
@@ -190,7 +183,6 @@ children:
       style: { titleSize: { type: "number", default: 56 } },
       rawBody: `
 name: test
-base: full-compose
 children:
   - type: heading
     text: "{{ title }}"
@@ -212,7 +204,6 @@ children:
       params: { title: { type: "string", required: true } },
       rawBody: `
 name: my-template
-base: full-compose
 children: []
 `,
     });
@@ -222,13 +213,11 @@ children: []
     );
   });
 
-  it("preserves base-level props (verticalAlign)", () => {
+  it("produces ComponentSlideData with children", () => {
     const def = makeDef({
       params: { text: { type: "string", required: true } },
       rawBody: `
 name: test
-base: full-compose
-verticalAlign: center
 children:
   - type: heading
     text: "{{ text }}"
@@ -236,14 +225,14 @@ children:
     });
 
     const result = expandDslTemplate({ template: "test", text: "Hi" }, def);
-    expect(result).toHaveProperty("verticalAlign", "center");
+    expect(result).not.toHaveProperty("template");
+    expect(result).toHaveProperty("children");
   });
 
   it("passes through animation and theme from slide data", () => {
     const def = makeDef({
       rawBody: `
 name: test
-base: full-compose
 children: []
 `,
     });
@@ -261,7 +250,6 @@ children: []
       params: { code: { type: "string", required: true } },
       rawBody: `
 name: test
-base: full-compose
 children:
   - type: code
     code: {{ code | tojson }}
@@ -279,7 +267,6 @@ children:
       params: { title: { type: "string" } },
       rawBody: `
 name: test
-base: full-compose
 children:
   - type: heading
     text: "{{ title or 'Thank You' }}"

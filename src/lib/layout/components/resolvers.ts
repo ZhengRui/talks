@@ -40,11 +40,7 @@ import { resolveColor, resolveThemeTokenAny } from "./theme-tokens";
 export interface ResolveResult {
   elements: LayoutElement[];
   height: number;
-  /** Override stacker gap before this component */
-  gapBefore?: number;
-  /** Override stacker gap after this component */
-  gapAfter?: number;
-  /** Flex spacer — height determined by stacker from remaining space */
+  /** Flex spacer — height determined by layout from remaining space */
   flex?: boolean;
 }
 
@@ -120,8 +116,6 @@ function resolveText(c: TextComponent, ctx: ResolveContext): ResolveResult {
   return {
     elements: [el],
     height: h,
-    gapBefore: c.marginTop,
-    gapAfter: c.marginBottom,
   };
 }
 
@@ -175,8 +169,6 @@ function resolveBody(c: BodyComponent, ctx: ResolveContext): ResolveResult {
       ...(color ? { color } : {}),
       textAlign: c.textAlign,
       ...(c.lineHeight !== undefined ? { lineHeight: c.lineHeight } : {}),
-      marginTop: c.marginTop,
-      marginBottom: c.marginBottom,
     },
     { ...ctx, idPrefix: `${ctx.idPrefix}-body` },
   );
@@ -200,8 +192,14 @@ function resolveBullets(c: BulletsComponent, ctx: ResolveContext): ResolveResult
 function resolveBulletsList(c: BulletsComponent, ctx: ResolveContext, ordered: boolean): ResolveResult {
   const fontSize = c.fontSize ?? 30;
   const itemSpacing = c.gap ?? 10;
-  const lineH = fontSize * 1.6;
-  const h = c.items.length * (lineH + itemSpacing);
+  const lineHeight = 1.6;
+  const bulletIndent = 30; // approximate space for bullet dot + gap
+  const textW = ctx.panel.w - bulletIndent;
+  let h = 0;
+  for (let i = 0; i < c.items.length; i++) {
+    h += estimateTextHeight(toPlainText(c.items[i]), fontSize, lineHeight, textW);
+    if (i < c.items.length - 1) h += itemSpacing;
+  }
 
   const el: ListElement = {
     kind: "list",
@@ -211,6 +209,7 @@ function resolveBulletsList(c: BulletsComponent, ctx: ResolveContext, ordered: b
     ordered,
     itemStyle: bodyStyle(ctx.theme, fontSize, {
       color: ctx.textColor ?? ctx.theme.text,
+      ...(c.highlightColor ? { highlightColor: resolveColor(c.highlightColor, ctx.theme, ctx.textColor ?? ctx.theme.text) } : {}),
     }),
     bulletColor: c.bulletColor ? resolveColor(c.bulletColor, ctx.theme, ctx.textColor ?? ctx.theme.text) : (ctx.textColor ?? ctx.theme.text),
     itemSpacing,
@@ -273,6 +272,7 @@ function resolveBulletsCard(c: BulletsComponent, ctx: ResolveContext, ordered: b
       text: item,
       style: bodyStyle(ctx.theme, fontSize, {
         color: ctx.textColor ?? ctx.theme.text,
+        ...(c.highlightColor ? { highlightColor: resolveColor(c.highlightColor, ctx.theme, ctx.textColor ?? ctx.theme.text) } : {}),
       }),
     });
 
@@ -357,6 +357,7 @@ function resolveBulletsPlain(c: BulletsComponent, ctx: ResolveContext, ordered: 
       text: item,
       style: bodyStyle(ctx.theme, fontSize, {
         color: ctx.textColor ?? ctx.theme.text,
+        ...(c.highlightColor ? { highlightColor: resolveColor(c.highlightColor, ctx.theme, ctx.textColor ?? ctx.theme.text) } : {}),
       }),
     };
 
@@ -529,8 +530,6 @@ function resolveDivider(c: DividerComponent, ctx: ResolveContext): ResolveResult
   return {
     elements: [el],
     height: h,
-    gapBefore: c.marginTop,
-    gapAfter: c.marginBottom,
   };
 }
 
@@ -729,7 +728,7 @@ function resolveImage(c: ImageComponent, ctx: ResolveContext): ResolveResult {
     src,
     objectFit: c.objectFit ?? "contain",
     ...(c.clipCircle ? { clipCircle: true } : {}),
-    borderRadius: c.clipCircle ? 0 : (c.borderRadius ?? ctx.theme.radiusSm),
+    borderRadius: c.clipCircle ? 0 : ctx.theme.radiusSm,
   };
 
   return { elements: [el], height: h, ...(flex && { flex: true }) };
@@ -750,7 +749,7 @@ function resolveVideo(c: VideoComponent, ctx: ResolveContext): ResolveResult {
     rect: { x: 0, y: 0, w: ctx.panel.w, h },
     src,
     ...(c.poster ? { poster: c.poster } : {}),
-    borderRadius: c.borderRadius ?? ctx.theme.radius,
+    borderRadius: ctx.theme.radius,
     border: ctx.theme.cardBorder,
     shadow: ctx.theme.shadow,
   };
@@ -769,7 +768,7 @@ function resolveIframe(c: IframeComponent, ctx: ResolveContext): ResolveResult {
     id: `${ctx.idPrefix}-iframe`,
     rect: { x: 0, y: 0, w: ctx.panel.w, h },
     src: c.src,
-    borderRadius: c.borderRadius ?? ctx.theme.radius,
+    borderRadius: ctx.theme.radius,
     border: ctx.theme.cardBorder,
     shadow: ctx.theme.shadow,
   };
@@ -848,8 +847,34 @@ export function resolveRawTokens(elements: LayoutElement[], theme: ResolvedTheme
 }
 
 function resolveRaw(c: RawComponent, ctx: ResolveContext): ResolveResult {
-  const elements = resolveRawTokens(c.elements, ctx.theme);
+  const elements = resolveRawTokens(prefixImageSrcs(ensureRects(c.elements), ctx.imageBase), ctx.theme);
   return { elements, height: c.height };
+}
+
+/** Fill in missing or partial rects with zeros. */
+function ensureRects(elements: LayoutElement[]): LayoutElement[] {
+  return elements.map((el) => {
+    const rect = el.rect
+      ? { x: el.rect.x ?? 0, y: el.rect.y ?? 0, w: el.rect.w ?? 0, h: el.rect.h ?? 0 }
+      : { x: 0, y: 0, w: 0, h: 0 };
+    if (el.kind === "group" && el.children) {
+      return { ...el, rect, children: ensureRects(el.children) };
+    }
+    return el.rect ? el : { ...el, rect };
+  });
+}
+
+/** Prefix relative image src values with imageBase. */
+function prefixImageSrcs(elements: LayoutElement[], imageBase: string): LayoutElement[] {
+  return elements.map((el) => {
+    if (el.kind === "image" && el.src && !el.src.startsWith("/") && !el.src.startsWith("data:") && !el.src.startsWith("http")) {
+      return { ...el, src: `${imageBase}/${el.src}` };
+    }
+    if (el.kind === "group" && el.children) {
+      return { ...el, children: prefixImageSrcs(el.children, imageBase) };
+    }
+    return el;
+  });
 }
 
 // --- Columns (horizontal layout) ---
@@ -1030,7 +1055,7 @@ function buildBoxGroup(
     ? resolveColor(c.background, ctx.theme, ctx.theme.cardBg)
     : ctx.theme.cardBg;
 
-  const radius = c.borderRadius ?? ctx.theme.radius;
+  const radius = ctx.theme.radius;
   const style: GroupElement["style"] = isFlat
     ? (c.background ? { fill: bg } : {})
     : { fill: bg };
@@ -1049,7 +1074,7 @@ function buildBoxGroup(
     rect: { x: boxX, y: 0, w: boxW, h: totalH },
     children,
     style,
-    ...(!isFlat || c.borderRadius != null ? { borderRadius: c.borderRadius ?? radius } : {}),
+    ...(!isFlat ? { borderRadius: radius } : {}),
     ...(!isFlat && !isPanel ? { shadow: ctx.theme.shadow } : {}),
     ...(!isFlat && !isPanel && {
       border: customBorder ?? accentBorder ?? ctx.theme.cardBorder,
@@ -1059,17 +1084,6 @@ function buildBoxGroup(
     }),
     clipContent: !isFlat,
   };
-
-  // Override default stacker/columns animation if component specifies one
-  if (c.entranceType && ctx.animate) {
-    if (c.entranceType === "none") {
-      // Sentinel: prevents autoEntrance from assigning an animation to this group
-      group.entrance = { type: "none", delay: 0, duration: 0 };
-    } else {
-      const boxDelay = (c as unknown as SlideComponent).entranceDelay ?? ctx.animationDelay ?? 0;
-      group.entrance = makeEntrance(c.entranceType, boxDelay);
-    }
-  }
 
   return group;
 }
@@ -1470,11 +1484,12 @@ function resolveBoxWithLayout(
     contentH = totalH;
   }
 
-  const totalH = c.height ?? (contentH + pad.top + pad.bottom + accentH);
+  const naturalH = contentH + pad.top + pad.bottom + accentH;
+  const totalH = c.height ?? (c.fill && !c.height ? Math.max(ctx.panel.h, naturalH) : naturalH);
 
   // Vertical alignment within box
   const cursorH = contentH + pad.top + pad.bottom + accentH;
-  const vAlign = c.verticalAlign ?? (c.height ? "center" : "top");
+  const vAlign = c.verticalAlign ?? "top";
   if (vAlign !== "top" && totalH > cursorH) {
     const dy = vAlign === "center"
       ? (totalH - cursorH) / 2
@@ -1521,8 +1536,6 @@ function resolveBoxWithLayout(
     elements: [group],
     height: totalH,
     ...(c.fill && { flex: true }),
-    gapBefore: c.marginTop,
-    gapAfter: c.marginBottom,
   };
 }
 
@@ -1531,114 +1544,12 @@ function resolveBox(c: BoxComponent, ctx: ResolveContext): ResolveResult {
   const boxX = c.maxWidth ? (ctx.panel.w - boxW) / 2 : 0;
   const pad = resolveBoxPadding(c.padding);
   const accentH = c.accentTop ? 3 : 0;
-  const innerY = pad.top + accentH;
   const innerW = boxW - pad.left - pad.right;
 
-  // Dispatch to layout-based positioning for flex-row, flex-column, and grid modes
-  if (c.layout) {
-    return resolveBoxWithLayout(c, ctx, boxW, boxX, pad, accentH, innerW);
-  }
-
-  // Stack children manually in local coords (like resolveCard)
-  // Two-pass approach: measure fixed children, then distribute flex space
-  const childGap = 8;
-  const noLayoutChildren = c.children ?? [];
-  const childMarginsNoLayout = noLayoutChildren.map((child) => resolveMargin((child as SlideComponent).margin));
-
-  // Pass 1: resolve all children, measure fixed content
-  interface BoxChild { result: ResolveResult; gapBefore: number; }
-  const resolved: BoxChild[] = [];
-  let fixedH = innerY; // start with top padding + accent
-  let flexCount = 0;
-
-  let aeStaggerIdxStack = 0;
-  noLayoutChildren.forEach((child, i) => {
-    const isSpacer = child.type === "spacer";
-    const aeDelay = c.autoEntrance
-      ? (c.autoEntrance.baseDelay ?? 0) + aeStaggerIdxStack * (c.autoEntrance.stagger ?? 100)
-      : undefined;
-    // Divider's `width` means line width, not component layout width — skip it for panel sizing
-    const childW = (child.type !== "divider" ? (child as SlideComponent).width : undefined) ?? innerW;
-    const childCtx: ResolveContext = {
-      ...ctx,
-      panel: { x: pad.left, y: 0, w: childW, h: ctx.panel.h },
-      idPrefix: `${ctx.idPrefix}-box${i}`,
-      ...(c.autoEntrance ? { animate: true, animationDelay: aeDelay } : {}),
-    };
-    if (!isSpacer) aeStaggerIdxStack++;
-
-    const m = childMarginsNoLayout[i];
-    const result = resolveComponent(child, childCtx);
-    const gapBefore = i > 0 ? childGap : 0;
-    resolved.push({ result, gapBefore });
-    fixedH += gapBefore + m.top + (result.flex ? 0 : result.height) + m.bottom;
-    if (result.flex) flexCount++;
-  });
-
-  fixedH += pad.bottom; // bottom padding
-  const useFullHeight = flexCount > 0 || (c.fill && !c.height);
-  const boxTotalH = c.height ?? (useFullHeight ? ctx.panel.h : fixedH);
-  const flexH = flexCount > 0 ? Math.max(0, (boxTotalH - fixedH) / flexCount) : 0;
-
-  // Pass 2: position children with flex heights applied
-  const boxChildren: LayoutElement[] = [];
-  const boxChildElementCounts: number[] = [];
-  const boxChildIsSpacer: boolean[] = [];
-  let cursorY = innerY;
-
-  resolved.forEach(({ result, gapBefore }, idx) => {
-    const m = childMarginsNoLayout[idx];
-    cursorY += gapBefore + m.top;
-    const h = result.flex ? flexH : result.height;
-
-    // Resize flex elements to computed height
-    if (result.flex && flexH > 0) {
-      result.elements.forEach((el) => {
-        el.rect = { ...el.rect, h: flexH };
-      });
-    }
-
-    // Position children in group-local coords
-    result.elements.forEach((el) => {
-      boxChildren.push({
-        ...el,
-        rect: { ...el.rect, x: el.rect.x + pad.left + m.left, y: el.rect.y + cursorY },
-      });
-    });
-    boxChildElementCounts.push(result.elements.length);
-    boxChildIsSpacer.push(noLayoutChildren[idx]?.type === "spacer");
-
-    cursorY += h + m.bottom;
-  });
-
-  cursorY += pad.bottom;
-  const totalH = c.height ?? (useFullHeight ? boxTotalH : cursorY);
-
-  // Vertically align children within the box
-  const vAlign = c.verticalAlign ?? (c.height ? "center" : "top");
-  if (vAlign !== "top" && totalH > cursorY) {
-    const dy = vAlign === "center"
-      ? (totalH - cursorY) / 2
-      : totalH - cursorY; // bottom
-    boxChildren.forEach((el) => {
-      el.rect = { ...el.rect, y: el.rect.y + dy };
-    });
-  }
-
-  // Apply autoEntrance staggering
-  if (c.autoEntrance) {
-    applyAutoEntrance(boxChildren, boxChildElementCounts, boxChildIsSpacer, c.autoEntrance);
-  }
-
-  const group = buildBoxGroup(c, ctx, boxX, boxW, totalH, boxChildren);
-
-  return {
-    elements: [group],
-    height: totalH,
-    ...(c.fill && { flex: true }),
-    gapBefore: c.marginTop,
-    gapAfter: c.marginBottom,
-  };
+  // Default to flex-column when no layout specified
+  const layout = c.layout ?? { type: "flex" as const, direction: "column" as const };
+  const boxWithLayout = { ...c, layout };
+  return resolveBoxWithLayout(boxWithLayout, ctx, boxW, boxX, pad, accentH, innerW);
 }
 
 // --- Main dispatch ---
@@ -1707,9 +1618,8 @@ export function resolveComponent(
     }
   }
 
-  // Generic entranceType override — skip box (handles it internally) and columns (container)
+  // Generic entranceType override — skip columns/grid (container components)
   if (
-    component.type !== "box" &&
     component.type !== "columns" &&
     component.type !== "grid" &&
     component.entranceType &&

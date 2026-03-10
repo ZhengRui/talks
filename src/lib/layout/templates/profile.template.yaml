@@ -11,51 +11,56 @@ style:
   bioWidth: { type: number, default: 700 }
   avatarSize: { type: number, default: 200 }
 
-base: full-compose
-verticalAlign: center
 children:
-  {% if image %}
-  - type: image
-    src: "{{ image }}"
-    height: {{ style.avatarSize }}
-    objectFit: cover
-    clipCircle: true
-    entranceType: scale-up
-    entranceDelay: 0
-  {% endif %}
-  - type: heading
-    text: "{{ name }}"
-    fontSize: {{ style.nameSize }}
-    textAlign: center
-    entranceType: fade-up
-    entranceDelay: 200
-  {% if title %}
-  - type: text
-    text: "{{ title }}"
-    fontSize: {{ style.titleSize }}
-    textAlign: center
-    color: theme.accent
-    lineHeight: 1.3
-    marginTop: 8
-    entranceType: fade-up
-    entranceDelay: 300
-  {% endif %}
-  - type: divider
-    variant: gradient
-    width: 80
-    align: center
-    marginTop: 16
-    marginBottom: 16
-    entranceType: fade-up
-    entranceDelay: 350
-  {% if bio %}
-  - type: text
-    text: "{{ bio }}"
-    fontSize: {{ style.bioSize }}
-    textAlign: center
-    color: theme.textMuted
-    lineHeight: 1.5
-    maxWidth: {{ style.bioWidth }}
-    entranceType: fade-up
-    entranceDelay: 400
-  {% endif %}
+  - type: box
+    variant: flat
+    padding: [60, 160]
+    height: 1080
+    verticalAlign: center
+    layout: { type: flex, direction: column, gap: 0 }
+    children:
+      {% if image %}
+      - type: image
+        src: "{{ image }}"
+        height: {{ style.avatarSize }}
+        objectFit: cover
+        clipCircle: true
+        entranceType: scale-up
+        entranceDelay: 0
+      {% endif %}
+      - type: heading
+        text: "{{ name }}"
+        fontSize: {{ style.nameSize }}
+        textAlign: center
+        margin: [28, 0, 0, 0]
+        entranceType: fade-up
+        entranceDelay: 200
+      {% if title %}
+      - type: text
+        text: "{{ title }}"
+        fontSize: {{ style.titleSize }}
+        textAlign: center
+        color: theme.accent
+        lineHeight: 1.3
+        margin: [8, 0, 0, 0]
+        entranceType: fade-up
+        entranceDelay: 300
+      {% endif %}
+      - type: divider
+        variant: gradient
+        width: 80
+        align: center
+        margin: [16, 0, 16, 0]
+        entranceType: fade-up
+        entranceDelay: 350
+      {% if bio %}
+      - type: text
+        text: "{{ bio }}"
+        fontSize: {{ style.bioSize }}
+        textAlign: center
+        color: theme.textMuted
+        lineHeight: 1.5
+        maxWidth: {{ style.bioWidth }}
+        entranceType: fade-up
+        entranceDelay: 400
+      {% endif %}

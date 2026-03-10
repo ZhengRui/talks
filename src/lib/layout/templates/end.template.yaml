@@ -3,21 +3,27 @@ params:
   title: { type: string }
   subtitle: { type: string }
 
-base: full-compose
-verticalAlign: center
 children:
-  - type: heading
-    text: "{{ title or 'Thank You' }}"
-    fontSize: 80
-    textAlign: center
-  {% if subtitle %}
-  - type: divider
-    variant: gradient
-    width: 120
-    align: center
-  - type: body
-    text: "{{ subtitle }}"
-    fontSize: 36
-    color: theme.textMuted
-    textAlign: center
-  {% endif %}
+  - type: box
+    variant: flat
+    padding: [60, 160]
+    height: 1080
+    verticalAlign: center
+    layout: { type: flex, direction: column, gap: 28 }
+    autoEntrance: { type: fade-up, stagger: 100 }
+    children:
+      - type: heading
+        text: "{{ title or 'Thank You' }}"
+        fontSize: 80
+        textAlign: center
+      {% if subtitle %}
+      - type: divider
+        variant: gradient
+        width: 120
+        align: center
+      - type: body
+        text: "{{ subtitle }}"
+        fontSize: 36
+        color: theme.textMuted
+        textAlign: center
+      {% endif %}

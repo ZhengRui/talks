@@ -458,8 +458,7 @@ All components are positioned automatically by the vertical stacker (28px gap, s
   fontFamily: heading                # optional: heading | body | mono (maps to theme fonts)
   lineHeight: 1.4                    # optional
   maxWidth: 800                      # optional, centered within panel
-  marginTop: 20                      # optional, overrides stacker gap before
-  marginBottom: 20                   # optional, overrides stacker gap after
+  margin: [20, 0]                    # optional, CSS-style: number | [vert, horiz] | [top, right, bottom, left]
 ```
 
 #### heading
@@ -480,8 +479,7 @@ All components are positioned automatically by the vertical stacker (28px gap, s
   color: theme.text                 # optional, theme token or hex
   textAlign: left                   # optional: left | center | right
   lineHeight: 1.6                   # optional
-  marginTop: 20                     # optional, overrides stacker gap before
-  marginBottom: 20                  # optional, overrides stacker gap after
+  margin: [20, 0]                   # optional, CSS-style: number | [vert, horiz] | [top, right, bottom, left]
 ```
 
 #### bullets
@@ -522,8 +520,7 @@ All components are positioned automatically by the vertical stacker (28px gap, s
   variant: gradient                  # optional: solid | gradient | ink | border
   width: 80                         # optional, percentage of panel width
   align: left                       # optional: left | center
-  marginTop: 16                     # optional, overrides stacker gap before
-  marginBottom: 40                  # optional, overrides stacker gap after
+  margin: [16, 0, 40, 0]            # optional, CSS-style: number | [vert, horiz] | [top, right, bottom, left]
 ```
 
 #### quote

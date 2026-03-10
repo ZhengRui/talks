@@ -2,8 +2,6 @@ import nunjucks from "nunjucks";
 import { parse } from "yaml";
 import type { DslTemplateDef } from "./types";
 import type {
-  FullComposeSlideData,
-  SplitComposeSlideData,
   ComponentSlideData,
   SlideBaseFields,
 } from "@/lib/types";
@@ -65,12 +63,12 @@ function smartify(val: unknown): unknown {
  * 2. Build render context (params + style defaults + user style overrides)
  * 3. Render the .template.yaml through Nunjucks
  * 4. Parse the rendered YAML
- * 5. Construct FullComposeSlideData or SplitComposeSlideData
+ * 5. Construct ComponentSlideData
  */
 export function expandDslTemplate(
   slideData: Record<string, unknown>,
   templateDef: DslTemplateDef,
-): (FullComposeSlideData | SplitComposeSlideData | ComponentSlideData) & SlideBaseFields {
+): ComponentSlideData & SlideBaseFields {
   // 1. Validate required params
   for (const [name, def] of Object.entries(templateDef.params)) {
     if (def.required && !(name in slideData)) {
@@ -128,36 +126,11 @@ export function expandDslTemplate(
   if (slideData.animation) base.animation = slideData.animation as SlideBaseFields["animation"];
   if (slideData.theme) base.theme = slideData.theme as SlideBaseFields["theme"];
 
-  if (parsed.base === "split-compose") {
-    return {
-      template: "split-compose",
-      ...(parsed.ratio !== undefined ? { ratio: Number(parsed.ratio) } : {}),
-      left: parsed.left as SplitComposeSlideData["left"],
-      right: parsed.right as SplitComposeSlideData["right"],
-      ...base,
-    } as SplitComposeSlideData & SlideBaseFields;
-  }
-
-  // No base → ComponentSlideData (v8: root component tree, no layout layer)
-  if (!parsed.base) {
-    return {
-      ...(parsed.background !== undefined ? { background: String(parsed.background) } : {}),
-      ...(parsed.backgroundImage !== undefined ? { backgroundImage: String(parsed.backgroundImage) } : {}),
-      ...(parsed.overlay !== undefined ? { overlay: String(parsed.overlay) } : {}),
-      children: (parsed.children ?? []) as ComponentSlideData["children"],
-      ...base,
-    } as ComponentSlideData & SlideBaseFields;
-  }
-
   return {
-    template: "full-compose",
     ...(parsed.background !== undefined ? { background: String(parsed.background) } : {}),
     ...(parsed.backgroundImage !== undefined ? { backgroundImage: String(parsed.backgroundImage) } : {}),
     ...(parsed.overlay !== undefined ? { overlay: String(parsed.overlay) } : {}),
-    ...(parsed.verticalAlign !== undefined ? { verticalAlign: parsed.verticalAlign } : {}),
-    ...(parsed.padding !== undefined ? { padding: parsed.padding } : {}),
-    ...(parsed.gap !== undefined ? { gap: Number(parsed.gap) } : {}),
-    children: (parsed.children ?? []) as FullComposeSlideData["children"],
+    children: (parsed.children ?? []) as ComponentSlideData["children"],
     ...base,
-  } as FullComposeSlideData & SlideBaseFields;
+  } as ComponentSlideData & SlideBaseFields;
 }

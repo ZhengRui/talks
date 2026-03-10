@@ -88,7 +88,7 @@ function parseTemplateFile(
       .replace(/\{\{.*?\}\}/g, "0");
 
     // Allow duplicate keys — stripping {% if/else %} can leave two keys
-    // (e.g., marginTop: 64 / marginTop: 24) in the same map. We only need
+    // (e.g., margin: [64, 0] / margin: [24, 0]) in the same map. We only need
     // name/params/style from the front matter, so duplicates are harmless.
     const parsed = parse(stripped, { uniqueKeys: false });
 

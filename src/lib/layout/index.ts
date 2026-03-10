@@ -1,28 +1,23 @@
 import { resolve } from "path";
 import { existsSync, readFileSync, writeFileSync } from "fs";
-import type { SlideData, SlideBaseFields, ComponentSlideData, ThemeName } from "@/lib/types";
+import type { SlideData, ThemeName } from "@/lib/types";
 import type { LayoutPresentation, LayoutSlide, LayoutElement } from "./types";
 import { resolveTheme } from "./theme";
-import { getLayoutFunction } from "./templates";
 import { applyDecorators } from "./decorators";
 import { CANVAS_W, CANVAS_H, backgroundImage } from "./helpers";
 import { resolveLayouts } from "./auto-layout";
 import { resolveComponent } from "./components/resolvers";
 import { resolveColor } from "./components/theme-tokens";
 
-/** Check if a slide is a component slide (has children, no template). */
-function isComponentSlide(slide: SlideData): slide is ComponentSlideData & SlideBaseFields {
-  return "children" in slide && !slide.template;
-}
-
-/** Resolve a component slide — root component tree, no base layout layer. */
-function layoutComponentSlide(
-  slide: ComponentSlideData,
-  theme: ReturnType<typeof resolveTheme>,
+export function layoutSlide(
+  slide: SlideData,
+  theme: ThemeName | undefined,
   imageBase: string,
+  slideIndex = 0,
 ): LayoutSlide {
+  const resolved = resolveTheme(slide.theme ?? theme);
   const hasImage = !!slide.backgroundImage;
-  const bg = resolveColor(slide.background, theme, theme.bg);
+  const bg = resolveColor(slide.background, resolved, resolved.bg);
 
   const bgElements: LayoutElement[] = [];
   if (hasImage) {
@@ -30,7 +25,7 @@ function layoutComponentSlide(
     bgElements.push(...backgroundImage(slide.backgroundImage!, imageBase, overlay));
   }
 
-  // When there's a dark overlay image, force white text + shadow (like full-compose)
+  // When there's a dark overlay image, force white text + shadow
   const darkOverlay = hasImage && slide.overlay !== "light";
   const textColor = darkOverlay ? "#ffffff" : undefined;
   const textShadow = darkOverlay ? "0 2px 12px rgba(0,0,0,0.7)" : undefined;
@@ -38,7 +33,7 @@ function layoutComponentSlide(
   const elements: LayoutElement[] = [];
   (slide.children ?? []).forEach((child, i) => {
     const result = resolveComponent(child, {
-      theme,
+      theme: resolved,
       panel: { x: 0, y: 0, w: CANVAS_W, h: CANVAS_H },
       idPrefix: `s-c${i}`,
       animate: true,
@@ -49,61 +44,12 @@ function layoutComponentSlide(
     elements.push(...result.elements);
   });
 
-  return {
+  const result: LayoutSlide = {
     width: CANVAS_W,
     height: CANVAS_H,
     background: bg,
     elements: [...bgElements, ...elements],
   };
-}
-
-export function layoutSlide(
-  slide: SlideData,
-  theme: ThemeName | undefined,
-  imageBase: string,
-  slideIndex = 0,
-): LayoutSlide {
-  const resolved = resolveTheme(slide.theme ?? theme);
-
-  // Component slide — children directly, no base layout layer
-  if (isComponentSlide(slide)) {
-    const result = layoutComponentSlide(slide, resolved, imageBase);
-    result.elements = resolveLayouts(result.elements);
-    const { background, foreground } = applyDecorators(resolved, slideIndex);
-    if (background.length > 0 || foreground.length > 0) {
-      result.elements = [...background, ...result.elements, ...foreground];
-    }
-    return result;
-  }
-
-  const layoutFn = getLayoutFunction(slide.template);
-
-  if (!layoutFn) {
-    // Fallback: blank slide with centered template name (for unconverted templates)
-    return {
-      width: 1920,
-      height: 1080,
-      background: resolved.bg,
-      elements: [
-        {
-          kind: "text",
-          id: "fallback",
-          rect: { x: 0, y: CANVAS_H / 2 - 30, w: CANVAS_W, h: 60 },
-          text: `[${slide.template}]`,
-          style: {
-            fontFamily: resolved.fontBody,
-            fontSize: 36,
-            fontWeight: 400,
-            color: resolved.textMuted,
-            lineHeight: 1.4,
-            textAlign: "center",
-          },
-        },
-      ],
-    };
-  }
-
-  const result = layoutFn(slide, resolved, imageBase);
 
   // Resolve auto-layout groups (flex/grid → absolute rects)
   result.elements = resolveLayouts(result.elements);
@@ -131,14 +77,11 @@ export function layoutPresentation(
   };
 
   // Persist layout JSON for debugging/inspection (dev only)
-  // Only write when the content directory already exists (real presentations)
   if (process.env.NODE_ENV !== "production") {
     try {
       const slug = imageBase.replace(/^\//, "");
       const contentDir = resolve(process.cwd(), "content", slug);
       const slidesYaml = resolve(contentDir, "slides.yaml");
-      // Only write if this is a real presentation (has slides.yaml)
-      // Skip write if content unchanged to avoid triggering Next.js fast refresh loop
       if (existsSync(slidesYaml)) {
         const outPath = resolve(contentDir, "layout.json");
         const json = JSON.stringify(layout, null, 2);
@@ -156,5 +99,4 @@ export function layoutPresentation(
 }
 
 export { resolveTheme } from "./theme";
-export { getLayoutFunction } from "./templates";
 export type { LayoutPresentation, LayoutSlide, LayoutElement, ResolvedTheme } from "./types";

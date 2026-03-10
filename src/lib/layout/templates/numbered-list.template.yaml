@@ -5,17 +5,23 @@ params:
 style:
   titleSize: { type: number, default: 56 }
 
-base: full-compose
 children:
-  - type: heading
-    text: "{{ title }}"
-    fontSize: {{ style.titleSize }}
-  - type: divider
-    variant: gradient
-    width: 80
-    marginTop: 16
-    marginBottom: 40
-  - type: bullets
-    ordered: true
-    variant: plain
-    items: {{ items }}
+  - type: box
+    variant: flat
+    padding: [60, 160]
+    height: 1080
+    verticalAlign: top
+    layout: { type: flex, direction: column, gap: 0 }
+    autoEntrance: { type: fade-up, stagger: 100 }
+    children:
+      - type: heading
+        text: "{{ title }}"
+        fontSize: {{ style.titleSize }}
+      - type: divider
+        variant: gradient
+        width: 80
+        margin: [16, 0, 40, 0]
+      - type: bullets
+        ordered: true
+        variant: plain
+        items: {{ items }}

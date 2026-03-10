@@ -111,34 +111,9 @@ Templates → Components (with auto-layout) → IR
 2. DSL `base` field becomes optional — templates can output a root component tree directly
 3. Existing templates migrated gradually (old `base:` templates coexist with new ones)
 
-### Gap analysis — stacker features to replicate
+~~**Gap analysis — stacker features to replicate**~~ — Done. Stacker path removed. `autoEntrance` supported by `resolveBoxWithLayout()`. `marginTop`/`marginBottom` replaced by `margin` on the shared mixin. `gapBefore`/`gapAfter` removed from `ResolveResult`. Boxes without `layout` default to `flex-column`.
 
-The stacker (`stacker.ts`) has two features that the Box resolver doesn't yet replicate:
-
-**`autoEntrance` — entrance animation staggering.** The stacker auto-assigns `fade-up` with increasing delays (`baseDelay + i * 100ms`) to children without explicit `entrance`. Direction: add `autoEntrance` prop to `BoxComponent`:
-
-```yaml
-autoEntrance: { type: fade-up, stagger: 100 }           # delay 0, 100, 200, ...
-autoEntrance: { type: fade-up, stagger: 100, baseDelay: 300 }  # delay 300, 400, 500, ...
-```
-
-Each child without its own `entrance` gets the type with incrementing delay. Children with explicit `entrance` keep their own. For split-compose replacement, the right panel Box uses `baseDelay: 300` to stagger after the left panel. Opt-in, not implicit — templates control whether staggering happens.
-
-**Unified `margin` — replacing `gapBefore`/`gapAfter`.** Currently `marginTop`/`marginBottom` exist only on text, body, divider, and box components. The stacker reads them via `gapBefore`/`gapAfter` on `ResolveResult`. Direction: add `margin` to the style passthrough mixin (like `transform`, `effects`, etc.), available on all 18 component types:
-
-```yaml
-margin: 20                  # all sides
-margin: [20, 40]            # [vertical, horizontal]
-margin: [20, 40, 20, 40]    # [top, right, bottom, left]
-```
-
-The Box resolver factors margin into placeholder sizing — vertical margin adds to placeholder height, horizontal margin shrinks available width. Old `marginTop`/`marginBottom` coexist during migration; `margin` takes priority when both are set. `gapBefore`/`gapAfter` on `ResolveResult` can be removed once all templates migrate.
-
-### Migration strategy — incremental
-
-Add a new `engine.ts` branch: when `base` is absent or `base: "compose"`, output a new slide data variant carrying a root component tree. Old `base: full-compose` and `base: split-compose` keep working — 35 existing templates are unaffected. Migrate templates one by one, validating visual + PPTX output against the old base path.
-
-**Files to eventually remove:** `src/lib/layout/templates/bases/full-compose.ts`, `split-compose.ts`, `stacker.ts`. `freeform.ts` may remain as a thin helper for absolute-positioned elements.
+~~**Migration strategy**~~ — Done. Base layout layer (`full-compose.ts`, `split-compose.ts`, `freeform.ts`, `stacker.ts`) fully removed. All templates use component tree directly.
 
 ## Phase 4 Prerequisite
 

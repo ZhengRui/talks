@@ -693,7 +693,7 @@ function renderList(el: ListElement): React.ReactNode {
         }}
       >
         {el.items.map((item, i) => {
-          const content = renderRichText(item);
+          const content = renderRichText(item, el.itemStyle.highlightColor);
           return (
             <li
               key={i}

@@ -6,31 +6,38 @@ style:
   termSize: { type: number, default: 30 }
   descSize: { type: number, default: 28 }
 
-base: full-compose
 children:
-  - type: heading
-    text: "{{ title }}"
-    fontSize: 56
-  - type: divider
-    variant: gradient
-    width: 80
-    marginTop: 16
-  {% for def in definitions %}
-  - type: text
-    text: "{{ def.term }}"
-    fontSize: {{ style.termSize }}
-    fontWeight: bold
-    color: theme.accent
-    {% if loop.first %}
-    marginTop: 64
-    {% else %}
-    marginTop: 24
-    {% endif %}
-  - type: text
-    text: "{{ def.description }}"
-    fontSize: {{ style.descSize }}
-    marginTop: 8
-  - type: divider
-    variant: border
-    marginTop: 24
-  {% endfor %}
+  - type: box
+    variant: flat
+    padding: [60, 160]
+    height: 1080
+    verticalAlign: top
+    layout: { type: flex, direction: column, gap: 0 }
+    autoEntrance: { type: fade-up, stagger: 100 }
+    children:
+      - type: heading
+        text: "{{ title }}"
+        fontSize: 56
+      - type: divider
+        variant: gradient
+        width: 80
+        margin: [16, 0, 0, 0]
+      {% for def in definitions %}
+      - type: text
+        text: "{{ def.term }}"
+        fontSize: {{ style.termSize }}
+        fontWeight: bold
+        color: theme.accent
+        {% if loop.first %}
+        margin: [64, 0, 0, 0]
+        {% else %}
+        margin: [24, 0, 0, 0]
+        {% endif %}
+      - type: text
+        text: "{{ def.description }}"
+        fontSize: {{ style.descSize }}
+        margin: [8, 0, 0, 0]
+      - type: divider
+        variant: border
+        margin: [24, 0, 0, 0]
+      {% endfor %}

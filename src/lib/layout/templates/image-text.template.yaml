@@ -9,98 +9,118 @@ style:
   titleSize: { type: number, default: 48 }
   bodySize: { type: number, default: 28 }
 
-base: split-compose
-{% if imagePosition == "right" %}
-left:
-  gap: 0
-  padding: [60, 20, 60, 160]
-  children:
-    - type: spacer
-      height: 210
-    - type: heading
-      text: "{{ title }}"
-      textAlign: left
-      fontSize: {{ style.titleSize }}
-      entranceType: fade-up
-      entranceDelay: 0
-    - type: divider
-      variant: gradient
-      width: 80
-      marginTop: 16
-      marginBottom: 250
-      entranceType: fade-up
-      entranceDelay: 100
-    {% if body %}
-    - type: body
-      text: "{{ body }}"
-      fontSize: {{ style.bodySize }}
-      lineHeight: 1.7
-      marginBottom: 44
-      entranceType: slide-left
-      entranceDelay: 300
-    {% endif %}
-    {% if bullets %}
-    - type: bullets
-      items: {{ bullets }}
-      variant: list
-      fontSize: 26
-      entranceType: fade-up
-      entranceDelay: 400
-    {% endif %}
-right:
-  padding: [0, 160, 0, 20]
-  children:
-    - type: image
-      src: "{{ image }}"
-      height: 1080
-      objectFit: cover
-      entranceType: slide-right
-      entranceDelay: 200
-{% else %}
-left:
-  padding: [0, 20, 0, 160]
-  children:
-    - type: image
-      src: "{{ image }}"
-      height: 1080
-      objectFit: cover
-      entranceType: slide-left
-      entranceDelay: 200
-right:
-  background: theme.bg
-  gap: 0
-  padding: [60, 160, 60, 20]
-  children:
-    - type: spacer
-      height: 210
-    - type: heading
-      text: "{{ title }}"
-      textAlign: left
-      fontSize: {{ style.titleSize }}
-      entranceType: fade-up
-      entranceDelay: 0
-    - type: divider
-      variant: gradient
-      width: 80
-      marginTop: 16
-      marginBottom: 250
-      entranceType: fade-up
-      entranceDelay: 100
-    {% if body %}
-    - type: body
-      text: "{{ body }}"
-      fontSize: {{ style.bodySize }}
-      lineHeight: 1.7
-      marginBottom: 44
-      entranceType: slide-right
-      entranceDelay: 300
-    {% endif %}
-    {% if bullets %}
-    - type: bullets
-      items: {{ bullets }}
-      variant: list
-      fontSize: 26
-      entranceType: fade-up
-      entranceDelay: 400
-    {% endif %}
-{% endif %}
+children:
+  - type: box
+    variant: flat
+    padding: 0
+    height: 1080
+    verticalAlign: top
+    layout: { type: flex, direction: column, gap: 0 }
+    children:
+      {% if imagePosition == "right" %}
+      - type: columns
+        gap: 0
+        ratio: 0.5
+        children:
+          - type: box
+            variant: flat
+            padding: [60, 20, 60, 160]
+            layout: { type: flex, direction: column, gap: 0 }
+            entranceType: none
+            children:
+              - type: spacer
+                height: 210
+              - type: heading
+                text: "{{ title }}"
+                textAlign: left
+                fontSize: {{ style.titleSize }}
+                entranceType: fade-up
+                entranceDelay: 0
+              - type: divider
+                variant: gradient
+                width: 80
+                margin: [16, 0, 250, 0]
+                entranceType: fade-up
+                entranceDelay: 100
+              {% if body %}
+              - type: body
+                text: "{{ body }}"
+                fontSize: {{ style.bodySize }}
+                lineHeight: 1.7
+                margin: [0, 0, 44, 0]
+                entranceType: slide-left
+                entranceDelay: 300
+              {% endif %}
+              {% if bullets %}
+              - type: bullets
+                items: {{ bullets }}
+                variant: list
+                fontSize: 26
+                entranceType: fade-up
+                entranceDelay: 400
+              {% endif %}
+          - type: box
+            variant: flat
+            padding: [0, 160, 0, 20]
+            entranceType: none
+            children:
+              - type: image
+                src: "{{ image }}"
+                height: 1080
+                objectFit: cover
+                entranceType: slide-right
+                entranceDelay: 200
+      {% else %}
+      - type: columns
+        gap: 0
+        ratio: 0.5
+        children:
+          - type: box
+            variant: flat
+            padding: [0, 20, 0, 160]
+            entranceType: none
+            children:
+              - type: image
+                src: "{{ image }}"
+                height: 1080
+                objectFit: cover
+                entranceType: slide-left
+                entranceDelay: 200
+          - type: box
+            variant: flat
+            padding: [60, 160, 60, 20]
+            layout: { type: flex, direction: column, gap: 0 }
+            entranceType: none
+            children:
+              - type: spacer
+                height: 210
+              - type: heading
+                text: "{{ title }}"
+                textAlign: left
+                fontSize: {{ style.titleSize }}
+                entranceType: fade-up
+                entranceDelay: 0
+              - type: divider
+                variant: gradient
+                width: 80
+                margin: [16, 0, 250, 0]
+                entranceType: fade-up
+                entranceDelay: 100
+              {% if body %}
+              - type: body
+                text: "{{ body }}"
+                fontSize: {{ style.bodySize }}
+                lineHeight: 1.7
+                margin: [0, 0, 44, 0]
+                entranceType: slide-right
+                entranceDelay: 300
+              {% endif %}
+              {% if bullets %}
+              - type: bullets
+                items: {{ bullets }}
+                variant: list
+                fontSize: 26
+                entranceType: fade-up
+                entranceDelay: 400
+              {% endif %}
+      {% endif %}

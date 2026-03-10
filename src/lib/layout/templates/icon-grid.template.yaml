@@ -9,46 +9,55 @@ style:
   labelSize: { type: number, default: 26 }
   cardHeight: { type: number }
 
-base: full-compose
 children:
-  {% if title %}
-  - type: heading
-    text: "{{ title }}"
-    fontSize: {{ style.titleSize }}
-    textAlign: center
-  - type: divider
-    variant: gradient
-    width: 80
-    align: center
-    marginTop: 16
-    marginBottom: 40
-  {% endif %}
-  - type: spacer
-    flex: true
-  - type: grid
-    columns: {{ columns or 3 }}
-    gap: 32
-    equalHeight: true
+  - type: box
+    variant: flat
+    padding: [60, 160]
+    height: 1080
+    verticalAlign: top
+    layout: { type: flex, direction: column, gap: 0 }
+    autoEntrance: { type: fade-up, stagger: 100 }
     children:
-      {% for item in items %}
+      {% if title %}
+      - type: heading
+        text: "{{ title }}"
+        fontSize: {{ style.titleSize }}
+        textAlign: center
+      - type: divider
+        variant: gradient
+        width: 80
+        align: center
+        margin: [16, 0, 40, 0]
+      {% endif %}
       - type: box
-        padding: 24
-        verticalAlign: center
-        {% if style.cardHeight %}
-        height: {{ style.cardHeight }}
-        {% else %}
         fill: true
-        {% endif %}
-        entranceType: scale-up
+        variant: flat
+        padding: 0
+        verticalAlign: center
+        entranceType: none
         children:
-          - type: text
-            text: "{{ item.icon }}"
-            fontSize: {{ style.iconSize }}
-            textAlign: center
-          - type: text
-            text: "{{ item.label }}"
-            fontSize: {{ style.labelSize }}
-            textAlign: center
-      {% endfor %}
-  - type: spacer
-    flex: true
+          - type: grid
+            columns: {{ columns or 3 }}
+            gap: 32
+            equalHeight: true
+            children:
+              {% for item in items %}
+              - type: box
+                padding: 24
+                verticalAlign: center
+                {% if style.cardHeight %}
+                height: {{ style.cardHeight }}
+                {% else %}
+                fill: true
+                {% endif %}
+                entranceType: scale-up
+                children:
+                  - type: text
+                    text: "{{ item.icon }}"
+                    fontSize: {{ style.iconSize }}
+                    textAlign: center
+                  - type: text
+                    text: "{{ item.label }}"
+                    fontSize: {{ style.labelSize }}
+                    textAlign: center
+              {% endfor %}

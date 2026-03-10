@@ -1,5 +1,4 @@
 name: blank
 params: {}
 
-base: full-compose
 children: []
