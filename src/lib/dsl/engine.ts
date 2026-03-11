@@ -126,9 +126,12 @@ export function expandDslTemplate(
   if (slideData.animation) base.animation = slideData.animation as SlideBaseFields["animation"];
   if (slideData.theme) base.theme = slideData.theme as SlideBaseFields["theme"];
 
+  // Slide-level background/backgroundImage: slideData (user YAML) takes precedence over template output
   return {
     ...(parsed.background !== undefined ? { background: String(parsed.background) } : {}),
     ...(parsed.backgroundImage !== undefined ? { backgroundImage: String(parsed.backgroundImage) } : {}),
+    ...(slideData.background !== undefined ? { background: String(slideData.background) } : {}),
+    ...(slideData.backgroundImage !== undefined ? { backgroundImage: String(slideData.backgroundImage) } : {}),
     ...(parsed.overlay !== undefined ? { overlay: String(parsed.overlay) } : {}),
     children: (parsed.children ?? []) as ComponentSlideData["children"],
     ...base,
