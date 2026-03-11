@@ -1,13 +1,11 @@
 ---
 name: replicate-slides
-description: Use when replicating an existing slide from a screenshot, HTML file, or verbal description. Analyzes the source slide visually, finds or creates a reusable DSL template, and outputs instantiated YAML that reproduces the slide at pixel level. Complementary to create-slides — this skill works from visual sources rather than intent.
+description: Use when replicating an existing slide from a screenshot, HTML file, or verbal description. Analyzes the source visually, then composes pixel-accurate YAML using raw IR elements and selective components. Complementary to create-slides — this skill works from visual sources rather than intent.
 ---
 
 # Slide Replication
 
-Replicate slides from visual sources into the YAML presentation system. Three outputs per invocation: structured analysis, reusable template, instantiated slide YAML.
-
-See [reference.md](reference.md) for template structural signatures, component/element syntax, and parameterization conventions.
+Replicate slides from visual sources into the YAML presentation system. Outputs pixel-accurate slides using raw IR elements for layout/decoration and components for structured content. See [reference.md](reference.md) for the complete IR element reference, CSS-to-IR translation table, and component defaults.
 
 ## Input
 
@@ -21,7 +19,16 @@ Accept any combination — adapt analysis to whatever's provided:
 
 When inputs conflict: **description > HTML > screenshot**.
 
-**Required context:** Ask for the presentation slug if not obvious — needed for saving templates to `content/[slug]/templates/`.
+**Required context:** Ask for the presentation slug if not obvious — needed for image paths and appending to the right `slides.yaml`.
+
+## Core Principle: Raw-First Composition
+
+Think of each slide as a 1920x1080 canvas. Place elements at exact pixel coordinates using raw IR elements — the same mental model as absolute-positioned HTML divs. Use components only when they genuinely simplify complex rendering (bullets with card styling, code blocks, tables, stats).
+
+```
+Raw IR elements  → position, decoration, precise text
+Components       → structured content with complex internal layout
+```
 
 ## Three-Phase Pipeline
 
@@ -29,10 +36,10 @@ When inputs conflict: **description > HTML > screenshot**.
 Source (screenshot / HTML / description)
   ↓ Phase 1: Analyze
 Structured element inventory (layout, typography, colors, spacing)
-  ↓ Phase 2: Template
-Existing template match OR new .template.yaml file
+  ↓ Phase 2: Build
+Raw IR + selective components composed on the canvas
   ↓ Phase 3: Instantiate
-Concrete slide YAML using the template
+Concrete slide YAML ready to paste into slides.yaml
 ```
 
 ### Phase 1: Analyze
@@ -42,31 +49,19 @@ Examine the source and produce a structured breakdown of every visual element. O
 **Analysis format:**
 
 ```
-## Slide Analysis
-
-**Layout:** [layout type — single column, two-panel split with ratio, grid, centered hero, etc.]
-**Background:** [colors, images, overlays]
-
-### Elements
-1. [Component type] — [content], [position], [key visual properties]
-2. [Component type] — [content], [position], [key visual properties]
-...
-
-### Typography
-- Heading: [font family], [weight], [size]
-- Body: [font family], [weight], [size]
-- Special: [any other text styles — tags, stats, code]
-
-### Colors
-- Accent: [hex]
-- Text primary: [hex]
-- Text muted: [hex]
-- Backgrounds: [hex values for each distinct area]
-
-### Spacing
-- Padding: [values per panel/section]
-- Element gaps: [vertical/horizontal spacing between elements]
-- Notable margins: [any non-standard spacing]
+ANALYSIS:
+  Layout type: [single-column | two-panel | grid | hero-centered | freeform]
+  Background: [color/gradient/image + overlay]
+  Element inventory:
+    - [element description] → [approximate rect or region] → [raw | component:type]
+    - ...
+  Typography:
+    - Heading: [size, weight, color, font]
+    - Body: [size, weight, color, font]
+    - Accent: [size, weight, color, font]
+  Colors: [palette list with hex values]
+  Spacing: [key gaps and padding in px]
+  Decorative elements: [gradients, watermarks, shapes, dividers]
 ```
 
 **What to detect:**
@@ -77,360 +72,366 @@ Examine the source and produce a structured breakdown of every visual element. O
 - Spacing patterns (padding, gaps, margins)
 - Animation cues if visible (stagger order, entrance direction)
 - Rich text (inline color, bold, mixed styles within a single text block)
+- Flag elements that need pixel-precise placement (raw IR) vs semantic rendering (components)
 
-### Phase 2: Template Decision
+### Phase 2: Build
 
-Compare the analysis against the 35 built-in templates. See [reference.md](reference.md) for structural signatures.
+**Step 1 — Check for exact template match:**
 
-**Matching criteria — both must be true:**
-1. **Structural match** — same element types, count, and arrangement (e.g. heading + divider + bullets = `bullets` template)
-2. **Visual fidelity** — the template's `style` params can control any visual differences. If the template hardcodes something that needs to differ, it's not a match.
+Compare analysis against built-in templates (see reference.md, Template Structural Signatures). Match requires BOTH: same element types/count/arrangement AND visual fidelity achievable via style overrides. If match found, use template and skip to Phase 3.
 
-**If match found:** Use the existing template. Note which `style` overrides are needed.
+**Step 2 — Compose with raw IR + selective components:**
 
-**If no match:** Create a new `.template.yaml` in `content/[slug]/templates/`.
+If no template match, build the slide as a component tree:
 
-#### Creating New Templates
+1. Start with slide-level properties (`background`, `backgroundImage`, `overlay`, `theme`)
+2. Create a top-level `box` (`variant: flat`, `padding: 0`, `height: 1080`) as the slide container
+3. For each visual region:
+   - **Background panels/shapes** — `raw` component with shape elements at exact coordinates
+   - **Decorative elements** (gradients, watermarks, lines) — `raw` component with `position: absolute`
+   - **Text at precise positions** — `raw` component with text elements
+   - **Bullet lists** — `bullets` component (`card`/`plain`/`list` variants handle complex internal layout)
+   - **Code blocks** — `code` component
+   - **Stats (value + label)** — `stat` component
+   - **Tables** — `table` component (or raw for full control)
+   - **Two-panel splits** — `box` with flex-row layout + two child boxes
+   - **Equal-width columns/grids** — `box` with flex-row or `grid` component
+   - **Vertically centered content** — `box` with `verticalAlign: center`
+4. Reference [reference.md](reference.md) for exact property schemas, defaults, and CSS-to-IR mappings
 
-**File:** `content/[slug]/templates/<descriptive-name>.template.yaml`
+**Step 3 — Extract template (optional):**
 
-**Naming:** Descriptive, kebab-case. Name after what the slide does structurally: `hero-stat-split`, `editorial-quote-cards`, `gradient-header-grid`.
-
-**Parameterization — Claude decides per template:**
-
-| What | Approach | Example |
-|------|----------|---------|
-| Text content | Always `params` | `title`, `body`, `bullets`, `stats` |
-| Repeating elements | Array `params` + `{% for %}` loop | `stats: { type: array, required: true }` |
-| Optional elements | `params` (required: false) + `{% if %}` conditional | `{% if tag %}...{% endif %}` |
-| Structural dimensions | `style` with defaults from original | `splitRatio: { type: number, default: 1250 }` |
-| Font sizes | `style` with defaults from original | `titleSize: { type: number, default: 54 }` |
-| Colors that are design choices | `style` with defaults from original | `accentColor: { type: string, default: "#c41e3a" }` |
-| Colors matching a theme | Use theme tokens directly | `color: theme.accent` |
-| Fixed structural elements | Hardcode in template | divider variant, box layout direction |
-
-**Template structure:**
-
-```yaml
-name: descriptive-name
-params:
-  title: { type: string, required: true }
-  items: { type: array, required: true }
-  subtitle: { type: string, required: false }
-style:
-  titleSize: { type: number, default: 54 }
-  accentColor: { type: string, default: "#c41e3a" }
-  splitRatio: { type: number, default: 1250 }
-
-children:
-  - type: box
-    variant: flat
-    # ... component tree with {{ param }} and {{ style.prop }} interpolation
-```
-
-**Nunjucks patterns available:**
-- `{{ title }}` — string interpolation
-- `{{ items }}` — array (auto-serialized to YAML flow sequence)
-- `{{ style.titleSize }}` — style with default
-- `{% if subtitle %}...{% endif %}` — conditional block
-- `{% for s in stats %}...{% endfor %}` — loop with `loop.index`, `loop.index0`, `loop.length`
-- `{{ code | tojson }}` — JSON-escape for code blocks
-- `{{ text | yaml_string }}` — YAML-safe string escaping
-- `{{ theme.accent }}` — theme token access
+If this layout pattern will be reused across multiple slides, extract into a `.template.yaml` file in `content/[slug]/templates/`. Otherwise, output as inline component tree.
 
 ### Phase 3: Instantiate
 
-Output a concrete slide YAML that uses the template (existing or newly created) with all params filled to replicate the source.
+Produce the final YAML to append to `content/[slug]/slides.yaml`.
+
+For template matches:
 
 ```yaml
-# Using existing template
 - template: stats
   title: "Key Metrics"
   stats:
     - value: "907"
       label: "Year of Tang's Fall"
-  style:
-    statColor: "#ff2d2d"
-
-# Using newly created template
-- template: editorial-split-stats
-  tag: "Chapter 3"
-  title:
-    - "The "
-    - text: "Fall"
-      color: "#c41e3a"
-      bold: true
-    - " of Tang"
-  stats:
-    - value: "907"
-      label: "Year of Tang's Fall"
 ```
 
-**Key rules:**
-- Use the template's param interface — never output raw component trees when a template exists
-- Preserve rich text (inline colors, bold) when the source has mixed styling
-- The YAML is ready to paste into `content/[slug]/slides.yaml`
-- Template + instantiation together must reproduce the source at pixel level
+For raw-first compositions (inline):
+
+```yaml
+- background: "#0a0a0a"
+  children:
+    - type: box
+      variant: flat
+      padding: 0
+      height: 1080
+      children:
+        - type: raw
+          position: "absolute"
+          x: 0
+          y: 0
+          width: 1920
+          height: 4
+          elements:
+            - kind: shape
+              id: accent-strip
+              rect: { x: 0, y: 0, w: 1920, h: 4 }
+              shape: rect
+              style:
+                gradient: { type: linear, angle: 90, stops: [{ color: "#ff6b35", position: 0 }, { color: "#00d4ff", position: 1 }] }
+        - type: heading
+          text: "Title Here"
+          fontSize: 56
+          textAlign: center
+          color: "#ffffff"
+```
 
 ## Workflow Summary
 
-1. Read the input (screenshot, HTML, description — whatever's provided)
-2. Output the structured analysis (Phase 1)
-3. Search for an existing template match; if none, create a new `.template.yaml` (Phase 2)
-4. Output the instantiated slide YAML (Phase 3)
+1. Receive source (screenshot, HTML, description — whatever's provided) + presentation slug
+2. Phase 1: Produce the structured `ANALYSIS` block
+3. Phase 2: Check templates, then compose raw-first if no match
+4. Phase 3: Output complete YAML ready to paste into `slides.yaml`
 
-All three phases happen in one invocation. If the user wants to iterate ("make the left panel wider"), re-run with corrections.
+All phases happen in one invocation. Show the analysis, then the build reasoning, then the final YAML.
 
 ## Examples
 
-### Example 1: Existing template match
+### Example 1: Existing Template Match
 
-**Input:** Screenshot of a slide with a title, horizontal divider, and 4 bullet points in card style.
+**Input:** Screenshot of a slide with a heading, a horizontal divider, and 4 bullet points in card style on a dark background.
 
-**Phase 1 output:**
+**Phase 1 — Analyze:**
+
 ```
-## Slide Analysis
-**Layout:** Single column, full-width, padded
-**Background:** #f8f9fc
-
-### Elements
-1. Heading — "Key Challenges", 54px, sans-serif, left-aligned
-2. Divider — gradient, ~30% width, left-aligned
-3. Bullets — 4 items, card variant with accent-colored left bar, 26px
-
-### Typography
-- Heading: Inter, 700, 54px
-- Bullets: Inter, 400, 26px
-
-### Colors
-- Accent: #4f6df5
-- Text: #1a1a2e
-
-### Spacing
-- Padding: 60px top/bottom, 160px left/right
-- Bullet gap: 16px
+ANALYSIS:
+  Layout type: single-column
+  Background: #0f0f0f solid
+  Element inventory:
+    - Heading "Platform Overview" → top-center, ~y:180 → component:heading
+    - Horizontal divider, gradient blue-to-purple → y:280, w:200 → component:divider
+    - 4 bullet cards, vertical stack → y:340..920 → component:bullets
+  Typography:
+    - Heading: 48px, bold, #ffffff, Inter
+    - Bullet title: 24px, semibold, #ffffff
+    - Bullet body: 18px, regular, #a0a0a0
+  Colors: #0f0f0f, #ffffff, #a0a0a0, #3b82f6, #8b5cf6
+  Spacing: 40px gap between cards, 60px horizontal padding
+  Decorative elements: gradient divider under heading
 ```
 
-**Phase 2:** Matches `bullets` template — same structure (heading + divider + bullets), card variant controllable via style.
+**Phase 2 — Build:**
 
-**Phase 3:**
+Matches `bullets` template — same structure (heading + divider + bullet list with card styling). The template's style overrides cover the colors and gradient divider.
+
+**Phase 3 — Instantiate:**
+
 ```yaml
 - template: bullets
-  title: "Key Challenges"
+  title: "Platform Overview"
+  divider: gradient
   bullets:
-    - "Rising infrastructure costs across all regions"
-    - "Talent retention in competitive markets"
-    - "Regulatory compliance across jurisdictions"
-    - "Legacy system migration timelines"
+    - title: "Real-time Processing"
+      body: "Sub-millisecond event processing with automatic scaling across regions"
+    - title: "Built-in Observability"
+      body: "Distributed tracing, metrics, and structured logging out of the box"
+    - title: "Zero-Downtime Deploys"
+      body: "Rolling deployments with automatic canary analysis and rollback"
+    - title: "Multi-Region by Default"
+      body: "Active-active replication with conflict-free data synchronization"
 ```
 
-### Example 2: New template — asymmetric split with stats
+### Example 2: Raw-First Two-Panel Split
 
-**Input:** Screenshot of a two-panel slide (65/35), left has tag + heading + divider + body text, right panel is dark with two large stats vertically stacked.
+**Input:** Screenshot of a slide with:
+- Full-width gradient strip at the very top (4px, orange-to-cyan)
+- Left 65% of slide: tag label, large heading with one word in accent color, gradient divider, body paragraph
+- Right 35%: dark panel (#1a1714) with two large stats vertically centered
 
-**Phase 1 output:**
+**Phase 1 — Analyze:**
+
 ```
-## Slide Analysis
-**Layout:** Two-panel split (65/35), full-bleed, no outer padding
-**Background:** Left: #faf8f5, Right: #1a1714
-
-### Elements
-1. Tag — "Overview", left panel top, #b8860b border, uppercase, 14px
-2. Heading — "Revenue Growth", 54px, Playfair Display, left-aligned
-3. Divider — gradient, 30% width, left-aligned
-4. Body — "Our Q4 results exceeded...", 26px, Inter, 1.6 line-height
-5. Stat — "$2.4B" at 72px in #b8860b, label "Total Revenue", right panel
-6. Stat — "34%" at 72px in #b8860b, label "YoY Growth", right panel
-
-### Typography
-- Heading: Playfair Display, 700, 54px
-- Body: Inter, 400, 26px
-- Stat value: Inter, 700, 72px
-- Stat label: Inter, 400, 18px, uppercase
-
-### Colors
-- Accent: #b8860b (gold)
-- Text: #2d2a26
-- Stat label: rgba(255,255,255,0.6)
-- Right panel bg: #1a1714
-
-### Spacing
-- Left padding: 80px vert, 60px horiz
-- Right padding: 80px vert, 60px horiz, vertically centered
-- Element gap: 16px
+ANALYSIS:
+  Layout type: two-panel (65/35 split)
+  Background: #0f0a05 solid
+  Element inventory:
+    - Gradient accent strip → full width, y:0, h:4 → raw (position: absolute)
+    - Tag "CHAPTER 03" → left panel, y:~160 → component:tag
+    - Heading "The Fall of an Empire" → left, y:~220, "Empire" in #ff6b35 → component:heading (richText)
+    - Gradient divider → left, y:~310, w:120 → component:divider
+    - Body paragraph → left, y:~360, max-w:~560 → component:body
+    - Stat "907 CE" / "Year of Collapse" → right panel, upper → component:stat
+    - Stat "289" / "Years of Reign" → right panel, lower → component:stat
+    - Dark background panel → right 35%, full height → box with background
+  Typography:
+    - Tag: 14px, bold, uppercase, #ff6b35
+    - Heading: 52px, bold, #ffffff, "Empire" in #ff6b35
+    - Body: 20px, regular, #b0a898, line-height 1.6
+    - Stat value: 56px, bold, #ff6b35
+    - Stat label: 16px, regular, #8a8078
+  Colors: #0f0a05, #1a1714, #ffffff, #ff6b35, #00d4ff, #b0a898, #8a8078
+  Spacing: left padding 80px vertical / 80px horizontal, right panel padding 60px, 24px gap between elements
+  Decorative elements: 4px gradient strip (orange-to-cyan) at top edge
 ```
 
-**Phase 2:** No existing template matches — `comparison` has two panels but with heading+bullets structure, not tag+heading+body vs stats. Creates new template:
+**Phase 2 — Build:**
 
-**File:** `content/my-talk/templates/split-content-stats.template.yaml`
+No template match — two-panel layout with mixed raw decoration + components is not covered by any built-in template. Compose raw-first:
+
+- Slide background: `#0f0a05`
+- Top-level `box` (flat, padding: 0, height: 1080, flex-row)
+  - Left child `box` (width: 1250, padding: [160, 80, 80, 80]) — tag, heading with richText, divider, body
+  - Right child `box` (background: #1a1714, verticalAlign: center, padding: [80, 60]) — two stat components
+- Decorative gradient strip: `raw` component at position absolute y:0, spanning full width
+
+**Phase 3 — Instantiate:**
 
 ```yaml
-name: split-content-stats
-params:
-  tag: { type: string, required: false }
-  title: { type: string, required: true }
-  body: { type: string, required: false }
-  bullets: { type: "string[]", required: false }
-  stats: { type: array, required: true }
-style:
-  splitRatio: { type: number, default: 1250 }
-  rightBg: { type: string, default: "#1a1714" }
-  accentColor: { type: string, default: "#b8860b" }
-  titleSize: { type: number, default: 54 }
-  statSize: { type: number, default: 72 }
+- background: "#0f0a05"
+  children:
+    - type: box
+      variant: flat
+      padding: 0
+      height: 1080
+      layout: { type: flex, direction: row }
+      children:
+        # Decorative gradient strip at top edge
+        - type: raw
+          position: "absolute"
+          x: 0
+          y: 0
+          width: 1920
+          height: 4
+          elements:
+            - kind: shape
+              id: top-accent
+              rect: { x: 0, y: 0, w: 1920, h: 4 }
+              shape: rect
+              style:
+                gradient:
+                  type: linear
+                  angle: 90
+                  stops:
+                    - { color: "#ff6b35", position: 0 }
+                    - { color: "#00d4ff", position: 1 }
 
-children:
-  - type: box
-    variant: flat
-    layout: { type: flex, direction: row }
-    padding: 0
-    height: 1080
-    children:
-      - type: box
-        variant: flat
-        width: {{ style.splitRatio }}
-        padding: [80, 60]
-        children:
-          {% if tag %}
-          - type: tag
-            text: "{{ tag }}"
-            color: {{ style.accentColor }}
-          {% endif %}
-          - type: heading
-            text: "{{ title }}"
-            fontSize: {{ style.titleSize }}
-          - type: divider
-            variant: gradient
-          {% if body %}
-          - type: body
-            text: "{{ body }}"
-          {% endif %}
-          {% if bullets %}
-          - type: bullets
-            items: {{ bullets }}
-          {% endif %}
-      - type: box
-        background: {{ style.rightBg }}
-        padding: [80, 60]
-        verticalAlign: center
-        children:
-          {% for s in stats %}
-          - type: stat
-            value: "{{ s.value }}"
-            label: "{{ s.label }}"
-            color: {{ style.accentColor }}
-            fontSize: {{ style.statSize }}
-          {% endfor %}
+        # Left panel — text content
+        - type: box
+          variant: flat
+          width: 1250
+          padding: [160, 80, 80, 80]
+          layout: { type: flex, direction: column, gap: 24 }
+          children:
+            - type: tag
+              text: "CHAPTER 03"
+              color: "#ff6b35"
+            - type: heading
+              text:
+                - text: "The Fall of an "
+                  color: "#ffffff"
+                - text: "Empire"
+                  color: "#ff6b35"
+              fontSize: 52
+            - type: divider
+              variant: gradient
+              width: 120
+            - type: text
+              text: "The Tang Dynasty's collapse in 907 CE marked the end of what many historians consider China's golden age. Internal rebellions, regional warlords, and economic strain combined to fracture an empire that had endured for nearly three centuries."
+              fontSize: 20
+              color: "#b0a898"
+              lineHeight: 1.6
+              maxWidth: 560
+
+        # Right panel — stats on dark background
+        - type: box
+          variant: flat
+          background: "#1a1714"
+          verticalAlign: center
+          padding: [80, 60]
+          layout: { type: flex, direction: column, gap: 64 }
+          children:
+            - type: stat
+              value: "907 CE"
+              label: "Year of Collapse"
+              color: "#ff6b35"
+              fontSize: 56
+              labelColor: "#8a8078"
+              labelFontSize: 16
+            - type: stat
+              value: "289"
+              label: "Years of Reign"
+              color: "#ff6b35"
+              fontSize: 56
+              labelColor: "#8a8078"
+              labelFontSize: 16
 ```
 
-**Phase 3:**
+### Example 3: Raw-Heavy Hero with Decorative Elements
+
+**Input:** Screenshot of a dark slide with:
+- Giant "01" watermark at top-left, barely visible (~2-3% opacity)
+- Centered heading "Introduction" in white, large
+- Muted subtitle below heading
+- 4px gradient strip at the very top (blue-to-purple)
+- User note: "the watermark is barely visible, like 2-3% opacity"
+
+**Phase 1 — Analyze:**
+
+```
+ANALYSIS:
+  Layout type: hero-centered
+  Background: #0a0a0a solid
+  Element inventory:
+    - Gradient strip → full width, y:0, h:4 → raw (position: absolute)
+    - Watermark "01" → top-left, ~x:60, y:40, giant text ~320px → raw (position: absolute, opacity 0.03)
+    - Heading "Introduction" → centered, ~y:460 → component:heading (inside centered box)
+    - Subtitle "Setting the stage..." → centered, ~y:540 → component:body (inside centered box)
+  Typography:
+    - Watermark: 320px, weight 900, #ffffff at 3% opacity
+    - Heading: 64px, bold, #ffffff
+    - Subtitle: 24px, regular, #666666
+  Colors: #0a0a0a, #ffffff, #666666, #3b82f6, #8b5cf6
+  Spacing: heading and subtitle ~24px apart, both horizontally centered
+  Decorative elements: gradient strip at top, giant number watermark
+```
+
+**Phase 2 — Build:**
+
+No template match — the watermark decoration and centered hero layout with raw elements is custom. Compose raw-first:
+
+- Slide background: `#0a0a0a`
+- Top-level `box` (flat, padding: 0, height: 1080) as container
+  - Gradient strip: `raw` at position absolute, y: 0
+  - Watermark "01": `raw` at position absolute, giant text with opacity 0.03
+  - Centered content: `box` with verticalAlign: center, textAlign: center, holding heading + body components
+
+**Phase 3 — Instantiate:**
+
 ```yaml
-- template: split-content-stats
-  tag: "Overview"
-  title: "Revenue Growth"
-  body: "Our Q4 results exceeded all projections, driven by enterprise expansion and improved retention across key markets."
-  stats:
-    - value: "$2.4B"
-      label: "Total Revenue"
-    - value: "34%"
-      label: "YoY Growth"
-```
+- background: "#0a0a0a"
+  children:
+    - type: box
+      variant: flat
+      padding: 0
+      height: 1080
+      children:
+        # Decorative gradient strip at top
+        - type: raw
+          position: "absolute"
+          x: 0
+          y: 0
+          width: 1920
+          height: 4
+          elements:
+            - kind: shape
+              id: top-gradient
+              rect: { x: 0, y: 0, w: 1920, h: 4 }
+              shape: rect
+              style:
+                gradient:
+                  type: linear
+                  angle: 90
+                  stops:
+                    - { color: "#3b82f6", position: 0 }
+                    - { color: "#8b5cf6", position: 1 }
 
-### Example 3: New template — hero with decorative elements
+        # Giant watermark number
+        - type: raw
+          position: "absolute"
+          x: 60
+          y: 40
+          width: 500
+          height: 350
+          elements:
+            - kind: text
+              id: watermark-01
+              rect: { x: 0, y: 0, w: 500, h: 350 }
+              text: "01"
+              opacity: 0.03
+              style:
+                fontFamily: "Inter, sans-serif"
+                fontSize: 320
+                fontWeight: 900
+                color: "#ffffff"
+                lineHeight: 1.0
 
-**Input:** Screenshot showing a dark slide with a giant "01" watermark, a gradient strip at the top, and a centered heading with subtitle. Plus verbal: "the watermark is barely visible, like 2-3% opacity."
-
-**Phase 1 output:**
-```
-## Slide Analysis
-**Layout:** Single column, centered, dark background
-**Background:** #0a0a0a
-
-### Elements
-1. Raw shape — gradient strip, full width, 4px tall, top edge, orange→cyan
-2. Raw text — "01" watermark, ~400px, 900 weight, ~2-3% opacity, top-left offset
-3. Heading — "Introduction", 64px, Inter, centered, white
-4. Body — "Setting the stage", 28px, Inter, centered, rgba(255,255,255,0.6)
-
-### Typography
-- Heading: Inter, 700, 64px, white
-- Body: Inter, 400, 28px, muted white
-
-### Colors
-- Accent gradient: #ff6b35 → #00d4ff
-- Text: #ffffff
-- Text muted: rgba(255,255,255,0.6)
-- Watermark: rgba(255,255,255,0.03)
-
-### Spacing
-- Content vertically centered, ~160px horizontal padding
-```
-
-**Phase 2:** No match — creates `hero-watermark.template.yaml`:
-
-```yaml
-name: hero-watermark
-params:
-  title: { type: string, required: true }
-  subtitle: { type: string, required: false }
-  watermark: { type: string, required: true }
-style:
-  titleSize: { type: number, default: 64 }
-  watermarkSize: { type: number, default: 400 }
-  watermarkOpacity: { type: number, default: 0.03 }
-  gradientLeft: { type: string, default: "#ff6b35" }
-  gradientRight: { type: string, default: "#00d4ff" }
-
-children:
-  - type: raw
-    position: "absolute"
-    x: 0
-    y: 0
-    width: 1920
-    height: 4
-    elements:
-      - kind: shape
-        id: strip
-        rect: { x: 0, y: 0, w: 1920, h: 4 }
-        shape: rect
-        style:
-          gradient: { type: linear, angle: 90, stops: [{ color: "{{ style.gradientLeft }}", position: 0 }, { color: "{{ style.gradientRight }}", position: 1 }] }
-  - type: raw
-    position: "absolute"
-    x: -50
-    y: 80
-    width: 1000
-    height: 600
-    elements:
-      - kind: text
-        id: watermark
-        rect: { x: 0, y: 0, w: 1000, h: 600 }
-        text: "{{ watermark }}"
-        style: { fontFamily: "Inter, sans-serif", fontSize: {{ style.watermarkSize }}, fontWeight: 900, color: "rgba(255,255,255,{{ style.watermarkOpacity }})", lineHeight: 1.0 }
-  - type: box
-    variant: flat
-    padding: [0, 160]
-    height: 1080
-    layout: { type: flex, direction: column, justify: center, align: center }
-    children:
-      - type: heading
-        text: "{{ title }}"
-        fontSize: {{ style.titleSize }}
-        textAlign: center
-        color: "#ffffff"
-      {% if subtitle %}
-      - type: body
-        text: "{{ subtitle }}"
-        textAlign: center
-        color: "rgba(255,255,255,0.6)"
-      {% endif %}
-```
-
-**Phase 3:**
-```yaml
-- template: hero-watermark
-  background: "#0a0a0a"
-  watermark: "01"
-  title: "Introduction"
-  subtitle: "Setting the stage for what comes next."
+        # Centered content
+        - type: box
+          variant: flat
+          height: 1080
+          verticalAlign: center
+          padding: [0, 200]
+          layout: { type: flex, direction: column, gap: 24 }
+          children:
+            - type: heading
+              text: "Introduction"
+              fontSize: 64
+              color: "#ffffff"
+              textAlign: center
+            - type: body
+              text: "Setting the stage for everything that follows"
+              fontSize: 24
+              color: "#666666"
+              textAlign: center
 ```
