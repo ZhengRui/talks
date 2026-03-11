@@ -51,6 +51,16 @@ No `raw`, no `heading`, no `stat`, no `bullets`, no other components. The compon
 
 All labels use `fontSize: 12`, `color: "#666"`.
 
+## Breathing Animation
+
+Every placeholder box gets a staggered pulse animation for a loading-skeleton effect. Use `cssStyle` with the built-in `pulse` keyframe (fades opacity between 0.4 and 1):
+
+```yaml
+cssStyle: { animation: "pulse 2s ease-in-out <delay>s infinite" }
+```
+
+Stagger by **0.1s** per element, incrementing top-to-bottom, left-to-right. This creates a wave pattern across the wireframe. Apply to every leaf `box` with `variant: panel` — not to structural `flat` containers.
+
 ## Two-Phase Process
 
 ### Phase 1: Analyze Layout
@@ -89,7 +99,7 @@ Translate the analysis into a pure component tree:
 5. **Card grids** → `layout: { type: grid, columns: N, gap: N }`
 6. **Vertical centering** → `verticalAlign: center` on the containing box
 7. **Edge spacing** → `padding: [top, right, bottom, left]`
-8. **Every leaf region** → `box` with `variant: panel`, `background: <color-code>`, `height: <estimated>`, containing a `text` label child
+8. **Every leaf region** → `box` with `variant: panel`, `background: <color-code>`, `height: <estimated>`, `cssStyle: { animation: "pulse 2s ease-in-out <delay>s infinite" }`, containing a `text` label child
 
 ### Critical Box Rules
 
@@ -152,6 +162,7 @@ Single centered box with two placeholder children.
           variant: panel
           background: "#2a2a3a"
           height: 70
+          cssStyle: { animation: "pulse 2s ease-in-out infinite" }
           children:
             - type: text
               text: "HEADING"
@@ -162,6 +173,7 @@ Single centered box with two placeholder children.
           variant: panel
           background: "#2a2a3a"
           height: 30
+          cssStyle: { animation: "pulse 2s ease-in-out 0.1s infinite" }
           children:
             - type: text
               text: "SUBTITLE"
@@ -221,6 +233,7 @@ Two-panel flex-row split. Left panel has flex-column children with a grid for ca
               background: "#2a2a3a"
               height: 24
               width: 200
+              cssStyle: { animation: "pulse 2s ease-in-out infinite" }
               children:
                 - type: text
                   text: "TAG"
@@ -230,6 +243,7 @@ Two-panel flex-row split. Left panel has flex-column children with a grid for ca
               variant: panel
               background: "#2a2a3a"
               height: 52
+              cssStyle: { animation: "pulse 2s ease-in-out 0.1s infinite" }
               children:
                 - type: text
                   text: "HEADING"
@@ -240,11 +254,13 @@ Two-panel flex-row split. Left panel has flex-column children with a grid for ca
               background: "#4a3a2a"
               height: 4
               width: 80
+              cssStyle: { animation: "pulse 2s ease-in-out 0.2s infinite" }
             - type: box
               variant: panel
               background: "#2a2a3a"
               height: 55
               width: 530
+              cssStyle: { animation: "pulse 2s ease-in-out 0.3s infinite" }
               children:
                 - type: text
                   text: "BODY TEXT"
@@ -261,6 +277,7 @@ Two-panel flex-row split. Left panel has flex-column children with a grid for ca
                   background: "#3a3a4a"
                   height: 115
                   borderRadius: 10
+                  cssStyle: { animation: "pulse 2s ease-in-out 0.4s infinite" }
                   children:
                     - type: text
                       text: "CARD 1"
@@ -271,6 +288,7 @@ Two-panel flex-row split. Left panel has flex-column children with a grid for ca
                   background: "#3a3a4a"
                   height: 115
                   borderRadius: 10
+                  cssStyle: { animation: "pulse 2s ease-in-out 0.5s infinite" }
                   children:
                     - type: text
                       text: "CARD 2"
@@ -281,6 +299,7 @@ Two-panel flex-row split. Left panel has flex-column children with a grid for ca
                   background: "#3a3a4a"
                   height: 115
                   borderRadius: 10
+                  cssStyle: { animation: "pulse 2s ease-in-out 0.6s infinite" }
                   children:
                     - type: text
                       text: "CARD 3"
@@ -291,6 +310,7 @@ Two-panel flex-row split. Left panel has flex-column children with a grid for ca
                   background: "#3a3a4a"
                   height: 115
                   borderRadius: 10
+                  cssStyle: { animation: "pulse 2s ease-in-out 0.7s infinite" }
                   children:
                     - type: text
                       text: "CARD 4"
@@ -310,6 +330,7 @@ Two-panel flex-row split. Left panel has flex-column children with a grid for ca
               variant: panel
               background: "#3a3a4a"
               height: 65
+              cssStyle: { animation: "pulse 2s ease-in-out 0.2s infinite" }
               children:
                 - type: text
                   text: "ICON"
@@ -320,6 +341,7 @@ Two-panel flex-row split. Left panel has flex-column children with a grid for ca
               variant: panel
               background: "#2a2a3a"
               height: 26
+              cssStyle: { animation: "pulse 2s ease-in-out 0.3s infinite" }
               children:
                 - type: text
                   text: "PANEL TITLE"
@@ -330,6 +352,7 @@ Two-panel flex-row split. Left panel has flex-column children with a grid for ca
               variant: panel
               background: "#3a3a4a"
               height: 26
+              cssStyle: { animation: "pulse 2s ease-in-out 0.4s infinite" }
               children:
                 - type: text
                   text: "BAR 1"
@@ -339,6 +362,7 @@ Two-panel flex-row split. Left panel has flex-column children with a grid for ca
               variant: panel
               background: "#3a3a4a"
               height: 26
+              cssStyle: { animation: "pulse 2s ease-in-out 0.5s infinite" }
               children:
                 - type: text
                   text: "BAR 2"
@@ -348,6 +372,7 @@ Two-panel flex-row split. Left panel has flex-column children with a grid for ca
               variant: panel
               background: "#3a3a4a"
               height: 26
+              cssStyle: { animation: "pulse 2s ease-in-out 0.6s infinite" }
               children:
                 - type: text
                   text: "BAR 3"
@@ -357,6 +382,7 @@ Two-panel flex-row split. Left panel has flex-column children with a grid for ca
               variant: panel
               background: "#3a3a4a"
               height: 26
+              cssStyle: { animation: "pulse 2s ease-in-out 0.7s infinite" }
               children:
                 - type: text
                   text: "BAR 4"
@@ -401,6 +427,7 @@ Vertical flex-column with spacers for positioning, grid for cards.
           variant: panel
           background: "#4a3a2a"
           height: 4
+          cssStyle: { animation: "pulse 2s ease-in-out infinite" }
         # Spacing above heading
         - type: spacer
           height: 160
@@ -411,6 +438,7 @@ Vertical flex-column with spacers for positioning, grid for cards.
           height: 60
           width: 500
           margin: [0, auto]
+          cssStyle: { animation: "pulse 2s ease-in-out 0.1s infinite" }
           children:
             - type: text
               text: "HEADING"
@@ -431,6 +459,7 @@ Vertical flex-column with spacers for positioning, grid for cards.
               background: "#3a3a4a"
               height: 200
               borderRadius: 12
+              cssStyle: { animation: "pulse 2s ease-in-out 0.2s infinite" }
               children:
                 - type: text
                   text: "CARD 1"
@@ -441,6 +470,7 @@ Vertical flex-column with spacers for positioning, grid for cards.
               background: "#3a3a4a"
               height: 200
               borderRadius: 12
+              cssStyle: { animation: "pulse 2s ease-in-out 0.3s infinite" }
               children:
                 - type: text
                   text: "CARD 2"
@@ -451,6 +481,7 @@ Vertical flex-column with spacers for positioning, grid for cards.
               background: "#3a3a4a"
               height: 200
               borderRadius: 12
+              cssStyle: { animation: "pulse 2s ease-in-out 0.4s infinite" }
               children:
                 - type: text
                   text: "CARD 3"
@@ -461,6 +492,7 @@ Vertical flex-column with spacers for positioning, grid for cards.
               background: "#3a3a4a"
               height: 200
               borderRadius: 12
+              cssStyle: { animation: "pulse 2s ease-in-out 0.5s infinite" }
               children:
                 - type: text
                   text: "CARD 4"
@@ -471,6 +503,7 @@ Vertical flex-column with spacers for positioning, grid for cards.
               background: "#3a3a4a"
               height: 200
               borderRadius: 12
+              cssStyle: { animation: "pulse 2s ease-in-out 0.6s infinite" }
               children:
                 - type: text
                   text: "CARD 5"
@@ -481,6 +514,7 @@ Vertical flex-column with spacers for positioning, grid for cards.
               background: "#3a3a4a"
               height: 200
               borderRadius: 12
+              cssStyle: { animation: "pulse 2s ease-in-out 0.7s infinite" }
               children:
                 - type: text
                   text: "CARD 6"
