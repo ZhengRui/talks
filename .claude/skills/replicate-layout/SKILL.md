@@ -135,12 +135,28 @@ Place all regions as raw IR elements on the canvas:
 4. Shapes render in YAML order — later shapes appear on top
 5. Place background panels first, then content regions on top
 
+## Output Format
+
+**CRITICAL:** The output must be a complete, valid `slides.yaml` file with the required top-level structure:
+
+```yaml
+title: "<presentation title>"
+theme: <theme-name>
+slides:
+  - background: "<slide-bg-color>"
+    children:
+      - type: raw
+        ...
+```
+
+The `title`, `theme`, and `slides:` wrapper are required. Without them, the dev server will crash. If the file already exists, preserve the existing `title` and `theme` and append the new slide under `slides:`.
+
 ## Workflow Summary
 
 1. Receive screenshot (+ optional HTML/description) + presentation slug
 2. Phase 1: Output `LAYOUT ANALYSIS` with pixel coordinates for every region
 3. Phase 2: Build raw IR wireframe with shapes + labels
-4. Output complete YAML, append to `content/[slug]/slides.yaml`
+4. Output complete `slides.yaml` with `title`/`theme`/`slides:` wrapper
 5. User renders and compares wireframe against original
 
 All phases happen in one invocation. Show the analysis, then the final YAML.
@@ -166,40 +182,43 @@ LAYOUT ANALYSIS:
 **Phase 2 — Build:**
 
 ```yaml
-- background: "#0a0a0a"
-  children:
-    - type: raw
-      position: "absolute"
-      x: 0
-      y: 0
-      width: 1920
-      height: 1080
-      elements:
-        - kind: shape
-          id: heading
-          rect: { x: 460, y: 480, w: 1000, h: 60 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#2a2a3a" }
-          animation: "pulse 2s ease-in-out infinite"
-        - kind: text
-          id: heading-label
-          rect: { x: 460, y: 480, w: 1000, h: 60 }
-          text: "HEADING"
-          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+title: "Layout Wireframe"
+theme: bold
+slides:
+  - background: "#0a0a0a"
+    children:
+      - type: raw
+        position: "absolute"
+        x: 0
+        y: 0
+        width: 1920
+        height: 1080
+        elements:
+          - kind: shape
+            id: heading
+            rect: { x: 460, y: 480, w: 1000, h: 60 }
+            shape: rect
+            borderRadius: 4
+            style: { fill: "#2a2a3a" }
+            animation: "pulse 2s ease-in-out infinite"
+          - kind: text
+            id: heading-label
+            rect: { x: 460, y: 480, w: 1000, h: 60 }
+            text: "HEADING"
+            style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
 
-        - kind: shape
-          id: subtitle
-          rect: { x: 560, y: 560, w: 800, h: 30 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#2a2a3a" }
-          animation: "pulse 2s ease-in-out 0.1s infinite"
-        - kind: text
-          id: subtitle-label
-          rect: { x: 560, y: 560, w: 800, h: 30 }
-          text: "SUBTITLE"
-          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+          - kind: shape
+            id: subtitle
+            rect: { x: 560, y: 560, w: 800, h: 30 }
+            shape: rect
+            borderRadius: 4
+            style: { fill: "#2a2a3a" }
+            animation: "pulse 2s ease-in-out 0.1s infinite"
+          - kind: text
+            id: subtitle-label
+            rect: { x: 560, y: 560, w: 800, h: 30 }
+            text: "SUBTITLE"
+            style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
 ```
 
 ### Example 2: Two-Panel Split with Cards
@@ -235,207 +254,210 @@ LAYOUT ANALYSIS:
 **Phase 2 — Build:**
 
 ```yaml
-- background: "#1c1d35"
-  children:
-    - type: raw
-      position: "absolute"
-      x: 0
-      y: 0
-      width: 1920
-      height: 1080
-      elements:
-        # Right panel background (rendered first, behind everything)
-        - kind: shape
-          id: right-panel-bg
-          rect: { x: 860, y: 0, w: 1060, h: 1080 }
-          shape: rect
-          style: { fill: "#1a1a2a" }
+title: "Layout Wireframe"
+theme: bold
+slides:
+  - background: "#1c1d35"
+    children:
+      - type: raw
+        position: "absolute"
+        x: 0
+        y: 0
+        width: 1920
+        height: 1080
+        elements:
+          # Right panel background (rendered first, behind everything)
+          - kind: shape
+            id: right-panel-bg
+            rect: { x: 860, y: 0, w: 1060, h: 1080 }
+            shape: rect
+            style: { fill: "#1a1a2a" }
 
-        # Left content
-        - kind: shape
-          id: tag
-          rect: { x: 220, y: 180, w: 200, h: 24 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#2a2a3a" }
-          animation: "pulse 2s ease-in-out infinite"
-        - kind: text
-          id: tag-label
-          rect: { x: 220, y: 180, w: 200, h: 24 }
-          text: "TAG"
-          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+          # Left content
+          - kind: shape
+            id: tag
+            rect: { x: 220, y: 180, w: 200, h: 24 }
+            shape: rect
+            borderRadius: 4
+            style: { fill: "#2a2a3a" }
+            animation: "pulse 2s ease-in-out infinite"
+          - kind: text
+            id: tag-label
+            rect: { x: 220, y: 180, w: 200, h: 24 }
+            text: "TAG"
+            style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
 
-        - kind: shape
-          id: heading
-          rect: { x: 220, y: 220, w: 700, h: 52 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#2a2a3a" }
-          animation: "pulse 2s ease-in-out 0.1s infinite"
-        - kind: text
-          id: heading-label
-          rect: { x: 220, y: 220, w: 700, h: 52 }
-          text: "HEADING"
-          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+          - kind: shape
+            id: heading
+            rect: { x: 220, y: 220, w: 700, h: 52 }
+            shape: rect
+            borderRadius: 4
+            style: { fill: "#2a2a3a" }
+            animation: "pulse 2s ease-in-out 0.1s infinite"
+          - kind: text
+            id: heading-label
+            rect: { x: 220, y: 220, w: 700, h: 52 }
+            text: "HEADING"
+            style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
 
-        - kind: shape
-          id: divider
-          rect: { x: 220, y: 292, w: 80, h: 4 }
-          shape: rect
-          style: { fill: "#4a3a2a" }
-          animation: "pulse 2s ease-in-out 0.2s infinite"
+          - kind: shape
+            id: divider
+            rect: { x: 220, y: 292, w: 80, h: 4 }
+            shape: rect
+            style: { fill: "#4a3a2a" }
+            animation: "pulse 2s ease-in-out 0.2s infinite"
 
-        - kind: shape
-          id: body
-          rect: { x: 220, y: 316, w: 500, h: 55 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#2a2a3a" }
-          animation: "pulse 2s ease-in-out 0.3s infinite"
-        - kind: text
-          id: body-label
-          rect: { x: 220, y: 316, w: 500, h: 55 }
-          text: "BODY TEXT"
-          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+          - kind: shape
+            id: body
+            rect: { x: 220, y: 316, w: 500, h: 55 }
+            shape: rect
+            borderRadius: 4
+            style: { fill: "#2a2a3a" }
+            animation: "pulse 2s ease-in-out 0.3s infinite"
+          - kind: text
+            id: body-label
+            rect: { x: 220, y: 316, w: 500, h: 55 }
+            text: "BODY TEXT"
+            style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
 
-        # Card grid (2×2)
-        - kind: shape
-          id: card-1
-          rect: { x: 220, y: 400, w: 280, h: 115 }
-          shape: rect
-          borderRadius: 10
-          style: { fill: "#3a3a4a" }
-          animation: "pulse 2s ease-in-out 0.4s infinite"
-        - kind: text
-          id: card-1-label
-          rect: { x: 220, y: 400, w: 280, h: 115 }
-          text: "CARD 1"
-          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+          # Card grid (2×2)
+          - kind: shape
+            id: card-1
+            rect: { x: 220, y: 400, w: 280, h: 115 }
+            shape: rect
+            borderRadius: 10
+            style: { fill: "#3a3a4a" }
+            animation: "pulse 2s ease-in-out 0.4s infinite"
+          - kind: text
+            id: card-1-label
+            rect: { x: 220, y: 400, w: 280, h: 115 }
+            text: "CARD 1"
+            style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
 
-        - kind: shape
-          id: card-2
-          rect: { x: 520, y: 400, w: 280, h: 115 }
-          shape: rect
-          borderRadius: 10
-          style: { fill: "#3a3a4a" }
-          animation: "pulse 2s ease-in-out 0.5s infinite"
-        - kind: text
-          id: card-2-label
-          rect: { x: 520, y: 400, w: 280, h: 115 }
-          text: "CARD 2"
-          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+          - kind: shape
+            id: card-2
+            rect: { x: 520, y: 400, w: 280, h: 115 }
+            shape: rect
+            borderRadius: 10
+            style: { fill: "#3a3a4a" }
+            animation: "pulse 2s ease-in-out 0.5s infinite"
+          - kind: text
+            id: card-2-label
+            rect: { x: 520, y: 400, w: 280, h: 115 }
+            text: "CARD 2"
+            style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
 
-        - kind: shape
-          id: card-3
-          rect: { x: 220, y: 535, w: 280, h: 115 }
-          shape: rect
-          borderRadius: 10
-          style: { fill: "#3a3a4a" }
-          animation: "pulse 2s ease-in-out 0.6s infinite"
-        - kind: text
-          id: card-3-label
-          rect: { x: 220, y: 535, w: 280, h: 115 }
-          text: "CARD 3"
-          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+          - kind: shape
+            id: card-3
+            rect: { x: 220, y: 535, w: 280, h: 115 }
+            shape: rect
+            borderRadius: 10
+            style: { fill: "#3a3a4a" }
+            animation: "pulse 2s ease-in-out 0.6s infinite"
+          - kind: text
+            id: card-3-label
+            rect: { x: 220, y: 535, w: 280, h: 115 }
+            text: "CARD 3"
+            style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
 
-        - kind: shape
-          id: card-4
-          rect: { x: 520, y: 535, w: 280, h: 115 }
-          shape: rect
-          borderRadius: 10
-          style: { fill: "#3a3a4a" }
-          animation: "pulse 2s ease-in-out 0.7s infinite"
-        - kind: text
-          id: card-4-label
-          rect: { x: 520, y: 535, w: 280, h: 115 }
-          text: "CARD 4"
-          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+          - kind: shape
+            id: card-4
+            rect: { x: 520, y: 535, w: 280, h: 115 }
+            shape: rect
+            borderRadius: 10
+            style: { fill: "#3a3a4a" }
+            animation: "pulse 2s ease-in-out 0.7s infinite"
+          - kind: text
+            id: card-4-label
+            rect: { x: 520, y: 535, w: 280, h: 115 }
+            text: "CARD 4"
+            style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
 
-        # Right panel inner
-        - kind: shape
-          id: right-inner
-          rect: { x: 900, y: 300, w: 400, h: 400 }
-          shape: rect
-          borderRadius: 14
-          style: { fill: "rgba(255,255,255,0.05)" }
+          # Right panel inner
+          - kind: shape
+            id: right-inner
+            rect: { x: 900, y: 300, w: 400, h: 400 }
+            shape: rect
+            borderRadius: 14
+            style: { fill: "rgba(255,255,255,0.05)" }
 
-        - kind: shape
-          id: icon
-          rect: { x: 1050, y: 320, w: 100, h: 65 }
-          shape: rect
-          borderRadius: 6
-          style: { fill: "#3a3a4a" }
-          animation: "pulse 2s ease-in-out 0.2s infinite"
-        - kind: text
-          id: icon-label
-          rect: { x: 1050, y: 320, w: 100, h: 65 }
-          text: "ICON"
-          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+          - kind: shape
+            id: icon
+            rect: { x: 1050, y: 320, w: 100, h: 65 }
+            shape: rect
+            borderRadius: 6
+            style: { fill: "#3a3a4a" }
+            animation: "pulse 2s ease-in-out 0.2s infinite"
+          - kind: text
+            id: icon-label
+            rect: { x: 1050, y: 320, w: 100, h: 65 }
+            text: "ICON"
+            style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
 
-        - kind: shape
-          id: panel-title
-          rect: { x: 940, y: 400, w: 320, h: 26 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#2a2a3a" }
-          animation: "pulse 2s ease-in-out 0.3s infinite"
-        - kind: text
-          id: panel-title-label
-          rect: { x: 940, y: 400, w: 320, h: 26 }
-          text: "PANEL TITLE"
-          style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
+          - kind: shape
+            id: panel-title
+            rect: { x: 940, y: 400, w: 320, h: 26 }
+            shape: rect
+            borderRadius: 4
+            style: { fill: "#2a2a3a" }
+            animation: "pulse 2s ease-in-out 0.3s infinite"
+          - kind: text
+            id: panel-title-label
+            rect: { x: 940, y: 400, w: 320, h: 26 }
+            text: "PANEL TITLE"
+            style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
 
-        - kind: shape
-          id: bar-1
-          rect: { x: 940, y: 450, w: 320, h: 26 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#3a3a4a" }
-          animation: "pulse 2s ease-in-out 0.4s infinite"
-        - kind: text
-          id: bar-1-label
-          rect: { x: 940, y: 450, w: 320, h: 26 }
-          text: "BAR 1"
-          style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
+          - kind: shape
+            id: bar-1
+            rect: { x: 940, y: 450, w: 320, h: 26 }
+            shape: rect
+            borderRadius: 4
+            style: { fill: "#3a3a4a" }
+            animation: "pulse 2s ease-in-out 0.4s infinite"
+          - kind: text
+            id: bar-1-label
+            rect: { x: 940, y: 450, w: 320, h: 26 }
+            text: "BAR 1"
+            style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
 
-        - kind: shape
-          id: bar-2
-          rect: { x: 940, y: 490, w: 320, h: 26 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#3a3a4a" }
-          animation: "pulse 2s ease-in-out 0.5s infinite"
-        - kind: text
-          id: bar-2-label
-          rect: { x: 940, y: 490, w: 320, h: 26 }
-          text: "BAR 2"
-          style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
+          - kind: shape
+            id: bar-2
+            rect: { x: 940, y: 490, w: 320, h: 26 }
+            shape: rect
+            borderRadius: 4
+            style: { fill: "#3a3a4a" }
+            animation: "pulse 2s ease-in-out 0.5s infinite"
+          - kind: text
+            id: bar-2-label
+            rect: { x: 940, y: 490, w: 320, h: 26 }
+            text: "BAR 2"
+            style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
 
-        - kind: shape
-          id: bar-3
-          rect: { x: 940, y: 530, w: 320, h: 26 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#3a3a4a" }
-          animation: "pulse 2s ease-in-out 0.6s infinite"
-        - kind: text
-          id: bar-3-label
-          rect: { x: 940, y: 530, w: 320, h: 26 }
-          text: "BAR 3"
-          style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
+          - kind: shape
+            id: bar-3
+            rect: { x: 940, y: 530, w: 320, h: 26 }
+            shape: rect
+            borderRadius: 4
+            style: { fill: "#3a3a4a" }
+            animation: "pulse 2s ease-in-out 0.6s infinite"
+          - kind: text
+            id: bar-3-label
+            rect: { x: 940, y: 530, w: 320, h: 26 }
+            text: "BAR 3"
+            style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
 
-        - kind: shape
-          id: bar-4
-          rect: { x: 940, y: 570, w: 320, h: 26 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#3a3a4a" }
-          animation: "pulse 2s ease-in-out 0.7s infinite"
-        - kind: text
-          id: bar-4-label
-          rect: { x: 940, y: 570, w: 320, h: 26 }
-          text: "BAR 4"
-          style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
+          - kind: shape
+            id: bar-4
+            rect: { x: 940, y: 570, w: 320, h: 26 }
+            shape: rect
+            borderRadius: 4
+            style: { fill: "#3a3a4a" }
+            animation: "pulse 2s ease-in-out 0.7s infinite"
+          - kind: text
+            id: bar-4-label
+            rect: { x: 940, y: 570, w: 320, h: 26 }
+            text: "BAR 4"
+            style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
 ```
 
 ### Example 3: Horizontal Card Row with Heading
@@ -467,271 +489,82 @@ LAYOUT ANALYSIS:
 **Phase 2 — Build:**
 
 ```yaml
-- background: "#f0f0f0"
-  children:
-    - type: raw
-      position: "absolute"
-      x: 0
-      y: 0
-      width: 1920
-      height: 1080
-      elements:
-        # Heading
-        - kind: shape
-          id: heading
-          rect: { x: 660, y: 50, w: 600, h: 50 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#2a2a3a" }
-          animation: "pulse 2s ease-in-out infinite"
-        - kind: text
-          id: heading-label
-          rect: { x: 660, y: 50, w: 600, h: 50 }
-          text: "HEADING"
-          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+title: "Layout Wireframe"
+theme: bold
+slides:
+  - background: "#f0f0f0"
+    children:
+      - type: raw
+        position: "absolute"
+        x: 0
+        y: 0
+        width: 1920
+        height: 1080
+        elements:
+          # Heading
+          - kind: shape
+            id: heading
+            rect: { x: 660, y: 50, w: 600, h: 50 }
+            shape: rect
+            borderRadius: 4
+            style: { fill: "#2a2a3a" }
+            animation: "pulse 2s ease-in-out infinite"
+          - kind: text
+            id: heading-label
+            rect: { x: 660, y: 50, w: 600, h: 50 }
+            text: "HEADING"
+            style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
 
-        # Card 1
-        - kind: shape
-          id: card-1-bg
-          rect: { x: 100, y: 180, w: 320, h: 720 }
-          shape: rect
-          borderRadius: 12
-          style: { fill: "#3a3a4a" }
-        - kind: shape
-          id: card-1-icon
-          rect: { x: 120, y: 200, w: 280, h: 200 }
-          shape: rect
-          borderRadius: 8
-          style: { fill: "#2a3a2a" }
-          animation: "pulse 2s ease-in-out 0.1s infinite"
-        - kind: text
-          id: card-1-icon-label
-          rect: { x: 120, y: 200, w: 280, h: 200 }
-          text: "ICON"
-          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
-        - kind: shape
-          id: card-1-num
-          rect: { x: 230, y: 420, w: 60, h: 60 }
-          shape: circle
-          style: { fill: "#4a3a2a" }
-          animation: "pulse 2s ease-in-out 0.2s infinite"
-        - kind: text
-          id: card-1-num-label
-          rect: { x: 230, y: 420, w: 60, h: 60 }
-          text: "01"
-          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
-        - kind: shape
-          id: card-1-caption
-          rect: { x: 140, y: 500, w: 240, h: 30 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#2a2a3a" }
-          animation: "pulse 2s ease-in-out 0.3s infinite"
-        - kind: text
-          id: card-1-caption-label
-          rect: { x: 140, y: 500, w: 240, h: 30 }
-          text: "CAPTION"
-          style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
-        - kind: shape
-          id: card-1-divider
-          rect: { x: 240, y: 545, w: 40, h: 4 }
-          shape: rect
-          style: { fill: "#4a3a2a" }
-        - kind: shape
-          id: card-1-desc
-          rect: { x: 130, y: 565, w: 260, h: 60 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#2a2a3a" }
-          animation: "pulse 2s ease-in-out 0.4s infinite"
-        - kind: text
-          id: card-1-desc-label
-          rect: { x: 130, y: 565, w: 260, h: 60 }
-          text: "DESCRIPTION"
-          style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
+          # Card 1
+          - kind: shape
+            id: card-1-bg
+            rect: { x: 100, y: 180, w: 320, h: 720 }
+            shape: rect
+            borderRadius: 12
+            style: { fill: "#3a3a4a" }
+          - kind: shape
+            id: card-1-icon
+            rect: { x: 120, y: 200, w: 280, h: 200 }
+            shape: rect
+            borderRadius: 8
+            style: { fill: "#2a3a2a" }
+            animation: "pulse 2s ease-in-out 0.1s infinite"
+          - kind: text
+            id: card-1-icon-label
+            rect: { x: 120, y: 200, w: 280, h: 200 }
+            text: "ICON"
+            style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+          - kind: shape
+            id: card-1-num
+            rect: { x: 230, y: 420, w: 60, h: 60 }
+            shape: circle
+            style: { fill: "#4a3a2a" }
+            animation: "pulse 2s ease-in-out 0.2s infinite"
+          - kind: text
+            id: card-1-num-label
+            rect: { x: 230, y: 420, w: 60, h: 60 }
+            text: "01"
+            style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+          - kind: shape
+            id: card-1-caption
+            rect: { x: 140, y: 500, w: 240, h: 30 }
+            shape: rect
+            borderRadius: 4
+            style: { fill: "#2a2a3a" }
+            animation: "pulse 2s ease-in-out 0.3s infinite"
+          - kind: shape
+            id: card-1-divider
+            rect: { x: 240, y: 545, w: 40, h: 4 }
+            shape: rect
+            style: { fill: "#4a3a2a" }
+          - kind: shape
+            id: card-1-desc
+            rect: { x: 130, y: 565, w: 260, h: 60 }
+            shape: rect
+            borderRadius: 4
+            style: { fill: "#2a2a3a" }
+            animation: "pulse 2s ease-in-out 0.4s infinite"
 
-        # Card 2 (offset +340px)
-        - kind: shape
-          id: card-2-bg
-          rect: { x: 440, y: 180, w: 320, h: 720 }
-          shape: rect
-          borderRadius: 12
-          style: { fill: "#3a3a4a" }
-        - kind: shape
-          id: card-2-icon
-          rect: { x: 460, y: 200, w: 280, h: 200 }
-          shape: rect
-          borderRadius: 8
-          style: { fill: "#2a3a2a" }
-          animation: "pulse 2s ease-in-out 0.2s infinite"
-        - kind: text
-          id: card-2-icon-label
-          rect: { x: 460, y: 200, w: 280, h: 200 }
-          text: "ICON"
-          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
-        - kind: shape
-          id: card-2-num
-          rect: { x: 570, y: 420, w: 60, h: 60 }
-          shape: circle
-          style: { fill: "#4a3a2a" }
-          animation: "pulse 2s ease-in-out 0.3s infinite"
-        - kind: text
-          id: card-2-num-label
-          rect: { x: 570, y: 420, w: 60, h: 60 }
-          text: "02"
-          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
-        - kind: shape
-          id: card-2-caption
-          rect: { x: 480, y: 500, w: 240, h: 30 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#2a2a3a" }
-          animation: "pulse 2s ease-in-out 0.4s infinite"
-        - kind: shape
-          id: card-2-divider
-          rect: { x: 580, y: 545, w: 40, h: 4 }
-          shape: rect
-          style: { fill: "#4a3a2a" }
-        - kind: shape
-          id: card-2-desc
-          rect: { x: 470, y: 565, w: 260, h: 60 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#2a2a3a" }
-          animation: "pulse 2s ease-in-out 0.5s infinite"
-
-        # Cards 3-5 follow the same pattern at x: 780, 1120, 1460
-        # (same internal layout, each offset +340px from the previous)
-
-        - kind: shape
-          id: card-3-bg
-          rect: { x: 780, y: 180, w: 320, h: 720 }
-          shape: rect
-          borderRadius: 12
-          style: { fill: "#3a3a4a" }
-        - kind: shape
-          id: card-3-icon
-          rect: { x: 800, y: 200, w: 280, h: 200 }
-          shape: rect
-          borderRadius: 8
-          style: { fill: "#2a3a2a" }
-          animation: "pulse 2s ease-in-out 0.3s infinite"
-        - kind: text
-          id: card-3-icon-label
-          rect: { x: 800, y: 200, w: 280, h: 200 }
-          text: "ICON"
-          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
-        - kind: shape
-          id: card-3-num
-          rect: { x: 910, y: 420, w: 60, h: 60 }
-          shape: circle
-          style: { fill: "#4a3a2a" }
-          animation: "pulse 2s ease-in-out 0.4s infinite"
-        - kind: shape
-          id: card-3-caption
-          rect: { x: 820, y: 500, w: 240, h: 30 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#2a2a3a" }
-          animation: "pulse 2s ease-in-out 0.5s infinite"
-        - kind: shape
-          id: card-3-divider
-          rect: { x: 920, y: 545, w: 40, h: 4 }
-          shape: rect
-          style: { fill: "#4a3a2a" }
-        - kind: shape
-          id: card-3-desc
-          rect: { x: 810, y: 565, w: 260, h: 60 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#2a2a3a" }
-          animation: "pulse 2s ease-in-out 0.6s infinite"
-
-        - kind: shape
-          id: card-4-bg
-          rect: { x: 1120, y: 180, w: 320, h: 720 }
-          shape: rect
-          borderRadius: 12
-          style: { fill: "#3a3a4a" }
-        - kind: shape
-          id: card-4-icon
-          rect: { x: 1140, y: 200, w: 280, h: 200 }
-          shape: rect
-          borderRadius: 8
-          style: { fill: "#2a3a2a" }
-          animation: "pulse 2s ease-in-out 0.4s infinite"
-        - kind: text
-          id: card-4-icon-label
-          rect: { x: 1140, y: 200, w: 280, h: 200 }
-          text: "ICON"
-          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
-        - kind: shape
-          id: card-4-num
-          rect: { x: 1250, y: 420, w: 60, h: 60 }
-          shape: circle
-          style: { fill: "#4a3a2a" }
-          animation: "pulse 2s ease-in-out 0.5s infinite"
-        - kind: shape
-          id: card-4-caption
-          rect: { x: 1160, y: 500, w: 240, h: 30 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#2a2a3a" }
-          animation: "pulse 2s ease-in-out 0.6s infinite"
-        - kind: shape
-          id: card-4-divider
-          rect: { x: 1260, y: 545, w: 40, h: 4 }
-          shape: rect
-          style: { fill: "#4a3a2a" }
-        - kind: shape
-          id: card-4-desc
-          rect: { x: 1150, y: 565, w: 260, h: 60 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#2a2a3a" }
-          animation: "pulse 2s ease-in-out 0.7s infinite"
-
-        - kind: shape
-          id: card-5-bg
-          rect: { x: 1460, y: 180, w: 320, h: 720 }
-          shape: rect
-          borderRadius: 12
-          style: { fill: "#3a3a4a" }
-        - kind: shape
-          id: card-5-icon
-          rect: { x: 1480, y: 200, w: 280, h: 200 }
-          shape: rect
-          borderRadius: 8
-          style: { fill: "#2a3a2a" }
-          animation: "pulse 2s ease-in-out 0.5s infinite"
-        - kind: text
-          id: card-5-icon-label
-          rect: { x: 1480, y: 200, w: 280, h: 200 }
-          text: "ICON"
-          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
-        - kind: shape
-          id: card-5-num
-          rect: { x: 1590, y: 420, w: 60, h: 60 }
-          shape: circle
-          style: { fill: "#4a3a2a" }
-          animation: "pulse 2s ease-in-out 0.6s infinite"
-        - kind: shape
-          id: card-5-caption
-          rect: { x: 1500, y: 500, w: 240, h: 30 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#2a2a3a" }
-          animation: "pulse 2s ease-in-out 0.7s infinite"
-        - kind: shape
-          id: card-5-divider
-          rect: { x: 1600, y: 545, w: 40, h: 4 }
-          shape: rect
-          style: { fill: "#4a3a2a" }
-        - kind: shape
-          id: card-5-desc
-          rect: { x: 1490, y: 565, w: 260, h: 60 }
-          shape: rect
-          borderRadius: 4
-          style: { fill: "#2a2a3a" }
-          animation: "pulse 2s ease-in-out 0.8s infinite"
+          # Cards 2-5 follow same pattern, offset +340px each
+          # (abbreviated — full output would list all elements for each card)
 ```
