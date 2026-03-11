@@ -1,11 +1,11 @@
 ---
 name: replicate-layout
-description: Use when replicating the layout skeleton of a slide from a screenshot. Produces a pure component-tree wireframe with colored placeholder boxes — no content, no raw IR. Use this to verify spatial proportions before full replication with replicate-slides.
+description: Use when replicating the layout skeleton of a slide from a screenshot. Produces a raw IR wireframe with colored shapes at exact pixel coordinates — no content, just the spatial skeleton. Use this to verify proportions before full replication with replicate-slides.
 ---
 
 # Layout Replication
 
-Replicate the spatial skeleton of a slide as a colored wireframe using only `box`, `text`, and `spacer` components. No content, no raw IR — just positioned boxes with labels showing where each region goes. See [../replicate-slides/reference.md](../replicate-slides/reference.md) for box behavior rules, component defaults, and layout mode semantics.
+Replicate the spatial skeleton of a slide as a colored wireframe using raw IR elements on a 1920×1080 canvas. Every visual region becomes a colored `shape` at exact pixel coordinates with a `text` label. Think of it as absolute-positioned HTML divs — you control every pixel. See [../replicate-slides/reference.md](../replicate-slides/reference.md) for the complete IR element reference.
 
 ## Pipeline Position
 
@@ -13,7 +13,7 @@ Replicate the spatial skeleton of a slide as a colored wireframe using only `box
 Screenshot → replicate-layout → wireframe YAML → replicate-slides → final slide
 ```
 
-This skill produces the scaffold. `replicate-slides` fills it in with real content later.
+This skill produces the spatial scaffold. `replicate-slides` fills it in with real content later.
 
 ## Input
 
@@ -29,15 +29,17 @@ When inputs conflict: **description > HTML > screenshot**.
 
 **Required context:** Ask for the presentation slug if not obvious — needed for appending to the right `slides.yaml`.
 
-## Core Principle: Pure Component Wireframe
+## Core Principle: Raw Freeform Wireframe
 
-Every visual region becomes a `box` with a colored fill and a `text` label child. The skeleton uses ONLY three component types:
+Every visual region becomes a raw IR `shape` (rect) at exact pixel coordinates with a `text` label centered inside it. The entire slide is one `raw` component covering the full 1920×1080 canvas.
 
-- **`box`** — structural containers and placeholder regions
-- **`text`** — labels inside placeholders ("HEADING", "CARD 1", etc.)
-- **`spacer`** — explicit spacing where needed
+**Mental model:** You are placing colored rectangles on a blank canvas, exactly like `position: absolute` in CSS. No layout engine, no hidden defaults, no component assumptions. You control every pixel.
 
-No `raw`, no `heading`, no `stat`, no `bullets`, no other components. The component system handles centering, spacing, and distribution automatically via `verticalAlign`, `layout`, `padding`, `gap` — which is exactly why we use it instead of raw IR.
+**Why raw over components:**
+- No hidden padding (box default: 28px)
+- No variant surprises (card vs flat vs panel)
+- No flex/grid distribution guessing
+- Exact pixel positioning — what you write is what renders
 
 ## Color Coding Convention
 
@@ -49,80 +51,99 @@ No `raw`, no `heading`, no `stat`, no `bullets`, no other components. The compon
 | Decorative | `#4a3a2a` | Accent strips, dividers, decorative shapes |
 | Image | `#2a3a2a` | Image placeholders |
 
-All labels use `fontSize: 12`, `color: "#666"`.
+All labels use `fontSize: 18`, `color: "#888"`, `textAlign: center`, `verticalAlign: middle`.
 
 ## Breathing Animation
 
-Every placeholder box gets a staggered pulse animation for a loading-skeleton effect. Use `cssStyle` with the built-in `pulse` keyframe (fades opacity between 0.4 and 1):
+Every placeholder shape gets a staggered pulse animation. Use the `animation` CSS shorthand on each element:
 
 ```yaml
-cssStyle: { animation: "pulse 2s ease-in-out <delay>s infinite" }
+animation: "pulse 2s ease-in-out <delay>s infinite"
 ```
 
-Stagger by **0.1s** per element, incrementing top-to-bottom, left-to-right. This creates a wave pattern across the wireframe. Apply to every leaf `box` with `variant: panel` — not to structural `flat` containers.
+Stagger by **0.1s** per element, incrementing top-to-bottom, left-to-right.
 
 ## Two-Phase Process
 
 ### Phase 1: Analyze Layout
 
-Examine the source and produce a structured breakdown of spatial regions. Output this as text so the user can verify.
+Examine the source and produce a structured breakdown of spatial regions with **exact pixel coordinates**.
 
 **Analysis format:**
 
 ```
 LAYOUT ANALYSIS:
   Canvas: 1920×1080
-  Structure: [single-column | two-panel (ratio) | grid | hero-centered | freeform]
+  Background: [color]
   Regions:
-    - [region name] → [position/size description] → [box purpose]
+    - [region name] → rect(x, y, w, h) → [region type]
+    - [region name] → rect(x, y, w, h) → [region type]
     - ...
-  Vertical distribution: [centered | top-aligned | space-between | custom padding]
-  Gaps: [key spacing values in px]
-  Decorative elements: [noted for replicate-slides — rendered as simple colored boxes here]
+  Notes: [any centering, alignment, or spacing patterns observed]
 ```
 
 **What to detect:**
-- Overall structure type and split ratios
-- Every distinct visual region with approximate position and size
-- How content is vertically distributed (centered? top-padded? evenly spaced?)
-- Gap and padding patterns
-- Decorative elements (noted but rendered as simple colored boxes in the wireframe)
+- Every distinct visual region with its bounding rectangle (x, y, width, height)
+- Background color of the slide
+- How content is distributed (centered, top-aligned, grid pattern, etc.)
+- Gap and padding patterns between regions
+- Decorative elements (accent strips, dividers, borders)
 
-### Phase 2: Build Skeleton
+**How to calculate coordinates:**
+- Canvas is 1920×1080. Estimate regions as fractions of the canvas.
+- A "centered heading" might be: `rect(460, 200, 1000, 60)` — centered horizontally (960 - 500 = 460), at y=200
+- A "left 60% panel" is: `rect(0, 0, 1152, 1080)` — 60% of 1920 = 1152
+- A "2×2 card grid with 20px gap starting at y=400": compute each card's rect individually
 
-Translate the analysis into a pure component tree:
+### Phase 2: Build Wireframe
 
-1. Start with slide `background` color (match the original or use `"#111"`)
-2. Top-level `box`: `variant: flat`, `padding: 0`, `height: 1080`
-3. **Panel splits** → `layout: { type: flex, direction: row }` with child boxes having explicit `width`
-4. **Vertical stacking** → `layout: { type: flex, direction: column, gap: N }`
-5. **Card grids** → `layout: { type: grid, columns: N, gap: N }`
-6. **Vertical centering** → `verticalAlign: center` on the containing box
-7. **Edge spacing** → `padding: [top, right, bottom, left]`
-8. **Every leaf region** → `box` with `variant: panel`, `background: <color-code>`, `height: <estimated>`, `cssStyle: { animation: "pulse 2s ease-in-out <delay>s infinite" }`, containing a `text` label child
+Place all regions as raw IR elements on the canvas:
 
-### Critical Box Rules
+```yaml
+- background: "<slide-bg-color>"
+  children:
+    - type: raw
+      position: "absolute"
+      x: 0
+      y: 0
+      width: 1920
+      height: 1080
+      elements:
+        # Each region: shape + label
+        - kind: shape
+          id: <region-name>
+          rect: { x: <x>, y: <y>, w: <w>, h: <h> }
+          shape: rect
+          borderRadius: <0-12>
+          style: { fill: "<color-code>" }
+          animation: "pulse 2s ease-in-out <delay>s infinite"
+        - kind: text
+          id: <region-name>-label
+          rect: { x: <x>, y: <y>, w: <w>, h: <h> }
+          text: "<LABEL>"
+          style:
+            fontSize: 18
+            color: "#888"
+            textAlign: center
+            verticalAlign: middle
+```
 
-These defaults will bite you if you forget them (see reference.md for full list):
-
-| Rule | What happens if you forget |
-|------|---------------------------|
-| Default padding is **28px** | Structural containers get unwanted insets → set `padding: 0` on flat containers |
-| Default variant is **card** | Invisible containers get fill/shadow/border → use `variant: flat` for structural boxes |
-| Gap is inside `layout`, not a direct prop | `gap: 24` on box does nothing → use `layout: { type: flex, direction: column, gap: 24 }` |
-| Flex children without explicit `width` get **equal shares** | Uneven splits need explicit `width` on the wider child |
-| `verticalAlign` shifts content **within** the box | It doesn't move the box itself — the box must have `height` set |
-| `variant: panel` = fill + radius, **no shadow/border** | Good for placeholder regions — visible but not heavy |
+**Rules:**
+1. One `raw` component covers the entire canvas — all elements go inside it
+2. Each visual region = one `shape` (rect) + one `text` (label) at the same coordinates
+3. Use `borderRadius` to match rounded corners in the original
+4. Shapes render in YAML order — later shapes appear on top
+5. Place background panels first, then content regions on top
 
 ## Workflow Summary
 
 1. Receive screenshot (+ optional HTML/description) + presentation slug
-2. Phase 1: Output `LAYOUT ANALYSIS` block
-3. Phase 2: Build skeleton component tree
+2. Phase 1: Output `LAYOUT ANALYSIS` with pixel coordinates for every region
+3. Phase 2: Build raw IR wireframe with shapes + labels
 4. Output complete YAML, append to `content/[slug]/slides.yaml`
 5. User renders and compares wireframe against original
 
-All phases happen in one invocation. Show the analysis, then the build reasoning, then the final YAML.
+All phases happen in one invocation. Show the analysis, then the final YAML.
 
 ## Examples
 
@@ -135,392 +156,582 @@ All phases happen in one invocation. Show the analysis, then the build reasoning
 ```
 LAYOUT ANALYSIS:
   Canvas: 1920×1080
-  Structure: hero-centered
+  Background: #0a0a0a
   Regions:
-    - Heading → centered, large text → content area
-    - Subtitle → centered, below heading, smaller → content area
-  Vertical distribution: centered (both elements as a group in the middle)
-  Gaps: ~24px between heading and subtitle
-  Decorative elements: none
+    - Heading → rect(460, 480, 1000, 60) → content area
+    - Subtitle → rect(560, 560, 800, 30) → content area
+  Notes: Both centered horizontally and vertically as a group
 ```
 
 **Phase 2 — Build:**
-
-Single centered box with two placeholder children.
 
 ```yaml
 - background: "#0a0a0a"
   children:
-    - type: box
-      variant: flat
-      padding: [0, 200]
+    - type: raw
+      position: "absolute"
+      x: 0
+      y: 0
+      width: 1920
       height: 1080
-      verticalAlign: center
-      layout: { type: flex, direction: column, gap: 24 }
-      children:
-        - type: box
-          variant: panel
-          background: "#2a2a3a"
-          height: 70
-          cssStyle: { animation: "pulse 2s ease-in-out infinite" }
-          children:
-            - type: text
-              text: "HEADING"
-              fontSize: 12
-              color: "#666"
-              textAlign: center
-        - type: box
-          variant: panel
-          background: "#2a2a3a"
-          height: 30
-          cssStyle: { animation: "pulse 2s ease-in-out 0.1s infinite" }
-          children:
-            - type: text
-              text: "SUBTITLE"
-              fontSize: 12
-              color: "#666"
-              textAlign: center
+      elements:
+        - kind: shape
+          id: heading
+          rect: { x: 460, y: 480, w: 1000, h: 60 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#2a2a3a" }
+          animation: "pulse 2s ease-in-out infinite"
+        - kind: text
+          id: heading-label
+          rect: { x: 460, y: 480, w: 1000, h: 60 }
+          text: "HEADING"
+          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+
+        - kind: shape
+          id: subtitle
+          rect: { x: 560, y: 560, w: 800, h: 30 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#2a2a3a" }
+          animation: "pulse 2s ease-in-out 0.1s infinite"
+        - kind: text
+          id: subtitle-label
+          rect: { x: 560, y: 560, w: 800, h: 30 }
+          text: "SUBTITLE"
+          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
 ```
 
-### Example 2: Two-Panel Split (65/35)
+### Example 2: Two-Panel Split with Cards
 
-**Input:** Left 65% has tag + heading + body + 2×2 card grid. Right 35% has a dark panel with icon, title, and 4 horizontal bars. Content on the left is top-padded, right panel content is vertically centered.
+**Input:** Left 60% has tag + heading + body + 2×2 card grid. Right 40% has a dark panel with stats. Light background.
 
 **Phase 1 — Analyze:**
 
 ```
 LAYOUT ANALYSIS:
   Canvas: 1920×1080
-  Structure: two-panel (65/35 split → 1250 | 670)
+  Background: #1c1d35
   Regions:
-    - Left panel: w:1250
-      - Tag → small, top-left → content area
-      - Heading → below tag, large → content area
-      - Divider → thin accent line below heading → decorative
-      - Body text → below divider, paragraph → content area
-      - Card grid → 2×2 below body → cards
-    - Right panel: w:670, darker background
-      - Icon → centered, top of panel → card
-      - Panel title → centered, below icon → content area
-      - Bar 1–4 → horizontal bars, stacked → cards
-  Vertical distribution: left is top-padded (~180px), right is vertically centered
-  Gaps: 24px between left elements, 20px card grid gap, 16px between right elements
-  Decorative elements: thin divider between heading and body
+    - Tag → rect(220, 180, 200, 24) → content area
+    - Heading → rect(220, 220, 700, 52) → content area
+    - Divider → rect(220, 292, 80, 4) → decorative
+    - Body → rect(220, 316, 500, 55) → content area
+    - Card 1 → rect(220, 400, 280, 115) → card
+    - Card 2 → rect(520, 400, 280, 115) → card
+    - Card 3 → rect(220, 535, 280, 115) → card
+    - Card 4 → rect(520, 535, 280, 115) → card
+    - Right panel bg → rect(860, 0, 1060, 1080) → panel
+    - Right inner panel → rect(900, 300, 400, 400) → panel
+    - Icon → rect(1050, 320, 100, 65) → card
+    - Panel title → rect(940, 400, 320, 26) → content area
+    - Bar 1 → rect(940, 450, 320, 26) → card
+    - Bar 2 → rect(940, 490, 320, 26) → card
+    - Bar 3 → rect(940, 530, 320, 26) → card
+    - Bar 4 → rect(940, 570, 320, 26) → card
+  Notes: Left content top-padded ~180px. Right panel has darker bg, inner content vertically centered within panel.
 ```
 
 **Phase 2 — Build:**
-
-Two-panel flex-row split. Left panel has flex-column children with a grid for cards. Right panel uses verticalAlign: center.
 
 ```yaml
 - background: "#1c1d35"
   children:
-    - type: box
-      variant: flat
-      padding: 0
+    - type: raw
+      position: "absolute"
+      x: 0
+      y: 0
+      width: 1920
       height: 1080
-      layout: { type: flex, direction: row }
-      children:
-        # Left panel
-        - type: box
-          variant: flat
-          width: 1250
-          padding: [180, 80, 80, 220]
-          layout: { type: flex, direction: column, gap: 24 }
-          children:
-            - type: box
-              variant: panel
-              background: "#2a2a3a"
-              height: 24
-              width: 200
-              cssStyle: { animation: "pulse 2s ease-in-out infinite" }
-              children:
-                - type: text
-                  text: "TAG"
-                  fontSize: 12
-                  color: "#666"
-            - type: box
-              variant: panel
-              background: "#2a2a3a"
-              height: 52
-              cssStyle: { animation: "pulse 2s ease-in-out 0.1s infinite" }
-              children:
-                - type: text
-                  text: "HEADING"
-                  fontSize: 12
-                  color: "#666"
-            - type: box
-              variant: panel
-              background: "#4a3a2a"
-              height: 4
-              width: 80
-              cssStyle: { animation: "pulse 2s ease-in-out 0.2s infinite" }
-            - type: box
-              variant: panel
-              background: "#2a2a3a"
-              height: 55
-              width: 530
-              cssStyle: { animation: "pulse 2s ease-in-out 0.3s infinite" }
-              children:
-                - type: text
-                  text: "BODY TEXT"
-                  fontSize: 12
-                  color: "#666"
-            # Card grid
-            - type: box
-              variant: flat
-              padding: 0
-              layout: { type: grid, columns: 2, gap: 20 }
-              children:
-                - type: box
-                  variant: panel
-                  background: "#3a3a4a"
-                  height: 115
-                  borderRadius: 10
-                  cssStyle: { animation: "pulse 2s ease-in-out 0.4s infinite" }
-                  children:
-                    - type: text
-                      text: "CARD 1"
-                      fontSize: 12
-                      color: "#666"
-                - type: box
-                  variant: panel
-                  background: "#3a3a4a"
-                  height: 115
-                  borderRadius: 10
-                  cssStyle: { animation: "pulse 2s ease-in-out 0.5s infinite" }
-                  children:
-                    - type: text
-                      text: "CARD 2"
-                      fontSize: 12
-                      color: "#666"
-                - type: box
-                  variant: panel
-                  background: "#3a3a4a"
-                  height: 115
-                  borderRadius: 10
-                  cssStyle: { animation: "pulse 2s ease-in-out 0.6s infinite" }
-                  children:
-                    - type: text
-                      text: "CARD 3"
-                      fontSize: 12
-                      color: "#666"
-                - type: box
-                  variant: panel
-                  background: "#3a3a4a"
-                  height: 115
-                  borderRadius: 10
-                  cssStyle: { animation: "pulse 2s ease-in-out 0.7s infinite" }
-                  children:
-                    - type: text
-                      text: "CARD 4"
-                      fontSize: 12
-                      color: "#666"
+      elements:
+        # Right panel background (rendered first, behind everything)
+        - kind: shape
+          id: right-panel-bg
+          rect: { x: 860, y: 0, w: 1060, h: 1080 }
+          shape: rect
+          style: { fill: "#1a1a2a" }
 
-        # Right panel
-        - type: box
-          variant: panel
-          background: "#1a1a2a"
-          verticalAlign: center
-          padding: [40, 40]
+        # Left content
+        - kind: shape
+          id: tag
+          rect: { x: 220, y: 180, w: 200, h: 24 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#2a2a3a" }
+          animation: "pulse 2s ease-in-out infinite"
+        - kind: text
+          id: tag-label
+          rect: { x: 220, y: 180, w: 200, h: 24 }
+          text: "TAG"
+          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+
+        - kind: shape
+          id: heading
+          rect: { x: 220, y: 220, w: 700, h: 52 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#2a2a3a" }
+          animation: "pulse 2s ease-in-out 0.1s infinite"
+        - kind: text
+          id: heading-label
+          rect: { x: 220, y: 220, w: 700, h: 52 }
+          text: "HEADING"
+          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+
+        - kind: shape
+          id: divider
+          rect: { x: 220, y: 292, w: 80, h: 4 }
+          shape: rect
+          style: { fill: "#4a3a2a" }
+          animation: "pulse 2s ease-in-out 0.2s infinite"
+
+        - kind: shape
+          id: body
+          rect: { x: 220, y: 316, w: 500, h: 55 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#2a2a3a" }
+          animation: "pulse 2s ease-in-out 0.3s infinite"
+        - kind: text
+          id: body-label
+          rect: { x: 220, y: 316, w: 500, h: 55 }
+          text: "BODY TEXT"
+          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+
+        # Card grid (2×2)
+        - kind: shape
+          id: card-1
+          rect: { x: 220, y: 400, w: 280, h: 115 }
+          shape: rect
+          borderRadius: 10
+          style: { fill: "#3a3a4a" }
+          animation: "pulse 2s ease-in-out 0.4s infinite"
+        - kind: text
+          id: card-1-label
+          rect: { x: 220, y: 400, w: 280, h: 115 }
+          text: "CARD 1"
+          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+
+        - kind: shape
+          id: card-2
+          rect: { x: 520, y: 400, w: 280, h: 115 }
+          shape: rect
+          borderRadius: 10
+          style: { fill: "#3a3a4a" }
+          animation: "pulse 2s ease-in-out 0.5s infinite"
+        - kind: text
+          id: card-2-label
+          rect: { x: 520, y: 400, w: 280, h: 115 }
+          text: "CARD 2"
+          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+
+        - kind: shape
+          id: card-3
+          rect: { x: 220, y: 535, w: 280, h: 115 }
+          shape: rect
+          borderRadius: 10
+          style: { fill: "#3a3a4a" }
+          animation: "pulse 2s ease-in-out 0.6s infinite"
+        - kind: text
+          id: card-3-label
+          rect: { x: 220, y: 535, w: 280, h: 115 }
+          text: "CARD 3"
+          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+
+        - kind: shape
+          id: card-4
+          rect: { x: 520, y: 535, w: 280, h: 115 }
+          shape: rect
+          borderRadius: 10
+          style: { fill: "#3a3a4a" }
+          animation: "pulse 2s ease-in-out 0.7s infinite"
+        - kind: text
+          id: card-4-label
+          rect: { x: 520, y: 535, w: 280, h: 115 }
+          text: "CARD 4"
+          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+
+        # Right panel inner
+        - kind: shape
+          id: right-inner
+          rect: { x: 900, y: 300, w: 400, h: 400 }
+          shape: rect
           borderRadius: 14
-          layout: { type: flex, direction: column, gap: 16 }
-          children:
-            - type: box
-              variant: panel
-              background: "#3a3a4a"
-              height: 65
-              cssStyle: { animation: "pulse 2s ease-in-out 0.2s infinite" }
-              children:
-                - type: text
-                  text: "ICON"
-                  fontSize: 12
-                  color: "#666"
-                  textAlign: center
-            - type: box
-              variant: panel
-              background: "#2a2a3a"
-              height: 26
-              cssStyle: { animation: "pulse 2s ease-in-out 0.3s infinite" }
-              children:
-                - type: text
-                  text: "PANEL TITLE"
-                  fontSize: 12
-                  color: "#666"
-                  textAlign: center
-            - type: box
-              variant: panel
-              background: "#3a3a4a"
-              height: 26
-              cssStyle: { animation: "pulse 2s ease-in-out 0.4s infinite" }
-              children:
-                - type: text
-                  text: "BAR 1"
-                  fontSize: 12
-                  color: "#666"
-            - type: box
-              variant: panel
-              background: "#3a3a4a"
-              height: 26
-              cssStyle: { animation: "pulse 2s ease-in-out 0.5s infinite" }
-              children:
-                - type: text
-                  text: "BAR 2"
-                  fontSize: 12
-                  color: "#666"
-            - type: box
-              variant: panel
-              background: "#3a3a4a"
-              height: 26
-              cssStyle: { animation: "pulse 2s ease-in-out 0.6s infinite" }
-              children:
-                - type: text
-                  text: "BAR 3"
-                  fontSize: 12
-                  color: "#666"
-            - type: box
-              variant: panel
-              background: "#3a3a4a"
-              height: 26
-              cssStyle: { animation: "pulse 2s ease-in-out 0.7s infinite" }
-              children:
-                - type: text
-                  text: "BAR 4"
-                  fontSize: 12
-                  color: "#666"
+          style: { fill: "rgba(255,255,255,0.05)" }
+
+        - kind: shape
+          id: icon
+          rect: { x: 1050, y: 320, w: 100, h: 65 }
+          shape: rect
+          borderRadius: 6
+          style: { fill: "#3a3a4a" }
+          animation: "pulse 2s ease-in-out 0.2s infinite"
+        - kind: text
+          id: icon-label
+          rect: { x: 1050, y: 320, w: 100, h: 65 }
+          text: "ICON"
+          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+
+        - kind: shape
+          id: panel-title
+          rect: { x: 940, y: 400, w: 320, h: 26 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#2a2a3a" }
+          animation: "pulse 2s ease-in-out 0.3s infinite"
+        - kind: text
+          id: panel-title-label
+          rect: { x: 940, y: 400, w: 320, h: 26 }
+          text: "PANEL TITLE"
+          style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
+
+        - kind: shape
+          id: bar-1
+          rect: { x: 940, y: 450, w: 320, h: 26 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#3a3a4a" }
+          animation: "pulse 2s ease-in-out 0.4s infinite"
+        - kind: text
+          id: bar-1-label
+          rect: { x: 940, y: 450, w: 320, h: 26 }
+          text: "BAR 1"
+          style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
+
+        - kind: shape
+          id: bar-2
+          rect: { x: 940, y: 490, w: 320, h: 26 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#3a3a4a" }
+          animation: "pulse 2s ease-in-out 0.5s infinite"
+        - kind: text
+          id: bar-2-label
+          rect: { x: 940, y: 490, w: 320, h: 26 }
+          text: "BAR 2"
+          style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
+
+        - kind: shape
+          id: bar-3
+          rect: { x: 940, y: 530, w: 320, h: 26 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#3a3a4a" }
+          animation: "pulse 2s ease-in-out 0.6s infinite"
+        - kind: text
+          id: bar-3-label
+          rect: { x: 940, y: 530, w: 320, h: 26 }
+          text: "BAR 3"
+          style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
+
+        - kind: shape
+          id: bar-4
+          rect: { x: 940, y: 570, w: 320, h: 26 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#3a3a4a" }
+          animation: "pulse 2s ease-in-out 0.7s infinite"
+        - kind: text
+          id: bar-4-label
+          rect: { x: 940, y: 570, w: 320, h: 26 }
+          text: "BAR 4"
+          style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
 ```
 
-### Example 3: Grid of Cards with Decorative Top Strip
+### Example 3: Horizontal Card Row with Heading
 
-**Input:** Dark slide with a thin accent strip at top, centered heading, and a 3×2 grid of cards below.
+**Input:** Light slide with centered heading at top, 5 vertical cards in a horizontal row, each card has icon area + number circle + caption + divider + description.
 
 **Phase 1 — Analyze:**
 
 ```
 LAYOUT ANALYSIS:
   Canvas: 1920×1080
-  Structure: single-column with grid
+  Background: #f0f0f0
   Regions:
-    - Accent strip → full width, 4px at top → decorative
-    - Heading → centered, below strip → content area
-    - Card grid → 3 columns, 2 rows → cards
-  Vertical distribution: top strip flush, heading ~160px from top, cards below with gap
-  Gaps: 40px between heading and grid, 24px grid gap
-  Decorative elements: 4px accent strip at very top
+    - Heading → rect(660, 50, 600, 50) → content area
+    - Card 1 → rect(100, 180, 320, 720) → card
+      - Icon → rect(120, 200, 280, 200) → image
+      - Number → rect(230, 420, 60, 60) → decorative
+      - Caption → rect(140, 500, 240, 30) → content area
+      - Divider → rect(240, 545, 40, 4) → decorative
+      - Description → rect(130, 565, 260, 60) → content area
+    - Card 2 → rect(440, 180, 320, 720) → card
+      - (same internal layout, offset by 340px)
+    - Card 3 → rect(780, 180, 320, 720) → card
+    - Card 4 → rect(1120, 180, 320, 720) → card
+    - Card 5 → rect(1460, 180, 320, 720) → card
+  Notes: 5 equal cards, 20px gaps, horizontally centered. Each card has identical internal layout.
 ```
 
 **Phase 2 — Build:**
 
-Vertical flex-column with spacers for positioning, grid for cards.
-
 ```yaml
-- background: "#0f0f0f"
+- background: "#f0f0f0"
   children:
-    - type: box
-      variant: flat
-      padding: 0
+    - type: raw
+      position: "absolute"
+      x: 0
+      y: 0
+      width: 1920
       height: 1080
-      layout: { type: flex, direction: column }
-      children:
-        # Decorative accent strip
-        - type: box
-          variant: panel
-          background: "#4a3a2a"
-          height: 4
-          cssStyle: { animation: "pulse 2s ease-in-out infinite" }
-        # Spacing above heading
-        - type: spacer
-          height: 160
-        # Heading region
-        - type: box
-          variant: panel
-          background: "#2a2a3a"
-          height: 60
-          width: 500
-          margin: [0, auto]
-          cssStyle: { animation: "pulse 2s ease-in-out 0.1s infinite" }
-          children:
-            - type: text
-              text: "HEADING"
-              fontSize: 12
-              color: "#666"
-              textAlign: center
-        # Spacing before grid
-        - type: spacer
-          height: 40
-        # Card grid
-        - type: box
-          variant: flat
-          padding: [0, 80]
-          layout: { type: grid, columns: 3, gap: 24 }
-          children:
-            - type: box
-              variant: panel
-              background: "#3a3a4a"
-              height: 200
-              borderRadius: 12
-              cssStyle: { animation: "pulse 2s ease-in-out 0.2s infinite" }
-              children:
-                - type: text
-                  text: "CARD 1"
-                  fontSize: 12
-                  color: "#666"
-            - type: box
-              variant: panel
-              background: "#3a3a4a"
-              height: 200
-              borderRadius: 12
-              cssStyle: { animation: "pulse 2s ease-in-out 0.3s infinite" }
-              children:
-                - type: text
-                  text: "CARD 2"
-                  fontSize: 12
-                  color: "#666"
-            - type: box
-              variant: panel
-              background: "#3a3a4a"
-              height: 200
-              borderRadius: 12
-              cssStyle: { animation: "pulse 2s ease-in-out 0.4s infinite" }
-              children:
-                - type: text
-                  text: "CARD 3"
-                  fontSize: 12
-                  color: "#666"
-            - type: box
-              variant: panel
-              background: "#3a3a4a"
-              height: 200
-              borderRadius: 12
-              cssStyle: { animation: "pulse 2s ease-in-out 0.5s infinite" }
-              children:
-                - type: text
-                  text: "CARD 4"
-                  fontSize: 12
-                  color: "#666"
-            - type: box
-              variant: panel
-              background: "#3a3a4a"
-              height: 200
-              borderRadius: 12
-              cssStyle: { animation: "pulse 2s ease-in-out 0.6s infinite" }
-              children:
-                - type: text
-                  text: "CARD 5"
-                  fontSize: 12
-                  color: "#666"
-            - type: box
-              variant: panel
-              background: "#3a3a4a"
-              height: 200
-              borderRadius: 12
-              cssStyle: { animation: "pulse 2s ease-in-out 0.7s infinite" }
-              children:
-                - type: text
-                  text: "CARD 6"
-                  fontSize: 12
-                  color: "#666"
-        # Bottom spacing
-        - type: spacer
-          flex: true
+      elements:
+        # Heading
+        - kind: shape
+          id: heading
+          rect: { x: 660, y: 50, w: 600, h: 50 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#2a2a3a" }
+          animation: "pulse 2s ease-in-out infinite"
+        - kind: text
+          id: heading-label
+          rect: { x: 660, y: 50, w: 600, h: 50 }
+          text: "HEADING"
+          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+
+        # Card 1
+        - kind: shape
+          id: card-1-bg
+          rect: { x: 100, y: 180, w: 320, h: 720 }
+          shape: rect
+          borderRadius: 12
+          style: { fill: "#3a3a4a" }
+        - kind: shape
+          id: card-1-icon
+          rect: { x: 120, y: 200, w: 280, h: 200 }
+          shape: rect
+          borderRadius: 8
+          style: { fill: "#2a3a2a" }
+          animation: "pulse 2s ease-in-out 0.1s infinite"
+        - kind: text
+          id: card-1-icon-label
+          rect: { x: 120, y: 200, w: 280, h: 200 }
+          text: "ICON"
+          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+        - kind: shape
+          id: card-1-num
+          rect: { x: 230, y: 420, w: 60, h: 60 }
+          shape: circle
+          style: { fill: "#4a3a2a" }
+          animation: "pulse 2s ease-in-out 0.2s infinite"
+        - kind: text
+          id: card-1-num-label
+          rect: { x: 230, y: 420, w: 60, h: 60 }
+          text: "01"
+          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+        - kind: shape
+          id: card-1-caption
+          rect: { x: 140, y: 500, w: 240, h: 30 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#2a2a3a" }
+          animation: "pulse 2s ease-in-out 0.3s infinite"
+        - kind: text
+          id: card-1-caption-label
+          rect: { x: 140, y: 500, w: 240, h: 30 }
+          text: "CAPTION"
+          style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
+        - kind: shape
+          id: card-1-divider
+          rect: { x: 240, y: 545, w: 40, h: 4 }
+          shape: rect
+          style: { fill: "#4a3a2a" }
+        - kind: shape
+          id: card-1-desc
+          rect: { x: 130, y: 565, w: 260, h: 60 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#2a2a3a" }
+          animation: "pulse 2s ease-in-out 0.4s infinite"
+        - kind: text
+          id: card-1-desc-label
+          rect: { x: 130, y: 565, w: 260, h: 60 }
+          text: "DESCRIPTION"
+          style: { fontSize: 14, color: "#888", textAlign: center, verticalAlign: middle }
+
+        # Card 2 (offset +340px)
+        - kind: shape
+          id: card-2-bg
+          rect: { x: 440, y: 180, w: 320, h: 720 }
+          shape: rect
+          borderRadius: 12
+          style: { fill: "#3a3a4a" }
+        - kind: shape
+          id: card-2-icon
+          rect: { x: 460, y: 200, w: 280, h: 200 }
+          shape: rect
+          borderRadius: 8
+          style: { fill: "#2a3a2a" }
+          animation: "pulse 2s ease-in-out 0.2s infinite"
+        - kind: text
+          id: card-2-icon-label
+          rect: { x: 460, y: 200, w: 280, h: 200 }
+          text: "ICON"
+          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+        - kind: shape
+          id: card-2-num
+          rect: { x: 570, y: 420, w: 60, h: 60 }
+          shape: circle
+          style: { fill: "#4a3a2a" }
+          animation: "pulse 2s ease-in-out 0.3s infinite"
+        - kind: text
+          id: card-2-num-label
+          rect: { x: 570, y: 420, w: 60, h: 60 }
+          text: "02"
+          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+        - kind: shape
+          id: card-2-caption
+          rect: { x: 480, y: 500, w: 240, h: 30 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#2a2a3a" }
+          animation: "pulse 2s ease-in-out 0.4s infinite"
+        - kind: shape
+          id: card-2-divider
+          rect: { x: 580, y: 545, w: 40, h: 4 }
+          shape: rect
+          style: { fill: "#4a3a2a" }
+        - kind: shape
+          id: card-2-desc
+          rect: { x: 470, y: 565, w: 260, h: 60 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#2a2a3a" }
+          animation: "pulse 2s ease-in-out 0.5s infinite"
+
+        # Cards 3-5 follow the same pattern at x: 780, 1120, 1460
+        # (same internal layout, each offset +340px from the previous)
+
+        - kind: shape
+          id: card-3-bg
+          rect: { x: 780, y: 180, w: 320, h: 720 }
+          shape: rect
+          borderRadius: 12
+          style: { fill: "#3a3a4a" }
+        - kind: shape
+          id: card-3-icon
+          rect: { x: 800, y: 200, w: 280, h: 200 }
+          shape: rect
+          borderRadius: 8
+          style: { fill: "#2a3a2a" }
+          animation: "pulse 2s ease-in-out 0.3s infinite"
+        - kind: text
+          id: card-3-icon-label
+          rect: { x: 800, y: 200, w: 280, h: 200 }
+          text: "ICON"
+          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+        - kind: shape
+          id: card-3-num
+          rect: { x: 910, y: 420, w: 60, h: 60 }
+          shape: circle
+          style: { fill: "#4a3a2a" }
+          animation: "pulse 2s ease-in-out 0.4s infinite"
+        - kind: shape
+          id: card-3-caption
+          rect: { x: 820, y: 500, w: 240, h: 30 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#2a2a3a" }
+          animation: "pulse 2s ease-in-out 0.5s infinite"
+        - kind: shape
+          id: card-3-divider
+          rect: { x: 920, y: 545, w: 40, h: 4 }
+          shape: rect
+          style: { fill: "#4a3a2a" }
+        - kind: shape
+          id: card-3-desc
+          rect: { x: 810, y: 565, w: 260, h: 60 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#2a2a3a" }
+          animation: "pulse 2s ease-in-out 0.6s infinite"
+
+        - kind: shape
+          id: card-4-bg
+          rect: { x: 1120, y: 180, w: 320, h: 720 }
+          shape: rect
+          borderRadius: 12
+          style: { fill: "#3a3a4a" }
+        - kind: shape
+          id: card-4-icon
+          rect: { x: 1140, y: 200, w: 280, h: 200 }
+          shape: rect
+          borderRadius: 8
+          style: { fill: "#2a3a2a" }
+          animation: "pulse 2s ease-in-out 0.4s infinite"
+        - kind: text
+          id: card-4-icon-label
+          rect: { x: 1140, y: 200, w: 280, h: 200 }
+          text: "ICON"
+          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+        - kind: shape
+          id: card-4-num
+          rect: { x: 1250, y: 420, w: 60, h: 60 }
+          shape: circle
+          style: { fill: "#4a3a2a" }
+          animation: "pulse 2s ease-in-out 0.5s infinite"
+        - kind: shape
+          id: card-4-caption
+          rect: { x: 1160, y: 500, w: 240, h: 30 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#2a2a3a" }
+          animation: "pulse 2s ease-in-out 0.6s infinite"
+        - kind: shape
+          id: card-4-divider
+          rect: { x: 1260, y: 545, w: 40, h: 4 }
+          shape: rect
+          style: { fill: "#4a3a2a" }
+        - kind: shape
+          id: card-4-desc
+          rect: { x: 1150, y: 565, w: 260, h: 60 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#2a2a3a" }
+          animation: "pulse 2s ease-in-out 0.7s infinite"
+
+        - kind: shape
+          id: card-5-bg
+          rect: { x: 1460, y: 180, w: 320, h: 720 }
+          shape: rect
+          borderRadius: 12
+          style: { fill: "#3a3a4a" }
+        - kind: shape
+          id: card-5-icon
+          rect: { x: 1480, y: 200, w: 280, h: 200 }
+          shape: rect
+          borderRadius: 8
+          style: { fill: "#2a3a2a" }
+          animation: "pulse 2s ease-in-out 0.5s infinite"
+        - kind: text
+          id: card-5-icon-label
+          rect: { x: 1480, y: 200, w: 280, h: 200 }
+          text: "ICON"
+          style: { fontSize: 18, color: "#888", textAlign: center, verticalAlign: middle }
+        - kind: shape
+          id: card-5-num
+          rect: { x: 1590, y: 420, w: 60, h: 60 }
+          shape: circle
+          style: { fill: "#4a3a2a" }
+          animation: "pulse 2s ease-in-out 0.6s infinite"
+        - kind: shape
+          id: card-5-caption
+          rect: { x: 1500, y: 500, w: 240, h: 30 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#2a2a3a" }
+          animation: "pulse 2s ease-in-out 0.7s infinite"
+        - kind: shape
+          id: card-5-divider
+          rect: { x: 1600, y: 545, w: 40, h: 4 }
+          shape: rect
+          style: { fill: "#4a3a2a" }
+        - kind: shape
+          id: card-5-desc
+          rect: { x: 1490, y: 565, w: 260, h: 60 }
+          shape: rect
+          borderRadius: 4
+          style: { fill: "#2a2a3a" }
+          animation: "pulse 2s ease-in-out 0.8s infinite"
 ```
