@@ -3,6 +3,7 @@ import { findTemplate, clearTemplateCache } from "./loader";
 import { expandDslTemplate } from "./engine";
 import { layoutSlide } from "@/lib/layout";
 import type { SlideData, ComponentSlideData } from "@/lib/types";
+import type { DslTemplateDef } from "./types";
 
 beforeEach(() => {
   clearTemplateCache();
@@ -52,6 +53,15 @@ function expandAndLayout(
   const slide = expandDsl(templateName, params);
   const layout = layoutSlide(slide, "modern", "/img");
   return { slide, layout };
+}
+
+function makeInlineTemplate(overrides: Partial<DslTemplateDef>): DslTemplateDef {
+  return {
+    name: "inline-test",
+    params: {},
+    rawBody: "",
+    ...overrides,
+  };
 }
 
 describe("DSL integration: template expansion + layout", () => {
@@ -807,5 +817,45 @@ describe("DSL integration: template expansion + layout", () => {
 
     const layout = layoutSlide(slide, "modern", "/img");
     expect(layout.elements.length).toBeGreaterThan(0);
+  });
+
+  it("scene templates expand and layout through the scene compiler path", () => {
+    const def = makeInlineTemplate({
+      params: { title: { type: "string", required: true } },
+      rawBody: `
+mode: scene
+sourceSize: { w: 640, h: 360 }
+fit: contain
+align: center
+background:
+  type: solid
+  color: "#0f1728"
+children:
+  - kind: shape
+    id: panel
+    frame: { x: 320, y: 0, w: 320, h: 360 }
+    shape: rect
+    style:
+      fill: "#1f2a44"
+  - kind: text
+    id: title
+    frame: { x: 40, y: 40, w: 240 }
+    text: "{{ title }}"
+    style:
+      fontFamily: "heading"
+      fontSize: 40
+      fontWeight: 700
+      color: "#ffffff"
+      lineHeight: 1.1
+`,
+    });
+
+    const slide = expandDslTemplate({ template: "inline-test", title: "Scene DSL" }, def);
+    expect(slide).toMatchObject({ mode: "scene" });
+
+    const layout = layoutSlide(slide, "modern", "/img");
+    expect(layout.background).toBe("#0f1728");
+    expect(layout.elements.some((element) => element.id === "panel")).toBe(true);
+    expect(layout.elements.some((element) => element.id === "title")).toBe(true);
   });
 });

@@ -3,7 +3,9 @@ import { parse } from "yaml";
 import type { DslTemplateDef } from "./types";
 import type {
   ComponentSlideData,
+  SceneSlideData,
   SlideBaseFields,
+  SlideData,
 } from "@/lib/types";
 
 // --- Nunjucks environment ---
@@ -57,18 +59,18 @@ function smartify(val: unknown): unknown {
 // --- Main expansion function ---
 
 /**
- * Expand a DSL template with slide data into a compose SlideData.
+ * Expand a DSL template with slide data into a SlideData.
  *
  * 1. Validate required params
  * 2. Build render context (params + style defaults + user style overrides)
  * 3. Render the .template.yaml through Nunjucks
  * 4. Parse the rendered YAML
- * 5. Construct ComponentSlideData
+ * 5. Construct SlideData
  */
 export function expandDslTemplate(
   slideData: Record<string, unknown>,
   templateDef: DslTemplateDef,
-): ComponentSlideData & SlideBaseFields {
+): SlideData {
   // 1. Validate required params
   for (const [name, def] of Object.entries(templateDef.params)) {
     if (def.required && !(name in slideData)) {
@@ -126,7 +128,25 @@ export function expandDslTemplate(
   if (slideData.animation) base.animation = slideData.animation as SlideBaseFields["animation"];
   if (slideData.theme) base.theme = slideData.theme as SlideBaseFields["theme"];
 
-  // Slide-level background/backgroundImage: slideData (user YAML) takes precedence over template output
+  if (parsed.mode === "scene") {
+    return {
+      mode: "scene",
+      ...(parsed.background !== undefined ? { background: parsed.background as SceneSlideData["background"] } : {}),
+      ...(parsed.guides !== undefined ? { guides: parsed.guides as SceneSlideData["guides"] } : {}),
+      ...(parsed.sourceSize !== undefined ? { sourceSize: parsed.sourceSize as SceneSlideData["sourceSize"] } : {}),
+      ...(parsed.fit !== undefined ? { fit: parsed.fit as SceneSlideData["fit"] } : {}),
+      ...(parsed.align !== undefined ? { align: parsed.align as SceneSlideData["align"] } : {}),
+      ...(slideData.background !== undefined ? { background: slideData.background as SceneSlideData["background"] } : {}),
+      ...(slideData.guides !== undefined ? { guides: slideData.guides as SceneSlideData["guides"] } : {}),
+      ...(slideData.sourceSize !== undefined ? { sourceSize: slideData.sourceSize as SceneSlideData["sourceSize"] } : {}),
+      ...(slideData.fit !== undefined ? { fit: slideData.fit as SceneSlideData["fit"] } : {}),
+      ...(slideData.align !== undefined ? { align: slideData.align as SceneSlideData["align"] } : {}),
+      children: (parsed.children ?? []) as SceneSlideData["children"],
+      ...base,
+    } as SceneSlideData & SlideBaseFields;
+  }
+
+  // Component template path. Slide-level background/backgroundImage still allow user overrides.
   return {
     ...(parsed.background !== undefined ? { background: String(parsed.background) } : {}),
     ...(parsed.backgroundImage !== undefined ? { backgroundImage: String(parsed.backgroundImage) } : {}),

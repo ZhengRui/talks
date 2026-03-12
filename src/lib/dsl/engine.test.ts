@@ -306,4 +306,77 @@ children:
     const children = (result as unknown as { children: Record<string, unknown>[] }).children;
     expect(children[0].type).toBe("box");
   });
+
+  it("expands templates that emit mode: scene slides", () => {
+    const def = makeDef({
+      params: { title: { type: "string", required: true } },
+      rawBody: `
+mode: scene
+sourceSize: { w: 640, h: 360 }
+fit: contain
+align: center
+background:
+  type: solid
+  color: "#101820"
+children:
+  - kind: text
+    id: title
+    frame: { x: 64, y: 48, w: 320 }
+    text: "{{ title }}"
+    style:
+      fontFamily: "heading"
+      fontSize: 48
+      fontWeight: 700
+      color: "#ffffff"
+      lineHeight: 1.1
+`,
+    });
+
+    const result = expandDslTemplate({ template: "test", title: "Scene Title" }, def);
+    expect(result).toMatchObject({
+      mode: "scene",
+      sourceSize: { w: 640, h: 360 },
+      fit: "contain",
+      align: "center",
+    });
+    expect((result as unknown as { children: Record<string, unknown>[] }).children[0]).toMatchObject({
+      kind: "text",
+      id: "title",
+      text: "Scene Title",
+    });
+  });
+
+  it("lets slide data override scene background and viewport fields", () => {
+    const def = makeDef({
+      rawBody: `
+mode: scene
+sourceSize: { w: 640, h: 360 }
+fit: contain
+align: left
+background:
+  type: solid
+  color: "#111111"
+children: []
+`,
+    });
+
+    const result = expandDslTemplate(
+      {
+        template: "test",
+        background: { type: "solid", color: "#202020" },
+        sourceSize: { w: 800, h: 600 },
+        fit: "cover",
+        align: "center",
+      },
+      def,
+    );
+
+    expect(result).toMatchObject({
+      mode: "scene",
+      background: { type: "solid", color: "#202020" },
+      sourceSize: { w: 800, h: 600 },
+      fit: "cover",
+      align: "center",
+    });
+  });
 });
