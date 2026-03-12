@@ -1,6 +1,6 @@
 import { resolve } from "path";
 import { existsSync, readFileSync, writeFileSync } from "fs";
-import type { SlideData, ThemeName } from "@/lib/types";
+import { isSceneSlideData, type SlideData, type ThemeName } from "@/lib/types";
 import type { LayoutPresentation, LayoutSlide, LayoutElement } from "./types";
 import { resolveTheme } from "./theme";
 import { applyDecorators } from "./decorators";
@@ -8,16 +8,15 @@ import { CANVAS_W, CANVAS_H, backgroundImage } from "./helpers";
 import { resolveLayouts } from "./auto-layout";
 import { resolveComponent } from "./components/resolvers";
 import { resolveColor } from "./components/theme-tokens";
+import { compileSceneSlide } from "@/lib/scene/compiler";
 
-export function layoutSlide(
-  slide: SlideData,
-  theme: ThemeName | undefined,
+function layoutComponentSlide(
+  slide: Exclude<SlideData, { mode: "scene" }>,
+  resolvedTheme: ReturnType<typeof resolveTheme>,
   imageBase: string,
-  slideIndex = 0,
 ): LayoutSlide {
-  const resolved = resolveTheme(slide.theme ?? theme);
   const hasImage = !!slide.backgroundImage;
-  const bg = resolveColor(slide.background, resolved, resolved.bg);
+  const bg = resolveColor(slide.background, resolvedTheme, resolvedTheme.bg);
 
   const bgElements: LayoutElement[] = [];
   if (hasImage) {
@@ -33,7 +32,7 @@ export function layoutSlide(
   const elements: LayoutElement[] = [];
   (slide.children ?? []).forEach((child, i) => {
     const result = resolveComponent(child, {
-      theme: resolved,
+      theme: resolvedTheme,
       panel: { x: 0, y: 0, w: CANVAS_W, h: CANVAS_H },
       idPrefix: `s-c${i}`,
       animate: true,
@@ -44,12 +43,24 @@ export function layoutSlide(
     elements.push(...result.elements);
   });
 
-  const result: LayoutSlide = {
+  return {
     width: CANVAS_W,
     height: CANVAS_H,
     background: bg,
     elements: [...bgElements, ...elements],
   };
+}
+
+export function layoutSlide(
+  slide: SlideData,
+  theme: ThemeName | undefined,
+  imageBase: string,
+  slideIndex = 0,
+): LayoutSlide {
+  const resolved = resolveTheme(slide.theme ?? theme);
+  const result = isSceneSlideData(slide)
+    ? compileSceneSlide(slide, resolved, imageBase)
+    : layoutComponentSlide(slide, resolved, imageBase);
 
   // Resolve auto-layout groups (flex/grid → absolute rects)
   result.elements = resolveLayouts(result.elements);

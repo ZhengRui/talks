@@ -1,7 +1,16 @@
 import type { SlideComponent } from "./layout/components/types";
+import type {
+  SceneAlign,
+  SceneBackgroundSpec,
+  SceneFitMode,
+  SceneGuides,
+  SceneNode,
+  SceneSize,
+} from "./scene/types";
 
 // Re-export for convenience
 export type { SlideComponent };
+export type { SceneAlign, SceneBackgroundSpec, SceneFitMode, SceneGuides, SceneNode, SceneSize };
 
 // Component slide (root component tree)
 export interface ComponentSlideData {
@@ -11,9 +20,19 @@ export interface ComponentSlideData {
   overlay?: "dark" | "light" | "none" | string;
 }
 
+export interface SceneSlideData {
+  mode: "scene";
+  children: SceneNode[];
+  background?: SceneBackgroundSpec;
+  guides?: SceneGuides;
+  sourceSize?: SceneSize;
+  fit?: SceneFitMode;
+  align?: SceneAlign;
+}
+
 // --- Slide data ---
 
-export type SlideData = ComponentSlideData & SlideBaseFields;
+export type SlideData = (ComponentSlideData | SceneSlideData) & SlideBaseFields;
 
 // --- Animation override ---
 
@@ -48,4 +67,10 @@ export interface PresentationSummary {
   title: string;
   author?: string;
   slideCount: number;
+}
+
+export function isSceneSlideData(
+  slide: SlideData,
+): slide is SceneSlideData & SlideBaseFields {
+  return (slide as { mode?: string }).mode === "scene";
 }
