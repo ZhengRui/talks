@@ -9,7 +9,9 @@ import type {
   SceneImageNode,
   SceneIrNode,
   SceneNode,
+  ScenePreset,
   SceneSize,
+  SceneShapeNode,
   SceneTextNode,
 } from "./types";
 
@@ -25,6 +27,69 @@ export interface NormalizedSceneSlide extends NormalizedSceneBackground {
   fit?: SceneFitMode;
   align?: SceneAlign;
   children: SceneNode[];
+}
+
+function mergeOptionalObject<T extends Record<string, unknown> | undefined>(
+  base: T,
+  override: T,
+): T {
+  if (!base) return override;
+  if (!override) return base;
+  return {
+    ...base,
+    ...override,
+  } as T;
+}
+
+function applyScenePreset<T extends SceneNode>(
+  node: T,
+  presets: Record<string, ScenePreset> | undefined,
+): T {
+  if (!node.preset) return node;
+  const preset = presets?.[node.preset];
+  if (!preset) {
+    throw new Error(`[scene] Unknown preset "${node.preset}" on node "${node.id}"`);
+  }
+
+  const base = {
+    ...preset,
+    ...node,
+    ...(preset.frame || node.frame ? { frame: mergeOptionalObject(preset.frame, node.frame) } : {}),
+    ...(preset.shadow || node.shadow ? { shadow: mergeOptionalObject(preset.shadow, node.shadow) } : {}),
+    ...(preset.effects || node.effects ? { effects: mergeOptionalObject(preset.effects, node.effects) } : {}),
+    ...(preset.border || node.border ? { border: mergeOptionalObject(preset.border, node.border) } : {}),
+    ...(preset.entrance || node.entrance ? { entrance: mergeOptionalObject(preset.entrance, node.entrance) } : {}),
+    ...(preset.transform || node.transform ? { transform: mergeOptionalObject(preset.transform, node.transform) } : {}),
+    ...(preset.cssStyle || node.cssStyle ? { cssStyle: mergeOptionalObject(preset.cssStyle, node.cssStyle) } : {}),
+  };
+
+  switch (node.kind) {
+    case "text":
+      return {
+        ...base,
+        style: mergeOptionalObject(preset.style as SceneTextNode["style"] | undefined, node.style)!,
+      } as T;
+    case "shape":
+      return {
+        ...base,
+        style: mergeOptionalObject(preset.style as SceneShapeNode["style"] | undefined, node.style)!,
+      } as T;
+    case "image":
+      return {
+        ...base,
+        objectFit: node.objectFit ?? preset.objectFit,
+        clipCircle: node.clipCircle ?? preset.clipCircle,
+      } as T;
+    case "group":
+      return {
+        ...base,
+        ...(preset.style || node.style ? { style: mergeOptionalObject(preset.style as SceneGroupNode["style"] | undefined, node.style) } : {}),
+        clipContent: node.clipContent ?? preset.clipContent,
+        ...(preset.layout || node.layout ? { layout: mergeOptionalObject(preset.layout, node.layout) } : {}),
+      } as T;
+    case "ir":
+      return base as T;
+  }
 }
 
 function prefixImageSrc(src: string, imageBase: string): string {
@@ -133,14 +198,19 @@ function normalizeImageNode(node: SceneImageNode, theme: ResolvedTheme, imageBas
   };
 }
 
-function normalizeGroupNode(node: SceneGroupNode, theme: ResolvedTheme, imageBase: string): SceneGroupNode {
+function normalizeGroupNode(
+  node: SceneGroupNode,
+  theme: ResolvedTheme,
+  imageBase: string,
+  presets?: Record<string, ScenePreset>,
+): SceneGroupNode {
   return {
     ...node,
     ...(node.style ? { style: resolveTokenTree(node.style, theme) } : {}),
     ...(node.border ? { border: resolveTokenTree(node.border, theme) } : {}),
     ...(node.shadow ? { shadow: resolveTokenTree(node.shadow, theme) } : {}),
     ...(node.effects ? { effects: resolveTokenTree(node.effects, theme) } : {}),
-    children: node.children.map((child) => normalizeSceneNode(child, theme, imageBase)),
+    children: node.children.map((child) => normalizeSceneNode(child, theme, imageBase, presets)),
   };
 }
 
@@ -155,24 +225,27 @@ export function normalizeSceneNode(
   node: SceneNode,
   theme: ResolvedTheme,
   imageBase: string,
+  presets?: Record<string, ScenePreset>,
 ): SceneNode {
-  switch (node.kind) {
+  const mergedNode = applyScenePreset(node, presets);
+
+  switch (mergedNode.kind) {
     case "text":
-      return normalizeTextNode(node, theme);
+      return normalizeTextNode(mergedNode, theme);
     case "shape":
       return {
-        ...node,
-        style: resolveTokenTree(node.style, theme),
-        ...(node.border ? { border: resolveTokenTree(node.border, theme) } : {}),
-        ...(node.shadow ? { shadow: resolveTokenTree(node.shadow, theme) } : {}),
-        ...(node.effects ? { effects: resolveTokenTree(node.effects, theme) } : {}),
+        ...mergedNode,
+        style: resolveTokenTree(mergedNode.style, theme),
+        ...(mergedNode.border ? { border: resolveTokenTree(mergedNode.border, theme) } : {}),
+        ...(mergedNode.shadow ? { shadow: resolveTokenTree(mergedNode.shadow, theme) } : {}),
+        ...(mergedNode.effects ? { effects: resolveTokenTree(mergedNode.effects, theme) } : {}),
       };
     case "image":
-      return normalizeImageNode(node, theme, imageBase);
+      return normalizeImageNode(mergedNode, theme, imageBase);
     case "ir":
-      return normalizeIrNode(node, theme, imageBase);
+      return normalizeIrNode(mergedNode, theme, imageBase);
     case "group":
-      return normalizeGroupNode(node, theme, imageBase);
+      return normalizeGroupNode(mergedNode, theme, imageBase, presets);
   }
 }
 
@@ -204,6 +277,7 @@ export function normalizeSceneSlide(
   slide: {
     background?: SceneBackgroundSpec;
     guides?: SceneGuides;
+    presets?: Record<string, ScenePreset>;
     sourceSize?: SceneSize;
     fit?: SceneFitMode;
     align?: SceneAlign;
@@ -219,6 +293,6 @@ export function normalizeSceneSlide(
     ...(slide.sourceSize ? { sourceSize: slide.sourceSize } : {}),
     ...(slide.fit ? { fit: slide.fit } : {}),
     ...(slide.align ? { align: slide.align } : {}),
-    children: slide.children.map((child) => normalizeSceneNode(child, theme, imageBase)),
+    children: slide.children.map((child) => normalizeSceneNode(child, theme, imageBase, slide.presets)),
   };
 }

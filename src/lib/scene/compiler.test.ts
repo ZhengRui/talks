@@ -131,6 +131,97 @@ describe("compileSceneSlide", () => {
     }
   });
 
+  it("applies scene presets before normalization and keeps explicit node overrides", () => {
+    const theme = resolveTheme("dark-tech");
+    const slide: SceneSlideData = {
+      mode: "scene",
+      presets: {
+        card: {
+          frame: { w: 320, h: 140 },
+          borderRadius: 18,
+          border: { width: 2, color: "theme.accent" },
+          shadow: { color: "#00000055", offsetX: 0, offsetY: 8, blur: 20 },
+          style: { fill: "theme.bgSecondary", strokeWidth: 3 },
+        },
+        headline: {
+          frame: { w: 240 },
+          style: {
+            fontFamily: "heading",
+            fontSize: 44,
+            fontWeight: 700,
+            color: "theme.text",
+            lineHeight: 1.1,
+          },
+        },
+      },
+      children: [
+        {
+          kind: "shape",
+          id: "panel",
+          preset: "card",
+          frame: { x: 100, y: 120, h: 120 },
+          shape: "rect",
+          style: { fill: "#223344" },
+        },
+        {
+          kind: "text",
+          id: "title",
+          preset: "headline",
+          frame: { x: 120, y: 150 },
+          text: "Preset title",
+          style: {
+            fontSize: 52,
+            color: "#ffffff",
+          },
+        },
+      ],
+    };
+
+    const result = compileSceneSlide(slide, theme, "/scene");
+    const panel = result.elements[0];
+    const title = result.elements[1];
+
+    expect(panel.kind).toBe("shape");
+    if (panel.kind === "shape") {
+      expect(panel.rect.w).toBe(320);
+      expect(panel.rect.h).toBe(120);
+      expect(panel.style.fill).toBe("#223344");
+      expect(panel.style.strokeWidth).toBe(3);
+      expect(panel.borderRadius).toBe(18);
+      expect(panel.border?.width).toBe(2);
+      expect(panel.border?.color).toBe(theme.accent);
+    }
+
+    expect(title.kind).toBe("text");
+    if (title.kind === "text") {
+      expect(title.rect.w).toBe(240);
+      expect(title.style.fontFamily).toBe(theme.fontHeading);
+      expect(title.style.fontSize).toBe(52);
+      expect(title.style.fontWeight).toBe(700);
+      expect(title.style.color).toBe("#ffffff");
+    }
+  });
+
+  it("throws when a scene node references an unknown preset", () => {
+    const slide: SceneSlideData = {
+      mode: "scene",
+      children: [
+        {
+          kind: "shape",
+          id: "panel",
+          preset: "missing",
+          frame: { x: 0, y: 0, w: 100, h: 100 },
+          shape: "rect",
+          style: { fill: "#000000" },
+        },
+      ],
+    };
+
+    expect(() => compileSceneSlide(slide, resolveTheme("modern"), "/scene")).toThrow(
+      /Unknown preset "missing"/,
+    );
+  });
+
   it("scales and centers source-sized scenes into the slide canvas", () => {
     const slide: SceneSlideData = {
       mode: "scene",

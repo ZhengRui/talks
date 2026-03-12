@@ -26,6 +26,47 @@ env.addFilter("yaml_string", (val: unknown) => {
   return val.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/"/g, '\\"');
 });
 
+function mergeOptionalObject<T extends Record<string, unknown> | undefined>(
+  base: T,
+  override: T,
+): T {
+  if (!base) return override;
+  if (!override) return base;
+  return {
+    ...base,
+    ...override,
+  } as T;
+}
+
+function mergeScenePresetMaps(
+  base: SceneSlideData["presets"] | undefined,
+  override: SceneSlideData["presets"] | undefined,
+): SceneSlideData["presets"] | undefined {
+  if (!base) return override;
+  if (!override) return base;
+
+  const merged: NonNullable<SceneSlideData["presets"]> = { ...base };
+  for (const [name, preset] of Object.entries(override)) {
+    const existing = merged[name];
+    merged[name] = existing
+      ? {
+          ...existing,
+          ...preset,
+          ...(existing.frame || preset.frame ? { frame: mergeOptionalObject(existing.frame, preset.frame) } : {}),
+          ...(existing.shadow || preset.shadow ? { shadow: mergeOptionalObject(existing.shadow, preset.shadow) } : {}),
+          ...(existing.effects || preset.effects ? { effects: mergeOptionalObject(existing.effects, preset.effects) } : {}),
+          ...(existing.border || preset.border ? { border: mergeOptionalObject(existing.border, preset.border) } : {}),
+          ...(existing.entrance || preset.entrance ? { entrance: mergeOptionalObject(existing.entrance, preset.entrance) } : {}),
+          ...(existing.transform || preset.transform ? { transform: mergeOptionalObject(existing.transform, preset.transform) } : {}),
+          ...(existing.cssStyle || preset.cssStyle ? { cssStyle: mergeOptionalObject(existing.cssStyle, preset.cssStyle) } : {}),
+          ...(existing.style || preset.style ? { style: mergeOptionalObject(existing.style, preset.style) } : {}),
+          ...(existing.layout || preset.layout ? { layout: mergeOptionalObject(existing.layout, preset.layout) } : {}),
+        }
+      : preset;
+  }
+  return merged;
+}
+
 // --- SmartArray: makes {{ array }} output JSON (valid YAML flow sequence) ---
 
 class SmartArray<T> extends Array<T> {
@@ -129,18 +170,23 @@ export function expandDslTemplate(
   if (slideData.theme) base.theme = slideData.theme as SlideBaseFields["theme"];
 
   if (parsed.mode === "scene") {
+    const parsedPresets = parsed.presets as SceneSlideData["presets"] | undefined;
+    const overridePresets = slideData.presets as SceneSlideData["presets"] | undefined;
+    const presets = mergeScenePresetMaps(parsedPresets, overridePresets);
+
     return {
       mode: "scene",
       ...(parsed.background !== undefined ? { background: parsed.background as SceneSlideData["background"] } : {}),
       ...(parsed.guides !== undefined ? { guides: parsed.guides as SceneSlideData["guides"] } : {}),
+      ...(presets ? { presets } : {}),
       ...(parsed.sourceSize !== undefined ? { sourceSize: parsed.sourceSize as SceneSlideData["sourceSize"] } : {}),
       ...(parsed.fit !== undefined ? { fit: parsed.fit as SceneSlideData["fit"] } : {}),
       ...(parsed.align !== undefined ? { align: parsed.align as SceneSlideData["align"] } : {}),
       ...(slideData.background !== undefined ? { background: slideData.background as SceneSlideData["background"] } : {}),
       ...(slideData.guides !== undefined ? { guides: slideData.guides as SceneSlideData["guides"] } : {}),
-      ...(slideData.sourceSize !== undefined ? { sourceSize: slideData.sourceSize as SceneSlideData["sourceSize"] } : {}),
       ...(slideData.fit !== undefined ? { fit: slideData.fit as SceneSlideData["fit"] } : {}),
       ...(slideData.align !== undefined ? { align: slideData.align as SceneSlideData["align"] } : {}),
+      ...(slideData.sourceSize !== undefined ? { sourceSize: slideData.sourceSize as SceneSlideData["sourceSize"] } : {}),
       children: (parsed.children ?? []) as SceneSlideData["children"],
       ...base,
     } as SceneSlideData & SlideBaseFields;

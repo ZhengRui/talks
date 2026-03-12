@@ -62,8 +62,28 @@ export interface SceneTextStyle {
   highlightColor?: string;
 }
 
+export interface ScenePreset {
+  frame?: FrameSpec;
+  opacity?: number;
+  borderRadius?: number;
+  shadow?: BoxShadow;
+  effects?: ElementEffects;
+  border?: BorderDef;
+  entrance?: EntranceDef;
+  animation?: string;
+  clipPath?: string;
+  transform?: TransformDef;
+  cssStyle?: Record<string, string>;
+  style?: SceneTextStyle | ShapeStyle;
+  objectFit?: "cover" | "contain";
+  clipCircle?: boolean;
+  clipContent?: boolean;
+  layout?: SceneLayout;
+}
+
 export interface SceneNodeBase {
   id: string;
+  preset?: string;
   frame?: FrameSpec;
   opacity?: number;
   borderRadius?: number;
@@ -96,10 +116,8 @@ export interface SceneImageNode extends SceneNodeBase {
   clipCircle?: boolean;
 }
 
-export interface SceneIrNode {
+export interface SceneIrNode extends SceneNodeBase {
   kind: "ir";
-  id: string;
-  frame?: FrameSpec;
   element: LayoutElement;
 }
 
@@ -146,6 +164,7 @@ export interface SceneSlideData {
   mode: "scene";
   background?: SceneBackgroundSpec;
   guides?: SceneGuides;
+  presets?: Record<string, ScenePreset>;
   sourceSize?: SceneSize;
   fit?: SceneFitMode;
   align?: SceneAlign;

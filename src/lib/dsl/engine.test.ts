@@ -346,6 +346,56 @@ children:
     });
   });
 
+  it("preserves scene presets and deep-merges slide-level preset overrides", () => {
+    const def = makeDef({
+      rawBody: `
+mode: scene
+presets:
+  card:
+    borderRadius: 16
+    frame: { w: 240 }
+    style:
+      fill: "#1f2a44"
+      strokeWidth: 2
+children:
+  - kind: shape
+    id: panel
+    preset: card
+    frame: { x: 40, y: 40, h: 120 }
+    shape: rect
+    style:
+      fill: "#223355"
+`,
+    });
+
+    const result = expandDslTemplate(
+      {
+        template: "test",
+        presets: {
+          card: {
+            borderRadius: 24,
+            style: { strokeWidth: 4 },
+          },
+        },
+      },
+      def,
+    ) as { mode: string; presets: Record<string, unknown>; children: Record<string, unknown>[] };
+
+    expect(result.mode).toBe("scene");
+    expect(result.presets.card).toMatchObject({
+      borderRadius: 24,
+      frame: { w: 240 },
+      style: {
+        fill: "#1f2a44",
+        strokeWidth: 4,
+      },
+    });
+    expect(result.children[0]).toMatchObject({
+      kind: "shape",
+      preset: "card",
+    });
+  });
+
   it("lets slide data override scene background and viewport fields", () => {
     const def = makeDef({
       rawBody: `

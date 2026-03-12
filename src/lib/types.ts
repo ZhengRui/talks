@@ -5,12 +5,13 @@ import type {
   SceneFitMode,
   SceneGuides,
   SceneNode,
+  ScenePreset,
   SceneSize,
 } from "./scene/types";
 
 // Re-export for convenience
 export type { SlideComponent };
-export type { SceneAlign, SceneBackgroundSpec, SceneFitMode, SceneGuides, SceneNode, SceneSize };
+export type { SceneAlign, SceneBackgroundSpec, SceneFitMode, SceneGuides, SceneNode, ScenePreset, SceneSize };
 
 // Component slide (root component tree)
 export interface ComponentSlideData {
@@ -25,6 +26,7 @@ export interface SceneSlideData {
   children: SceneNode[];
   background?: SceneBackgroundSpec;
   guides?: SceneGuides;
+  presets?: Record<string, ScenePreset>;
   sourceSize?: SceneSize;
   fit?: SceneFitMode;
   align?: SceneAlign;

@@ -858,4 +858,71 @@ children:
     expect(layout.elements.some((element) => element.id === "panel")).toBe(true);
     expect(layout.elements.some((element) => element.id === "title")).toBe(true);
   });
+
+  it("scene templates support Nunjucks macros and scene presets", () => {
+    const def = makeInlineTemplate({
+      params: { title: { type: "string", required: true } },
+      rawBody: `
+mode: scene
+sourceSize: { w: 640, h: 360 }
+fit: contain
+align: center
+background:
+  type: solid
+  color: "#0f1728"
+presets:
+  statCard:
+    borderRadius: 18
+    style:
+      fill: "#1f2a44"
+  statLabel:
+    style:
+      fontFamily: "heading"
+      fontSize: 16
+      fontWeight: 700
+      color: "#ffffff"
+      lineHeight: 1.1
+children:
+{% macro stat(id, x, label) %}
+  - kind: shape
+    id: "{{ id }}-card"
+    preset: statCard
+    frame: { x: {{ x }}, y: 140, w: 160, h: 88 }
+    shape: rect
+  - kind: text
+    id: "{{ id }}-label"
+    preset: statLabel
+    frame: { x: {{ x + 20 }}, y: 172, w: 120 }
+    text: "{{ label }}"
+    style:
+      fontSize: 18
+{% endmacro %}
+{{ stat("left", 48, title) }}
+{{ stat("right", 248, "Second") }}
+`,
+    });
+
+    const slide = expandDslTemplate({ template: "inline-test", title: "Scene Macro" }, def);
+    expect(slide).toMatchObject({ mode: "scene" });
+
+    const layout = layoutSlide(slide, "modern", "/img");
+    const elements = allLayoutElements(layout.elements);
+    const leftCard = elements.find((element) => element.id === "left-card");
+    const leftLabel = elements.find((element) => element.id === "left-label");
+    const rightCard = elements.find((element) => element.id === "right-card");
+
+    expect(leftCard).toMatchObject({
+      kind: "shape",
+      borderRadius: 54,
+      style: { fill: "#1f2a44" },
+    });
+    expect(rightCard).toMatchObject({
+      kind: "shape",
+      borderRadius: 54,
+    });
+    expect(leftLabel).toMatchObject({
+      kind: "text",
+      text: "Scene Macro",
+    });
+  });
 });

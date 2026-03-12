@@ -180,7 +180,7 @@ function compileIrNode(node: SceneIrNode, parent: Rect, ctx: CompileContext): La
         w: sourceRect.w,
         h: sourceRect.h,
       };
-  return fitLayoutElementToRect(node.element, rect);
+  return applyNodeBase(fitLayoutElementToRect(node.element, rect), node);
 }
 
 function setElementRect<T extends LayoutElement>(element: T, rect: Rect): T {
