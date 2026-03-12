@@ -17,6 +17,7 @@ import type {
   SceneNode,
   ScenePadding,
   SceneRowLayout,
+  SceneReferenceValue,
   SceneShapeNode,
   SceneStackLayout,
   SceneTextNode,
@@ -25,6 +26,7 @@ import type {
 
 interface CompileContext {
   guides?: SceneGuides;
+  anchors: Map<string, Rect>;
 }
 
 interface SizeHint {
@@ -53,16 +55,84 @@ function resolveGuide(value: string, guides: SceneGuides | undefined): number | 
     }
     return resolved;
   }
-  if (value.startsWith("@")) {
-    throw new Error(`[scene] Invalid guide reference "${value}"`);
-  }
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : undefined;
 }
 
-function resolveValue(value: SceneValue | undefined, guides: SceneGuides | undefined): number | undefined {
+type SceneAnchorKey =
+  | "left"
+  | "right"
+  | "centerX"
+  | "x"
+  | "w"
+  | "width"
+  | "top"
+  | "bottom"
+  | "centerY"
+  | "y"
+  | "h"
+  | "height";
+
+function resolveAnchorValue(rect: Rect, anchor: SceneAnchorKey): number {
+  switch (anchor) {
+    case "left":
+    case "x":
+      return rect.x;
+    case "right":
+      return rect.x + rect.w;
+    case "centerX":
+      return rect.x + rect.w / 2;
+    case "w":
+    case "width":
+      return rect.w;
+    case "top":
+    case "y":
+      return rect.y;
+    case "bottom":
+      return rect.y + rect.h;
+    case "centerY":
+      return rect.y + rect.h / 2;
+    case "h":
+    case "height":
+      return rect.h;
+  }
+}
+
+function resolveAnchorReference(value: string, ctx: CompileContext): number | undefined {
+  const match = value.match(/^@([A-Za-z0-9_-]+)\.(left|right|centerX|x|w|width|top|bottom|centerY|y|h|height)$/);
+  if (!match) return undefined;
+
+  const [, nodeId, anchor] = match;
+  const rect = ctx.anchors.get(nodeId);
+  if (!rect) {
+    throw new Error(
+      `[scene] Unknown anchor reference "${value}". Anchor refs can only target previously compiled nodes in the same container.`,
+    );
+  }
+  return resolveAnchorValue(rect, anchor as SceneAnchorKey);
+}
+
+function resolveReferenceValue(value: string, ctx: CompileContext): number | undefined {
+  const guide = resolveGuide(value, ctx.guides);
+  if (guide !== undefined) return guide;
+  const anchor = resolveAnchorReference(value, ctx);
+  if (anchor !== undefined) return anchor;
+  if (value.startsWith("@")) {
+    throw new Error(`[scene] Invalid guide or anchor reference "${value}"`);
+  }
+  return undefined;
+}
+
+function resolveSceneReference(ref: SceneReferenceValue, ctx: CompileContext): number | undefined {
+  const base = resolveReferenceValue(ref.ref, ctx);
+  if (base === undefined) return undefined;
+  return base + (ref.offset ?? 0);
+}
+
+function resolveValue(value: SceneValue | undefined, ctx: CompileContext): number | undefined {
   if (typeof value === "number") return value;
-  if (typeof value === "string") return resolveGuide(value, guides);
+  if (typeof value === "string") return resolveReferenceValue(value, ctx);
+  if (value && typeof value === "object") return resolveSceneReference(value, ctx);
   return undefined;
 }
 
@@ -77,17 +147,17 @@ function hasExplicitY(frame?: FrameSpec): boolean {
 function resolveFrame(
   frame: FrameSpec | undefined,
   parent: Rect,
-  guides: SceneGuides | undefined,
+  ctx: CompileContext,
   hint: SizeHint = {},
 ): Rect {
-  const left = resolveValue(frame?.left ?? frame?.x, guides);
-  const top = resolveValue(frame?.top ?? frame?.y, guides);
-  const right = resolveValue(frame?.right, guides);
-  const bottom = resolveValue(frame?.bottom, guides);
-  let w = resolveValue(frame?.w, guides);
-  let h = resolveValue(frame?.h, guides);
-  const centerX = resolveValue(frame?.centerX, guides);
-  const centerY = resolveValue(frame?.centerY, guides);
+  const left = resolveValue(frame?.left ?? frame?.x, ctx);
+  const top = resolveValue(frame?.top ?? frame?.y, ctx);
+  const right = resolveValue(frame?.right, ctx);
+  const bottom = resolveValue(frame?.bottom, ctx);
+  let w = resolveValue(frame?.w, ctx);
+  let h = resolveValue(frame?.h, ctx);
+  const centerX = resolveValue(frame?.centerX, ctx);
+  const centerY = resolveValue(frame?.centerY, ctx);
 
   if (w === undefined) {
     if (left !== undefined && right !== undefined) w = parent.w - left - right;
@@ -116,6 +186,15 @@ function resolveFrame(
   return { x, y, w, h };
 }
 
+function registerAnchorRect(ctx: CompileContext, element: LayoutElement, parent: Rect): void {
+  ctx.anchors.set(element.id, {
+    x: element.rect.x - parent.x,
+    y: element.rect.y - parent.y,
+    w: element.rect.w,
+    h: element.rect.h,
+  });
+}
+
 function applyNodeBase<T extends LayoutElement>(element: T, node: SceneNode): T {
   return {
     ...element,
@@ -133,10 +212,10 @@ function applyNodeBase<T extends LayoutElement>(element: T, node: SceneNode): T 
 }
 
 function compileTextNode(node: SceneTextNode, parent: Rect, ctx: CompileContext): TextElement {
-  const widthHint = resolveValue(node.frame?.w, ctx.guides)
+  const widthHint = resolveValue(node.frame?.w, ctx)
     ?? (() => {
-      const left = resolveValue(node.frame?.left ?? node.frame?.x, ctx.guides);
-      const right = resolveValue(node.frame?.right, ctx.guides);
+      const left = resolveValue(node.frame?.left ?? node.frame?.x, ctx);
+      const right = resolveValue(node.frame?.right, ctx);
       if (left !== undefined && right !== undefined) return parent.w - left - right;
       return parent.w;
     })();
@@ -147,7 +226,7 @@ function compileTextNode(node: SceneTextNode, parent: Rect, ctx: CompileContext)
     widthHint,
     node.style.fontWeight,
   );
-  const rect = resolveFrame(node.frame, parent, ctx.guides, { w: widthHint, h: heightHint });
+  const rect = resolveFrame(node.frame, parent, ctx, { w: widthHint, h: heightHint });
 
   return applyNodeBase<TextElement>({
     kind: "text",
@@ -159,7 +238,7 @@ function compileTextNode(node: SceneTextNode, parent: Rect, ctx: CompileContext)
 }
 
 function compileShapeNode(node: SceneShapeNode, parent: Rect, ctx: CompileContext): ShapeElement {
-  const rect = resolveFrame(node.frame, parent, ctx.guides);
+  const rect = resolveFrame(node.frame, parent, ctx);
   return applyNodeBase<ShapeElement>({
     kind: "shape",
     id: node.id,
@@ -170,7 +249,7 @@ function compileShapeNode(node: SceneShapeNode, parent: Rect, ctx: CompileContex
 }
 
 function compileImageNode(node: SceneImageNode, parent: Rect, ctx: CompileContext): ImageElement {
-  const rect = resolveFrame(node.frame, parent, ctx.guides);
+  const rect = resolveFrame(node.frame, parent, ctx);
   return applyNodeBase<ImageElement>({
     kind: "image",
     id: node.id,
@@ -184,7 +263,7 @@ function compileImageNode(node: SceneImageNode, parent: Rect, ctx: CompileContex
 function compileIrNode(node: SceneIrNode, parent: Rect, ctx: CompileContext): LayoutElement {
   const sourceRect = node.element.rect;
   const rect = node.frame
-    ? resolveFrame(node.frame, parent, ctx.guides, { w: sourceRect.w, h: sourceRect.h })
+    ? resolveFrame(node.frame, parent, ctx, { w: sourceRect.w, h: sourceRect.h })
     : {
         x: parent.x + sourceRect.x,
         y: parent.y + sourceRect.y,
@@ -245,7 +324,8 @@ function compileStackChildren(children: SceneNode[], parent: Rect, ctx: CompileC
   };
 
   let cursorY = inner.y;
-  return children.map((child) => {
+  const elements: LayoutElement[] = [];
+  for (const child of children) {
     let compiled = compileSceneNode(child, { x: 0, y: 0, w: inner.w, h: inner.h }, ctx);
     let rect = { ...compiled.rect };
 
@@ -268,8 +348,10 @@ function compileStackChildren(children: SceneNode[], parent: Rect, ctx: CompileC
 
     compiled = setElementRect(compiled, rect);
     cursorY = rect.y + rect.h + gap;
-    return compiled;
-  });
+    registerAnchorRect(ctx, compiled, parent);
+    elements.push(compiled);
+  }
+  return elements;
 }
 
 function compileRowChildren(children: SceneNode[], parent: Rect, ctx: CompileContext, layout: SceneRowLayout): LayoutElement[] {
@@ -290,7 +372,8 @@ function compileRowChildren(children: SceneNode[], parent: Rect, ctx: CompileCon
   const autoTrack = autoCount > 0 ? (inner.w - totalExplicit - gap * (children.length - 1)) / autoCount : 0;
 
   let cursorX = inner.x;
-  return children.map((child, i) => {
+  const elements: LayoutElement[] = [];
+  for (const [i, child] of children.entries()) {
     const trackW = tracks[i] ?? autoTrack;
     let compiled = compileSceneNode(child, { x: 0, y: 0, w: trackW, h: inner.h }, ctx);
     let rect = { ...compiled.rect };
@@ -317,21 +400,24 @@ function compileRowChildren(children: SceneNode[], parent: Rect, ctx: CompileCon
 
     compiled = setElementRect(compiled, rect);
     cursorX += trackW + gap;
-    return compiled;
-  });
+    registerAnchorRect(ctx, compiled, parent);
+    elements.push(compiled);
+  }
+  return elements;
 }
 
 function compileGroupNode(node: SceneGroupNode, parent: Rect, ctx: CompileContext): GroupElement {
   const hint = !node.frame ? { w: parent.w, h: parent.h } : {};
-  const rect = resolveFrame(node.frame, parent, ctx.guides, hint);
+  const rect = resolveFrame(node.frame, parent, ctx, hint);
+  const groupCtx: CompileContext = { guides: ctx.guides, anchors: new Map() };
 
   let children: LayoutElement[];
   if (!node.layout) {
-    children = node.children.map((child) => compileSceneNode(child, { x: 0, y: 0, w: rect.w, h: rect.h }, ctx));
+    children = compileSceneChildren(node.children, { x: 0, y: 0, w: rect.w, h: rect.h }, ctx.guides, groupCtx);
   } else if (node.layout.type === "stack") {
-    children = compileStackChildren(node.children, { x: 0, y: 0, w: rect.w, h: rect.h }, ctx, node.layout);
+    children = compileStackChildren(node.children, { x: 0, y: 0, w: rect.w, h: rect.h }, groupCtx, node.layout);
   } else {
-    children = compileRowChildren(node.children, { x: 0, y: 0, w: rect.w, h: rect.h }, ctx, node.layout);
+    children = compileRowChildren(node.children, { x: 0, y: 0, w: rect.w, h: rect.h }, groupCtx, node.layout);
   }
 
   return applyNodeBase<GroupElement>({
@@ -363,7 +449,13 @@ export function compileSceneChildren(
   children: SceneNode[],
   parent: Rect,
   guides?: SceneGuides,
+  ctx: CompileContext = { guides, anchors: new Map() },
 ): LayoutElement[] {
-  const ctx: CompileContext = { guides };
-  return children.map((child) => compileSceneNode(child, parent, ctx));
+  const elements: LayoutElement[] = [];
+  for (const child of children) {
+    const compiled = compileSceneNode(child, parent, ctx);
+    registerAnchorRect(ctx, compiled, parent);
+    elements.push(compiled);
+  }
+  return elements;
 }

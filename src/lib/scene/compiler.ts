@@ -25,6 +25,7 @@ import type {
   SceneIrNode,
   SceneNode,
   ScenePadding,
+  SceneReferenceValue,
   SceneRowLayout,
   SceneSize,
   SceneSlideData,
@@ -130,8 +131,14 @@ function computeSceneViewport(
 }
 
 function scaleSceneValue(value: SceneValue | undefined, scale: number): SceneValue | undefined {
-  if (typeof value !== "number") return value;
-  return value * scale;
+  if (typeof value === "number") return value * scale;
+  if (value && typeof value === "object") {
+    return {
+      ...value,
+      ...(value.offset != null ? { offset: value.offset * scale } : {}),
+    } satisfies SceneReferenceValue;
+  }
+  return value;
 }
 
 function scaleFrame(frame: FrameSpec | undefined, viewport: SceneViewport): FrameSpec | undefined {

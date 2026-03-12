@@ -286,6 +286,169 @@ describe("compileSceneSlide", () => {
     );
   });
 
+  it("supports anchoring nodes to previously compiled siblings", () => {
+    const slide: SceneSlideData = {
+      mode: "scene",
+      children: [
+        {
+          kind: "shape",
+          id: "panel",
+          frame: { x: 120, y: 80, w: 300, h: 100 },
+          shape: "rect",
+          style: { fill: "#223344" },
+        },
+        {
+          kind: "shape",
+          id: "badge",
+          frame: {
+            centerX: "@panel.centerX",
+            top: { ref: "@panel.bottom", offset: 20 },
+            w: 60,
+            h: 40,
+          },
+          shape: "rect",
+          style: { fill: "#ff6b35" },
+        },
+      ],
+    };
+
+    const result = compileSceneSlide(slide, resolveTheme("modern"), "/scene");
+    const panel = result.elements[0];
+    const badge = result.elements[1];
+
+    expect(panel.kind).toBe("shape");
+    expect(badge.kind).toBe("shape");
+    if (panel.kind === "shape" && badge.kind === "shape") {
+      expect(badge.rect.x).toBe(240);
+      expect(badge.rect.y).toBe(200);
+      expect(badge.rect.w).toBe(60);
+      expect(badge.rect.h).toBe(40);
+    }
+  });
+
+  it("scales anchor offsets with source-sized scenes", () => {
+    const slide: SceneSlideData = {
+      mode: "scene",
+      sourceSize: { w: 1000, h: 500 },
+      fit: "contain",
+      align: "center",
+      children: [
+        {
+          kind: "shape",
+          id: "panel",
+          frame: { x: 100, y: 50, w: 200, h: 100 },
+          shape: "rect",
+          style: { fill: "#223344" },
+        },
+        {
+          kind: "shape",
+          id: "badge",
+          frame: {
+            x: { ref: "@panel.right", offset: 20 },
+            y: { ref: "@panel.bottom", offset: 10 },
+            w: 50,
+            h: 30,
+          },
+          shape: "rect",
+          style: { fill: "#ff6b35" },
+        },
+      ],
+    };
+
+    const result = compileSceneSlide(slide, resolveTheme("modern"), "/scene");
+    const panel = result.elements[0];
+    const badge = result.elements[1];
+
+    expect(panel.kind).toBe("shape");
+    expect(badge.kind).toBe("shape");
+    if (panel.kind === "shape" && badge.kind === "shape") {
+      expect(panel.rect.x).toBe(192);
+      expect(panel.rect.y).toBe(156);
+      expect(panel.rect.w).toBe(384);
+      expect(panel.rect.h).toBe(192);
+      expect(badge.rect.x).toBeCloseTo(614.4);
+      expect(badge.rect.y).toBeCloseTo(367.2);
+      expect(badge.rect.w).toBe(96);
+      expect(badge.rect.h).toBeCloseTo(57.6);
+    }
+  });
+
+  it("resolves anchors within overlay groups using local container coordinates", () => {
+    const slide: SceneSlideData = {
+      mode: "scene",
+      children: [
+        {
+          kind: "group",
+          id: "cluster",
+          frame: { x: 100, y: 120, w: 320, h: 180 },
+          children: [
+            {
+              kind: "shape",
+              id: "card",
+              frame: { x: 20, y: 30, w: 120, h: 60 },
+              shape: "rect",
+              style: { fill: "#223344" },
+            },
+            {
+              kind: "shape",
+              id: "rule",
+              frame: {
+                x: "@card.left",
+                y: { ref: "@card.bottom", offset: 12 },
+                w: "@card.width",
+                h: 4,
+              },
+              shape: "rect",
+              style: { fill: "#ff6b35" },
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = compileSceneSlide(slide, resolveTheme("modern"), "/scene");
+    const cluster = result.elements[0];
+
+    expect(cluster.kind).toBe("group");
+    if (cluster.kind === "group") {
+      expect(cluster.children[1]).toMatchObject({
+        kind: "shape",
+        rect: { x: 20, y: 102, w: 120, h: 4 },
+      });
+    }
+  });
+
+  it("throws when an anchor references a node that has not been compiled yet", () => {
+    const slide: SceneSlideData = {
+      mode: "scene",
+      children: [
+        {
+          kind: "shape",
+          id: "badge",
+          frame: {
+            x: "@panel.right",
+            y: 0,
+            w: 60,
+            h: 40,
+          },
+          shape: "rect",
+          style: { fill: "#ff6b35" },
+        },
+        {
+          kind: "shape",
+          id: "panel",
+          frame: { x: 120, y: 80, w: 300, h: 100 },
+          shape: "rect",
+          style: { fill: "#223344" },
+        },
+      ],
+    };
+
+    expect(() => compileSceneSlide(slide, resolveTheme("modern"), "/scene")).toThrow(
+      /Unknown anchor reference "@panel.right"/,
+    );
+  });
+
   it("scales and centers source-sized scenes into the slide canvas", () => {
     const slide: SceneSlideData = {
       mode: "scene",

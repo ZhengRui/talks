@@ -95,11 +95,6 @@ That is a better migration tool than rushing to add scene-native `table`, `video
 
 Many items from the original v9 proposal are still unimplemented:
 
-- low-level escape hatch
-- scene-template DSL output
-- Nunjucks macros / presets for scene authoring
-- diagnostics
-- anchors
 - `grid`
 
 This is fine.
@@ -139,6 +134,11 @@ Priority order:
 3. add macros / presets to reduce repetition
 4. add diagnostics
 5. add anchors and `grid` only if repeated real slides need them
+
+Status in this branch:
+
+- done: 1, 2, 3, and focused versions of 4 and 5
+- remaining likely next step: `grid`, or additional scene shorthand if authoring still feels too verbose
 
 This order matters.
 

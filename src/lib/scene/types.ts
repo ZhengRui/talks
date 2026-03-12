@@ -9,7 +9,12 @@ import type {
   TransformDef,
 } from "@/lib/layout/types";
 
-export type SceneValue = number | string;
+export interface SceneReferenceValue {
+  ref: string;
+  offset?: number;
+}
+
+export type SceneValue = number | string | SceneReferenceValue;
 
 export interface FrameSpec {
   x?: SceneValue;

@@ -150,6 +150,11 @@ interface SceneNodeBase {
   transform?: TransformDef;
   cssStyle?: Record<string, string>;
 }
+
+interface SceneReferenceValue {
+  ref: string;
+  offset?: number;
+}
 ```
 
 The prototype does **not** try to mirror every IR element kind yet. The recommended direction is:
@@ -166,16 +171,16 @@ Instead of forcing `rect` early, authoring should allow partial geometry constra
 
 ```typescript
 interface FrameSpec {
-  x?: number;
-  y?: number;
-  w?: number;
-  h?: number;
-  left?: number;
-  top?: number;
-  right?: number;
-  bottom?: number;
-  centerX?: number;
-  centerY?: number;
+  x?: number | string | SceneReferenceValue;
+  y?: number | string | SceneReferenceValue;
+  w?: number | string | SceneReferenceValue;
+  h?: number | string | SceneReferenceValue;
+  left?: number | string | SceneReferenceValue;
+  top?: number | string | SceneReferenceValue;
+  right?: number | string | SceneReferenceValue;
+  bottom?: number | string | SceneReferenceValue;
+  centerX?: number | string | SceneReferenceValue;
+  centerY?: number | string | SceneReferenceValue;
 }
 ```
 
@@ -267,8 +272,8 @@ Recommended primitives:
 
 Prototype status:
 
-- implemented: absolute / overlay, `stack`, `row`
-- not yet implemented: `grid`, `anchor`, `distribute`, dedicated diagnostics
+- implemented: absolute / overlay, `stack`, `row`, anchor refs, dedicated diagnostics for guides / ids
+- not yet implemented: `grid`, `distribute`
 - partially covered already:
   - slide-level `fit` via `sourceSize` + `fit` + `align`
   - image `cover` / `contain` via `objectFit`
@@ -318,26 +323,26 @@ layout:
 
 ### `anchor`
 
-This is more valuable for slide work than a richer flex model.
+Anchors are now implemented as frame references, not as a separate node-level object.
 
 Examples:
 
-- place divider 24px below title
-- align body left edge to title left edge
-- center badge inside panel
-- pin stats block to panel bottom
+- `centerX: "@panel.centerX"`
+- `top: { ref: "@title.bottom", offset: 24 }`
+- `w: "@card.width"`
 
-Illustrative shape:
+Current rules:
 
-```typescript
-interface AnchorSpec {
-  to: "slide" | string;
-  x?: "left" | "center" | "right";
-  y?: "top" | "center" | "bottom";
-  offsetX?: number;
-  offsetY?: number;
-}
-```
+- anchors can target previously compiled nodes in the same container
+- direct string refs work for zero-offset cases
+- object refs with `offset` are used when spacing needs to scale with `sourceSize`
+- guides remain `@x.*` / `@y.*`; node anchors are `@nodeId.edge`
+
+Supported node anchor keys:
+
+- `left`, `right`, `centerX`, `x`
+- `top`, `bottom`, `centerY`, `y`
+- `width`, `w`, `height`, `h`
 
 The missing primitives are still useful backlog, but they are no longer blockers for the core architectural question. The prototype already demonstrates that screenshot-first replication works better without routing through components first.
 
@@ -547,8 +552,13 @@ Immediate priorities:
 1. add a low-level scene escape hatch for raw IR elements
 2. let templates emit scene slides directly
 3. add scene macros / presets to reduce verbosity
-4. add diagnostics
-5. add anchors and `grid` only if real slides need them
+4. add diagnostics and anchors
+5. add `grid` only if real slides need it
+
+Status in this branch:
+
+- done: 1, 2, 3, and a focused version of 4
+- next likely step: `grid`, or more authoring shorthand if repeated slide work still feels too verbose
 
 This phase matters more than adding a long tail of geometry primitives. The main gap after the prototype is authoring ergonomics, not proof of concept.
 
