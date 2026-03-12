@@ -40,10 +40,21 @@ function resolvePadding(padding?: ScenePadding): { top: number; right: number; b
 
 function resolveGuide(value: string, guides: SceneGuides | undefined): number | undefined {
   if (value.startsWith("@x.")) {
-    return guides?.x?.[value.slice(3)];
+    const resolved = guides?.x?.[value.slice(3)];
+    if (resolved === undefined) {
+      throw new Error(`[scene] Unknown x guide "${value}"`);
+    }
+    return resolved;
   }
   if (value.startsWith("@y.")) {
-    return guides?.y?.[value.slice(3)];
+    const resolved = guides?.y?.[value.slice(3)];
+    if (resolved === undefined) {
+      throw new Error(`[scene] Unknown y guide "${value}"`);
+    }
+    return resolved;
+  }
+  if (value.startsWith("@")) {
+    throw new Error(`[scene] Invalid guide reference "${value}"`);
   }
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : undefined;

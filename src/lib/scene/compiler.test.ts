@@ -222,6 +222,70 @@ describe("compileSceneSlide", () => {
     );
   });
 
+  it("throws when a scene node references an unknown guide", () => {
+    const slide: SceneSlideData = {
+      mode: "scene",
+      guides: {
+        x: { content: 120 },
+      },
+      children: [
+        {
+          kind: "text",
+          id: "title",
+          frame: { left: "@x.missing", top: 80, w: 320 },
+          text: "Missing guide",
+          style: {
+            fontFamily: "heading",
+            fontSize: 40,
+            fontWeight: 700,
+            lineHeight: 1.1,
+          },
+        },
+      ],
+    };
+
+    expect(() => compileSceneSlide(slide, resolveTheme("modern"), "/scene")).toThrow(
+      /Unknown x guide "@x.missing"/,
+    );
+  });
+
+  it("throws when scene nodes reuse the same id", () => {
+    const slide: SceneSlideData = {
+      mode: "scene",
+      children: [
+        {
+          kind: "shape",
+          id: "duplicate",
+          frame: { x: 0, y: 0, w: 100, h: 100 },
+          shape: "rect",
+          style: { fill: "#111111" },
+        },
+        {
+          kind: "group",
+          id: "container",
+          frame: { x: 120, y: 0, w: 200, h: 120 },
+          children: [
+            {
+              kind: "text",
+              id: "duplicate",
+              frame: { x: 0, y: 0, w: 100 },
+              text: "Repeated",
+              style: {
+                fontFamily: "body",
+                fontSize: 20,
+                lineHeight: 1.2,
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(() => compileSceneSlide(slide, resolveTheme("modern"), "/scene")).toThrow(
+      /Duplicate node id "duplicate"/,
+    );
+  });
+
   it("scales and centers source-sized scenes into the slide canvas", () => {
     const slide: SceneSlideData = {
       mode: "scene",

@@ -450,11 +450,29 @@ function scaleSceneNode(node: SceneNode, viewport: SceneViewport): SceneNode {
   }
 }
 
+function validateSceneNodeIds(children: SceneNode[]): void {
+  const seen = new Set<string>();
+
+  function visit(node: SceneNode): void {
+    if (seen.has(node.id)) {
+      throw new Error(`[scene] Duplicate node id "${node.id}"`);
+    }
+    seen.add(node.id);
+
+    if (node.kind === "group") {
+      node.children.forEach(visit);
+    }
+  }
+
+  children.forEach(visit);
+}
+
 export function compileSceneSlide(
   slide: SceneSlideData,
   theme: ResolvedTheme,
   imageBase: string,
 ): LayoutSlide {
+  validateSceneNodeIds(slide.children);
   const normalized = normalizeSceneSlide(slide, theme, imageBase);
   const viewport = computeSceneViewport(normalized.sourceSize, normalized.fit, normalized.align);
   const children = normalized.children.map((child) => scaleSceneNode(child, viewport));
