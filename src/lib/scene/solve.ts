@@ -13,6 +13,7 @@ import type {
   SceneGroupNode,
   SceneGuides,
   SceneImageNode,
+  SceneIrNode,
   SceneNode,
   ScenePadding,
   SceneRowLayout,
@@ -169,8 +170,49 @@ function compileImageNode(node: SceneImageNode, parent: Rect, ctx: CompileContex
   }, node);
 }
 
+function compileIrNode(node: SceneIrNode, parent: Rect, ctx: CompileContext): LayoutElement {
+  const sourceRect = node.element.rect;
+  const rect = node.frame
+    ? resolveFrame(node.frame, parent, ctx.guides, { w: sourceRect.w, h: sourceRect.h })
+    : {
+        x: parent.x + sourceRect.x,
+        y: parent.y + sourceRect.y,
+        w: sourceRect.w,
+        h: sourceRect.h,
+      };
+  return fitLayoutElementToRect(node.element, rect);
+}
+
 function setElementRect<T extends LayoutElement>(element: T, rect: Rect): T {
   return { ...element, rect };
+}
+
+function scaleLayoutRect(rect: Rect, scaleX: number, scaleY: number): Rect {
+  return {
+    x: rect.x * scaleX,
+    y: rect.y * scaleY,
+    w: rect.w * scaleX,
+    h: rect.h * scaleY,
+  };
+}
+
+function fitLayoutElementToRect<T extends LayoutElement>(element: T, targetRect: Rect): T {
+  const sourceRect = element.rect;
+  const scaleX = sourceRect.w !== 0 ? targetRect.w / sourceRect.w : 1;
+  const scaleY = sourceRect.h !== 0 ? targetRect.h / sourceRect.h : 1;
+
+  if (element.kind === "group") {
+    return {
+      ...element,
+      rect: targetRect,
+      children: element.children.map((child) => fitLayoutElementToRect(child, scaleLayoutRect(child.rect, scaleX, scaleY))),
+    } as T;
+  }
+
+  return {
+    ...element,
+    rect: targetRect,
+  };
 }
 
 function parseTrack(track: number | string | undefined, total: number): number | undefined {
@@ -299,6 +341,8 @@ export function compileSceneNode(node: SceneNode, parent: Rect, ctx: CompileCont
       return compileShapeNode(node, parent, ctx);
     case "image":
       return compileImageNode(node, parent, ctx);
+    case "ir":
+      return compileIrNode(node, parent, ctx);
     case "group":
       return compileGroupNode(node, parent, ctx);
   }

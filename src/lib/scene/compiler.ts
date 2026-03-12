@@ -3,9 +3,16 @@ import type {
   BorderDef,
   BoxShadow,
   ElementEffects,
+  GroupElement,
   LayoutSlide,
+  ListElement,
+  LayoutElement,
   ResolvedTheme,
   ShapeStyle,
+  TableElement,
+  TextElement,
+  TextRun,
+  TextStyle,
 } from "@/lib/layout/types";
 import { compileSceneChildren } from "./solve";
 import { normalizeSceneSlide } from "./normalize";
@@ -15,6 +22,7 @@ import type {
   SceneFitMode,
   SceneGuides,
   SceneGroupNode,
+  SceneIrNode,
   SceneNode,
   ScenePadding,
   SceneRowLayout,
@@ -183,6 +191,168 @@ function scaleShapeStyle(style: ShapeStyle | undefined, viewport: SceneViewport)
   };
 }
 
+function scaleTextStyle(style: TextStyle, viewport: SceneViewport): TextStyle {
+  return {
+    ...style,
+    fontSize: style.fontSize * viewport.visualScale,
+    ...(style.letterSpacing != null ? { letterSpacing: style.letterSpacing * viewport.visualScale } : {}),
+  };
+}
+
+function scaleRichTextRuns(text: TextElement["text"], viewport: SceneViewport): TextElement["text"] {
+  if (typeof text === "string") return text;
+  return text.map((run: TextRun) => ({
+    ...run,
+    ...(run.fontSize != null ? { fontSize: run.fontSize * viewport.visualScale } : {}),
+    ...(run.letterSpacing != null ? { letterSpacing: run.letterSpacing * viewport.visualScale } : {}),
+  }));
+}
+
+function scaleRect(rect: LayoutElement["rect"], scaleX: number, scaleY: number): LayoutElement["rect"] {
+  return {
+    x: rect.x * scaleX,
+    y: rect.y * scaleY,
+    w: rect.w * scaleX,
+    h: rect.h * scaleY,
+  };
+}
+
+function scaleIrLayoutMode(
+  layout: GroupElement["layout"] | undefined,
+  scaleX: number,
+  scaleY: number,
+): GroupElement["layout"] | undefined {
+  if (!layout) return undefined;
+  if (layout.type === "flex") {
+    return {
+      ...layout,
+      ...(layout.gap != null ? { gap: layout.direction === "row" ? layout.gap * scaleX : layout.gap * scaleY } : {}),
+      ...(layout.padding != null ? {
+        padding: typeof layout.padding === "number"
+          ? layout.padding * Math.min(scaleX, scaleY)
+          : [
+              layout.padding[0] * scaleY,
+              layout.padding[1] * scaleX,
+              layout.padding[2] * scaleY,
+              layout.padding[3] * scaleX,
+            ],
+      } : {}),
+    };
+  }
+
+  return {
+    ...layout,
+    ...(layout.gap != null ? { gap: layout.gap * Math.min(scaleX, scaleY) } : {}),
+    ...(layout.rowGap != null ? { rowGap: layout.rowGap * scaleY } : {}),
+    ...(layout.columnGap != null ? { columnGap: layout.columnGap * scaleX } : {}),
+    ...(layout.padding != null ? {
+      padding: typeof layout.padding === "number"
+        ? layout.padding * Math.min(scaleX, scaleY)
+        : [
+            layout.padding[0] * scaleY,
+            layout.padding[1] * scaleX,
+            layout.padding[2] * scaleY,
+            layout.padding[3] * scaleX,
+          ],
+    } : {}),
+  };
+}
+
+function scaleLayoutElement(
+  element: LayoutElement,
+  scaleX: number,
+  scaleY: number,
+): LayoutElement {
+  const visualScale = Math.min(scaleX, scaleY);
+  const base = {
+    ...element,
+    rect: scaleRect(element.rect, scaleX, scaleY),
+    ...(element.borderRadius != null ? { borderRadius: element.borderRadius * visualScale } : {}),
+    ...(element.shadow ? {
+      shadow: {
+        ...element.shadow,
+        offsetX: element.shadow.offsetX * scaleX,
+        offsetY: element.shadow.offsetY * scaleY,
+        blur: element.shadow.blur * visualScale,
+        ...(element.shadow.spread != null ? { spread: element.shadow.spread * visualScale } : {}),
+      },
+    } : {}),
+    ...(element.effects ? {
+      effects: {
+        ...(element.effects.glow ? {
+          glow: {
+            ...element.effects.glow,
+            radius: element.effects.glow.radius * visualScale,
+          },
+        } : {}),
+        ...(element.effects.softEdge != null ? { softEdge: element.effects.softEdge * visualScale } : {}),
+        ...(element.effects.blur != null ? { blur: element.effects.blur * visualScale } : {}),
+      },
+    } : {}),
+    ...(element.border ? {
+      border: {
+        ...element.border,
+        width: element.border.width * visualScale,
+      },
+    } : {}),
+  };
+
+  switch (element.kind) {
+    case "text":
+      return {
+        ...base,
+        text: scaleRichTextRuns(element.text, { x: 0, y: 0, w: 0, h: 0, scaleX, scaleY, visualScale }),
+        style: scaleTextStyle(element.style, { x: 0, y: 0, w: 0, h: 0, scaleX, scaleY, visualScale }),
+      } as TextElement;
+    case "shape":
+      return {
+        ...base,
+        style: scaleShapeStyle(element.style, { x: 0, y: 0, w: 0, h: 0, scaleX, scaleY, visualScale }) ?? element.style,
+      };
+    case "image":
+      return base;
+    case "group":
+      return {
+        ...base,
+        ...(element.style ? { style: scaleShapeStyle(element.style, { x: 0, y: 0, w: 0, h: 0, scaleX, scaleY, visualScale }) } : {}),
+        ...(element.layout ? { layout: scaleIrLayoutMode(element.layout, scaleX, scaleY) } : {}),
+        children: element.children.map((child) => scaleLayoutElement(child, scaleX, scaleY)),
+      };
+    case "code":
+      return {
+        ...base,
+        style: {
+          ...element.style,
+          fontSize: element.style.fontSize * visualScale,
+          borderRadius: element.style.borderRadius * visualScale,
+          padding: element.style.padding * visualScale,
+        },
+      };
+    case "table":
+      return {
+        ...base,
+        headerStyle: {
+          ...scaleTextStyle(element.headerStyle, { x: 0, y: 0, w: 0, h: 0, scaleX, scaleY, visualScale }),
+          background: element.headerStyle.background,
+        },
+        cellStyle: {
+          ...scaleTextStyle(element.cellStyle, { x: 0, y: 0, w: 0, h: 0, scaleX, scaleY, visualScale }),
+          background: element.cellStyle.background,
+          altBackground: element.cellStyle.altBackground,
+        },
+      } as TableElement;
+    case "list":
+      return {
+        ...base,
+        itemStyle: scaleTextStyle(element.itemStyle, { x: 0, y: 0, w: 0, h: 0, scaleX, scaleY, visualScale }),
+        ...(element.itemSpacing != null ? { itemSpacing: element.itemSpacing * scaleY } : {}),
+      } as ListElement;
+    case "video":
+    case "iframe":
+      return base;
+  }
+}
+
 function scalePadding(padding: ScenePadding | undefined, viewport: SceneViewport): ScenePadding | undefined {
   if (padding === undefined) return undefined;
   if (typeof padding === "number") return padding * viewport.visualScale;
@@ -265,6 +435,11 @@ function scaleSceneNode(node: SceneNode, viewport: SceneViewport): SceneNode {
       };
     case "image":
       return base;
+    case "ir":
+      return {
+        ...base,
+        element: scaleLayoutElement(node.element, viewport.scaleX, viewport.scaleY),
+      } satisfies SceneIrNode;
     case "group":
       return {
         ...base,

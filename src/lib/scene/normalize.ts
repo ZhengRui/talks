@@ -1,4 +1,4 @@
-import type { ResolvedTheme, TextStyle } from "@/lib/layout/types";
+import type { LayoutElement, ResolvedTheme, TextStyle } from "@/lib/layout/types";
 import { resolveThemeToken, resolveThemeTokenAny } from "@/lib/layout/components/theme-tokens";
 import type {
   SceneAlign,
@@ -7,6 +7,7 @@ import type {
   SceneGuides,
   SceneGroupNode,
   SceneImageNode,
+  SceneIrNode,
   SceneNode,
   SceneSize,
   SceneTextNode,
@@ -31,6 +32,46 @@ function prefixImageSrc(src: string, imageBase: string): string {
     return src;
   }
   return `${imageBase}/${src}`;
+}
+
+const IR_TOKEN_SKIP = new Set(["text", "id", "code", "src", "language", "shape", "kind"]);
+
+function resolveIrTokenTree<T>(value: T, theme: ResolvedTheme, key?: string): T {
+  if (key && IR_TOKEN_SKIP.has(key)) return value;
+  if (Array.isArray(value)) {
+    return value.map((item) => resolveIrTokenTree(item, theme)) as T;
+  }
+  if (typeof value === "string" && value.startsWith("theme.")) {
+    return (resolveThemeTokenAny(value, theme) ?? value) as T;
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value && typeof value === "object") {
+    const next: Record<string, unknown> = {};
+    for (const [childKey, child] of Object.entries(value)) {
+      next[childKey] = resolveIrTokenTree(child, theme, childKey);
+    }
+    return next as T;
+  }
+  return value;
+}
+
+function normalizeLayoutElement(element: LayoutElement, theme: ResolvedTheme, imageBase: string): LayoutElement {
+  const resolved = resolveIrTokenTree(element, theme) as LayoutElement;
+  if (resolved.kind === "image" && resolved.src) {
+    return {
+      ...resolved,
+      src: prefixImageSrc(resolved.src, imageBase),
+    };
+  }
+  if (resolved.kind === "group") {
+    return {
+      ...resolved,
+      children: resolved.children.map((child) => normalizeLayoutElement(child, theme, imageBase)),
+    };
+  }
+  return resolved;
 }
 
 function resolveTokenTree<T>(value: T, theme: ResolvedTheme): T {
@@ -103,6 +144,13 @@ function normalizeGroupNode(node: SceneGroupNode, theme: ResolvedTheme, imageBas
   };
 }
 
+function normalizeIrNode(node: SceneIrNode, theme: ResolvedTheme, imageBase: string): SceneIrNode {
+  return {
+    ...node,
+    element: normalizeLayoutElement(node.element, theme, imageBase),
+  };
+}
+
 export function normalizeSceneNode(
   node: SceneNode,
   theme: ResolvedTheme,
@@ -121,6 +169,8 @@ export function normalizeSceneNode(
       };
     case "image":
       return normalizeImageNode(node, theme, imageBase);
+    case "ir":
+      return normalizeIrNode(node, theme, imageBase);
     case "group":
       return normalizeGroupNode(node, theme, imageBase);
   }

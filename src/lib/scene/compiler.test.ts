@@ -185,6 +185,93 @@ describe("compileSceneSlide", () => {
       expect(panel.border?.width).toBe(1.92);
     }
   });
+
+  it("supports low-level IR elements with source-space scaling", () => {
+    const theme = resolveTheme("modern");
+    const slide: SceneSlideData = {
+      mode: "scene",
+      sourceSize: { w: 1000, h: 500 },
+      fit: "contain",
+      align: "center",
+      children: [
+        {
+          kind: "ir",
+          id: "legacy-code-node",
+          element: {
+            kind: "code",
+            id: "legacy-code",
+            rect: { x: 100, y: 50, w: 200, h: 100 },
+            code: "const answer = 42;",
+            style: {
+              fontFamily: "JetBrains Mono, monospace",
+              fontSize: 20,
+              color: "#ffffff",
+              background: "theme.bgSecondary",
+              borderRadius: 12,
+              padding: 16,
+            },
+          },
+        },
+      ],
+    };
+
+    const result = compileSceneSlide(slide, theme, "/scene");
+    const code = result.elements[0];
+
+    expect(code.kind).toBe("code");
+    if (code.kind === "code") {
+      expect(code.rect.x).toBe(192);
+      expect(code.rect.y).toBe(156);
+      expect(code.rect.w).toBe(384);
+      expect(code.rect.h).toBe(192);
+      expect(code.style.fontSize).toBe(38.4);
+      expect(code.style.padding).toBe(30.72);
+      expect(code.style.borderRadius).toBe(23.04);
+      expect(code.style.background).toBe(theme.bgSecondary);
+    }
+  });
+
+  it("fits wrapped IR groups into scene frames", () => {
+    const slide: SceneSlideData = {
+      mode: "scene",
+      children: [
+        {
+          kind: "ir",
+          id: "legacy-group-node",
+          frame: { x: 100, y: 120, w: 400, h: 200 },
+          element: {
+            kind: "group",
+            id: "legacy-group",
+            rect: { x: 0, y: 0, w: 200, h: 100 },
+            children: [
+              {
+                kind: "shape",
+                id: "legacy-box",
+                rect: { x: 10, y: 20, w: 30, h: 40 },
+                shape: "rect",
+                style: { fill: "#ff6b35" },
+              },
+            ],
+          },
+        },
+      ],
+    };
+
+    const result = compileSceneSlide(slide, resolveTheme("modern"), "/scene");
+    const group = result.elements[0];
+
+    expect(group.kind).toBe("group");
+    if (group.kind === "group") {
+      expect(group.rect.x).toBe(100);
+      expect(group.rect.y).toBe(120);
+      expect(group.rect.w).toBe(400);
+      expect(group.rect.h).toBe(200);
+      expect(group.children[0].rect.x).toBe(20);
+      expect(group.children[0].rect.y).toBe(40);
+      expect(group.children[0].rect.w).toBe(60);
+      expect(group.children[0].rect.h).toBe(80);
+    }
+  });
 });
 
 describe("layoutPresentation with scene slides", () => {

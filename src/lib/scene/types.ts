@@ -3,6 +3,7 @@ import type {
   BoxShadow,
   ElementEffects,
   EntranceDef,
+  LayoutElement,
   RichText,
   ShapeStyle,
   TransformDef,
@@ -95,6 +96,13 @@ export interface SceneImageNode extends SceneNodeBase {
   clipCircle?: boolean;
 }
 
+export interface SceneIrNode {
+  kind: "ir";
+  id: string;
+  frame?: FrameSpec;
+  element: LayoutElement;
+}
+
 export type ScenePadding = number | [number, number, number, number];
 
 export interface SceneStackLayout {
@@ -126,6 +134,7 @@ export type SceneNode =
   | SceneTextNode
   | SceneShapeNode
   | SceneImageNode
+  | SceneIrNode
   | SceneGroupNode;
 
 export type SceneBackgroundSpec =
