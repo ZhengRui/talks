@@ -3,6 +3,7 @@ import { loadPresentation, getAllSlugs } from "@/lib/loadPresentation";
 import { LayoutSlideRenderer } from "@/components/LayoutRenderer";
 import { layoutPresentation } from "@/lib/layout";
 import SlideEngine from "@/components/SlideEngine";
+import { parseInitialSlide, resolveOverlayConfig, shouldShowChrome, type OverlaySearchParams } from "@/lib/overlay";
 
 export function generateStaticParams() {
   return getAllSlugs().map((slug) => ({ slug }));
@@ -24,10 +25,13 @@ export async function generateMetadata({
 
 export default async function PresentationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<OverlaySearchParams>;
 }) {
   const { slug } = await params;
+  const resolvedSearchParams = await searchParams;
 
   let data;
   try {
@@ -38,10 +42,20 @@ export default async function PresentationPage({
 
   const imageBase = `/${slug}`;
   const layout = layoutPresentation(data.title, data.slides, data.theme, imageBase, data.author);
+  const overlay = resolveOverlayConfig(slug, resolvedSearchParams);
+  const initialSlide = parseInitialSlide(resolvedSearchParams.slide);
+  const showChrome = shouldShowChrome(resolvedSearchParams.chrome);
 
   return (
     <main className="min-h-screen h-screen">
-      <SlideEngine theme={data.theme} slideThemes={data.slides.map(s => s.theme)} slug={slug}>
+      <SlideEngine
+        theme={data.theme}
+        slideThemes={data.slides.map((s) => s.theme)}
+        slug={slug}
+        initialSlide={initialSlide}
+        overlay={overlay}
+        showChrome={showChrome}
+      >
         {layout.slides.map((slide, i) => (
           <LayoutSlideRenderer
             key={i}

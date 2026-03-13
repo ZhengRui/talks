@@ -115,6 +115,12 @@ Examples:
 - additional template-time ergonomics if scene YAML still feels too heavy
 - migration of the remaining real v8 decks
 
+The branch now has a first practical version of that tooling:
+
+- a replication workbench UI at `/workbench/replicate`
+- overlayable viewer routes through query params
+- a `slide:diff` script that captures a slide and produces rendered/diff/report artifacts
+
 The prototype already answered the important question: for screenshot replication, the scene-first path is better aligned than the component-first path.
 
 ## The Real Remaining Problem: Verbosity

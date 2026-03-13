@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import React from "react";
+import { resolveOverlayPath, type SlideOverlayConfig } from "@/lib/overlay";
 
 function NavDots({ total, current, goTo }: { total: number; current: number; goTo: (i: number) => void }) {
   const maxVisible = 32;
@@ -58,6 +59,13 @@ interface SlideEngineProps {
   theme?: string;
   slideThemes?: (string | undefined)[];
   slug?: string;
+  initialSlide?: number;
+  overlay?: SlideOverlayConfig;
+  showChrome?: boolean;
+}
+
+function clampSlideIndex(index: number, totalSlides: number): number {
+  return Math.max(0, Math.min(index, Math.max(totalSlides - 1, 0)));
 }
 
 const SlideEngine: React.FC<SlideEngineProps> = ({
@@ -65,15 +73,31 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
   theme = "modern",
   slideThemes,
   slug,
+  initialSlide = 0,
+  overlay,
+  showChrome = true,
 }) => {
-  const [currentSlide, setCurrentSlide] = useState(0);
+  const slides = React.Children.toArray(children);
+  const totalSlides = slides.length;
+
+  const [currentSlide, setCurrentSlide] = useState(() => clampSlideIndex(initialSlide, totalSlides));
   const [animKey, setAnimKey] = useState(0);
   const [exporting, setExporting] = useState(false);
   const [canvasReady, setCanvasReady] = useState(false);
+  const [overlayVisible, setOverlayVisible] = useState(Boolean(overlay));
+  const [overlayOpacity, setOverlayOpacity] = useState(overlay?.opacity ?? 0.5);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const slides = React.Children.toArray(children);
-  const totalSlides = slides.length;
+  const overlayPath = resolveOverlayPath(overlay, currentSlide);
+
+  useEffect(() => {
+    setCurrentSlide(clampSlideIndex(initialSlide, totalSlides));
+  }, [initialSlide, totalSlides]);
+
+  useEffect(() => {
+    setOverlayVisible(Boolean(overlay));
+    setOverlayOpacity(overlay?.opacity ?? 0.5);
+  }, [overlay]);
 
   const goTo = useCallback(
     (index: number) => {
@@ -112,6 +136,25 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
         case "End":
           e.preventDefault();
           goTo(totalSlides - 1);
+          break;
+        case "o":
+        case "O":
+          if (overlay) {
+            e.preventDefault();
+            setOverlayVisible((visible) => !visible);
+          }
+          break;
+        case "[":
+          if (overlay) {
+            e.preventDefault();
+            setOverlayOpacity((value) => Math.max(0, Number((value - 0.1).toFixed(2))));
+          }
+          break;
+        case "]":
+          if (overlay) {
+            e.preventDefault();
+            setOverlayOpacity((value) => Math.min(1, Number((value + 0.1).toFixed(2))));
+          }
           break;
       }
     }
@@ -199,10 +242,20 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
             className={`slide ${i === currentSlide ? "active" : "inactive"} theme-${slideThemes?.[i] ?? theme}`}
           >
             {slide}
+            {i === currentSlide && overlayVisible && overlayPath && (
+              <div className="slide-overlay-layer" aria-hidden="true">
+                <img
+                  className="slide-overlay-image"
+                  src={overlayPath}
+                  alt=""
+                  style={{ opacity: overlayOpacity }}
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>
-      {slug && (
+      {showChrome && slug && (
         <button
           className="slide-export-btn"
           disabled={exporting}
@@ -235,24 +288,33 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
           {exporting ? "Exporting..." : "Export PPTX"}
         </button>
       )}
-      <NavDots total={totalSlides} current={currentSlide} goTo={goTo} />
-      <div className="slide-counter">
+      {showChrome && <NavDots total={totalSlides} current={currentSlide} goTo={goTo} />}
+      {showChrome && overlayPath && (
+        <div className="slide-overlay-hud">
+          overlay {overlayVisible ? "on" : "off"} {Math.round(overlayOpacity * 100)}%
+        </div>
+      )}
+      {showChrome && (
+        <div className="slide-counter">
           {currentSlide + 1} / {totalSlides}
         </div>
+      )}
+      {showChrome && (
         <div
           className="slide-progress"
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
             const ratio = (e.clientX - rect.left) / rect.width;
             const target = Math.min(Math.floor(ratio * totalSlides), totalSlides - 1);
-            setCurrentSlide(target);
+            goTo(target);
           }}
         >
-        <div
-          className="slide-progress-bar"
-          style={{ width: `${((currentSlide + 1) / totalSlides) * 100}%` }}
-        />
-      </div>
+          <div
+            className="slide-progress-bar"
+            style={{ width: `${((currentSlide + 1) / totalSlides) * 100}%` }}
+          />
+        </div>
+      )}
     </div>
   );
 };

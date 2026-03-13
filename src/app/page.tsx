@@ -7,8 +7,18 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#0a0a12] text-white p-8 md:p-16">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-5xl font-bold mb-2">Presentations</h1>
-        <p className="text-gray-400 mb-12">Select a presentation to begin</p>
+        <div className="mb-12 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h1 className="text-5xl font-bold mb-2">Presentations</h1>
+            <p className="text-gray-400">Select a presentation to begin</p>
+          </div>
+          <Link
+            href="/workbench/replicate"
+            className="inline-flex items-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm font-medium text-cyan-200 transition-colors hover:bg-cyan-400/15 hover:text-cyan-100"
+          >
+            Open Replication Workbench
+          </Link>
+        </div>
         {presentations.length === 0 ? (
           <p className="text-gray-500">No presentations found.</p>
         ) : (

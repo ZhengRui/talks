@@ -115,4 +115,46 @@ describe("SlideEngine", () => {
     expect(slides[1].classList.contains("theme-elegant")).toBe(true);
     expect(slides[2].classList.contains("theme-dark-tech")).toBe(true);
   });
+
+  it("uses the provided initial slide", () => {
+    const { container } = render(
+      <SlideEngine initialSlide={1}>
+        <section>One</section>
+        <section>Two</section>
+      </SlideEngine>
+    );
+
+    const slides = container.querySelectorAll(".slide");
+    expect(slides[0].classList.contains("inactive")).toBe(true);
+    expect(slides[1].classList.contains("active")).toBe(true);
+  });
+
+  it("renders an overlay image for the active slide", () => {
+    const { container } = render(
+      <SlideEngine
+        overlay={{ mode: "single", opacity: 0.4, path: "/example-v9/refs/slide-1.png" }}
+      >
+        <section>One</section>
+      </SlideEngine>
+    );
+
+    const overlay = container.querySelector(".slide-overlay-image");
+    expect(overlay).not.toBeNull();
+    expect(overlay?.getAttribute("src")).toBe("/example-v9/refs/slide-1.png");
+    expect(overlay?.getAttribute("style")).toContain("opacity: 0.4");
+  });
+
+  it("hides chrome when showChrome is false", () => {
+    const { container } = render(
+      <SlideEngine showChrome={false} slug="example-v9">
+        <section>One</section>
+        <section>Two</section>
+      </SlideEngine>
+    );
+
+    expect(container.querySelector(".slide-nav-dots")).toBeNull();
+    expect(container.querySelector(".slide-progress")).toBeNull();
+    expect(container.querySelector(".slide-counter")).toBeNull();
+    expect(container.querySelector(".slide-export-btn")).toBeNull();
+  });
 });

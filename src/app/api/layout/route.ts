@@ -22,7 +22,12 @@ export async function GET(request: NextRequest) {
       imageBase,
       data.author,
     );
-    return NextResponse.json(layout);
+    return NextResponse.json({
+      ...layout,
+      theme: data.theme,
+      slideThemes: data.slides.map((slide) => slide.theme),
+      slug,
+    });
   } catch {
     return NextResponse.json(
       { error: `Presentation '${slug}' not found` },

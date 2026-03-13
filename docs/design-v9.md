@@ -559,6 +559,21 @@ Recommended dev tools:
 - text box overflow markers
 - export-only warning badges for web-only CSS
 
+Implemented in this branch:
+
+- a replication workbench UI at `/workbench/replicate`
+  - deck selector
+  - slide selector
+  - reference path or uploaded screenshot
+  - render / reference / overlay / diff / split modes
+- viewer-side overlay via query params:
+  - `?slide=12`
+  - `?overlay=refs/slide-12.png`
+  - `?overlayDir=refs&overlayPattern=slide-{n}.png`
+  - `?overlayOpacity=0.5`
+  - `?chrome=0`
+- `bun run slide:diff -- --slug <slug> --slide <n> --reference <png>`
+
 Without this, the system will keep relying on trial and error.
 
 ## Proposed File Structure
