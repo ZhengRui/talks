@@ -8,59 +8,93 @@ style:
   labelSize: { type: number, default: 24 }
   imageHeight: { type: number, default: 730 }
 
+{% import "scene/blocks.njk" as scene %}
+mode: scene
+presets:
+  sectionTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: center
+      lineHeight: 1.15
+  divider:
+    style:
+      fill: "theme.accent"
+  imageCard:
+    borderRadius: 18
+    style:
+      fill: "theme.bgSecondary"
+    border:
+      width: 1
+      color: "theme.border.color"
+  imageLabel:
+    style:
+      fontFamily: "body"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: center
+      lineHeight: 1.2
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: top
-    layout: { type: flex, direction: column, gap: 0 }
-    autoEntrance: { type: fade-up, stagger: 100 }
+  {% if title %}
+{{ scene.section_title("image-comparison-header", 160, 60, 1600, title, style.titleSize, 80, 16) | indent_yaml(2) }}
+  {% endif %}
+  - kind: group
+    id: image-comparison-layout
+    frame:
+      x: 160
+      y: {{ 260 if title else 180 }}
+      w: 1600
+      h: 760
+    layout:
+      type: row
+      gap: 32
+      tracks: ["50%", "50%"]
+      align: stretch
     children:
-      {% if title %}
-      - type: heading
-        text: "{{ title }}"
-        fontSize: {{ style.titleSize }}
-        textAlign: center
-      - type: divider
-        variant: gradient
-        width: 80
-        align: center
-        margin: [16, 0, 40, 0]
-      {% endif %}
-      - type: columns
-        gap: 32
-        equalHeight: true
+      - kind: group
+        id: image-comparison-before-card
+        preset: imageCard
+        entrance: { type: slide-left, delay: 200, duration: 600 }
         children:
-          - type: box
-            padding: 24
-            entranceType: slide-left
-            entranceDelay: 200
-            children:
-              - type: image
-                src: "{{ before.image }}"
-                height: {{ style.imageHeight }}
-                objectFit: cover
-              {% if before.label %}
-              - type: text
-                text: "{{ before.label }}"
-                textAlign: center
-                fontSize: {{ style.labelSize }}
-                fontWeight: bold
-              {% endif %}
-          - type: box
-            padding: 24
-            entranceType: slide-right
-            entranceDelay: 200
-            children:
-              - type: image
-                src: "{{ after.image }}"
-                height: {{ style.imageHeight }}
-                objectFit: cover
-              {% if after.label %}
-              - type: text
-                text: "{{ after.label }}"
-                textAlign: center
-                fontSize: {{ style.labelSize }}
-                fontWeight: bold
-              {% endif %}
+          - kind: image
+            id: image-comparison-before-image
+            frame: { left: 24, top: 24, right: 24, h: {{ style.imageHeight }} }
+            src: "{{ before.image }}"
+            objectFit: cover
+            borderRadius: 16
+          {% if before.label %}
+          - kind: text
+            id: image-comparison-before-label
+            preset: imageLabel
+            frame:
+              centerX: "@image-comparison-before-image.centerX"
+              top: { ref: "@image-comparison-before-image.bottom", offset: 20 }
+              w: 360
+            text: "{{ before.label | yaml_string }}"
+            style:
+              fontSize: {{ style.labelSize }}
+          {% endif %}
+      - kind: group
+        id: image-comparison-after-card
+        preset: imageCard
+        entrance: { type: slide-right, delay: 200, duration: 600 }
+        children:
+          - kind: image
+            id: image-comparison-after-image
+            frame: { left: 24, top: 24, right: 24, h: {{ style.imageHeight }} }
+            src: "{{ after.image }}"
+            objectFit: cover
+            borderRadius: 16
+          {% if after.label %}
+          - kind: text
+            id: image-comparison-after-label
+            preset: imageLabel
+            frame:
+              centerX: "@image-comparison-after-image.centerX"
+              top: { ref: "@image-comparison-after-image.bottom", offset: 20 }
+              w: 360
+            text: "{{ after.label | yaml_string }}"
+            style:
+              fontSize: {{ style.labelSize }}
+          {% endif %}

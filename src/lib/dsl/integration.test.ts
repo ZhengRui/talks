@@ -368,19 +368,33 @@ describe("DSL integration: template expansion + layout", () => {
       right: { heading: "After", items: ["Fast", "Auto"] },
     });
 
-    const children = innerChildren(slide);
-    // heading + divider + columns = 3
+    const children = sceneChildren(slide);
     expect(children).toHaveLength(3);
+    expect(children[0]).toMatchObject({ kind: "text", id: "comparison-header-title", text: "Before vs After" });
+    expect(children[1]).toMatchObject({ kind: "shape", id: "comparison-header-divider" });
+    expect(children[2]).toMatchObject({
+      kind: "group",
+      id: "comparison-layout",
+      layout: { type: "row", gap: 32, tracks: ["50%", "50%"], align: "stretch" },
+    });
     const cols = children[2] as unknown as { children: unknown[] };
     expect(cols.children).toHaveLength(2);
-    expect(cols.children[0]).toMatchObject({
-      type: "box", accentTop: true, accentColor: "#22c55e", entranceType: "slide-left",
-    });
-    expect(cols.children[1]).toMatchObject({
-      type: "box", accentTop: true, accentColor: "#ef4444", entranceType: "slide-right",
-    });
+    expect(cols.children[0]).toMatchObject({ kind: "group", id: "comparison-left-card" });
+    expect(cols.children[1]).toMatchObject({ kind: "group", id: "comparison-right-card" });
 
-    expect(layout.elements.length).toBeGreaterThan(0);
+    const elements = allLayoutElements(layout.elements);
+    expect(elements.find((element) => element.id === "comparison-left-list")).toMatchObject({
+      kind: "list",
+      ordered: false,
+      items: ["Slow", "Manual"],
+      bulletColor: "#22c55e",
+    });
+    expect(elements.find((element) => element.id === "comparison-right-list")).toMatchObject({
+      kind: "list",
+      ordered: false,
+      items: ["Fast", "Auto"],
+      bulletColor: "#ef4444",
+    });
   });
 
   it("code-comparison: expands with labels and code", () => {
@@ -419,12 +433,23 @@ describe("DSL integration: template expansion + layout", () => {
       main: "Main content here",
     });
 
-    const children = innerChildren(slide);
-    // single columns component
+    const children = sceneChildren(slide);
     expect(children).toHaveLength(1);
-    expect(children[0]).toMatchObject({ type: "columns", ratio: 0.3 });
+    expect(children[0]).toMatchObject({
+      kind: "group",
+      id: "sidebar-layout",
+      layout: { type: "row", gap: 40, tracks: ["30%", "70%"], align: "stretch" },
+    });
 
-    expect(layout.elements.length).toBeGreaterThan(0);
+    const elements = allLayoutElements(layout.elements);
+    expect(elements.find((element) => element.id === "sidebar-title")).toMatchObject({
+      kind: "text",
+      text: "Overview",
+    });
+    expect(elements.find((element) => element.id === "sidebar-panel-body")).toMatchObject({
+      kind: "text",
+      text: "Side notes",
+    });
   });
 
   it("sidebar: right position uses ratio 0.7", () => {
@@ -434,8 +459,12 @@ describe("DSL integration: template expansion + layout", () => {
       sidebarPosition: "right",
     });
 
-    const children = innerChildren(slide);
-    expect(children[0]).toMatchObject({ type: "columns", ratio: 0.7 });
+    const children = sceneChildren(slide);
+    expect(children[0]).toMatchObject({
+      kind: "group",
+      id: "sidebar-layout",
+      layout: { type: "row", gap: 40, tracks: ["70%", "30%"], align: "stretch" },
+    });
   });
 
   it("sidebar: yaml_string filter preserves multiline text", () => {
@@ -445,19 +474,13 @@ describe("DSL integration: template expansion + layout", () => {
       main: "Main content",
     });
 
-    const children = innerChildren(slide);
-    // Find the body component inside the sidebar box
-    const cols = children[0] as { type: string; children: unknown[] };
-    expect(cols.type).toBe("columns");
-    // Left column (sidebar) → flat box → box → body with multiline text
-    const flatBox = cols.children[0] as { type: string; children: unknown[] };
-    const innerBox = flatBox.children.find(
-      (c: unknown) => (c as { type: string; variant?: string }).type === "box" && (c as { variant?: string }).variant === "panel",
-    ) as { children: Array<{ type: string; text: string }> };
-    expect(innerBox).toBeDefined();
-    const body = innerBox.children.find((c) => c.type === "body");
+    const children = sceneChildren(slide);
+    const columns = children[0] as { children: Array<{ id: string; children?: Array<{ id: string; text?: string }> }> };
+    const sidebarColumn = columns.children[0];
+    const panel = sidebarColumn.children?.find((child) => child.id === "sidebar-panel");
+    expect(panel).toBeDefined();
+    const body = panel?.children?.find((child) => child.id === "sidebar-panel-body");
     expect(body).toBeDefined();
-    // The text should contain actual newlines (YAML \n expanded)
     expect(body!.text).toContain("\n");
     expect(body!.text).toContain("• Components");
   });
@@ -540,16 +563,29 @@ describe("DSL integration: template expansion + layout", () => {
       after: { image: "new.jpg", label: "After" },
     });
 
-    const children = innerChildren(slide);
-    // heading + divider + columns = 3
+    const children = sceneChildren(slide);
     expect(children).toHaveLength(3);
-    expect(children[2]).toMatchObject({ type: "columns", equalHeight: true });
+    expect(children[0]).toMatchObject({ kind: "text", id: "image-comparison-header-title", text: "Before & After" });
+    expect(children[1]).toMatchObject({ kind: "shape", id: "image-comparison-header-divider" });
+    expect(children[2]).toMatchObject({
+      kind: "group",
+      id: "image-comparison-layout",
+      layout: { type: "row", gap: 32, tracks: ["50%", "50%"], align: "stretch" },
+    });
     const cols = children[2] as unknown as { children: unknown[] };
     expect(cols.children).toHaveLength(2);
-    expect(cols.children[0]).toMatchObject({ type: "box", padding: 24, entranceType: "slide-left", entranceDelay: 200 });
-    expect(cols.children[1]).toMatchObject({ type: "box", padding: 24, entranceType: "slide-right", entranceDelay: 200 });
+    expect(cols.children[0]).toMatchObject({ kind: "group", id: "image-comparison-before-card" });
+    expect(cols.children[1]).toMatchObject({ kind: "group", id: "image-comparison-after-card" });
 
-    expect(layout.elements.length).toBeGreaterThan(0);
+    const elements = allLayoutElements(layout.elements);
+    expect(elements.find((element) => element.id === "image-comparison-before-image")).toMatchObject({
+      kind: "image",
+      src: "/img/old.jpg",
+    });
+    expect(elements.find((element) => element.id === "image-comparison-after-label")).toMatchObject({
+      kind: "text",
+      text: "After",
+    });
   });
 
   it("image-comparison: expands without labels", () => {
@@ -558,9 +594,9 @@ describe("DSL integration: template expansion + layout", () => {
       after: { image: "b.jpg" },
     });
 
-    const children = innerChildren(slide);
-    // columns only = 1
+    const children = sceneChildren(slide);
     expect(children).toHaveLength(1);
+    expect(children[0]).toMatchObject({ kind: "group", id: "image-comparison-layout" });
   });
 
   it("image-text: expands with fill mode image panel", () => {

@@ -11,60 +11,117 @@ style:
   leftAccent: { type: string, default: "#22c55e" }
   rightAccent: { type: string, default: "#ef4444" }
 
+{% import "scene/blocks.njk" as scene %}
+mode: scene
+presets:
+  sectionTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: center
+      lineHeight: 1.15
+  divider:
+    style:
+      fill: "theme.accent"
+  compareCard:
+    borderRadius: 18
+    style:
+      fill: "theme.bgSecondary"
+    border:
+      width: 1
+      color: "theme.border.color"
+  compareHeading:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: left
+      lineHeight: 1.15
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: {{ verticalAlign or "top" }}
-    layout: { type: flex, direction: column, gap: 0 }
-    autoEntrance: { type: fade-up, stagger: 100 }
+  {% if title %}
+{{ scene.section_title("comparison-header", 160, 60, 1600, title, style.titleSize, 80, 16) | indent_yaml(2) }}
+  {% endif %}
+  - kind: group
+    id: comparison-layout
+    frame:
+      x: 160
+      y: {{ 260 if title else (300 if verticalAlign == "center" else 180) }}
+      w: 1600
+      h: 620
+    layout:
+      type: row
+      gap: 32
+      tracks: ["50%", "50%"]
+      align: stretch
     children:
-      {% if title %}
-      - type: heading
-        text: "{{ title }}"
-        fontSize: {{ style.titleSize }}
-        textAlign: center
-      - type: divider
-        variant: gradient
-        width: 80
-        align: center
-        margin: [16, 0, 40, 0]
-      {% endif %}
-      - type: columns
-        gap: 32
+      - kind: group
+        id: comparison-left-card
+        preset: compareCard
+        entrance: { type: slide-left, delay: 200, duration: 600 }
         children:
-          - type: box
-            padding: 32
-            accentTop: true
-            accentColor: "{{ style.leftAccent }}"
-            entranceType: slide-left
-            children:
-              - type: heading
-                text: "{{ left.heading }}"
-                level: 2
-                fontSize: {{ style.headingSize }}
-                textAlign: left
-              - type: bullets
-                items: {{ left.items }}
-                variant: list
+          - kind: shape
+            id: comparison-left-accent
+            frame: { left: 0, top: 0, right: 0, h: 8 }
+            shape: rect
+            style:
+              fill: "{{ style.leftAccent }}"
+          - kind: text
+            id: comparison-left-heading
+            preset: compareHeading
+            frame: { left: 32, top: 38, right: 32 }
+            text: "{{ left.heading | yaml_string }}"
+            style:
+              fontSize: {{ style.headingSize }}
+          - kind: ir
+            id: comparison-left-items
+            frame: { left: 32, top: 112, right: 32, bottom: 32 }
+            element:
+              kind: list
+              id: comparison-left-list
+              rect: { x: 0, y: 0, w: 704, h: 440 }
+              items: {{ left.items }}
+              ordered: false
+              itemSpacing: 22
+              bulletColor: "{{ style.leftAccent }}"
+              itemStyle:
+                fontFamily: "body"
                 fontSize: {{ style.bodySize }}
-              - type: spacer
-                height: 8
-          - type: box
-            padding: 32
-            accentTop: true
-            accentColor: "{{ style.rightAccent }}"
-            entranceType: slide-right
-            children:
-              - type: heading
-                text: "{{ right.heading }}"
-                level: 2
-                fontSize: {{ style.headingSize }}
-                textAlign: left
-              - type: bullets
-                items: {{ right.items }}
-                variant: list
+                fontWeight: 400
+                color: "theme.text"
+                lineHeight: 1.45
+      - kind: group
+        id: comparison-right-card
+        preset: compareCard
+        entrance: { type: slide-right, delay: 200, duration: 600 }
+        children:
+          - kind: shape
+            id: comparison-right-accent
+            frame: { left: 0, top: 0, right: 0, h: 8 }
+            shape: rect
+            style:
+              fill: "{{ style.rightAccent }}"
+          - kind: text
+            id: comparison-right-heading
+            preset: compareHeading
+            frame: { left: 32, top: 38, right: 32 }
+            text: "{{ right.heading | yaml_string }}"
+            style:
+              fontSize: {{ style.headingSize }}
+          - kind: ir
+            id: comparison-right-items
+            frame: { left: 32, top: 112, right: 32, bottom: 32 }
+            element:
+              kind: list
+              id: comparison-right-list
+              rect: { x: 0, y: 0, w: 704, h: 440 }
+              items: {{ right.items }}
+              ordered: false
+              itemSpacing: 22
+              bulletColor: "{{ style.rightAccent }}"
+              itemStyle:
+                fontFamily: "body"
                 fontSize: {{ style.bodySize }}
-              - type: spacer
-                height: 8
+                fontWeight: 400
+                color: "theme.text"
+                lineHeight: 1.45

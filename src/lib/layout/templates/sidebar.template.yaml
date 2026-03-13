@@ -9,102 +9,134 @@ style:
   sidebarSize: { type: number, default: 28 }
   mainSize: { type: number, default: 30 }
 
+mode: scene
+presets:
+  sidebarTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: left
+      lineHeight: 1.15
+  mainBody:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "theme.text"
+      textAlign: left
+      lineHeight: 1.45
+  sidebarBody:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "theme.text"
+      textAlign: left
+      lineHeight: 1.45
+  sidebarPanel:
+    borderRadius: 18
+    style:
+      fill: "theme.bgSecondary"
+    border:
+      width: 1
+      color: "theme.border.color"
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: top
-    layout: { type: flex, direction: column, gap: 0 }
+  - kind: group
+    id: sidebar-layout
+    frame: { x: 160, y: 140, w: 1600, h: 800 }
+    layout:
+      type: row
+      gap: 40
+      tracks: {{ '["70%", "30%"]' if sidebarPosition == "right" else '["30%", "70%"]' }}
+      align: stretch
     children:
       {% if sidebarPosition == "right" %}
-      - type: columns
-        gap: 40
-        ratio: 0.7
+      - kind: group
+        id: sidebar-main-column
         children:
-          - type: box
-            variant: flat
-            padding: 0
-            entranceType: none
+          {% if title %}
+          - kind: text
+            id: sidebar-title
+            preset: sidebarTitle
+            frame: { left: 0, top: 0, right: 0 }
+            text: "{{ title | yaml_string }}"
+            style:
+              fontSize: {{ style.titleSize }}
+            entrance: { type: fade-up, delay: 0, duration: 600 }
+          {% endif %}
+          - kind: text
+            id: sidebar-main-body
+            preset: mainBody
+            frame:
+              left: 0
+              top: {{ 88 if title else 0 }}
+              right: 0
+            text: "{{ main | yaml_string }}"
+            style:
+              fontSize: {{ style.mainSize }}
+            entrance: { type: slide-left, delay: 200, duration: 600 }
+      - kind: group
+        id: sidebar-side-column
+        children:
+          - kind: group
+            id: sidebar-panel
+            preset: sidebarPanel
+            frame:
+              left: 0
+              top: {{ 76 if title else 0 }}
+              right: 0
+              bottom: 0
+            entrance: { type: slide-right, delay: 200, duration: 600 }
             children:
-              {% if title %}
-              - type: heading
-                text: "{{ title | yaml_string }}"
-                fontSize: {{ style.titleSize }}
-                textAlign: left
-                entranceType: fade-up
-                entranceDelay: 0
-              - type: spacer
-                height: 32
-              {% endif %}
-              - type: body
-                text: "{{ main | yaml_string }}"
-                fontSize: {{ style.mainSize }}
-                entranceType: slide-left
-                entranceDelay: 200
-          - type: box
-            variant: flat
-            padding: 0
-            entranceType: none
-            children:
-              {% if title %}
-              - type: spacer
-                height: 76
-              {% endif %}
-              - type: box
-                variant: panel
-                padding: 40
-                background: theme.bgSecondary
-                entranceType: slide-right
-                entranceDelay: 200
-                fill: true
-                children:
-                  - type: body
-                    text: "{{ sidebar | yaml_string }}"
-                    fontSize: {{ style.sidebarSize }}
+              - kind: text
+                id: sidebar-panel-body
+                preset: sidebarBody
+                frame: { left: 40, top: 40, right: 40 }
+                text: "{{ sidebar | yaml_string }}"
+                style:
+                  fontSize: {{ style.sidebarSize }}
       {% else %}
-      - type: columns
-        gap: 40
-        ratio: 0.3
+      - kind: group
+        id: sidebar-side-column
         children:
-          - type: box
-            variant: flat
-            padding: 0
-            entranceType: none
+          - kind: group
+            id: sidebar-panel
+            preset: sidebarPanel
+            frame:
+              left: 0
+              top: {{ 76 if title else 0 }}
+              right: 0
+              bottom: 0
+            entrance: { type: slide-left, delay: 200, duration: 600 }
             children:
-              {% if title %}
-              - type: spacer
-                height: 76
-              {% endif %}
-              - type: box
-                variant: panel
-                padding: 40
-                background: theme.bgSecondary
-                entranceType: slide-left
-                entranceDelay: 200
-                fill: true
-                children:
-                  - type: body
-                    text: "{{ sidebar | yaml_string }}"
-                    fontSize: {{ style.sidebarSize }}
-          - type: box
-            variant: flat
-            padding: 0
-            entranceType: none
-            children:
-              {% if title %}
-              - type: heading
-                text: "{{ title | yaml_string }}"
-                fontSize: {{ style.titleSize }}
-                textAlign: left
-                entranceType: fade-up
-                entranceDelay: 0
-              - type: spacer
-                height: 32
-              {% endif %}
-              - type: body
-                text: "{{ main | yaml_string }}"
-                fontSize: {{ style.mainSize }}
-                entranceType: slide-right
-                entranceDelay: 200
+              - kind: text
+                id: sidebar-panel-body
+                preset: sidebarBody
+                frame: { left: 40, top: 40, right: 40 }
+                text: "{{ sidebar | yaml_string }}"
+                style:
+                  fontSize: {{ style.sidebarSize }}
+      - kind: group
+        id: sidebar-main-column
+        children:
+          {% if title %}
+          - kind: text
+            id: sidebar-title
+            preset: sidebarTitle
+            frame: { left: 0, top: 0, right: 0 }
+            text: "{{ title | yaml_string }}"
+            style:
+              fontSize: {{ style.titleSize }}
+            entrance: { type: fade-up, delay: 0, duration: 600 }
+          {% endif %}
+          - kind: text
+            id: sidebar-main-body
+            preset: mainBody
+            frame:
+              left: 0
+              top: {{ 88 if title else 0 }}
+              right: 0
+            text: "{{ main | yaml_string }}"
+            style:
+              fontSize: {{ style.mainSize }}
+            entrance: { type: slide-right, delay: 200, duration: 600 }
       {% endif %}
