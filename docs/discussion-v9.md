@@ -147,7 +147,7 @@ Priority order:
 Status in this branch:
 
 - done: 1, 2, 3, 5, and a focused version of 4
-- remaining likely next step: `distribute`, or additional template-time ergonomics if authoring still feels too verbose
+- remaining likely next step: porting a few real templates/decks to shared scene macros and presets, then deciding whether `distribute` is still needed
 
 This order matters.
 
@@ -159,7 +159,8 @@ The original v7-v8 template system remains useful, but the output target should 
 
 Current state:
 
-- DSL templates still expand into component slides
+- DSL templates can now emit scene slides directly
+- built-in and deck-local macro imports are available for scene templates
 
 Desired direction:
 

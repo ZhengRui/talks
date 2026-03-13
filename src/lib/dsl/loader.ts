@@ -97,6 +97,7 @@ function parseTemplateFile(
       ...(parsed.alias ? { alias: parsed.alias } : {}),
       params: parsed.params ?? {},
       style: parsed.style,
+      sourcePath: filePath,
       rawBody: raw,
     };
   } catch (e) {

@@ -1,4 +1,5 @@
 import nunjucks from "nunjucks";
+import path from "path";
 import { parse } from "yaml";
 import type { DslTemplateDef } from "./types";
 import type {
@@ -10,21 +11,42 @@ import type {
 
 // --- Nunjucks environment ---
 
-const env = new nunjucks.Environment(null, {
-  trimBlocks: true,
-  lstripBlocks: true,
-  autoescape: false,
-});
+const BUILT_IN_TEMPLATE_DIR = path.join(process.cwd(), "src/lib/layout/templates");
+const BUILT_IN_MACRO_DIR = path.join(process.cwd(), "src/lib/dsl/macros");
 
-// `tojson` filter for multiline strings (e.g., code blocks)
-env.addFilter("tojson", (val: unknown) => JSON.stringify(val));
+function configureEnvironment(
+  env: nunjucks.Environment,
+): nunjucks.Environment {
+  // `tojson` filter for multiline strings (e.g., code blocks)
+  env.addFilter("tojson", (val: unknown) => JSON.stringify(val));
 
-// `yaml_string` filter — escapes a string for safe insertion into a YAML double-quoted value.
-// Converts actual newlines back to \n literals so the rendered YAML parses correctly.
-env.addFilter("yaml_string", (val: unknown) => {
-  if (typeof val !== "string") return val;
-  return val.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/"/g, '\\"');
-});
+  // `yaml_string` filter — escapes a string for safe insertion into a YAML double-quoted value.
+  // Converts actual newlines back to \n literals so the rendered YAML parses correctly.
+  env.addFilter("yaml_string", (val: unknown) => {
+    if (typeof val !== "string") return val;
+    return val.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/"/g, '\\"');
+  });
+
+  return env;
+}
+
+function createEnvironment(templateDef: DslTemplateDef): nunjucks.Environment {
+  const searchPaths = Array.from(new Set([
+    ...(templateDef.sourcePath ? [path.dirname(templateDef.sourcePath)] : []),
+    BUILT_IN_MACRO_DIR,
+    BUILT_IN_TEMPLATE_DIR,
+  ]));
+
+  const loader = new nunjucks.FileSystemLoader(searchPaths, {
+    noCache: process.env.NODE_ENV !== "production",
+  });
+
+  return configureEnvironment(new nunjucks.Environment(loader, {
+    trimBlocks: true,
+    lstripBlocks: true,
+    autoescape: false,
+  }));
+}
 
 function mergeOptionalObject<T extends Record<string, unknown> | undefined>(
   base: T,
@@ -147,6 +169,7 @@ export function expandDslTemplate(
   // 4. Render through Nunjucks
   let rendered: string;
   try {
+    const env = createEnvironment(templateDef);
     rendered = env.renderString(templateDef.rawBody, context);
   } catch (e) {
     throw new Error(

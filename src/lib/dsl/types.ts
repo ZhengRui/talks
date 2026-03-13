@@ -16,5 +16,6 @@ export interface DslTemplateDef {
   alias?: string; // redirect to another template by name
   params: Record<string, DslParamDef>;
   style?: Record<string, DslStyleDef>;
+  sourcePath?: string;
   rawBody: string; // entire file content — Nunjucks template
 }

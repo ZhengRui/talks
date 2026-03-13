@@ -155,6 +155,11 @@ interface SceneReferenceValue {
   ref: string;
   offset?: number;
 }
+
+interface ScenePreset {
+  extends?: string;
+  ...
+}
 ```
 
 The prototype does **not** try to mirror every IR element kind yet. The recommended direction is:
@@ -206,6 +211,36 @@ guides:
 Nodes can then reference these values through the template/macro layer.
 
 Guide references are already implemented in the prototype using string values such as `@x.content-left` and `@y.title-top`.
+
+### Presets
+
+Presets are now the main node-level reuse mechanism for scene authoring.
+
+Current behavior:
+
+- presets provide reusable defaults for a single node
+- presets can inherit from other presets using `extends`
+- inheritance resolves before theme normalization
+- node-level fields still win over preset defaults
+
+This keeps presets as authoring-time defaults rather than hidden runtime semantics.
+
+### Macros
+
+Macros are now the main fragment-level reuse mechanism for scene authoring.
+
+Current behavior:
+
+- inline Nunjucks macros work inside scene templates
+- templates can import built-in macro files from `src/lib/dsl/macros/`
+- templates can import deck-local macro files from their own `templates/` directory
+- macro output is still just scene YAML, compiled through the normal scene pipeline
+
+This is the intended reuse model:
+
+- preset = one node's defaults
+- macro = one or more scene nodes
+- template = whole-slide composition
 
 ### Groups
 

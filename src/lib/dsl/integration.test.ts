@@ -925,4 +925,50 @@ children:
       text: "Scene Macro",
     });
   });
+
+  it("scene templates can import built-in macro libraries and lay them out", () => {
+    const def = makeInlineTemplate({
+      rawBody: `
+{% import "scene/blocks.njk" as scene %}
+mode: scene
+background:
+  type: solid
+  color: "#0f1728"
+presets:
+  statCard:
+    borderRadius: 18
+    style:
+      fill: "#1f2a44"
+  statValue:
+    style:
+      fontFamily: "heading"
+      color: "#ff6b35"
+  statLabel:
+    style:
+      fontFamily: "heading"
+      color: "#ffffff"
+children:
+{{ scene.stat_card("first", 40, 80, 220, 120, "500", "MISSILES") }}
+{{ scene.stat_card("second", 300, 80, 220, 120, "2,000", "DRONES") }}
+`,
+    });
+
+    const slide = expandDslTemplate({ template: "inline-test" }, def);
+    const layout = layoutSlide(slide, "modern", "/img");
+    const elements = allLayoutElements(layout.elements);
+
+    expect(layout.background).toBe("#0f1728");
+    expect(elements.find((element) => element.id === "first")).toMatchObject({
+      kind: "group",
+      borderRadius: 18,
+    });
+    expect(elements.find((element) => element.id === "first-value")).toMatchObject({
+      kind: "text",
+      text: "500",
+    });
+    expect(elements.find((element) => element.id === "second-label")).toMatchObject({
+      kind: "text",
+      text: "DRONES",
+    });
+  });
 });

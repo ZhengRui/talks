@@ -1,0 +1,51 @@
+{% macro eyebrow_title(id, x, y, width, eyebrow, title, divider_width=120, divider_gap=24, eyebrow_preset="eyebrow", title_preset="headline", divider_preset="divider") %}
+- kind: text
+  id: "{{ id }}-eyebrow"
+  preset: "{{ eyebrow_preset }}"
+  frame: { x: {{ x }}, y: {{ y }}, w: {{ width }} }
+  text: "{{ eyebrow | yaml_string }}"
+  style:
+    fontSize: 24
+    lineHeight: 1
+- kind: text
+  id: "{{ id }}-title"
+  preset: "{{ title_preset }}"
+  frame: { x: {{ x }}, y: {{ y + 42 }}, w: {{ width }} }
+  text: "{{ title | yaml_string }}"
+  style:
+    fontSize: 56
+    lineHeight: 0.95
+- kind: shape
+  id: "{{ id }}-divider"
+  preset: "{{ divider_preset }}"
+  frame: { x: {{ x }}, y: {{ y + 42 + divider_gap + 108 }}, w: {{ divider_width }}, h: 4 }
+  shape: rect
+  style:
+    fill: "#ff6b35"
+{% endmacro %}
+
+{% macro stat_card(id, x, y, w, h, value, label, card_preset="statCard", value_preset="statValue", label_preset="statLabel") %}
+- kind: group
+  id: "{{ id }}"
+  preset: "{{ card_preset }}"
+  frame: { x: {{ x }}, y: {{ y }}, w: {{ w }}, h: {{ h }} }
+  children:
+    - kind: text
+      id: "{{ id }}-value"
+      preset: "{{ value_preset }}"
+      frame: { x: 0, y: 18, w: {{ w }} }
+      text: "{{ value | yaml_string }}"
+      style:
+        fontSize: 54
+        lineHeight: 1
+        textAlign: center
+    - kind: text
+      id: "{{ id }}-label"
+      preset: "{{ label_preset }}"
+      frame: { x: 0, y: {{ h - 38 }}, w: {{ w }} }
+      text: "{{ label | yaml_string }}"
+      style:
+        fontSize: 16
+        lineHeight: 1.1
+        textAlign: center
+{% endmacro %}

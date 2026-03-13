@@ -335,6 +335,102 @@ describe("compileSceneSlide", () => {
     }
   });
 
+  it("supports preset inheritance chains", () => {
+    const theme = resolveTheme("dark-tech");
+    const slide: SceneSlideData = {
+      mode: "scene",
+      presets: {
+        cardBase: {
+          borderRadius: 12,
+          style: { fill: "theme.bgSecondary", strokeWidth: 2 },
+        },
+        cardAccent: {
+          extends: "cardBase",
+          border: { width: 1, color: "theme.accent" },
+        },
+        cardAccentLarge: {
+          extends: "cardAccent",
+          frame: { w: 280, h: 120 },
+          style: { strokeWidth: 4 },
+        },
+      },
+      children: [
+        {
+          kind: "shape",
+          id: "panel",
+          preset: "cardAccentLarge",
+          frame: { x: 80, y: 100 },
+          shape: "rect",
+          style: { fill: "#223344" },
+        },
+      ],
+    };
+
+    const result = compileSceneSlide(slide, theme, "/scene");
+    const panel = result.elements[0];
+
+    expect(panel.kind).toBe("shape");
+    if (panel.kind === "shape") {
+      expect(panel.rect.w).toBe(280);
+      expect(panel.rect.h).toBe(120);
+      expect(panel.borderRadius).toBe(12);
+      expect(panel.style.fill).toBe("#223344");
+      expect(panel.style.strokeWidth).toBe(4);
+      expect(panel.border?.width).toBe(1);
+      expect(panel.border?.color).toBe(theme.accent);
+    }
+  });
+
+  it("throws when preset inheritance references an unknown base", () => {
+    const slide: SceneSlideData = {
+      mode: "scene",
+      presets: {
+        child: {
+          extends: "missing",
+          style: { fill: "#223344" },
+        },
+      },
+      children: [
+        {
+          kind: "shape",
+          id: "panel",
+          preset: "child",
+          frame: { x: 0, y: 0, w: 100, h: 100 },
+          shape: "rect",
+          style: { fill: "#000000" },
+        },
+      ],
+    };
+
+    expect(() => compileSceneSlide(slide, resolveTheme("modern"), "/scene")).toThrow(
+      /Unknown preset "missing"/,
+    );
+  });
+
+  it("throws on circular preset inheritance", () => {
+    const slide: SceneSlideData = {
+      mode: "scene",
+      presets: {
+        first: { extends: "second", style: { fill: "#111111" } },
+        second: { extends: "first", style: { fill: "#222222" } },
+      },
+      children: [
+        {
+          kind: "shape",
+          id: "panel",
+          preset: "first",
+          frame: { x: 0, y: 0, w: 100, h: 100 },
+          shape: "rect",
+          style: { fill: "#000000" },
+        },
+      ],
+    };
+
+    expect(() => compileSceneSlide(slide, resolveTheme("modern"), "/scene")).toThrow(
+      /Circular preset inheritance/,
+    );
+  });
+
   it("throws when a scene node references an unknown preset", () => {
     const slide: SceneSlideData = {
       mode: "scene",

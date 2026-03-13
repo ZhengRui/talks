@@ -68,6 +68,7 @@ export interface SceneTextStyle {
 }
 
 export interface ScenePreset {
+  extends?: string;
   frame?: FrameSpec;
   opacity?: number;
   borderRadius?: number;

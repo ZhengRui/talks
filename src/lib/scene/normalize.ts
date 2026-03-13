@@ -92,6 +92,57 @@ function applyScenePreset<T extends SceneNode>(
   }
 }
 
+function resolveScenePresets(
+  presets: Record<string, ScenePreset> | undefined,
+): Record<string, ScenePreset> | undefined {
+  if (!presets) return undefined;
+
+  const resolved = new Map<string, ScenePreset>();
+  const resolving = new Set<string>();
+
+  function visit(name: string): ScenePreset {
+    const cached = resolved.get(name);
+    if (cached) return cached;
+
+    const preset = presets[name];
+    if (!preset) {
+      throw new Error(`[scene] Unknown preset "${name}"`);
+    }
+    if (resolving.has(name)) {
+      throw new Error(`[scene] Circular preset inheritance involving "${name}"`);
+    }
+
+    resolving.add(name);
+    const base = preset.extends ? visit(preset.extends) : undefined;
+    const merged = base
+      ? {
+          ...base,
+          ...preset,
+          extends: preset.extends,
+          ...(base.frame || preset.frame ? { frame: mergeOptionalObject(base.frame, preset.frame) } : {}),
+          ...(base.shadow || preset.shadow ? { shadow: mergeOptionalObject(base.shadow, preset.shadow) } : {}),
+          ...(base.effects || preset.effects ? { effects: mergeOptionalObject(base.effects, preset.effects) } : {}),
+          ...(base.border || preset.border ? { border: mergeOptionalObject(base.border, preset.border) } : {}),
+          ...(base.entrance || preset.entrance ? { entrance: mergeOptionalObject(base.entrance, preset.entrance) } : {}),
+          ...(base.transform || preset.transform ? { transform: mergeOptionalObject(base.transform, preset.transform) } : {}),
+          ...(base.cssStyle || preset.cssStyle ? { cssStyle: mergeOptionalObject(base.cssStyle, preset.cssStyle) } : {}),
+          ...(base.style || preset.style ? { style: mergeOptionalObject(base.style, preset.style) } : {}),
+          ...(base.layout || preset.layout ? { layout: mergeOptionalObject(base.layout, preset.layout) } : {}),
+        }
+      : preset;
+
+    resolving.delete(name);
+    resolved.set(name, merged);
+    return merged;
+  }
+
+  for (const name of Object.keys(presets)) {
+    visit(name);
+  }
+
+  return Object.fromEntries(resolved);
+}
+
 function prefixImageSrc(src: string, imageBase: string): string {
   if (!src || src.startsWith("/") || src.startsWith("http") || src.startsWith("data:")) {
     return src;
@@ -287,12 +338,13 @@ export function normalizeSceneSlide(
   imageBase: string,
 ): NormalizedSceneSlide {
   const bg = normalizeSceneBackground(slide.background, theme, imageBase);
+  const resolvedPresets = resolveScenePresets(slide.presets);
   return {
     ...bg,
     ...(slide.guides ? { guides: slide.guides } : {}),
     ...(slide.sourceSize ? { sourceSize: slide.sourceSize } : {}),
     ...(slide.fit ? { fit: slide.fit } : {}),
     ...(slide.align ? { align: slide.align } : {}),
-    children: slide.children.map((child) => normalizeSceneNode(child, theme, imageBase, slide.presets)),
+    children: slide.children.map((child) => normalizeSceneNode(child, theme, imageBase, resolvedPresets)),
   };
 }

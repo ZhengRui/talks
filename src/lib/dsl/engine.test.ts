@@ -1,3 +1,6 @@
+import fs from "fs";
+import os from "os";
+import path from "path";
 import { describe, it, expect } from "vitest";
 import { expandDslTemplate } from "./engine";
 import type { DslTemplateDef } from "./types";
@@ -394,6 +397,89 @@ children:
       kind: "shape",
       preset: "card",
     });
+  });
+
+  it("supports importing built-in scene macro libraries", () => {
+    const def = makeDef({
+      rawBody: `
+{% import "scene/blocks.njk" as scene %}
+mode: scene
+presets:
+  statCard:
+    borderRadius: 16
+    style:
+      fill: "#1f2a44"
+  statValue:
+    style:
+      fontFamily: "heading"
+      color: "#ff6b35"
+  statLabel:
+    style:
+      fontFamily: "heading"
+      color: "#ffffff"
+children:
+{{ scene.stat_card("first", 40, 80, 220, 120, "500", "MISSILES") }}
+`,
+    });
+
+    const result = expandDslTemplate({ template: "test" }, def) as {
+      mode: string;
+      children: Array<Record<string, unknown>>;
+    };
+
+    expect(result.mode).toBe("scene");
+    expect(result.children[0]).toMatchObject({
+      kind: "group",
+      id: "first",
+      preset: "statCard",
+      frame: { x: 40, y: 80, w: 220, h: 120 },
+    });
+    expect((result.children[0].children as Array<Record<string, unknown>>)[0]).toMatchObject({
+      id: "first-value",
+      preset: "statValue",
+      text: "500",
+    });
+  });
+
+  it("supports importing deck-local macro files from template source path", () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-scene-macros-"));
+    const macroPath = path.join(tempDir, "local-macros.njk");
+    fs.writeFileSync(macroPath, `{% macro badge(id, x, y, text) %}- kind: text
+  id: "{{ id }}"
+  frame: { x: {{ x }}, y: {{ y }}, w: 120 }
+  text: "{{ text }}"
+  style:
+    fontSize: 18
+    lineHeight: 1.1
+{% endmacro %}
+`);
+
+    const def = makeDef({
+      sourcePath: path.join(tempDir, "inline.template.yaml"),
+      rawBody: `
+{% import "local-macros.njk" as local %}
+mode: scene
+children:
+{{ local.badge("badge-1", 12, 24, "Deck Local") }}
+`,
+    });
+
+    try {
+      const result = expandDslTemplate({ template: "test" }, def) as {
+        mode: string;
+        children: Array<Record<string, unknown>>;
+      };
+
+      expect(result.mode).toBe("scene");
+      expect(result.children[0]).toMatchObject({
+        kind: "text",
+        id: "badge-1",
+        text: "Deck Local",
+        frame: { x: 12, y: 24, w: 120 },
+      });
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   it("lets slide data override scene background and viewport fields", () => {
