@@ -8,42 +8,64 @@ style:
   labelFontSize: { type: number, default: 26 }
   cardHeight: { type: number, default: 200 }
 
+{% import "scene/blocks.njk" as scene %}
+mode: scene
+presets:
+  sectionTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: center
+      lineHeight: 1.15
+  divider:
+    style:
+      fill: "theme.accent"
+  statCard:
+    borderRadius: 18
+    style:
+      fill: "theme.bgSecondary"
+    border:
+      width: 1
+      color: "theme.border.color"
+  statValue:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.accent"
+      textAlign: center
+      lineHeight: 1
+  statLabel:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "theme.textMuted"
+      textAlign: center
+      lineHeight: 1.3
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: top
-    layout: { type: flex, direction: column, gap: 0 }
-    autoEntrance: { type: fade-up, stagger: 100 }
+  {% if title %}
+{{ scene.section_title("stats-header", 160, 60, 1600, title, style.titleSize, 80, 16) | indent_yaml(2) }}
+  - kind: group
+    id: stats-grid
+    frame: { x: 160, y: 360, w: 1600, h: {{ style.cardHeight }} }
+    layout:
+      type: grid
+      columns: {{ stats | length }}
+      columnGap: 32
     children:
-      {% if title %}
-      - type: heading
-        text: "{{ title }}"
-        fontSize: {{ style.titleSize }}
-        textAlign: center
-      - type: divider
-        variant: gradient
-        width: 80
-        align: center
-        margin: [16, 0, 40, 0]
-      {% endif %}
-      - type: spacer
-        flex: true
-      - type: columns
-        gap: 32
-        children:
-          {% for s in stats %}
-          - type: box
-            accentTop: true
-            height: {{ style.cardHeight }}
-            children:
-              - type: stat
-                value: "{{ s.value }}"
-                label: "{{ s.label }}"
-                textAlign: center
-                fontSize: {{ style.statFontSize }}
-                labelFontSize: {{ style.labelFontSize }}
-          {% endfor %}
-      - type: spacer
-        flex: true
+      {% for s in stats %}
+{{ scene.stat_panel("stat-" ~ loop.index, style.cardHeight, s.value, s.label, "statCard", "statValue", "statLabel") | indent_yaml(6) }}
+      {% endfor %}
+  {% else %}
+  - kind: group
+    id: stats-grid
+    frame: { x: 160, y: 440, w: 1600, h: {{ style.cardHeight }} }
+    layout:
+      type: grid
+      columns: {{ stats | length }}
+      columnGap: 32
+    children:
+      {% for s in stats %}
+{{ scene.stat_panel("stat-" ~ loop.index, style.cardHeight, s.value, s.label, "statCard", "statValue", "statLabel") | indent_yaml(6) }}
+      {% endfor %}
+  {% endif %}

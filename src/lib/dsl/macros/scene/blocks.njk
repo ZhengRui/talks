@@ -24,6 +24,29 @@
     fill: "#ff6b35"
 {% endmacro %}
 
+{% macro section_title(id, x, y, width, title, title_size=56, divider_width=80, divider_gap=16, title_preset="sectionTitle", divider_preset="divider") %}
+- kind: text
+  id: "{{ id }}-title"
+  preset: "{{ title_preset }}"
+  frame: { x: {{ x }}, y: {{ y }}, w: {{ width }} }
+  text: "{{ title | yaml_string }}"
+  style:
+    fontSize: {{ title_size }}
+    lineHeight: 1.15
+    textAlign: center
+- kind: shape
+  id: "{{ id }}-divider"
+  preset: "{{ divider_preset }}"
+  frame:
+    centerX: "@{{ id }}-title.centerX"
+    top: { ref: "@{{ id }}-title.bottom", offset: {{ divider_gap }} }
+    w: {{ divider_width }}
+    h: 4
+  shape: rect
+  style:
+    fill: "theme.accent"
+{% endmacro %}
+
 {% macro stat_card(id, x, y, w, h, value, label, card_preset="statCard", value_preset="statValue", label_preset="statLabel") %}
 - kind: group
   id: "{{ id }}"
@@ -43,6 +66,32 @@
       id: "{{ id }}-label"
       preset: "{{ label_preset }}"
       frame: { x: 0, y: {{ h - 38 }}, w: {{ w }} }
+      text: "{{ label | yaml_string }}"
+      style:
+        fontSize: 16
+        lineHeight: 1.1
+        textAlign: center
+{% endmacro %}
+
+{% macro stat_panel(id, h, value, label, card_preset="statCard", value_preset="statValue", label_preset="statLabel") %}
+- kind: group
+  id: "{{ id }}"
+  preset: "{{ card_preset }}"
+  frame: { h: {{ h }} }
+  children:
+    - kind: text
+      id: "{{ id }}-value"
+      preset: "{{ value_preset }}"
+      frame: { left: 24, top: 40, right: 24 }
+      text: "{{ value | yaml_string }}"
+      style:
+        fontSize: 54
+        lineHeight: 1
+        textAlign: center
+    - kind: text
+      id: "{{ id }}-label"
+      preset: "{{ label_preset }}"
+      frame: { left: 24, right: 24, bottom: 26 }
       text: "{{ label | yaml_string }}"
       style:
         fontSize: 16

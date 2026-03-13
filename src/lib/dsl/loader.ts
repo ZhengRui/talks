@@ -75,12 +75,12 @@ function parseTemplateFile(
 ): DslTemplateDef | null {
   try {
     const raw = fs.readFileSync(filePath, "utf-8");
+    const header = extractTemplateHeader(raw);
 
-    // Extract front matter (params, style) by parsing with a dummy render
-    // that strips Jinja expressions. We only need the front-matter keys.
-    // Since params/style sections never contain Jinja expressions,
-    // we can safely strip all {{ }} and {% %} blocks before parsing.
-    const stripped = raw
+    // Extract front matter (name, alias, params, style) by parsing only the
+    // header section and stripping Jinja syntax from that subset. This avoids
+    // macro-generated children/presets from breaking discovery-time parsing.
+    const stripped = header
       .replace(/\{%.*?%\}/g, "")
       // Replace "{{ ... }}" (quoted Jinja) with "x" to stay valid YAML
       .replace(/"(\{\{.*?\}\})"/g, '"x"')
@@ -104,4 +104,58 @@ function parseTemplateFile(
     console.warn(`[dsl] Failed to parse template: ${filePath}`, e);
     return null;
   }
+}
+
+function extractTemplateHeader(raw: string): string {
+  const lines = raw.split("\n");
+  const headerLines: string[] = [];
+  const allowedTopLevelKeys = new Set(["name", "alias", "params", "style"]);
+  let activeSectionIndent: number | null = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      if (headerLines.length > 0) {
+        headerLines.push(line);
+      }
+      continue;
+    }
+
+    if (trimmed.startsWith("{%") || trimmed.startsWith("{{")) {
+      continue;
+    }
+
+    const indent = line.length - line.trimStart().length;
+
+    if (activeSectionIndent !== null && indent > activeSectionIndent) {
+      headerLines.push(line);
+      continue;
+    }
+
+    activeSectionIndent = null;
+
+    if (indent !== 0) {
+      continue;
+    }
+
+    const keyMatch = line.match(/^([A-Za-z0-9_-]+):/);
+    if (!keyMatch) {
+      if (headerLines.length > 0) break;
+      continue;
+    }
+
+    const key = keyMatch[1];
+    if (!allowedTopLevelKeys.has(key)) {
+      if (headerLines.length > 0) break;
+      continue;
+    }
+
+    headerLines.push(line);
+    if (key === "params" || key === "style") {
+      activeSectionIndent = indent;
+    }
+  }
+
+  return headerLines.join("\n");
 }

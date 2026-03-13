@@ -10,41 +10,50 @@ style:
   captionWidth: { type: number, default: 900 }
   captionLineHeight: { type: number, default: 1.5 }
 
+{% import "scene/blocks.njk" as scene %}
+mode: scene
+presets:
+  sectionTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: center
+      lineHeight: 1.15
+  divider:
+    style:
+      fill: "theme.accent"
+  captionText:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "theme.textMuted"
+      textAlign: center
+      lineHeight: {{ style.captionLineHeight }}
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: top
-    layout: { type: flex, direction: column, gap: 0 }
-    autoEntrance: { type: fade-up, stagger: 100 }
-    children:
-      {% if title %}
-      - type: heading
-        text: "{{ title }}"
-        fontSize: {{ style.titleSize }}
-        textAlign: center
-      - type: divider
-        variant: gradient
-        width: 80
-        align: center
-        margin: [16, 0, 40, 0]
-      {% endif %}
-      - type: image
-        src: "{{ image }}"
-        {% if style.imageHeight %}
-        height: {{ style.imageHeight }}
-        {% endif %}
-        borderRadius: 16
-        entranceType: scale-up
-        entranceDelay: 200
-      - type: text
-        text: "{{ caption }}"
-        fontSize: {{ style.captionSize }}
-        textAlign: center
-        color: theme.textMuted
-        lineHeight: {{ style.captionLineHeight }}
-        maxWidth: {{ style.captionWidth }}
-        margin: [20, 0, 0, 0]
-        entranceType: fade-up
-        entranceDelay: 400
+  {% if title %}
+{{ scene.section_title("image-caption-header", 160, 60, 1600, title, style.titleSize, 80, 16) | indent_yaml(2) }}
+  {% endif %}
+  - kind: image
+    id: image-caption-image
+    frame:
+      centerX: 960
+      y: {{ 260 if title else 180 }}
+      w: 1200
+      h: {{ style.imageHeight or 560 }}
+    src: "{{ image }}"
+    objectFit: contain
+    borderRadius: 16
+    entrance: { type: scale-up, delay: 200, duration: 600 }
+  - kind: text
+    id: image-caption-caption
+    preset: captionText
+    frame:
+      centerX: "@image-caption-image.centerX"
+      top: { ref: "@image-caption-image.bottom", offset: 20 }
+      w: {{ style.captionWidth }}
+    text: "{{ caption }}"
+    style:
+      fontSize: {{ style.captionSize }}
+      lineHeight: {{ style.captionLineHeight }}
+    entrance: { type: fade-up, delay: 400, duration: 600 }

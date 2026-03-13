@@ -9,51 +9,76 @@ style:
   bodySize: { type: number, default: 30 }
   cardHeight: { type: number }
 
+{% import "scene/blocks.njk" as scene %}
+mode: scene
+presets:
+  sectionTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: center
+      lineHeight: 1.15
+  divider:
+    style:
+      fill: "theme.accent"
+  columnCard:
+    borderRadius: 18
+    style:
+      fill: "theme.bgSecondary"
+    border:
+      width: 1
+      color: "theme.border.color"
+  columnBody:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "theme.text"
+      lineHeight: 1.45
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: {{ verticalAlign or "top" }}
-    layout: { type: flex, direction: column, gap: 0 }
-    autoEntrance: { type: fade-up, stagger: 100 }
+  {% if title %}
+{{ scene.section_title("two-column-header", 160, 60, 1600, title, style.titleSize, 80, 16) | indent_yaml(2) }}
+  {% endif %}
+  - kind: group
+    id: two-column-layout
+    frame:
+      x: 160
+      y: {{ 260 if title else (300 if verticalAlign == "center" else 180) }}
+      w: 1600
+      h: {{ style.cardHeight or 560 }}
+    layout:
+      type: row
+      gap: 32
+      tracks: ["50%", "50%"]
+      align: stretch
     children:
-      {% if title %}
-      - type: heading
-        text: "{{ title }}"
-        fontSize: {{ style.titleSize }}
-        textAlign: center
-      - type: divider
-        variant: gradient
-        width: 80
-        align: center
-        margin: [16, 0, 40, 0]
-      {% endif %}
-      - type: columns
-        gap: 32
-        equalHeight: true
+      - kind: group
+        id: left-card
+        preset: columnCard
+        {% if style.cardHeight %}
+        frame: { h: {{ style.cardHeight }} }
+        {% endif %}
+        entrance: { type: slide-left, delay: 200, duration: 600 }
         children:
-          - type: box
-            padding: 32
-            {% if style.cardHeight %}
-            height: {{ style.cardHeight }}
-            {% endif %}
-            entranceType: slide-left
-            children:
-              - type: body
-                text: "{{ left }}"
-                fontSize: {{ style.bodySize }}
-              - type: spacer
-                height: 8
-          - type: box
-            padding: 32
-            {% if style.cardHeight %}
-            height: {{ style.cardHeight }}
-            {% endif %}
-            entranceType: slide-right
-            children:
-              - type: body
-                text: "{{ right }}"
-                fontSize: {{ style.bodySize }}
-              - type: spacer
-                height: 8
+          - kind: text
+            id: left-card-body
+            preset: columnBody
+            frame: { left: 32, top: 32, right: 32 }
+            text: "{{ left | yaml_string }}"
+            style:
+              fontSize: {{ style.bodySize }}
+      - kind: group
+        id: right-card
+        preset: columnCard
+        {% if style.cardHeight %}
+        frame: { h: {{ style.cardHeight }} }
+        {% endif %}
+        entrance: { type: slide-right, delay: 200, duration: 600 }
+        children:
+          - kind: text
+            id: right-card-body
+            preset: columnBody
+            frame: { left: 32, top: 32, right: 32 }
+            text: "{{ right | yaml_string }}"
+            style:
+              fontSize: {{ style.bodySize }}

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { findTemplate, clearTemplateCache } from "./loader";
 import { expandDslTemplate } from "./engine";
 import { layoutSlide } from "@/lib/layout";
-import type { SlideData, ComponentSlideData } from "@/lib/types";
+import type { SlideData, ComponentSlideData, SceneSlideData } from "@/lib/types";
 import type { DslTemplateDef } from "./types";
 
 beforeEach(() => {
@@ -30,6 +30,12 @@ function innerChildren(slide: SlideData): unknown[] {
     return (fc.children[0] as { children: unknown[] }).children;
   }
   return fc.children;
+}
+
+function sceneChildren(slide: SlideData): unknown[] {
+  const scene = slide as SceneSlideData;
+  expect(scene.mode).toBe("scene");
+  return scene.children;
 }
 
 /** Helper: recursively collect all layout elements (including nested children) */
@@ -90,13 +96,25 @@ describe("DSL integration: template expansion + layout", () => {
       ],
     });
 
-    const children = innerChildren(slide);
-    // heading + divider + spacer + columns + spacer = 5 children
-    expect(children).toHaveLength(5);
-    expect(children[0]).toMatchObject({ type: "heading", text: "Metrics" });
-    expect(children[3]).toMatchObject({ type: "columns" });
+    const children = sceneChildren(slide);
+    expect(children).toHaveLength(3);
+    expect(children[0]).toMatchObject({ kind: "text", id: "stats-header-title", text: "Metrics" });
+    expect(children[1]).toMatchObject({ kind: "shape", id: "stats-header-divider" });
+    expect(children[2]).toMatchObject({
+      kind: "group",
+      id: "stats-grid",
+      layout: { type: "grid", columns: 2, columnGap: 32 },
+    });
 
-    expect(layout.elements.length).toBeGreaterThan(0);
+    const elements = allLayoutElements(layout.elements);
+    expect(elements.find((element) => element.id === "stat-1-value")).toMatchObject({
+      kind: "text",
+      text: "42",
+    });
+    expect(elements.find((element) => element.id === "stat-2-value")).toMatchObject({
+      kind: "text",
+      text: "7",
+    });
   });
 
   it("stats: expands without title", () => {
@@ -104,11 +122,13 @@ describe("DSL integration: template expansion + layout", () => {
       stats: [{ value: "1", label: "One" }],
     });
 
-    const children = innerChildren(slide);
-    // spacer + columns + spacer = 3 children (no heading/divider)
-    expect(children).toHaveLength(3);
-    expect(children[0]).toMatchObject({ type: "spacer" });
-    expect(children[1]).toMatchObject({ type: "columns" });
+    const children = sceneChildren(slide);
+    expect(children).toHaveLength(1);
+    expect(children[0]).toMatchObject({
+      kind: "group",
+      id: "stats-grid",
+      layout: { type: "grid", columns: 1, columnGap: 32 },
+    });
   });
 
   it("statement: expands with subtitle", () => {
@@ -117,11 +137,17 @@ describe("DSL integration: template expansion + layout", () => {
       subtitle: "Supporting text",
     });
 
-    const children = innerChildren(slide);
-    // heading + divider + body = 3 children
+    const children = sceneChildren(slide);
     expect(children).toHaveLength(3);
-    expect(children[0]).toMatchObject({ type: "heading", text: "Big Idea" });
-    expect(layout.elements.length).toBeGreaterThan(0);
+    expect(children[0]).toMatchObject({ kind: "text", id: "statement-title", text: "Big Idea" });
+    expect(children[1]).toMatchObject({ kind: "shape", id: "statement-divider" });
+    expect(children[2]).toMatchObject({ kind: "text", id: "statement-subtitle", text: "Supporting text" });
+
+    const elements = allLayoutElements(layout.elements);
+    expect(elements.find((element) => element.id === "statement-title")).toMatchObject({
+      kind: "text",
+      text: "Big Idea",
+    });
   });
 
   it("statement: expands without subtitle", () => {
@@ -129,10 +155,9 @@ describe("DSL integration: template expansion + layout", () => {
       statement: "Solo Statement",
     });
 
-    const children = innerChildren(slide);
-    // heading only = 1 child
+    const children = sceneChildren(slide);
     expect(children).toHaveLength(1);
-    expect(children[0]).toMatchObject({ type: "heading", text: "Solo Statement" });
+    expect(children[0]).toMatchObject({ kind: "text", id: "statement-title", text: "Solo Statement" });
   });
 
   it("quote: expands with attribution", () => {
@@ -255,19 +280,24 @@ describe("DSL integration: template expansion + layout", () => {
       subtitle: "Any questions?",
     });
 
-    const children = innerChildren(slide);
-    // heading + divider + body = 3 children
+    const children = sceneChildren(slide);
     expect(children).toHaveLength(3);
-    expect(children[0]).toMatchObject({ type: "heading", text: "Goodbye" });
-    expect(layout.elements.length).toBeGreaterThan(0);
+    expect(children[0]).toMatchObject({ kind: "text", id: "end-title", text: "Goodbye" });
+    expect(children[1]).toMatchObject({ kind: "shape", id: "end-divider" });
+    expect(children[2]).toMatchObject({ kind: "text", id: "end-subtitle", text: "Any questions?" });
+
+    const elements = allLayoutElements(layout.elements);
+    expect(elements.find((element) => element.id === "end-title")).toMatchObject({
+      kind: "text",
+      text: "Goodbye",
+    });
   });
 
   it("end: uses default title when none provided", () => {
     const { slide } = expandAndLayout("end", {});
 
-    const children = innerChildren(slide);
-    expect(children[0]).toMatchObject({ type: "heading", text: "Thank You" });
-    // No subtitle → only heading, no divider or body
+    const children = sceneChildren(slide);
+    expect(children[0]).toMatchObject({ kind: "text", id: "end-title", text: "Thank You" });
     expect(children).toHaveLength(1);
   });
 
@@ -280,19 +310,31 @@ describe("DSL integration: template expansion + layout", () => {
       right: "Right content",
     });
 
-    const children = innerChildren(slide);
-    // heading + divider + columns = 3 children
+    const children = sceneChildren(slide);
     expect(children).toHaveLength(3);
-    expect(children[0]).toMatchObject({ type: "heading", text: "Two Sides" });
-    expect(children[2]).toMatchObject({ type: "columns" });
+    expect(children[0]).toMatchObject({ kind: "text", id: "two-column-header-title", text: "Two Sides" });
+    expect(children[1]).toMatchObject({ kind: "shape", id: "two-column-header-divider" });
+    expect(children[2]).toMatchObject({
+      kind: "group",
+      id: "two-column-layout",
+      layout: { type: "row", gap: 32, tracks: ["50%", "50%"], align: "stretch" },
+    });
     const cols = children[2] as unknown as { children: unknown[] };
     expect(cols.children).toHaveLength(2);
-    expect(cols.children[0]).toMatchObject({ type: "box", entranceType: "slide-left" });
-    expect(cols.children[1]).toMatchObject({ type: "box", entranceType: "slide-right" });
-    expect(cols.children[0]).not.toHaveProperty("height");
-    expect(cols.children[1]).not.toHaveProperty("height");
+    expect(cols.children[0]).toMatchObject({ kind: "group", id: "left-card" });
+    expect(cols.children[1]).toMatchObject({ kind: "group", id: "right-card" });
+    expect(cols.children[0]).not.toHaveProperty("frame");
+    expect(cols.children[1]).not.toHaveProperty("frame");
 
-    expect(layout.elements.length).toBeGreaterThan(0);
+    const elements = allLayoutElements(layout.elements);
+    expect(elements.find((element) => element.id === "left-card-body")).toMatchObject({
+      kind: "text",
+      text: "Left content",
+    });
+    expect(elements.find((element) => element.id === "right-card-body")).toMatchObject({
+      kind: "text",
+      text: "Right content",
+    });
   });
 
   it("two-column: expands without title", () => {
@@ -301,10 +343,9 @@ describe("DSL integration: template expansion + layout", () => {
       right: "B",
     });
 
-    const children = innerChildren(slide);
-    // columns only = 1 child
+    const children = sceneChildren(slide);
     expect(children).toHaveLength(1);
-    expect(children[0]).toMatchObject({ type: "columns" });
+    expect(children[0]).toMatchObject({ kind: "group", id: "two-column-layout" });
   });
 
   it("two-column: style.cardHeight overrides default", () => {
@@ -314,10 +355,10 @@ describe("DSL integration: template expansion + layout", () => {
       style: { cardHeight: 500 },
     });
 
-    const children = innerChildren(slide);
-    const cols = children[0] as unknown as { children: Array<{ height: number }> };
-    expect(cols.children[0].height).toBe(500);
-    expect(cols.children[1].height).toBe(500);
+    const children = sceneChildren(slide);
+    const cols = children[0] as unknown as { children: Array<{ frame?: { h?: number } }> };
+    expect(cols.children[0].frame?.h).toBe(500);
+    expect(cols.children[1].frame?.h).toBe(500);
   });
 
   it("comparison: expands with heading + bullets per column", () => {
@@ -428,13 +469,18 @@ describe("DSL integration: template expansion + layout", () => {
       caption: "A beautiful sunset",
     });
 
-    const children = innerChildren(slide);
-    // heading + divider + image + text = 4
+    const children = sceneChildren(slide);
     expect(children).toHaveLength(4);
-    expect(children[2]).toMatchObject({ type: "image", src: "photo.jpg", borderRadius: 16, entranceType: "scale-up", entranceDelay: 200 });
-    expect(children[3]).toMatchObject({ type: "text", textAlign: "center", entranceType: "fade-up", entranceDelay: 400 });
+    expect(children[0]).toMatchObject({ kind: "text", id: "image-caption-header-title", text: "Photo" });
+    expect(children[1]).toMatchObject({ kind: "shape", id: "image-caption-header-divider" });
+    expect(children[2]).toMatchObject({ kind: "image", id: "image-caption-image", src: "photo.jpg", borderRadius: 16 });
+    expect(children[3]).toMatchObject({ kind: "text", id: "image-caption-caption", text: "A beautiful sunset" });
 
-    expect(layout.elements.length).toBeGreaterThan(0);
+    const elements = allLayoutElements(layout.elements);
+    expect(elements.find((element) => element.id === "image-caption-image")).toMatchObject({
+      kind: "image",
+      src: "/img/photo.jpg",
+    });
   });
 
   it("image-caption: expands without title", () => {
@@ -443,11 +489,10 @@ describe("DSL integration: template expansion + layout", () => {
       caption: "Caption text",
     });
 
-    const children = innerChildren(slide);
-    // image + text = 2
+    const children = sceneChildren(slide);
     expect(children).toHaveLength(2);
-    expect(children[0]).toMatchObject({ type: "image" });
-    expect(children[1]).toMatchObject({ type: "text" });
+    expect(children[0]).toMatchObject({ kind: "image", id: "image-caption-image" });
+    expect(children[1]).toMatchObject({ kind: "text", id: "image-caption-caption", text: "Caption text" });
   });
 
   it("profile: expands with avatar, name, title, and bio", () => {
@@ -458,16 +503,23 @@ describe("DSL integration: template expansion + layout", () => {
       bio: "A passionate developer.",
     });
 
-    const children = innerChildren(slide);
-    // image + heading + text(title) + divider + text(bio) = 5
+    const children = sceneChildren(slide);
     expect(children).toHaveLength(5);
-    expect(children[0]).toMatchObject({ type: "image", clipCircle: true, entranceType: "scale-up", entranceDelay: 0 });
-    expect(children[1]).toMatchObject({ type: "heading", text: "Jane Doe", entranceType: "fade-up", entranceDelay: 200 });
-    expect(children[2]).toMatchObject({ type: "text", color: "theme.accent", lineHeight: 1.3, entranceType: "fade-up", entranceDelay: 300 });
-    expect(children[3]).toMatchObject({ type: "divider", variant: "gradient", entranceType: "fade-up", entranceDelay: 350 });
-    expect(children[4]).toMatchObject({ type: "text", color: "theme.textMuted", maxWidth: 700, entranceType: "fade-up", entranceDelay: 400 });
+    expect(children[0]).toMatchObject({ kind: "image", id: "profile-avatar", clipCircle: true, src: "avatar.jpg" });
+    expect(children[1]).toMatchObject({ kind: "text", id: "profile-name", text: "Jane Doe" });
+    expect(children[2]).toMatchObject({ kind: "text", id: "profile-title", text: "Software Engineer" });
+    expect(children[3]).toMatchObject({ kind: "shape", id: "profile-divider" });
+    expect(children[4]).toMatchObject({ kind: "text", id: "profile-bio", text: "A passionate developer." });
 
-    expect(layout.elements.length).toBeGreaterThan(0);
+    const elements = allLayoutElements(layout.elements);
+    expect(elements.find((element) => element.id === "profile-avatar")).toMatchObject({
+      kind: "image",
+      src: "/img/avatar.jpg",
+    });
+    expect(elements.find((element) => element.id === "profile-name")).toMatchObject({
+      kind: "text",
+      text: "Jane Doe",
+    });
   });
 
   it("profile: expands without optional fields", () => {
@@ -475,11 +527,10 @@ describe("DSL integration: template expansion + layout", () => {
       name: "Solo Name",
     });
 
-    const children = innerChildren(slide);
-    // heading + divider = 2
+    const children = sceneChildren(slide);
     expect(children).toHaveLength(2);
-    expect(children[0]).toMatchObject({ type: "heading", text: "Solo Name" });
-    expect(children[1]).toMatchObject({ type: "divider" });
+    expect(children[0]).toMatchObject({ kind: "text", id: "profile-name", text: "Solo Name" });
+    expect(children[1]).toMatchObject({ kind: "shape", id: "profile-divider" });
   });
 
   it("image-comparison: expands with images and labels", () => {

@@ -27,6 +27,16 @@ function configureEnvironment(
     return val.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/"/g, '\\"');
   });
 
+  env.addFilter("indent_yaml", (val: unknown, width = 0) => {
+    if (val === null || val === undefined) return val;
+    const text = typeof val === "string" ? val : String(val);
+    const pad = " ".repeat(Math.max(0, Number(width) || 0));
+    return text
+      .split("\n")
+      .map((line) => (line ? `${pad}${line}` : line))
+      .join("\n");
+  });
+
   return env;
 }
 
