@@ -18,39 +18,43 @@ presets:
       fontWeight: 400
       color: "theme.textMuted"
       textAlign: center
-      lineHeight: 1.4
+      lineHeight: 1.6
   divider:
     style:
-      fill: "theme.accent"
+      gradient: "theme.accentGradient"
 children:
-  - kind: text
-    id: statement-title
-    preset: statementTitle
-    frame:
-      x: 240
-      y: {{ 340 if subtitle else 470 }}
-      w: 1440
-    text: "{{ statement }}"
-    style:
-      fontSize: 72
+  - kind: group
+    id: statement-stack
+    frame: { x: 0, y: 0, w: 1920, h: 1080 }
+    layout:
+      type: stack
+      gap: 28
+      align: center
+      justify: center
+      padding: [0, 160, 0, 160]
+    children:
+      - kind: text
+        id: statement-title
+        preset: statementTitle
+        frame: { w: 1600 }
+        text: "{{ statement }}"
+        style:
+          fontSize: 72
+        entrance: { type: fade-up, delay: 0, duration: 600 }
   {% if subtitle %}
-  - kind: shape
-    id: statement-divider
-    preset: divider
-    frame:
-      centerX: "@statement-title.centerX"
-      top: { ref: "@statement-title.bottom", offset: 28 }
-      w: 120
-      h: 4
-    shape: rect
-  - kind: text
-    id: statement-subtitle
-    preset: statementSubtitle
-    frame:
-      x: 320
-      top: { ref: "@statement-divider.bottom", offset: 28 }
-      w: 1280
-    text: "{{ subtitle }}"
-    style:
-      fontSize: 32
+      - kind: shape
+        id: statement-divider
+        preset: divider
+        frame: { w: 120, h: 4 }
+        shape: rect
+        borderRadius: 2
+        entrance: { type: fade-up, delay: 100, duration: 600 }
+      - kind: text
+        id: statement-subtitle
+        preset: statementSubtitle
+        frame: { w: 1600 }
+        text: "{{ subtitle }}"
+        style:
+          fontSize: 32
+        entrance: { type: fade-up, delay: 200, duration: 600 }
   {% endif %}

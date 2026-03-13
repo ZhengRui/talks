@@ -77,6 +77,17 @@ describe("SlideEngine", () => {
     expect(canvas).not.toBeNull();
   });
 
+  it("reveals the canvas after initial layout measurement", () => {
+    const { container } = render(
+      <SlideEngine>
+        <section>Content</section>
+      </SlideEngine>
+    );
+
+    const canvas = container.querySelector(".slide-canvas");
+    expect(canvas?.classList.contains("ready")).toBe(true);
+  });
+
   it("applies default theme class on each slide when no slideThemes given", () => {
     const { container } = render(
       <SlideEngine theme="bold">

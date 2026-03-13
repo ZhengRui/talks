@@ -19,6 +19,19 @@ export const PADDING_Y = 60;
 export const CONTENT_W = 1600; // max-width of .sl-section
 export const CONTENT_X = (CANVAS_W - CONTENT_W) / 2; // 160
 
+export function resolveBackgroundOverlay(overlay?: string): string | undefined {
+  if (overlay === "dark" || overlay === undefined) {
+    return "rgba(0, 0, 0, 0.6)";
+  }
+  if (overlay === "light") {
+    return "rgba(255, 255, 255, 0.7)";
+  }
+  if (overlay && overlay !== "none") {
+    return overlay;
+  }
+  return undefined;
+}
+
 // --- Text height estimation ---
 
 const AVG_CHAR_WIDTH_RATIO = 0.52; // average character width as fraction of fontSize
@@ -285,41 +298,32 @@ export function backgroundImage(
   imageBase: string,
   overlay?: string,
 ): LayoutElement[] {
+  return backgroundImageElements(`${imageBase}/${src}`, overlay);
+}
+
+export function backgroundImageElements(
+  resolvedSrc: string,
+  overlay?: string,
+): LayoutElement[] {
   const elements: LayoutElement[] = [];
+  const overlayFill = resolveBackgroundOverlay(overlay);
 
   elements.push({
     kind: "image",
     id: "bg-image",
     rect: { x: 0, y: 0, w: CANVAS_W, h: CANVAS_H },
-    src: `${imageBase}/${src}`,
+    src: resolvedSrc,
     objectFit: "cover",
     opacity: 1,
   });
 
-  if (overlay === "dark" || overlay === undefined) {
+  if (overlayFill) {
     elements.push({
       kind: "shape",
       id: "bg-overlay",
       rect: { x: 0, y: 0, w: CANVAS_W, h: CANVAS_H },
       shape: "rect",
-      style: { fill: "rgba(0, 0, 0, 0.6)" },
-    });
-  } else if (overlay === "light") {
-    elements.push({
-      kind: "shape",
-      id: "bg-overlay",
-      rect: { x: 0, y: 0, w: CANVAS_W, h: CANVAS_H },
-      shape: "rect",
-      style: { fill: "rgba(255, 255, 255, 0.7)" },
-    });
-  } else if (overlay && overlay !== "none") {
-    // Custom rgba/CSS color overlay (e.g. "rgba(0,0,0,0.72)")
-    elements.push({
-      kind: "shape",
-      id: "bg-overlay",
-      rect: { x: 0, y: 0, w: CANVAS_W, h: CANVAS_H },
-      shape: "rect",
-      style: { fill: overlay },
+      style: { fill: overlayFill },
     });
   }
 

@@ -6,22 +6,115 @@ style:
   titleSize: { type: number, default: 56 }
   bulletVariant: { type: string, default: card }
 
+{% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) %}
+{% set contentTop = 60 + titleHeight + 16 + 4 + 40 %}
+{% set plainGap = 20 %}
+{% set plainItemHeight = 52 %}
+{% set listHeight = bullets | list_height(30, 1.6, 1600, 10, false, 400) %}
+
+mode: scene
+presets:
+  sectionTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: left
+      lineHeight: 1.15
+  divider:
+    style:
+      gradient: "theme.accentGradient"
+  bulletText:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "theme.text"
+      textAlign: left
+      lineHeight: 1.6
+  bulletCard:
+    borderRadius: 8
+    style:
+      fill: "theme.bgSecondary"
+    border:
+      width: 3
+      color: "theme.accent"
+      sides: ["left"]
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: top
-    layout: { type: flex, direction: column, gap: 0 }
-    autoEntrance: { type: fade-up, stagger: 100 }
+  - kind: text
+    id: bullets-title
+    preset: sectionTitle
+    frame: { x: 160, y: 60, w: 1600, h: {{ titleHeight }} }
+    text: "{{ title | yaml_string }}"
+    style:
+      fontSize: {{ style.titleSize }}
+    entrance: { type: fade-up, delay: 0, duration: 600 }
+  - kind: shape
+    id: bullets-divider
+    preset: divider
+    frame: { x: 160, y: {{ 60 + titleHeight + 16 }}, w: 80, h: 4 }
+    shape: rect
+    borderRadius: 2
+    entrance: { type: fade-up, delay: 100, duration: 600 }
+  {% if style.bulletVariant == "list" %}
+  - kind: ir
+    id: bullets-list
+    frame: { x: 160, y: {{ contentTop }}, w: 1600, h: {{ listHeight }} }
+    element:
+      kind: list
+      id: bullets-list-element
+      rect: { x: 0, y: 0, w: 1600, h: {{ listHeight }} }
+      items: {{ bullets }}
+      ordered: false
+      itemStyle:
+        fontFamily: "theme.fontBody"
+        fontSize: 30
+        fontWeight: 400
+        color: "theme.text"
+        lineHeight: 1.6
+        textAlign: left
+      bulletColor: "theme.text"
+      itemSpacing: 10
+    entrance: { type: fade-up, delay: 200, duration: 600 }
+  {% elif style.bulletVariant == "plain" %}
+  - kind: group
+    id: bullets-list
+    frame: { x: 160, y: {{ contentTop }}, w: 1600, h: {{ (bullets.length * plainItemHeight) + (plainGap * (bullets.length - 1)) if bullets.length > 0 else 0 }} }
+    layout:
+      type: stack
+      gap: {{ plainGap }}
     children:
-      - type: heading
-        text: "{{ title }}"
-        fontSize: {{ style.titleSize }}
-      - type: divider
-        variant: gradient
-        width: 80
-        margin: [16, 0, 40, 0]
-      - type: bullets
-        items: {{ bullets }}
-        variant: {{ style.bulletVariant }}
+      {% for item in bullets %}
+      - kind: text
+        id: bullets-item-{{ loop.index }}
+        preset: bulletText
+        frame: { h: {{ plainItemHeight }} }
+        text: "{{ item | yaml_string }}"
+        style:
+          fontSize: 30
+        entrance: { type: fade-up, delay: {{ 200 + (loop.index0 * 100) }}, duration: 600 }
+      {% endfor %}
+  {% else %}
+  - kind: group
+    id: bullets-list
+    frame: { x: 160, y: {{ contentTop }}, w: 1600, h: {{ (bullets | list_height(30, 1.6, 1582, 16, false, 400)) + (bullets.length * 32) if bullets.length > 0 else 0 }} }
+    layout:
+      type: stack
+      gap: 16
+    children:
+      {% for item in bullets %}
+      {% set textHeight = item | text_height(30, 1.6, 1552, 400) %}
+      - kind: group
+        id: bullets-card-{{ loop.index }}
+        preset: bulletCard
+        frame: { h: {{ textHeight + 32 }} }
+        entrance: { type: fade-up, delay: {{ 200 + (loop.index0 * 100) }}, duration: 600 }
+        children:
+          - kind: text
+            id: bullets-card-{{ loop.index }}-text
+            preset: bulletText
+            frame: { x: 24, y: 16, w: 1552, h: {{ textHeight }} }
+            text: "{{ item | yaml_string }}"
+            style:
+              fontSize: 30
+      {% endfor %}
+  {% endif %}

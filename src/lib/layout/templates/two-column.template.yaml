@@ -9,7 +9,21 @@ style:
   bodySize: { type: number, default: 30 }
   cardHeight: { type: number }
 
-{% import "scene/blocks.njk" as scene %}
+{% set sidePad = 160 %}
+{% set topPad = 60 %}
+{% set columnGap = 32 %}
+{% set cardWidth = (1920 - (sidePad * 2) - columnGap) / 2 %}
+{% set textWidth = cardWidth - 64 %}
+{% set leftHeight = left | text_height(style.bodySize, 1.6, textWidth, 400) %}
+{% set rightHeight = right | text_height(style.bodySize, 1.6, textWidth, 400) %}
+{% set bodyHeight = leftHeight if leftHeight > rightHeight else rightHeight %}
+{% set resolvedCardHeight = style.cardHeight or (bodyHeight + 88) %}
+{% set titleHeight = (style.titleSize * 1.15) + (style.titleSize * 0.15) %}
+{% set layoutY = topPad if not title else (topPad + titleHeight + 16 + 4 + 40) %}
+{% if not title and verticalAlign == "center" %}
+{% set layoutY = (1080 - resolvedCardHeight) / 2 %}
+{% endif %}
+
 mode: scene
 presets:
   sectionTitle:
@@ -21,64 +35,78 @@ presets:
       lineHeight: 1.15
   divider:
     style:
-      fill: "theme.accent"
+      gradient: "theme.accentGradient"
   columnCard:
-    borderRadius: 18
+    borderRadius: 12
+    shadow:
+      offsetX: 0
+      offsetY: 4
+      blur: 24
+      spread: 0
+      color: "rgba(0, 0, 0, 0.06)"
     style:
       fill: "theme.bgSecondary"
     border:
       width: 1
       color: "theme.border.color"
+    clipContent: true
   columnBody:
     style:
       fontFamily: "body"
       fontWeight: 400
       color: "theme.text"
-      lineHeight: 1.45
+      lineHeight: 1.6
 children:
   {% if title %}
-{{ scene.section_title("two-column-header", 160, 60, 1600, title, style.titleSize, 80, 16) | indent_yaml(2) }}
+  - kind: text
+    id: two-column-header-title
+    preset: sectionTitle
+    frame: { x: 160, y: 60, w: 1600 }
+    text: "{{ title }}"
+    style:
+      fontSize: {{ style.titleSize }}
+    entrance: { type: fade-up, delay: 0, duration: 600 }
+  - kind: shape
+    id: two-column-header-divider
+    preset: divider
+    frame:
+      centerX: "@two-column-header-title.centerX"
+      top: { ref: "@two-column-header-title.bottom", offset: 16 }
+      w: 80
+      h: 4
+    shape: rect
+    borderRadius: 2
+    entrance: { type: fade-up, delay: 100, duration: 600 }
   {% endif %}
   - kind: group
     id: two-column-layout
-    frame:
-      x: 160
-      y: {{ 260 if title else (300 if verticalAlign == "center" else 180) }}
-      w: 1600
-      h: {{ style.cardHeight or 560 }}
+    frame: { x: 160, y: {{ layoutY }}, w: 1600, h: {{ resolvedCardHeight }} }
     layout:
       type: row
       gap: 32
-      tracks: ["50%", "50%"]
       align: stretch
     children:
       - kind: group
         id: left-card
         preset: columnCard
-        {% if style.cardHeight %}
-        frame: { h: {{ style.cardHeight }} }
-        {% endif %}
-        entrance: { type: slide-left, delay: 200, duration: 600 }
+        entrance: { type: slide-left, delay: {{ 200 if title else 0 }}, duration: 600 }
         children:
           - kind: text
             id: left-card-body
             preset: columnBody
-            frame: { left: 32, top: 32, right: 32 }
+            frame: { left: 32, top: 32, right: 32, h: {{ leftHeight }} }
             text: "{{ left | yaml_string }}"
             style:
               fontSize: {{ style.bodySize }}
       - kind: group
         id: right-card
         preset: columnCard
-        {% if style.cardHeight %}
-        frame: { h: {{ style.cardHeight }} }
-        {% endif %}
-        entrance: { type: slide-right, delay: 200, duration: 600 }
+        entrance: { type: slide-right, delay: {{ 300 if title else 100 }}, duration: 600 }
         children:
           - kind: text
             id: right-card-body
             preset: columnBody
-            frame: { left: 32, top: 32, right: 32 }
+            frame: { left: 32, top: 32, right: 32, h: {{ rightHeight }} }
             text: "{{ right | yaml_string }}"
             style:
               fontSize: {{ style.bodySize }}

@@ -21,7 +21,13 @@
   left: 50%;
   width: 1920px;
   height: 1080px;
+  transform: translate(-50%, -50%) scale(1);
   transform-origin: center center;
+  visibility: hidden;
+}
+
+.slide-canvas.ready {
+  visibility: visible;
 }
 
 /* Individual slide — full canvas, stacked via absolute positioning */

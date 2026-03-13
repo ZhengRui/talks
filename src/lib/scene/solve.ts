@@ -341,9 +341,11 @@ function compileStackChildren(children: SceneNode[], parent: Rect, ctx: CompileC
     w: Math.max(0, parent.w - pad.left - pad.right),
     h: Math.max(0, parent.h - pad.top - pad.bottom),
   };
-
   let cursorY = inner.y;
   const elements: LayoutElement[] = [];
+  const autoFlowChildren: LayoutElement[] = [];
+  const shouldJustify = layout.justify && children.every((child) => !hasExplicitY(child.frame));
+
   for (const child of children) {
     let compiled = compileSceneNode(child, { x: 0, y: 0, w: inner.w, h: inner.h }, ctx);
     let rect = { ...compiled.rect };
@@ -369,6 +371,31 @@ function compileStackChildren(children: SceneNode[], parent: Rect, ctx: CompileC
     cursorY = rect.y + rect.h + gap;
     registerAnchorRect(ctx, compiled, parent);
     elements.push(compiled);
+    if (shouldJustify) autoFlowChildren.push(compiled);
+  }
+
+  if (shouldJustify && autoFlowChildren.length > 0) {
+    const totalHeight = cursorY - inner.y - gap;
+    const shiftY = layout.justify === "center"
+      ? (inner.h - totalHeight) / 2
+      : layout.justify === "end"
+        ? inner.h - totalHeight
+        : 0;
+
+    if (shiftY !== 0) {
+      for (let index = 0; index < elements.length; index += 1) {
+        const element = elements[index];
+        const shifted = setElementRect(element, {
+          ...element.rect,
+          y: element.rect.y + shiftY,
+        });
+        elements[index] = shifted;
+      }
+      ctx.anchors.clear();
+      for (const element of elements) {
+        registerAnchorRect(ctx, element, parent);
+      }
+    }
   }
   return elements;
 }

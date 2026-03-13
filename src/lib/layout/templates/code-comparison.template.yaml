@@ -9,66 +9,125 @@ style:
   codePadding: { type: number, default: 24 }
   labelSize: { type: number, default: 24 }
 
+{% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) if title else 0 %}
+{% set contentTop = 60 if not title else (60 + titleHeight + 16 + 4 + 40) %}
+{% set beforeCodeHeight = before.code | code_height(style.codeFontSize, style.codePadding, 1.6) %}
+{% set afterCodeHeight = after.code | code_height(style.codeFontSize, style.codePadding, 1.6) %}
+{% set beforeHasLabel = before.label is defined and before.label %}
+{% set afterHasLabel = after.label is defined and after.label %}
+{% set beforeHeight = beforeCodeHeight + (52 if beforeHasLabel else 0) %}
+{% set afterHeight = afterCodeHeight + (52 if afterHasLabel else 0) %}
+{% set layoutHeight = beforeHeight if beforeHeight >= afterHeight else afterHeight %}
+
+mode: scene
+presets:
+  centeredTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: center
+      lineHeight: 1.15
+  divider:
+    style:
+      gradient: "theme.accentGradient"
+  codeLabel:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "theme.textMuted"
+      textAlign: center
+      lineHeight: 1.5
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: top
-    layout: { type: flex, direction: column, gap: 0 }
-    autoEntrance: { type: fade-up, stagger: 100 }
+  {% if title %}
+  - kind: text
+    id: code-comparison-title
+    preset: centeredTitle
+    frame: { x: 160, y: 60, w: 1600, h: {{ titleHeight }} }
+    text: "{{ title | yaml_string }}"
+    style:
+      fontSize: {{ style.titleSize }}
+    entrance: { type: fade-up, delay: 0, duration: 600 }
+  - kind: shape
+    id: code-comparison-divider
+    preset: divider
+    frame:
+      centerX: "@code-comparison-title.centerX"
+      top: { ref: "@code-comparison-title.bottom", offset: 16 }
+      w: 80
+      h: 4
+    shape: rect
+    borderRadius: 2
+    entrance: { type: fade-up, delay: 100, duration: 600 }
+  {% endif %}
+  - kind: group
+    id: code-comparison-layout
+    frame: { x: 160, y: {{ contentTop }}, w: 1600, h: {{ layoutHeight }} }
+    layout:
+      type: row
+      gap: 32
     children:
-      {% if title %}
-      - type: heading
-        text: "{{ title }}"
-        fontSize: {{ style.titleSize }}
-        textAlign: center
-      - type: divider
-        variant: gradient
-        width: 80
-        align: center
-        margin: [16, 0, 40, 0]
-      {% endif %}
-      - type: columns
-        gap: 32
+      - kind: group
+        id: code-comparison-before
+        frame: { w: 784, h: {{ beforeHeight }} }
+        entrance: { type: slide-left, delay: {{ 200 if title else 0 }}, duration: 600 }
         children:
-          - type: box
-            variant: flat
-            padding: 0
-            entranceType: slide-left
-            children:
-              {% if before.label %}
-              - type: text
-                text: "{{ before.label }}"
-                textAlign: center
-                fontSize: {{ style.labelSize }}
-                color: theme.textMuted
-                lineHeight: 1.5
+          {% if beforeHasLabel %}
+          - kind: text
+            id: code-comparison-before-label
+            preset: codeLabel
+            frame: { x: 0, y: 0, w: 784, h: 36 }
+            text: "{{ before.label | yaml_string }}"
+            style:
+              fontSize: {{ style.labelSize }}
+          {% endif %}
+          - kind: ir
+            id: code-comparison-before-code
+            frame: { x: 0, y: {{ 52 if beforeHasLabel else 0 }}, w: 784, h: {{ beforeCodeHeight }} }
+            element:
+              kind: code
+              id: code-comparison-before-code-element
+              rect: { x: 0, y: 0, w: 784, h: {{ beforeCodeHeight }} }
+              code: {{ before.code | tojson }}
+              {% if before.language %}
+              language: {{ before.language | tojson }}
               {% endif %}
-              - type: code
-                code: {{ before.code | tojson }}
+              style:
+                fontFamily: "theme.fontMono"
                 fontSize: {{ style.codeFontSize }}
+                color: "theme.codeText"
+                background: "theme.codeBg"
+                borderRadius: 12
                 padding: {{ style.codePadding }}
-                {% if before.language %}
-                language: {{ before.language }}
-                {% endif %}
-          - type: box
-            variant: flat
-            padding: 0
-            entranceType: slide-right
-            children:
-              {% if after.label %}
-              - type: text
-                text: "{{ after.label }}"
-                textAlign: center
-                fontSize: {{ style.labelSize }}
-                color: theme.textMuted
-                lineHeight: 1.5
+      - kind: group
+        id: code-comparison-after
+        frame: { w: 784, h: {{ afterHeight }} }
+        entrance: { type: slide-right, delay: {{ 300 if title else 100 }}, duration: 600 }
+        children:
+          {% if afterHasLabel %}
+          - kind: text
+            id: code-comparison-after-label
+            preset: codeLabel
+            frame: { x: 0, y: 0, w: 784, h: 36 }
+            text: "{{ after.label | yaml_string }}"
+            style:
+              fontSize: {{ style.labelSize }}
+          {% endif %}
+          - kind: ir
+            id: code-comparison-after-code
+            frame: { x: 0, y: {{ 52 if afterHasLabel else 0 }}, w: 784, h: {{ afterCodeHeight }} }
+            element:
+              kind: code
+              id: code-comparison-after-code-element
+              rect: { x: 0, y: 0, w: 784, h: {{ afterCodeHeight }} }
+              code: {{ after.code | tojson }}
+              {% if after.language %}
+              language: {{ after.language | tojson }}
               {% endif %}
-              - type: code
-                code: {{ after.code | tojson }}
+              style:
+                fontFamily: "theme.fontMono"
                 fontSize: {{ style.codeFontSize }}
+                color: "theme.codeText"
+                background: "theme.codeBg"
+                borderRadius: 12
                 padding: {{ style.codePadding }}
-                {% if after.language %}
-                language: {{ after.language }}
-                {% endif %}

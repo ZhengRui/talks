@@ -6,21 +6,62 @@ style:
   fontSize: { type: number, default: 36 }
   attributionFontSize: { type: number, default: 26 }
 
+mode: scene
+presets:
+  quoteMark:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.accent"
+      textAlign: center
+      lineHeight: 1
+  quoteText:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      fontStyle: italic
+      color: "theme.text"
+      textAlign: center
+      lineHeight: 1.6
+  quoteAttribution:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "theme.textMuted"
+      textAlign: center
+      lineHeight: 1.5
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: center
-    layout: { type: flex, direction: column, gap: 0 }
-    autoEntrance: { type: fade-up, stagger: 100 }
+  - kind: group
+    id: quote-stack
+    frame: { x: 0, y: 0, w: 1920, h: 1080 }
+    layout:
+      type: stack
+      gap: 24
+      align: center
+      justify: center
+      padding: [0, 160, 0, 160]
     children:
-      - type: quote
-        text: "{{ quote }}"
-        textAlign: center
-        fontSize: {{ style.fontSize }}
-        attributionFontSize: {{ style.attributionFontSize }}
-        decorative: true
-        {% if attribution %}
-        attribution: "{{ attribution }}"
-        {% endif %}
+      - kind: text
+        id: quote-mark
+        preset: quoteMark
+        frame: { h: 120 }
+        text: "“"
+        style:
+          fontSize: 120
+        entrance: { type: fade-in, delay: 0, duration: 600 }
+      - kind: text
+        id: quote-text
+        preset: quoteText
+        text: "{{ quote | yaml_string }}"
+        style:
+          fontSize: {{ style.fontSize }}
+        entrance: { type: scale-up, delay: 150, duration: 600 }
+      {% if attribution %}
+      - kind: text
+        id: quote-attribution
+        preset: quoteAttribution
+        text: "{{ ('— ' ~ attribution) | yaml_string }}"
+        style:
+          fontSize: {{ style.attributionFontSize }}
+        entrance: { type: fade-up, delay: 400, duration: 600 }
+      {% endif %}

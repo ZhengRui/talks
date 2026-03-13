@@ -5,23 +5,88 @@ params:
 style:
   titleSize: { type: number, default: 56 }
 
+{% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) %}
+{% set contentTop = 60 + titleHeight + 16 + 4 + 40 %}
+{% set itemHeight = 52 %}
+{% set badgeSize = 44 %}
+{% set itemGap = 20 %}
+
+mode: scene
+presets:
+  sectionTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: left
+      lineHeight: 1.15
+  divider:
+    style:
+      gradient: "theme.accentGradient"
+  badgeNumber:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.bg"
+      textAlign: center
+      verticalAlign: middle
+      lineHeight: 1
+  itemText:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "theme.text"
+      textAlign: left
+      lineHeight: 1.6
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: top
-    layout: { type: flex, direction: column, gap: 0 }
-    autoEntrance: { type: fade-up, stagger: 100 }
+  - kind: text
+    id: numbered-list-title
+    preset: sectionTitle
+    frame: { x: 160, y: 60, w: 1600, h: {{ titleHeight }} }
+    text: "{{ title | yaml_string }}"
+    style:
+      fontSize: {{ style.titleSize }}
+    entrance: { type: fade-up, delay: 0, duration: 600 }
+  - kind: shape
+    id: numbered-list-divider
+    preset: divider
+    frame: { x: 160, y: {{ 60 + titleHeight + 16 }}, w: 80, h: 4 }
+    shape: rect
+    borderRadius: 2
+    entrance: { type: fade-up, delay: 100, duration: 600 }
+  - kind: group
+    id: numbered-list-items
+    frame: { x: 160, y: {{ contentTop }}, w: 1600, h: {{ (items.length * itemHeight) + (itemGap * (items.length - 1)) if items.length > 0 else 0 }} }
+    layout:
+      type: stack
+      gap: {{ itemGap }}
     children:
-      - type: heading
-        text: "{{ title }}"
-        fontSize: {{ style.titleSize }}
-      - type: divider
-        variant: gradient
-        width: 80
-        margin: [16, 0, 40, 0]
-      - type: bullets
-        ordered: true
-        variant: plain
-        items: {{ items }}
+      {% for item in items %}
+      - kind: group
+        id: numbered-list-item-{{ loop.index }}
+        frame: { h: {{ itemHeight }} }
+        children:
+          - kind: group
+            id: numbered-list-item-{{ loop.index }}-badge
+            frame: { x: 0, y: 0, w: {{ badgeSize }}, h: {{ badgeSize }} }
+            style:
+              fill: "theme.accent"
+            borderRadius: 100
+            entrance: { type: fade-up, delay: {{ 200 + (loop.index0 * 100) }}, duration: 600 }
+            children:
+              - kind: text
+                id: numbered-list-item-{{ loop.index }}-num
+                preset: badgeNumber
+                frame: { x: 0, y: 0, w: {{ badgeSize }}, h: {{ badgeSize }} }
+                text: "{{ loop.index }}"
+                style:
+                  fontSize: 24
+          - kind: text
+            id: numbered-list-item-{{ loop.index }}-text
+            preset: itemText
+            frame: { x: 64, y: 4, w: 1536, h: {{ itemHeight }} }
+            text: "{{ item | yaml_string }}"
+            style:
+              fontSize: 30
+            entrance: { type: fade-up, delay: {{ 200 + (loop.index0 * 100) }}, duration: 600 }
+      {% endfor %}

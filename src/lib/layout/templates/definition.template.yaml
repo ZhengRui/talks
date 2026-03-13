@@ -6,38 +6,89 @@ style:
   termSize: { type: number, default: 30 }
   descSize: { type: number, default: 28 }
 
+{% set titleHeight = title | text_height(56, 1.15, 1600, 700) %}
+{% set contentTop = 60 + titleHeight + 16 + 4 + 64 %}
+
+mode: scene
+presets:
+  sectionTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: left
+      lineHeight: 1.15
+  divider:
+    style:
+      gradient: "theme.accentGradient"
+  termText:
+    style:
+      fontFamily: "body"
+      fontWeight: 700
+      color: "theme.accent"
+      textAlign: left
+      lineHeight: 1.6
+  descText:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "theme.text"
+      textAlign: left
+      lineHeight: 1.6
+  borderDivider:
+    style:
+      fill: "rgba(0, 0, 0, 0.06)"
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: top
-    layout: { type: flex, direction: column, gap: 0 }
-    autoEntrance: { type: fade-up, stagger: 100 }
+  - kind: text
+    id: definition-title
+    preset: sectionTitle
+    frame: { x: 160, y: 60, w: 1600, h: {{ titleHeight }} }
+    text: "{{ title | yaml_string }}"
+    style:
+      fontSize: 56
+    entrance: { type: fade-up, delay: 0, duration: 600 }
+  - kind: shape
+    id: definition-divider
+    preset: divider
+    frame: { x: 160, y: {{ 60 + titleHeight + 16 }}, w: 80, h: 4 }
+    shape: rect
+    borderRadius: 2
+    entrance: { type: fade-up, delay: 100, duration: 600 }
+  - kind: group
+    id: definition-list
+    frame: { x: 160, y: {{ contentTop }}, w: 1600, h: {{ 1080 - contentTop }} }
+    layout:
+      type: stack
+      gap: 24
     children:
-      - type: heading
-        text: "{{ title }}"
-        fontSize: 56
-      - type: divider
-        variant: gradient
-        width: 80
-        margin: [16, 0, 0, 0]
       {% for def in definitions %}
-      - type: text
-        text: "{{ def.term }}"
-        fontSize: {{ style.termSize }}
-        fontWeight: bold
-        color: theme.accent
-        {% if loop.first %}
-        margin: [64, 0, 0, 0]
-        {% else %}
-        margin: [24, 0, 0, 0]
-        {% endif %}
-      - type: text
-        text: "{{ def.description }}"
-        fontSize: {{ style.descSize }}
-        margin: [8, 0, 0, 0]
-      - type: divider
-        variant: border
-        margin: [24, 0, 0, 0]
+      {% set termHeight = def.term | text_height(style.termSize, 1.6, 1600, 700) %}
+      {% set descHeight = def.description | text_height(style.descSize, 1.6, 1600, 400) %}
+      {% set baseDelay = 200 + (loop.index0 * 300) %}
+      - kind: group
+        id: definition-item-{{ loop.index }}
+        frame: { h: {{ termHeight + 8 + descHeight + 24 + 1 }} }
+        children:
+          - kind: text
+            id: definition-item-{{ loop.index }}-term
+            preset: termText
+            frame: { x: 0, y: 0, w: 1600, h: {{ termHeight }} }
+            text: "{{ def.term | yaml_string }}"
+            style:
+              fontSize: {{ style.termSize }}
+            entrance: { type: fade-up, delay: {{ baseDelay }}, duration: 600 }
+          - kind: text
+            id: definition-item-{{ loop.index }}-description
+            preset: descText
+            frame: { x: 0, y: {{ termHeight + 8 }}, w: 1600, h: {{ descHeight }} }
+            text: "{{ def.description | yaml_string }}"
+            style:
+              fontSize: {{ style.descSize }}
+            entrance: { type: fade-up, delay: {{ baseDelay + 100 }}, duration: 600 }
+          - kind: shape
+            id: definition-item-{{ loop.index }}-divider
+            preset: borderDivider
+            frame: { x: 0, y: {{ termHeight + 8 + descHeight + 24 }}, w: 1600, h: 1 }
+            shape: rect
+            entrance: { type: fade-up, delay: {{ baseDelay + 200 }}, duration: 600 }
       {% endfor %}

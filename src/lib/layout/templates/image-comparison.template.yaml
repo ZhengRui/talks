@@ -8,7 +8,19 @@ style:
   labelSize: { type: number, default: 24 }
   imageHeight: { type: number, default: 730 }
 
-{% import "scene/blocks.njk" as scene %}
+{% set topPad = 60 %}
+{% set sidePad = 160 %}
+{% set columnGap = 32 %}
+{% set cardWidth = (1920 - (sidePad * 2) - columnGap) / 2 %}
+{% set innerWidth = cardWidth - 48 %}
+{% set beforeLabelHeight = before.label | text_height(style.labelSize, 1.6, innerWidth, 700) if before.label else 0 %}
+{% set afterLabelHeight = after.label | text_height(style.labelSize, 1.6, innerWidth, 700) if after.label else 0 %}
+{% set labelHeight = beforeLabelHeight if beforeLabelHeight > afterLabelHeight else afterLabelHeight %}
+{% set hasLabel = before.label or after.label %}
+{% set cardHeight = 24 + style.imageHeight + (16 + labelHeight + 24 if hasLabel else 24) %}
+{% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) if title else 0 %}
+{% set layoutY = topPad if not title else (topPad + titleHeight + 16 + 4 + 40) %}
+
 mode: scene
 presets:
   sectionTitle:
@@ -20,36 +32,56 @@ presets:
       lineHeight: 1.15
   divider:
     style:
-      fill: "theme.accent"
+      gradient: "theme.accentGradient"
   imageCard:
-    borderRadius: 18
+    borderRadius: 12
+    shadow:
+      offsetX: 0
+      offsetY: 4
+      blur: 24
+      spread: 0
+      color: "rgba(0, 0, 0, 0.06)"
     style:
       fill: "theme.bgSecondary"
     border:
       width: 1
       color: "theme.border.color"
+    clipContent: true
   imageLabel:
     style:
       fontFamily: "body"
       fontWeight: 700
-      color: "theme.heading"
+      color: "theme.text"
       textAlign: center
-      lineHeight: 1.2
+      lineHeight: 1.6
 children:
   {% if title %}
-{{ scene.section_title("image-comparison-header", 160, 60, 1600, title, style.titleSize, 80, 16) | indent_yaml(2) }}
+  - kind: text
+    id: image-comparison-header-title
+    preset: sectionTitle
+    frame: { x: 160, y: 60, w: 1600, h: {{ titleHeight }} }
+    text: "{{ title }}"
+    style:
+      fontSize: {{ style.titleSize }}
+    entrance: { type: fade-up, delay: 0, duration: 600 }
+  - kind: shape
+    id: image-comparison-header-divider
+    preset: divider
+    frame:
+      centerX: "@image-comparison-header-title.centerX"
+      top: { ref: "@image-comparison-header-title.bottom", offset: 16 }
+      w: 80
+      h: 4
+    shape: rect
+    borderRadius: 2
+    entrance: { type: fade-up, delay: 100, duration: 600 }
   {% endif %}
   - kind: group
     id: image-comparison-layout
-    frame:
-      x: 160
-      y: {{ 260 if title else 180 }}
-      w: 1600
-      h: 760
+    frame: { x: 160, y: {{ layoutY }}, w: 1600, h: {{ cardHeight }} }
     layout:
       type: row
       gap: 32
-      tracks: ["50%", "50%"]
       align: stretch
     children:
       - kind: group
@@ -62,15 +94,16 @@ children:
             frame: { left: 24, top: 24, right: 24, h: {{ style.imageHeight }} }
             src: "{{ before.image }}"
             objectFit: cover
-            borderRadius: 16
+            borderRadius: 8
           {% if before.label %}
           - kind: text
             id: image-comparison-before-label
             preset: imageLabel
             frame:
-              centerX: "@image-comparison-before-image.centerX"
-              top: { ref: "@image-comparison-before-image.bottom", offset: 20 }
-              w: 360
+              left: 24
+              top: { ref: "@image-comparison-before-image.bottom", offset: 16 }
+              right: 24
+              h: {{ beforeLabelHeight }}
             text: "{{ before.label | yaml_string }}"
             style:
               fontSize: {{ style.labelSize }}
@@ -85,15 +118,16 @@ children:
             frame: { left: 24, top: 24, right: 24, h: {{ style.imageHeight }} }
             src: "{{ after.image }}"
             objectFit: cover
-            borderRadius: 16
+            borderRadius: 8
           {% if after.label %}
           - kind: text
             id: image-comparison-after-label
             preset: imageLabel
             frame:
-              centerX: "@image-comparison-after-image.centerX"
-              top: { ref: "@image-comparison-after-image.bottom", offset: 20 }
-              w: 360
+              left: 24
+              top: { ref: "@image-comparison-after-image.bottom", offset: 16 }
+              right: 24
+              h: {{ afterLabelHeight }}
             text: "{{ after.label | yaml_string }}"
             style:
               fontSize: {{ style.labelSize }}

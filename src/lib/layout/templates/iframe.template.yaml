@@ -6,33 +6,53 @@ style:
   titleSize: { type: number, default: 56 }
   height: { type: number }
 
+{% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) if title else 0 %}
+{% set contentTop = 60 if not title else (60 + titleHeight + 16 + 4 + 40) %}
+{% set mediaHeight = style.height if style.height else (1020 - contentTop) %}
+
+mode: scene
+presets:
+  centeredTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: center
+      lineHeight: 1.15
+  divider:
+    style:
+      gradient: "theme.accentGradient"
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: top
-    layout: { type: flex, direction: column, gap: 0 }
-    autoEntrance: { type: fade-up, stagger: 100 }
-    children:
-      {% if title %}
-      - type: heading
-        text: "{{ title }}"
-        fontSize: {{ style.titleSize }}
-        textAlign: center
-      - type: divider
-        variant: gradient
-        width: 80
-        align: center
-        margin: [16, 0, 40, 0]
-      {% endif %}
-      - type: box
-        fill: true
-        variant: flat
-        padding: 0
-        children:
-          - type: iframe
-            src: "{{ src }}"
-            {% if style.height %}
-            height: {{ style.height }}
-            {% endif %}
+  {% if title %}
+  - kind: text
+    id: iframe-title
+    preset: centeredTitle
+    frame: { x: 160, y: 60, w: 1600, h: {{ titleHeight }} }
+    text: "{{ title | yaml_string }}"
+    style:
+      fontSize: {{ style.titleSize }}
+    entrance: { type: fade-up, delay: 0, duration: 600 }
+  - kind: shape
+    id: iframe-divider
+    preset: divider
+    frame:
+      centerX: "@iframe-title.centerX"
+      top: { ref: "@iframe-title.bottom", offset: 16 }
+      w: 80
+      h: 4
+    shape: rect
+    borderRadius: 2
+    entrance: { type: fade-up, delay: 100, duration: 600 }
+  {% endif %}
+  - kind: ir
+    id: iframe-block
+    frame: { x: 160, y: {{ contentTop }}, w: 1600, h: {{ mediaHeight }} }
+    entrance: { type: fade-up, delay: {{ 200 if title else 0 }}, duration: 600 }
+    element:
+      kind: iframe
+      id: iframe-element
+      rect: { x: 0, y: 0, w: 1600, h: {{ mediaHeight }} }
+      src: "{{ src }}"
+      borderRadius: "theme.radius"
+      border: "theme.cardBorder"
+      shadow: "theme.shadow"

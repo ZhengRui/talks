@@ -7,44 +7,99 @@ style:
   titleSize: { type: number, default: 56 }
   bodySize: { type: number, default: 30 }
 
+{% set topPad = 60 %}
+{% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) if title else 0 %}
+{% set contentTop = topPad if not title else (topPad + titleHeight + 16 + 4 + 40) %}
+{% set contentHeight = 1080 - contentTop - topPad %}
+{% set panelHeight = (contentHeight - 60) / 2 %}
+{% set bodyHeight = top | text_height(style.bodySize, 1.6, 1536, 400) %}
+{% set bottomBodyHeight = bottom | text_height(style.bodySize, 1.6, 1536, 400) %}
+
+mode: scene
+presets:
+  sectionTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: center
+      lineHeight: 1.15
+  divider:
+    style:
+      gradient: "theme.accentGradient"
+  panelCard:
+    borderRadius: 12
+    shadow:
+      offsetX: 0
+      offsetY: 4
+      blur: 24
+      spread: 0
+      color: "rgba(0, 0, 0, 0.06)"
+    style:
+      fill: "theme.bgSecondary"
+    border:
+      width: 1
+      color: "theme.border.color"
+    clipContent: true
+  panelBody:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "theme.text"
+      textAlign: left
+      lineHeight: 1.6
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: top
-    layout: { type: flex, direction: column, gap: 0 }
-    autoEntrance: { type: fade-up, stagger: 100 }
+  {% if title %}
+  - kind: text
+    id: top-bottom-header-title
+    preset: sectionTitle
+    frame: { x: 160, y: 60, w: 1600, h: {{ titleHeight }} }
+    text: "{{ title | yaml_string }}"
+    style:
+      fontSize: {{ style.titleSize }}
+    entrance: { type: fade-up, delay: 0, duration: 600 }
+  - kind: shape
+    id: top-bottom-header-divider
+    preset: divider
+    frame:
+      centerX: "@top-bottom-header-title.centerX"
+      top: { ref: "@top-bottom-header-title.bottom", offset: 16 }
+      w: 80
+      h: 4
+    shape: rect
+    borderRadius: 2
+    entrance: { type: fade-up, delay: 100, duration: 600 }
+  {% endif %}
+  - kind: group
+    id: top-bottom-top-panel
+    preset: panelCard
+    frame: { x: 160, y: {{ contentTop }}, w: 1600, h: {{ panelHeight }} }
+    entrance: { type: fade-up, delay: 200, duration: 600 }
     children:
-      {% if title %}
-      - type: heading
-        text: "{{ title }}"
-        fontSize: {{ style.titleSize }}
-        textAlign: center
-      - type: divider
-        variant: gradient
-        width: 80
-        align: center
-        margin: [16, 0, 40, 0]
-      {% endif %}
-      - type: box
-        fill: true
-        padding: 32
-        entranceType: fade-up
-        children:
-          - type: body
-            text: "{{ top }}"
-            fontSize: {{ style.bodySize }}
-      - type: divider
-        variant: gradient
-        width: 200
-        align: center
-        margin: [28, 0, 28, 0]
-      - type: box
-        fill: true
-        padding: 32
-        entranceType: fade-up
-        children:
-          - type: body
-            text: "{{ bottom }}"
-            fontSize: {{ style.bodySize }}
+      - kind: text
+        id: top-bottom-top-body
+        preset: panelBody
+        frame: { x: 32, y: 32, w: 1536, h: {{ bodyHeight }} }
+        text: "{{ top | yaml_string }}"
+        style:
+          fontSize: {{ style.bodySize }}
+  - kind: shape
+    id: top-bottom-mid-divider
+    preset: divider
+    frame: { x: 860, y: {{ contentTop + panelHeight + 28 }}, w: 200, h: 4 }
+    shape: rect
+    borderRadius: 2
+    entrance: { type: fade-up, delay: 300, duration: 600 }
+  - kind: group
+    id: top-bottom-bottom-panel
+    preset: panelCard
+    frame: { x: 160, y: {{ contentTop + panelHeight + 60 }}, w: 1600, h: {{ panelHeight }} }
+    entrance: { type: fade-up, delay: 400, duration: 600 }
+    children:
+      - kind: text
+        id: top-bottom-bottom-body
+        preset: panelBody
+        frame: { x: 32, y: 32, w: 1536, h: {{ bottomBodyHeight }} }
+        text: "{{ bottom | yaml_string }}"
+        style:
+          fontSize: {{ style.bodySize }}

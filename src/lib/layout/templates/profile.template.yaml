@@ -11,6 +11,11 @@ style:
   bioWidth: { type: number, default: 700 }
   avatarSize: { type: number, default: 200 }
 
+{% set nameHeight = name | text_height(style.nameSize, 1.15, 1600, 700) %}
+{% set titleHeight = title | text_height(style.titleSize, 1.3, 1600, 400) if title else 0 %}
+{% set bioHeight = bio | text_height(style.bioSize, 1.5, style.bioWidth, 400) if bio else 0 %}
+{% set minimalOffset = 12 if (not image and not title and not bio) else 0 %}
+
 mode: scene
 presets:
   profileName:
@@ -36,65 +41,80 @@ presets:
       lineHeight: 1.5
   divider:
     style:
-      fill: "theme.accent"
+      gradient: "theme.accentGradient"
 children:
-  {% if image %}
-  - kind: image
-    id: profile-avatar
-    frame:
-      centerX: 960
-      y: 180
-      w: {{ style.avatarSize }}
-      h: {{ style.avatarSize }}
-    src: "{{ image }}"
-    objectFit: cover
-    clipCircle: true
-    entrance: { type: scale-up, delay: 0, duration: 600 }
-  {% endif %}
-  - kind: text
-    id: profile-name
-    preset: profileName
-    frame:
-      x: 260
-      y: {{ 408 if image else 360 }}
-      w: 1400
-    text: "{{ name }}"
-    style:
-      fontSize: {{ style.nameSize }}
-    entrance: { type: fade-up, delay: 200, duration: 600 }
-  {% if title %}
-  - kind: text
-    id: profile-title
-    preset: profileTitle
-    frame:
-      x: 320
-      top: { ref: "@profile-name.bottom", offset: 8 }
-      w: 1280
-    text: "{{ title }}"
-    style:
-      fontSize: {{ style.titleSize }}
-    entrance: { type: fade-up, delay: 300, duration: 600 }
-  {% endif %}
-  - kind: shape
-    id: profile-divider
-    preset: divider
-    frame:
-      centerX: "@profile-name.centerX"
-      top: { ref: "@{{ 'profile-title' if title else 'profile-name' }}.bottom", offset: 16 }
-      w: 80
-      h: 4
-    shape: rect
-    entrance: { type: fade-up, delay: 350, duration: 600 }
-  {% if bio %}
-  - kind: text
-    id: profile-bio
-    preset: profileBio
-    frame:
-      centerX: "@profile-name.centerX"
-      top: { ref: "@profile-divider.bottom", offset: 16 }
-      w: {{ style.bioWidth }}
-    text: "{{ bio }}"
-    style:
-      fontSize: {{ style.bioSize }}
-    entrance: { type: fade-up, delay: 400, duration: 600 }
-  {% endif %}
+  - kind: group
+    id: profile-stack
+    frame: { x: 0, y: 0, w: 1920, h: 1080 }
+    layout:
+      type: stack
+      align: center
+      justify: center
+      padding: [0, 160, 0, 160]
+    children:
+      {% if minimalOffset %}
+      - kind: group
+        id: profile-leading-offset
+        frame: { h: {{ minimalOffset }} }
+        children: []
+      {% endif %}
+      {% if image %}
+      - kind: image
+        id: profile-avatar
+        frame: { w: {{ style.avatarSize }}, h: {{ style.avatarSize }} }
+        src: "{{ image }}"
+        objectFit: cover
+        clipCircle: true
+        entrance: { type: scale-up, delay: 0, duration: 600 }
+      - kind: group
+        id: profile-image-gap
+        frame: { h: 28 }
+        children: []
+      {% endif %}
+      - kind: text
+        id: profile-name
+        preset: profileName
+        frame: { w: 1600, h: {{ nameHeight }} }
+        text: "{{ name }}"
+        style:
+          fontSize: {{ style.nameSize }}
+        entrance: { type: fade-up, delay: 200, duration: 600 }
+      {% if title %}
+      - kind: group
+        id: profile-title-gap
+        frame: { h: 8 }
+        children: []
+      - kind: text
+        id: profile-title
+        preset: profileTitle
+        frame: { w: 1600, h: {{ titleHeight }} }
+        text: "{{ title }}"
+        style:
+          fontSize: {{ style.titleSize }}
+        entrance: { type: fade-up, delay: 300, duration: 600 }
+      {% endif %}
+      - kind: group
+        id: profile-divider-gap-top
+        frame: { h: 16 }
+        children: []
+      - kind: shape
+        id: profile-divider
+        preset: divider
+        frame: { w: 80, h: 4 }
+        shape: rect
+        borderRadius: 2
+        entrance: { type: fade-up, delay: 350, duration: 600 }
+      {% if bio %}
+      - kind: group
+        id: profile-divider-gap-bottom
+        frame: { h: 16 }
+        children: []
+      - kind: text
+        id: profile-bio
+        preset: profileBio
+        frame: { w: {{ style.bioWidth }}, h: {{ bioHeight }} }
+        text: "{{ bio }}"
+        style:
+          fontSize: {{ style.bioSize }}
+        entrance: { type: fade-up, delay: 400, duration: 600 }
+      {% endif %}

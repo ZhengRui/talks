@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import React from "react";
 
 function NavDots({ total, current, goTo }: { total: number; current: number; goTo: (i: number) => void }) {
@@ -69,6 +69,7 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
   const [currentSlide, setCurrentSlide] = useState(0);
   const [animKey, setAnimKey] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const [canvasReady, setCanvasReady] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const slides = React.Children.toArray(children);
@@ -168,7 +169,7 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
   }, [slug]);
 
   // Viewport scaling
-  useEffect(() => {
+  useLayoutEffect(() => {
     function updateScale() {
       const container = containerRef.current;
       const canvas = canvasRef.current;
@@ -177,6 +178,7 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
       const { clientWidth, clientHeight } = container;
       const scale = Math.min(clientWidth / 1920, clientHeight / 1080);
       canvas.style.transform = `translate(-50%, -50%) scale(${scale})`;
+      setCanvasReady(true);
     }
 
     updateScale();
@@ -190,7 +192,7 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
       className={`slide-engine theme-${theme}`}
       tabIndex={0}
     >
-      <div ref={canvasRef} className="slide-canvas">
+      <div ref={canvasRef} className={`slide-canvas${canvasReady ? " ready" : ""}`}>
         {slides.map((slide, i) => (
           <div
             key={i === currentSlide ? `slide-${i}-${animKey}` : `slide-${i}`}

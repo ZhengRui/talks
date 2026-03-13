@@ -4,7 +4,7 @@ import { isSceneSlideData, type SlideData, type ThemeName } from "@/lib/types";
 import type { LayoutPresentation, LayoutSlide, LayoutElement } from "./types";
 import { resolveTheme } from "./theme";
 import { applyDecorators } from "./decorators";
-import { CANVAS_W, CANVAS_H, backgroundImage } from "./helpers";
+import { CANVAS_W, CANVAS_H, backgroundImage, backgroundImageElements } from "./helpers";
 import { resolveLayouts } from "./auto-layout";
 import { resolveComponent } from "./components/resolvers";
 import { resolveColor } from "./components/theme-tokens";
@@ -61,6 +61,13 @@ export function layoutSlide(
   const result = isSceneSlideData(slide)
     ? compileSceneSlide(slide, resolved, imageBase)
     : layoutComponentSlide(slide, resolved, imageBase);
+
+  if (isSceneSlideData(slide) && result.backgroundImage) {
+    const bgElements = backgroundImageElements(result.backgroundImage, result.overlay);
+    result.elements = [...bgElements, ...result.elements];
+    delete result.backgroundImage;
+    delete result.overlay;
+  }
 
   // Resolve auto-layout groups (flex/grid → absolute rects)
   result.elements = resolveLayouts(result.elements);

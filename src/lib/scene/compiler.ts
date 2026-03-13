@@ -1,4 +1,4 @@
-import { CANVAS_H, CANVAS_W } from "@/lib/layout/helpers";
+import { CANVAS_H, CANVAS_W, resolveBackgroundOverlay } from "@/lib/layout/helpers";
 import type {
   BorderDef,
   BoxShadow,
@@ -502,7 +502,7 @@ export function compileSceneSlide(
     height: CANVAS_H,
     background: normalized.background,
     ...(normalized.backgroundImage ? { backgroundImage: normalized.backgroundImage } : {}),
-    ...(normalized.overlay ? { overlay: normalized.overlay } : {}),
+    ...(normalized.overlay ? { overlay: resolveBackgroundOverlay(normalized.overlay) } : {}),
     elements: compileSceneChildren(
       children,
       { x: viewport.x, y: viewport.y, w: viewport.w, h: viewport.h },

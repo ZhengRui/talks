@@ -133,6 +133,7 @@ export interface SceneStackLayout {
   type: "stack";
   gap?: number;
   align?: "start" | "center" | "end" | "stretch";
+  justify?: "start" | "center" | "end";
   padding?: ScenePadding;
 }
 

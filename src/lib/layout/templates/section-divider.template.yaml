@@ -8,31 +8,80 @@ style:
   titleSize: { type: number, default: 80 }
   subtitleSize: { type: number, default: 32 }
 
+{% set hasImage = image %}
+{% set resolvedOverlay = overlay or "dark" %}
+{% set darkText = hasImage and resolvedOverlay != "light" %}
+{% set titleColor = "#ffffff" if darkText else "theme.heading" %}
+{% set bodyColor = "#ffffff" if darkText else "theme.text" %}
+{% set bodyShadow = "0 2px 12px rgba(0,0,0,0.7)" if darkText else none %}
+{% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) %}
+{% set subtitleHeight = subtitle | text_height(style.subtitleSize, 1.6, 1600, 400) if subtitle else 0 %}
+{% set stackHeight = titleHeight + 16 + 4 + (32 + subtitleHeight if subtitle else 0) %}
+{% set stackY = 60 + (960 - stackHeight) / 2 %}
+
+mode: scene
 {% if image %}
-backgroundImage: {{ image }}
-overlay: {{ overlay or "dark" }}
+background:
+  type: image
+  src: "{{ image }}"
+  overlay: "{{ resolvedOverlay }}"
 {% endif %}
+presets:
+  sectionTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "{{ titleColor }}"
+      textAlign: center
+      lineHeight: 1.15
+  divider:
+    style:
+      gradient: "theme.accentGradient"
+  sectionSubtitle:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "{{ bodyColor }}"
+      textAlign: center
+      lineHeight: 1.6
+      {% if bodyShadow %}
+      textShadow: "{{ bodyShadow }}"
+      {% endif %}
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: center
-    layout: { type: flex, direction: column, gap: 0 }
-    autoEntrance: { type: fade-up, stagger: 100 }
+  - kind: group
+    id: section-divider-stack
+    frame: { x: 0, y: 0, w: 1920, h: 1080 }
     children:
-      - type: heading
-        text: "{{ title }}"
-        fontSize: {{ style.titleSize }}
-        textAlign: center
-      - type: divider
-        variant: gradient
-        width: 120
-        align: center
-        margin: [16, 0, 32, 0]
+      - kind: text
+        id: section-divider-title
+        preset: sectionTitle
+        frame: { x: 160, y: {{ stackY }}, w: 1600, h: {{ titleHeight }} }
+        text: "{{ title | yaml_string }}"
+        style:
+          fontSize: {{ style.titleSize }}
+        entrance: { type: fade-up, delay: 0, duration: 600 }
+      - kind: shape
+        id: section-divider-divider
+        preset: divider
+        frame:
+          centerX: "@section-divider-title.centerX"
+          top: { ref: "@section-divider-title.bottom", offset: 16 }
+          w: 120
+          h: 4
+        shape: rect
+        borderRadius: 2
+        entrance: { type: fade-up, delay: 100, duration: 600 }
       {% if subtitle %}
-      - type: body
-        text: "{{ subtitle }}"
-        fontSize: {{ style.subtitleSize }}
-        textAlign: center
+      - kind: text
+        id: section-divider-subtitle
+        preset: sectionSubtitle
+        frame:
+          x: 160
+          top: { ref: "@section-divider-divider.bottom", offset: 32 }
+          w: 1600
+          h: {{ subtitleHeight }}
+        text: "{{ subtitle | yaml_string }}"
+        style:
+          fontSize: {{ style.subtitleSize }}
+        entrance: { type: fade-up, delay: 200, duration: 600 }
       {% endif %}

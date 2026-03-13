@@ -7,54 +7,83 @@ style:
   titleSize: { type: number, default: 56 }
   itemSize: { type: number, default: 30 }
 
+{% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) %}
+{% set contentTop = 60 + titleHeight + 16 + 4 + 40 %}
+{% set totalHeight = (items | list_height(style.itemSize, 1.6, 1552, 12, false, 400)) + (items.length * 32) if items.length > 0 else 0 %}
+
+mode: scene
+presets:
+  sectionTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: left
+      lineHeight: 1.15
+  divider:
+    style:
+      gradient: "theme.accentGradient"
+  itemText:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "theme.text"
+      textAlign: left
+      lineHeight: 1.6
+  activeItem:
+    borderRadius: 12
+    style:
+      fill: "theme.bgSecondary"
+    border:
+      width: 3
+      color: "theme.accent"
+      sides: ["left"]
+    clipContent: true
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: top
-    layout: { type: flex, direction: column, gap: 0 }
-    autoEntrance: { type: fade-up, stagger: 100 }
+  - kind: text
+    id: agenda-title
+    preset: sectionTitle
+    frame: { x: 160, y: 60, w: 1600, h: {{ titleHeight }} }
+    text: "{{ title | yaml_string }}"
+    style:
+      fontSize: {{ style.titleSize }}
+    entrance: { type: fade-up, delay: 0, duration: 600 }
+  - kind: shape
+    id: agenda-divider
+    preset: divider
+    frame: { x: 160, y: {{ 60 + titleHeight + 16 }}, w: 80, h: 4 }
+    shape: rect
+    borderRadius: 2
+    entrance: { type: fade-up, delay: 100, duration: 600 }
+  - kind: group
+    id: agenda-list
+    frame: { x: 160, y: {{ contentTop }}, w: 1600, h: {{ totalHeight }} }
+    layout:
+      type: stack
+      gap: 12
     children:
-      - type: heading
-        text: "{{ title }}"
-        fontSize: {{ style.titleSize }}
-        textAlign: left
-      - type: divider
-        variant: gradient
-        width: 80
-        align: left
-        margin: [16, 0, 40, 0]
       {% for item in items %}
-      - type: box
-        padding: [16, 24]
-        {% if not loop.first %}
-        margin: [12, 0, 0, 0]
+      {% set itemHeight = (item | text_height(style.itemSize, 1.6, 1552, 400)) + 32 %}
+      {% set isActive = activeIndex is not defined or loop.index0 == activeIndex %}
+      - kind: group
+        id: agenda-item-{{ loop.index }}
+        {% if isActive %}
+        preset: activeItem
         {% endif %}
-        {% if activeIndex is defined %}
-        {% if loop.index0 == activeIndex %}
-        variant: panel
-        background: theme.bgSecondary
-        borderColor: theme.accent
-        borderWidth: 3
-        borderSides: [left]
-        {% else %}
-        variant: flat
+        frame: { h: {{ itemHeight }} }
+        {% if not isActive %}
         opacity: 0.5
         {% endif %}
-        {% else %}
-        variant: panel
-        background: theme.bgSecondary
-        borderColor: theme.accent
-        borderWidth: 3
-        borderSides: [left]
-        {% endif %}
-        entranceType: fade-up
+        entrance: { type: fade-up, delay: {{ 200 + (loop.index0 * 100) }}, duration: 600 }
         children:
-          - type: text
-            text: "{{ item }}"
-            fontSize: {{ style.itemSize }}
-            {% if activeIndex is defined and loop.index0 == activeIndex %}
-            fontWeight: bold
-            {% endif %}
+          - kind: text
+            id: agenda-item-{{ loop.index }}-text
+            preset: itemText
+            frame: { x: 24, y: 16, w: 1552, h: {{ itemHeight - 32 }} }
+            text: "{{ item | yaml_string }}"
+            style:
+              fontSize: {{ style.itemSize }}
+              {% if activeIndex is defined and loop.index0 == activeIndex %}
+              fontWeight: 700
+              {% endif %}
       {% endfor %}

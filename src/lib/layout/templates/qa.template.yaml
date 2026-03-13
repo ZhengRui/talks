@@ -7,29 +7,76 @@ style:
   answerSize: { type: number, default: 30 }
   cardWidth: { type: number, default: 1200 }
 
+{% set titleHeight = question | text_height(style.questionSize, 1.15, 1600, 700) %}
+{% set contentTop = 60 + titleHeight + 16 + 4 + 40 %}
+{% set bodyWidth = style.cardWidth - 80 %}
+{% set bodyHeight = answer | text_height(style.answerSize, 1.6, bodyWidth, 400) %}
+{% set cardHeight = bodyHeight + 80 %}
+{% set cardX = (1920 - style.cardWidth) / 2 %}
+
+mode: scene
+presets:
+  centeredTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: center
+      lineHeight: 1.15
+  divider:
+    style:
+      gradient: "theme.accentGradient"
+  answerCard:
+    borderRadius: 12
+    shadow:
+      offsetX: 0
+      offsetY: 4
+      blur: 24
+      spread: 0
+      color: "rgba(0, 0, 0, 0.06)"
+    style:
+      fill: "theme.bgSecondary"
+    border:
+      width: 1
+      color: "rgba(0, 0, 0, 0.06)"
+    clipContent: true
+  answerText:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "theme.text"
+      textAlign: left
+      lineHeight: 1.6
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: top
-    layout: { type: flex, direction: column, gap: 0 }
-    autoEntrance: { type: fade-up, stagger: 100 }
+  - kind: text
+    id: qa-question
+    preset: centeredTitle
+    frame: { x: 160, y: 60, w: 1600, h: {{ titleHeight }} }
+    text: "{{ question | yaml_string }}"
+    style:
+      fontSize: {{ style.questionSize }}
+    entrance: { type: fade-up, delay: 0, duration: 600 }
+  - kind: shape
+    id: qa-divider
+    preset: divider
+    frame:
+      centerX: "@qa-question.centerX"
+      top: { ref: "@qa-question.bottom", offset: 16 }
+      w: 80
+      h: 4
+    shape: rect
+    borderRadius: 2
+    entrance: { type: fade-up, delay: 100, duration: 600 }
+  - kind: group
+    id: qa-card
+    preset: answerCard
+    frame: { x: {{ cardX }}, y: {{ contentTop }}, w: {{ style.cardWidth }}, h: {{ cardHeight }} }
+    entrance: { type: fade-in, delay: 200, duration: 600 }
     children:
-      - type: heading
-        text: "{{ question }}"
-        fontSize: {{ style.questionSize }}
-        textAlign: center
-      - type: divider
-        variant: gradient
-        width: 80
-        align: center
-        margin: [16, 0, 40, 0]
-      - type: box
-        maxWidth: {{ style.cardWidth }}
-        padding: 40
-        entranceType: fade-in
-        children:
-          - type: body
-            text: "{{ answer }}"
-            fontSize: {{ style.answerSize }}
+      - kind: text
+        id: qa-answer
+        preset: answerText
+        frame: { x: 40, y: 40, w: {{ bodyWidth }}, h: {{ bodyHeight }} }
+        text: "{{ answer | yaml_string }}"
+        style:
+          fontSize: {{ style.answerSize }}

@@ -8,7 +8,18 @@ style:
   labelFontSize: { type: number, default: 26 }
   cardHeight: { type: number, default: 200 }
 
-{% import "scene/blocks.njk" as scene %}
+{% set topPad = 60 %}
+{% set sidePad = 160 %}
+{% set dividerHeight = 4 %}
+{% set dividerGap = 16 %}
+{% set dividerBottomMargin = 40 %}
+{% set innerHeight = 1080 - (topPad * 2) %}
+{% set titleHeight = (style.titleSize * 1.15) + (style.titleSize * 0.15) %}
+{% set gridY = topPad + ((innerHeight - style.cardHeight) / 2) %}
+{% if title %}
+{% set fixedHeight = titleHeight + dividerGap + dividerHeight + dividerBottomMargin + style.cardHeight %}
+{% set gridY = topPad + titleHeight + dividerGap + dividerHeight + dividerBottomMargin + ((innerHeight - fixedHeight) / 2) %}
+{% endif %}
 mode: scene
 presets:
   sectionTitle:
@@ -20,52 +31,89 @@ presets:
       lineHeight: 1.15
   divider:
     style:
-      fill: "theme.accent"
+      gradient: "theme.accentGradient"
   statCard:
-    borderRadius: 18
+    borderRadius: 12
+    shadow:
+      offsetX: 0
+      offsetY: 4
+      blur: 24
+      spread: 0
+      color: "rgba(0, 0, 0, 0.06)"
     style:
       fill: "theme.bgSecondary"
     border:
-      width: 1
-      color: "theme.border.color"
+      width: 3
+      color: "theme.accent"
+      sides: ["top"]
+    clipContent: true
   statValue:
     style:
-      fontFamily: "heading"
+      fontFamily: "body"
       fontWeight: 700
       color: "theme.accent"
       textAlign: center
-      lineHeight: 1
+      lineHeight: 1.15
   statLabel:
     style:
       fontFamily: "body"
       fontWeight: 400
       color: "theme.textMuted"
       textAlign: center
-      lineHeight: 1.3
+      lineHeight: 1.5
 children:
   {% if title %}
-{{ scene.section_title("stats-header", 160, 60, 1600, title, style.titleSize, 80, 16) | indent_yaml(2) }}
-  - kind: group
-    id: stats-grid
-    frame: { x: 160, y: 360, w: 1600, h: {{ style.cardHeight }} }
-    layout:
-      type: grid
-      columns: {{ stats | length }}
-      columnGap: 32
-    children:
-      {% for s in stats %}
-{{ scene.stat_panel("stat-" ~ loop.index, style.cardHeight, s.value, s.label, "statCard", "statValue", "statLabel") | indent_yaml(6) }}
-      {% endfor %}
-  {% else %}
-  - kind: group
-    id: stats-grid
-    frame: { x: 160, y: 440, w: 1600, h: {{ style.cardHeight }} }
-    layout:
-      type: grid
-      columns: {{ stats | length }}
-      columnGap: 32
-    children:
-      {% for s in stats %}
-{{ scene.stat_panel("stat-" ~ loop.index, style.cardHeight, s.value, s.label, "statCard", "statValue", "statLabel") | indent_yaml(6) }}
-      {% endfor %}
+  - kind: text
+    id: stats-header-title
+    preset: sectionTitle
+    frame: { x: {{ sidePad }}, y: {{ topPad }}, w: {{ 1920 - (sidePad * 2) }} }
+    text: "{{ title }}"
+    style:
+      fontSize: {{ style.titleSize }}
+    entrance: { type: fade-up, delay: 0, duration: 600 }
+  - kind: shape
+    id: stats-header-divider
+    preset: divider
+    frame:
+      centerX: "@stats-header-title.centerX"
+      top: { ref: "@stats-header-title.bottom", offset: {{ dividerGap }} }
+      w: 80
+      h: {{ dividerHeight }}
+    shape: rect
+    borderRadius: 2
+    entrance: { type: fade-up, delay: 100, duration: 600 }
   {% endif %}
+  - kind: group
+    id: stats-grid
+    frame: { x: {{ sidePad }}, y: {{ gridY }}, w: {{ 1920 - (sidePad * 2) }}, h: {{ style.cardHeight }} }
+    layout:
+      type: grid
+      columns: {{ stats | length }}
+      columnGap: 32
+    children:
+      {% for s in stats %}
+      - kind: group
+        id: stat-{{ loop.index }}
+        preset: statCard
+        frame: { h: {{ style.cardHeight }} }
+        entrance: { type: fade-up, delay: {{ (loop.index * 100) + (100 if title else -100) }}, duration: 600 }
+        children:
+          - kind: text
+            id: stat-{{ loop.index }}-value
+            preset: statValue
+            frame: { left: 28, top: 31, right: 28, h: {{ style.statFontSize * 1.15 }} }
+            text: "{{ s.value }}"
+            style:
+              fontSize: {{ style.statFontSize }}
+          - kind: text
+            id: stat-{{ loop.index }}-label
+            preset: statLabel
+            frame:
+              left: 28
+              top: { ref: "@stat-{{ loop.index }}-value.bottom", offset: 8 }
+              right: 28
+              h: {{ style.labelFontSize * 1.5 }}
+            text: "{{ s.label }}"
+            style:
+              fontSize: {{ style.labelFontSize }}
+      {% endfor %}

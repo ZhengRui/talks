@@ -9,118 +9,107 @@ style:
   titleSize: { type: number, default: 48 }
   bodySize: { type: number, default: 28 }
 
+{% set textWidth = 780 %}
+{% set titleY = 270 %}
+{% set titleHeight = title | text_height(style.titleSize, 1.15, textWidth, 700) %}
+{% set dividerY = titleY + titleHeight + 16 %}
+{% set bodyHeight = body | text_height(style.bodySize, 1.7, textWidth, 400) if body else 0 %}
+{% set listHeight = bullets | list_height(26, 1.6, textWidth, 10, false, 400) if bullets else 0 %}
+{% set bodyY = dividerY + 4 + 250 %}
+{% set listY = (bodyY + bodyHeight + 44) if body else (dividerY + 4 + 250) %}
+{% set textColumnHeight = listY + listHeight if bullets else (bodyY + bodyHeight if body else dividerY + 4) %}
+{% set imageOnRight = imagePosition == "right" %}
+{% set textColumnX = 0 if imageOnRight else 960 %}
+{% set imageColumnX = 960 if imageOnRight else 0 %}
+{% set textInnerX = 160 if imageOnRight else 20 %}
+{% set imageInnerX = 20 if imageOnRight else 160 %}
+{% set bodyEntrance = "slide-left" if imageOnRight else "slide-right" %}
+{% set imageEntrance = "slide-right" if imageOnRight else "slide-left" %}
+
+mode: scene
+presets:
+  imageTextTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: left
+      lineHeight: 1.15
+  divider:
+    style:
+      gradient: "theme.accentGradient"
+  imageTextBody:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "theme.text"
+      textAlign: left
+      lineHeight: 1.7
 children:
-  - type: box
-    variant: flat
-    padding: 0
-    height: 1080
-    verticalAlign: top
-    layout: { type: flex, direction: column, gap: 0 }
+  - kind: group
+    id: image-text-root
+    frame: { x: 0, y: 0, w: 1920, h: 1080 }
     children:
-      {% if imagePosition == "right" %}
-      - type: columns
-        gap: 0
-        ratio: 0.5
+      - kind: group
+        id: image-text-image-column
+        frame: { x: {{ imageColumnX }}, y: 0, w: 960, h: 1080 }
+        entrance: { type: none, delay: {{ 100 if imageOnRight else 0 }}, duration: 600 }
         children:
-          - type: box
-            variant: flat
-            padding: [60, 20, 60, 160]
-            layout: { type: flex, direction: column, gap: 0 }
-            entranceType: none
-            children:
-              - type: spacer
-                height: 210
-              - type: heading
-                text: "{{ title }}"
-                textAlign: left
-                fontSize: {{ style.titleSize }}
-                entranceType: fade-up
-                entranceDelay: 0
-              - type: divider
-                variant: gradient
-                width: 80
-                margin: [16, 0, 250, 0]
-                entranceType: fade-up
-                entranceDelay: 100
-              {% if body %}
-              - type: body
-                text: "{{ body }}"
-                fontSize: {{ style.bodySize }}
-                lineHeight: 1.7
-                margin: [0, 0, 44, 0]
-                entranceType: slide-left
-                entranceDelay: 300
-              {% endif %}
-              {% if bullets %}
-              - type: bullets
-                items: {{ bullets }}
-                variant: list
-                fontSize: 26
-                entranceType: fade-up
-                entranceDelay: 400
-              {% endif %}
-          - type: box
-            variant: flat
-            padding: [0, 160, 0, 20]
-            entranceType: none
-            children:
-              - type: image
-                src: "{{ image }}"
-                height: 1080
-                objectFit: cover
-                entranceType: slide-right
-                entranceDelay: 200
-      {% else %}
-      - type: columns
-        gap: 0
-        ratio: 0.5
+          - kind: image
+            id: image-text-image
+            frame: { x: {{ imageInnerX }}, y: 0, w: 780, h: 1080 }
+            src: "{{ image }}"
+            objectFit: cover
+            borderRadius: 8
+            entrance: { type: {{ imageEntrance }}, delay: 200, duration: 600 }
+      - kind: group
+        id: image-text-text-column
+        frame: { x: {{ textColumnX }}, y: 0, w: 960, h: {{ textColumnHeight }} }
+        entrance: { type: none, delay: {{ 0 if imageOnRight else 100 }}, duration: 600 }
         children:
-          - type: box
-            variant: flat
-            padding: [0, 20, 0, 160]
-            entranceType: none
-            children:
-              - type: image
-                src: "{{ image }}"
-                height: 1080
-                objectFit: cover
-                entranceType: slide-left
-                entranceDelay: 200
-          - type: box
-            variant: flat
-            padding: [60, 160, 60, 20]
-            layout: { type: flex, direction: column, gap: 0 }
-            entranceType: none
-            children:
-              - type: spacer
-                height: 210
-              - type: heading
-                text: "{{ title }}"
-                textAlign: left
-                fontSize: {{ style.titleSize }}
-                entranceType: fade-up
-                entranceDelay: 0
-              - type: divider
-                variant: gradient
-                width: 80
-                margin: [16, 0, 250, 0]
-                entranceType: fade-up
-                entranceDelay: 100
-              {% if body %}
-              - type: body
-                text: "{{ body }}"
-                fontSize: {{ style.bodySize }}
-                lineHeight: 1.7
-                margin: [0, 0, 44, 0]
-                entranceType: slide-right
-                entranceDelay: 300
-              {% endif %}
-              {% if bullets %}
-              - type: bullets
-                items: {{ bullets }}
-                variant: list
+          - kind: text
+            id: image-text-title
+            preset: imageTextTitle
+            frame: { x: {{ textInnerX }}, y: {{ titleY }}, w: 780, h: {{ titleHeight }} }
+            text: "{{ title | yaml_string }}"
+            style:
+              fontSize: {{ style.titleSize }}
+            entrance: { type: fade-up, delay: 0, duration: 600 }
+          - kind: shape
+            id: image-text-divider
+            preset: divider
+            frame: { x: {{ textInnerX }}, y: {{ dividerY }}, w: 80, h: 4 }
+            shape: rect
+            borderRadius: 2
+            entrance: { type: fade-up, delay: 100, duration: 600 }
+          {% if body %}
+          - kind: text
+            id: image-text-body
+            preset: imageTextBody
+            frame: { x: {{ textInnerX }}, y: {{ bodyY }}, w: 780, h: {{ bodyHeight }} }
+            text: "{{ body | yaml_string }}"
+            style:
+              fontSize: {{ style.bodySize }}
+            entrance: { type: {{ bodyEntrance }}, delay: 300, duration: 600 }
+          {% endif %}
+          {% if bullets %}
+          - kind: ir
+            id: image-text-bullets
+            frame: { x: {{ textInnerX }}, y: {{ listY }}, w: 780, h: {{ listHeight }} }
+            entrance: { type: fade-up, delay: 400, duration: 600 }
+            element:
+              kind: list
+              id: image-text-bullets-list
+              rect: { x: 0, y: 0, w: 780, h: {{ listHeight }} }
+              items: {{ bullets }}
+              ordered: false
+              itemStyle:
+                fontFamily: "theme.fontBody"
                 fontSize: 26
-                entranceType: fade-up
-                entranceDelay: 400
-              {% endif %}
-      {% endif %}
+                fontWeight: 400
+                color: "theme.text"
+                lineHeight: 1.6
+                textAlign: left
+              bulletColor: "theme.text"
+              itemSpacing: 10
+          {% endif %}

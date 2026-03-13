@@ -90,6 +90,56 @@ describe("compileSceneSlide", () => {
     }
   });
 
+  it("centers stack groups along the main axis with justify", () => {
+    const slide: SceneSlideData = {
+      mode: "scene",
+      children: [
+        {
+          kind: "group",
+          id: "stack",
+          frame: { x: 100, y: 120, w: 400, h: 300 },
+          layout: { type: "stack", gap: 20, align: "center", justify: "center" },
+          children: [
+            {
+              kind: "text",
+              id: "heading",
+              frame: { w: 200 },
+              text: "Centered",
+              style: {
+                fontFamily: "heading",
+                fontSize: 40,
+                fontWeight: 700,
+                lineHeight: 1.1,
+              },
+            },
+            {
+              kind: "shape",
+              id: "rule",
+              frame: { w: 100, h: 10 },
+              shape: "rect",
+              style: { fill: "#00ffc8" },
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = compileSceneSlide(slide, resolveTheme("dark-tech"), "/scene");
+    const stack = result.elements[0];
+
+    expect(stack.kind).toBe("group");
+    if (stack.kind === "group") {
+      const heading = stack.children[0];
+      const rule = stack.children[1];
+      expect(heading.rect.x).toBe(100);
+      expect(heading.rect.y).toBe(110);
+      expect(heading.rect.w).toBe(200);
+      expect(rule.rect.x).toBe(150);
+      expect(rule.rect.y).toBe(180);
+      expect(rule.rect.w).toBe(100);
+    }
+  });
+
   it("lays out row groups with explicit tracks", () => {
     const slide: SceneSlideData = {
       mode: "scene",

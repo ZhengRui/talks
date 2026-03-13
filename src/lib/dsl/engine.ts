@@ -2,6 +2,7 @@ import nunjucks from "nunjucks";
 import path from "path";
 import { parse } from "yaml";
 import type { DslTemplateDef } from "./types";
+import { estimateTextHeight } from "@/lib/layout/helpers";
 import type {
   ComponentSlideData,
   SceneSlideData,
@@ -35,6 +36,58 @@ function configureEnvironment(
       .split("\n")
       .map((line) => (line ? `${pad}${line}` : line))
       .join("\n");
+  });
+
+  env.addFilter("text_height", (
+    val: unknown,
+    fontSize: number,
+    lineHeight: number,
+    containerWidth: number,
+    fontWeight?: number,
+  ) => {
+    const text = typeof val === "string" ? val : String(val ?? "");
+    return estimateTextHeight(
+      text,
+      Number(fontSize),
+      Number(lineHeight),
+      Number(containerWidth),
+      fontWeight != null ? Number(fontWeight) : undefined,
+    );
+  });
+
+  env.addFilter("list_height", (
+    val: unknown,
+    fontSize: number,
+    lineHeight: number,
+    containerWidth: number,
+    itemSpacing = 10,
+    ordered = false,
+    fontWeight?: number,
+  ) => {
+    if (!Array.isArray(val)) return 0;
+    const bulletIndent = ordered ? 42 : 30;
+    const textWidth = Number(containerWidth) - bulletIndent;
+    return val.reduce((sum, item, index) => {
+      const itemHeight = estimateTextHeight(
+        typeof item === "string" ? item : String(item ?? ""),
+        Number(fontSize),
+        Number(lineHeight),
+        textWidth,
+        fontWeight != null ? Number(fontWeight) : undefined,
+      );
+      return sum + itemHeight + (index < val.length - 1 ? Number(itemSpacing) : 0);
+    }, 0);
+  });
+
+  env.addFilter("code_height", (
+    val: unknown,
+    fontSize: number,
+    padding = 32,
+    lineHeight = 1.6,
+  ) => {
+    const code = typeof val === "string" ? val : String(val ?? "");
+    const lineCount = code.split("\n").length;
+    return lineCount * Number(fontSize) * Number(lineHeight) + Number(padding) * 2;
   });
 
   return env;

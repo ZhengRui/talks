@@ -8,29 +8,65 @@ style:
   titleSize: { type: number, default: 64 }
   bodySize: { type: number, default: 30 }
 
-backgroundImage: {{ image }}
-overlay: {{ overlay or "dark" }}
+{% set resolvedOverlay = overlay or "dark" %}
+{% set darkText = resolvedOverlay != "light" %}
+{% set titleColor = "#ffffff" if darkText else "theme.heading" %}
+{% set bodyColor = "#ffffff" if darkText else "theme.text" %}
+{% set bodyShadow = "0 2px 12px rgba(0,0,0,0.7)" if darkText else none %}
+{% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) if title else 0 %}
+{% set bodyHeight = body | text_height(style.bodySize, 1.6, 1600, 400) if body else 0 %}
+{% set stackHeight = titleHeight + (28 + bodyHeight if title and body else bodyHeight) %}
+{% set stackY = 60 + (960 - stackHeight) / 2 %}
+
+mode: scene
+background:
+  type: image
+  src: "{{ image }}"
+  overlay: "{{ resolvedOverlay }}"
+presets:
+  fullImageTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "{{ titleColor }}"
+      textAlign: center
+      lineHeight: 1.15
+  fullImageBody:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "{{ bodyColor }}"
+      textAlign: center
+      lineHeight: 1.6
+      {% if bodyShadow %}
+      textShadow: "{{ bodyShadow }}"
+      {% endif %}
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: center
-    layout: { type: flex, direction: column, gap: 0 }
-    autoEntrance: { type: fade-up, stagger: 100 }
+  - kind: group
+    id: full-image-stack
+    frame: { x: 0, y: 0, w: 1920, h: 1080 }
     children:
       {% if title %}
-      - type: heading
-        text: "{{ title }}"
-        fontSize: {{ style.titleSize }}
-        textAlign: center
-        {% if body %}
-        margin: [0, 0, 28, 0]
-        {% endif %}
+      - kind: text
+        id: full-image-title
+        preset: fullImageTitle
+        frame: { x: 160, y: {{ stackY }}, w: 1600, h: {{ titleHeight }} }
+        text: "{{ title | yaml_string }}"
+        style:
+          fontSize: {{ style.titleSize }}
+        entrance: { type: fade-up, delay: 0, duration: 600 }
       {% endif %}
       {% if body %}
-      - type: body
-        text: "{{ body }}"
-        fontSize: {{ style.bodySize }}
-        textAlign: center
+      - kind: text
+        id: full-image-body
+        preset: fullImageBody
+        frame:
+          x: 160
+          y: {{ stackY + titleHeight + (28 if title else 0) }}
+          w: 1600
+          h: {{ bodyHeight }}
+        text: "{{ body | yaml_string }}"
+        style:
+          fontSize: {{ style.bodySize }}
+        entrance: { type: fade-up, delay: {{ 100 if title else 0 }}, duration: 600 }
       {% endif %}

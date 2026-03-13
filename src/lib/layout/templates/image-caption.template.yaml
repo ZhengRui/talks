@@ -10,7 +10,13 @@ style:
   captionWidth: { type: number, default: 900 }
   captionLineHeight: { type: number, default: 1.5 }
 
-{% import "scene/blocks.njk" as scene %}
+{% set topPad = 60 %}
+{% set sidePad = 160 %}
+{% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) if title else 0 %}
+{% set captionHeight = caption | text_height(style.captionSize, style.captionLineHeight, style.captionWidth, 400) %}
+{% set contentTop = topPad if not title else (topPad + titleHeight + 16 + 4 + 40) %}
+{% set resolvedImageHeight = style.imageHeight or (1080 - contentTop - 20 - captionHeight - topPad) %}
+
 mode: scene
 presets:
   sectionTitle:
@@ -22,7 +28,7 @@ presets:
       lineHeight: 1.15
   divider:
     style:
-      fill: "theme.accent"
+      gradient: "theme.accentGradient"
   captionText:
     style:
       fontFamily: "body"
@@ -32,15 +38,29 @@ presets:
       lineHeight: {{ style.captionLineHeight }}
 children:
   {% if title %}
-{{ scene.section_title("image-caption-header", 160, 60, 1600, title, style.titleSize, 80, 16) | indent_yaml(2) }}
+  - kind: text
+    id: image-caption-header-title
+    preset: sectionTitle
+    frame: { x: 160, y: 60, w: 1600, h: {{ titleHeight }} }
+    text: "{{ title }}"
+    style:
+      fontSize: {{ style.titleSize }}
+    entrance: { type: fade-up, delay: 0, duration: 600 }
+  - kind: shape
+    id: image-caption-header-divider
+    preset: divider
+    frame:
+      centerX: "@image-caption-header-title.centerX"
+      top: { ref: "@image-caption-header-title.bottom", offset: 16 }
+      w: 80
+      h: 4
+    shape: rect
+    borderRadius: 2
+    entrance: { type: fade-up, delay: 100, duration: 600 }
   {% endif %}
   - kind: image
     id: image-caption-image
-    frame:
-      centerX: 960
-      y: {{ 260 if title else 180 }}
-      w: 1200
-      h: {{ style.imageHeight or 560 }}
+    frame: { x: {{ sidePad }}, y: {{ contentTop }}, w: 1600, h: {{ resolvedImageHeight }} }
     src: "{{ image }}"
     objectFit: contain
     borderRadius: 16
@@ -52,6 +72,7 @@ children:
       centerX: "@image-caption-image.centerX"
       top: { ref: "@image-caption-image.bottom", offset: 20 }
       w: {{ style.captionWidth }}
+      h: {{ captionHeight }}
     text: "{{ caption }}"
     style:
       fontSize: {{ style.captionSize }}

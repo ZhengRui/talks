@@ -1,4 +1,5 @@
 name: blank
 params: {}
 
+mode: scene
 children: []

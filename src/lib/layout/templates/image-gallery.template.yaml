@@ -7,53 +7,91 @@ style:
   imageHeight: { type: number }
   captionSize: { type: number, default: 22 }
 
+{% set topPad = 60 %}
+{% set sidePad = 160 %}
+{% set columnGap = 32 %}
+{% set captionGap = 28 %}
+{% set captionLineHeight = 1.6 %}
+{% set columnCount = images | length %}
+{% set cardWidth = (1920 - (sidePad * 2) - (columnGap * (columnCount - 1))) / columnCount %}
+{% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) if title else 0 %}
+{% set contentTop = topPad if not title else (topPad + titleHeight + 16 + 4 + 40) %}
+{% set contentHeight = 1080 - contentTop - topPad %}
+
+mode: scene
+presets:
+  sectionTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: center
+      lineHeight: 1.15
+  divider:
+    style:
+      gradient: "theme.accentGradient"
+  galleryCaption:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "theme.textMuted"
+      textAlign: center
+      lineHeight: {{ captionLineHeight }}
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: top
-    layout: { type: flex, direction: column, gap: 0 }
-    autoEntrance: { type: fade-up, stagger: 100 }
+  {% if title %}
+  - kind: text
+    id: image-gallery-header-title
+    preset: sectionTitle
+    frame: { x: 160, y: 60, w: 1600, h: {{ titleHeight }} }
+    text: "{{ title }}"
+    style:
+      fontSize: {{ style.titleSize }}
+    entrance: { type: fade-up, delay: 0, duration: 600 }
+  - kind: shape
+    id: image-gallery-header-divider
+    preset: divider
+    frame:
+      centerX: "@image-gallery-header-title.centerX"
+      top: { ref: "@image-gallery-header-title.bottom", offset: 16 }
+      w: 80
+      h: 4
+    shape: rect
+    borderRadius: 2
+    entrance: { type: fade-up, delay: 100, duration: 600 }
+  {% endif %}
+  - kind: group
+    id: image-gallery-layout
+    frame: { x: 160, y: {{ contentTop }}, w: 1600, h: {{ contentHeight }} }
+    layout:
+      type: row
+      gap: 32
+      align: start
     children:
-      {% if title %}
-      - type: heading
-        text: "{{ title }}"
-        fontSize: {{ style.titleSize }}
-        textAlign: center
-      - type: divider
-        variant: gradient
-        width: 80
-        align: center
-        margin: [16, 0, 40, 0]
-      {% endif %}
-      - type: box
-        fill: true
-        variant: flat
-        padding: 0
+      {% for img in images %}
+      {% set captionHeight = img.caption | text_height(style.captionSize, captionLineHeight, cardWidth, 400) if img.caption else 0 %}
+      {% set resolvedImageHeight = style.imageHeight or (contentHeight - (captionGap + captionHeight if img.caption else 0)) %}
+      - kind: group
+        id: image-gallery-item-{{ loop.index }}
+        entrance: { type: fade-up, delay: {{ 200 + (loop.index0 * 100) }}, duration: 600 }
         children:
-          - type: columns
-            gap: 32
-            children:
-              {% for img in images %}
-              - type: box
-                variant: flat
-                padding: 0
-                children:
-                  - type: image
-                    src: "{{ img.src }}"
-                    {% if style.imageHeight %}
-                    height: {{ style.imageHeight }}
-                    {% endif %}
-                    objectFit: cover
-                    borderRadius: 16
-                    entranceType: scale-up
-                  {% if img.caption %}
-                  - type: text
-                    text: "{{ img.caption }}"
-                    fontSize: {{ style.captionSize }}
-                    textAlign: center
-                    color: theme.textMuted
-                    margin: [12, 0, 0, 0]
-                  {% endif %}
-              {% endfor %}
+          - kind: image
+            id: image-gallery-item-{{ loop.index }}-image
+            frame: { x: 0, y: 0, w: {{ cardWidth }}, h: {{ resolvedImageHeight }} }
+            src: "{{ img.src }}"
+            objectFit: cover
+            borderRadius: 16
+            entrance: { type: scale-up, delay: {{ 200 + (loop.index0 * 100) }}, duration: 600 }
+          {% if img.caption %}
+          - kind: text
+            id: image-gallery-item-{{ loop.index }}-caption
+            preset: galleryCaption
+            frame:
+              x: 0
+              top: { ref: "@image-gallery-item-{{ loop.index }}-image.bottom", offset: {{ captionGap }} }
+              w: {{ cardWidth }}
+              h: {{ captionHeight }}
+            text: "{{ img.caption | yaml_string }}"
+            style:
+              fontSize: {{ style.captionSize }}
+          {% endif %}
+      {% endfor %}

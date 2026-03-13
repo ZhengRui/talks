@@ -9,52 +9,140 @@ style:
   headingSize: { type: number, default: 32 }
   bodySize: { type: number, default: 28 }
 
+{% set topPad = 60 %}
+{% set sidePad = 160 %}
+{% set columnGap = 32 %}
+{% set cardWidth = (1920 - (sidePad * 2) - (columnGap * 2)) / 3 %}
+{% set innerWidth = cardWidth - 64 %}
+{% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) if title else 0 %}
+{% set contentTop = topPad if not title else (topPad + titleHeight + 16 + 4 + 40) %}
+{% set iconHeight = style.iconSize * 1.6 %}
+{% set col1 = columns[0] if columns[0] else none %}
+{% set col2 = columns[1] if columns[1] else none %}
+{% set col3 = columns[2] if columns[2] else none %}
+{% set col1HeadingHeight = col1.heading | text_height(style.headingSize, 1.15, innerWidth, 700) if col1 and col1.heading else 0 %}
+{% set col2HeadingHeight = col2.heading | text_height(style.headingSize, 1.15, innerWidth, 700) if col2 and col2.heading else 0 %}
+{% set col3HeadingHeight = col3.heading | text_height(style.headingSize, 1.15, innerWidth, 700) if col3 and col3.heading else 0 %}
+{% set col1BodyHeight = col1.body | text_height(style.bodySize, 1.6, innerWidth, 400) if col1 else 0 %}
+{% set col2BodyHeight = col2.body | text_height(style.bodySize, 1.6, innerWidth, 400) if col2 else 0 %}
+{% set col3BodyHeight = col3.body | text_height(style.bodySize, 1.6, innerWidth, 400) if col3 else 0 %}
+{% set col1Height = 35 + (iconHeight + 16 if col1 and col1.icon else 0) + (col1HeadingHeight + 16 if col1 and col1.heading else 0) + col1BodyHeight + 32 %}
+{% set col2Height = 35 + (iconHeight + 16 if col2 and col2.icon else 0) + (col2HeadingHeight + 16 if col2 and col2.heading else 0) + col2BodyHeight + 32 %}
+{% set col3Height = 35 + (iconHeight + 16 if col3 and col3.icon else 0) + (col3HeadingHeight + 16 if col3 and col3.heading else 0) + col3BodyHeight + 32 %}
+{% set maxHeight = col1Height if col1Height >= col2Height and col1Height >= col3Height else (col2Height if col2Height >= col3Height else col3Height) %}
+{% set layoutY = contentTop if verticalAlign != "center" else (contentTop + ((1080 - contentTop - topPad) - maxHeight) / 2) %}
+
+mode: scene
+presets:
+  sectionTitle:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: center
+      lineHeight: 1.15
+  divider:
+    style:
+      gradient: "theme.accentGradient"
+  columnCard:
+    borderRadius: 12
+    shadow:
+      offsetX: 0
+      offsetY: 4
+      blur: 24
+      spread: 0
+      color: "rgba(0, 0, 0, 0.06)"
+    style:
+      fill: "theme.bgSecondary"
+    border:
+      width: 3
+      color: "theme.accent"
+      sides: ["top"]
+    clipContent: true
+  columnIcon:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "theme.accent"
+      textAlign: center
+      lineHeight: 1.6
+  columnHeading:
+    style:
+      fontFamily: "heading"
+      fontWeight: 700
+      color: "theme.heading"
+      textAlign: center
+      lineHeight: 1.15
+  columnBody:
+    style:
+      fontFamily: "body"
+      fontWeight: 400
+      color: "theme.text"
+      textAlign: center
+      lineHeight: 1.6
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    verticalAlign: {{ verticalAlign or "top" }}
-    layout: { type: flex, direction: column, gap: 0 }
-    autoEntrance: { type: fade-up, stagger: 100 }
+  {% if title %}
+  - kind: text
+    id: three-column-header-title
+    preset: sectionTitle
+    frame: { x: 160, y: 60, w: 1600, h: {{ titleHeight }} }
+    text: "{{ title | yaml_string }}"
+    style:
+      fontSize: {{ style.titleSize }}
+    entrance: { type: fade-up, delay: 0, duration: 600 }
+  - kind: shape
+    id: three-column-header-divider
+    preset: divider
+    frame:
+      centerX: "@three-column-header-title.centerX"
+      top: { ref: "@three-column-header-title.bottom", offset: 16 }
+      w: 80
+      h: 4
+    shape: rect
+    borderRadius: 2
+    entrance: { type: fade-up, delay: 100, duration: 600 }
+  {% endif %}
+  - kind: group
+    id: three-column-layout
+    frame: { x: 160, y: {{ layoutY }}, w: 1600, h: {{ maxHeight }} }
+    layout:
+      type: row
+      gap: 32
+      align: start
     children:
-      {% if title %}
-      - type: heading
-        text: "{{ title }}"
-        fontSize: {{ style.titleSize }}
-        textAlign: center
-      - type: divider
-        variant: gradient
-        width: 80
-        align: center
-        margin: [16, 0, 40, 0]
-      {% endif %}
-      - type: columns
-        gap: 32
-        equalHeight: true
+      {% for col in columns %}
+      {% set headingHeight = col.heading | text_height(style.headingSize, 1.15, innerWidth, 700) if col.heading else 0 %}
+      {% set bodyHeight = col.body | text_height(style.bodySize, 1.6, innerWidth, 400) %}
+      {% set bodyY = 35 + (iconHeight + 16 if col.icon else 0) + (headingHeight + 16 if col.heading else 0) %}
+      - kind: group
+        id: three-column-card-{{ loop.index }}
+        preset: columnCard
+        frame: { w: {{ cardWidth }}, h: {{ maxHeight }} }
+        entrance: { type: fade-up, delay: {{ 200 + (loop.index0 * 100) }}, duration: 600 }
         children:
-          {% for col in columns %}
-          - type: box
-            padding: 32
-            accentTop: true
-            entranceType: fade-up
-            children:
-              {% if col.icon %}
-              - type: text
-                text: "{{ col.icon }}"
-                fontSize: {{ style.iconSize }}
-                textAlign: center
-                color: accent
-              {% endif %}
-              {% if col.heading %}
-              - type: heading
-                text: "{{ col.heading }}"
-                level: 2
-                fontSize: {{ style.headingSize }}
-                textAlign: center
-              {% endif %}
-              - type: body
-                text: "{{ col.body }}"
-                fontSize: {{ style.bodySize }}
-                textAlign: center
-          {% endfor %}
+          {% if col.icon %}
+          - kind: text
+            id: three-column-card-{{ loop.index }}-icon
+            preset: columnIcon
+            frame: { x: 32, y: 35, w: {{ innerWidth }}, h: {{ iconHeight }} }
+            text: "{{ col.icon | yaml_string }}"
+            style:
+              fontSize: {{ style.iconSize }}
+          {% endif %}
+          {% if col.heading %}
+          - kind: text
+            id: three-column-card-{{ loop.index }}-heading
+            preset: columnHeading
+            frame: { x: 32, y: {{ 35 + (iconHeight + 16 if col.icon else 0) }}, w: {{ innerWidth }}, h: {{ headingHeight }} }
+            text: "{{ col.heading | yaml_string }}"
+            style:
+              fontSize: {{ style.headingSize }}
+          {% endif %}
+          - kind: text
+            id: three-column-card-{{ loop.index }}-body
+            preset: columnBody
+            frame: { x: 32, y: {{ bodyY }}, w: {{ innerWidth }}, h: {{ bodyHeight }} }
+            text: "{{ col.body | yaml_string }}"
+            style:
+              fontSize: {{ style.bodySize }}
+      {% endfor %}
