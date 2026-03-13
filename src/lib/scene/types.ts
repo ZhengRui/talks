@@ -143,7 +143,17 @@ export interface SceneRowLayout {
   padding?: ScenePadding;
 }
 
-export type SceneLayout = SceneStackLayout | SceneRowLayout;
+export interface SceneGridLayout {
+  type: "grid";
+  columns: number;
+  tracks?: (number | string)[];
+  columnGap?: number;
+  rowGap?: number;
+  rowHeight?: number;
+  padding?: ScenePadding;
+}
+
+export type SceneLayout = SceneStackLayout | SceneRowLayout | SceneGridLayout;
 
 export interface SceneGroupNode extends SceneNodeBase {
   kind: "group";

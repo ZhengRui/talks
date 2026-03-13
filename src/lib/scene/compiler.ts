@@ -21,6 +21,7 @@ import type {
   SceneAlign,
   SceneFitMode,
   SceneGuides,
+  SceneGridLayout,
   SceneGroupNode,
   SceneIrNode,
   SceneNode,
@@ -379,15 +380,26 @@ function scaleTrack(track: number | string, viewport: SceneViewport): number | s
 }
 
 function scaleLayout(
-  layout: SceneStackLayout | SceneRowLayout | undefined,
+  layout: SceneStackLayout | SceneRowLayout | SceneGridLayout | undefined,
   viewport: SceneViewport,
-): SceneStackLayout | SceneRowLayout | undefined {
+): SceneStackLayout | SceneRowLayout | SceneGridLayout | undefined {
   if (!layout) return undefined;
   if (layout.type === "stack") {
     return {
       ...layout,
       ...(layout.gap != null ? { gap: layout.gap * viewport.scaleY } : {}),
       ...(layout.padding != null ? { padding: scalePadding(layout.padding, viewport) } : {}),
+    };
+  }
+
+  if (layout.type === "grid") {
+    return {
+      ...layout,
+      ...(layout.columnGap != null ? { columnGap: layout.columnGap * viewport.scaleX } : {}),
+      ...(layout.rowGap != null ? { rowGap: layout.rowGap * viewport.scaleY } : {}),
+      ...(layout.rowHeight != null ? { rowHeight: layout.rowHeight * viewport.scaleY } : {}),
+      ...(layout.padding != null ? { padding: scalePadding(layout.padding, viewport) } : {}),
+      ...(layout.tracks ? { tracks: layout.tracks.map((track) => scaleTrack(track, viewport)) } : {}),
     };
   }
 

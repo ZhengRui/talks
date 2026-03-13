@@ -10,6 +10,7 @@ import type {
 } from "@/lib/layout/types";
 import type {
   FrameSpec,
+  SceneGridLayout,
   SceneGroupNode,
   SceneGuides,
   SceneImageNode,
@@ -313,6 +314,24 @@ function parseTrack(track: number | string | undefined, total: number): number |
   return Number.isFinite(numeric) ? numeric : undefined;
 }
 
+function resolveGridTracks(
+  columns: number,
+  innerWidth: number,
+  tracks: (number | string)[] | undefined,
+  columnGap: number,
+): number[] {
+  const parsedTracks = tracks?.length === columns
+    ? tracks.map((track) => parseTrack(track, innerWidth))
+    : Array.from({ length: columns }, () => undefined);
+  const totalExplicit = parsedTracks.reduce<number>((sum, value) => sum + (value ?? 0), 0);
+  const autoCount = parsedTracks.filter((value) => value === undefined).length;
+  const autoTrack = autoCount > 0
+    ? (innerWidth - totalExplicit - columnGap * Math.max(0, columns - 1)) / autoCount
+    : 0;
+
+  return parsedTracks.map((track) => Math.max(0, track ?? autoTrack));
+}
+
 function compileStackChildren(children: SceneNode[], parent: Rect, ctx: CompileContext, layout: SceneStackLayout): LayoutElement[] {
   const gap = layout.gap ?? 0;
   const pad = resolvePadding(layout.padding);
@@ -406,6 +425,89 @@ function compileRowChildren(children: SceneNode[], parent: Rect, ctx: CompileCon
   return elements;
 }
 
+function compileGridChildren(children: SceneNode[], parent: Rect, ctx: CompileContext, layout: SceneGridLayout): LayoutElement[] {
+  if (!Number.isFinite(layout.columns) || layout.columns <= 0) {
+    throw new Error(`[scene] Grid layout requires columns > 0`);
+  }
+
+  const columnGap = layout.columnGap ?? 0;
+  const rowGap = layout.rowGap ?? 0;
+  const pad = resolvePadding(layout.padding);
+  const inner: Rect = {
+    x: pad.left,
+    y: pad.top,
+    w: Math.max(0, parent.w - pad.left - pad.right),
+    h: Math.max(0, parent.h - pad.top - pad.bottom),
+  };
+
+  const trackWidths = resolveGridTracks(layout.columns, inner.w, layout.tracks, columnGap);
+  const elements: LayoutElement[] = [];
+  let cursorY = inner.y;
+
+  for (let rowStart = 0; rowStart < children.length; rowStart += layout.columns) {
+    const rowChildren = children.slice(rowStart, rowStart + layout.columns);
+    const rowItems: Array<{
+      child: SceneNode;
+      compiled: LayoutElement;
+      rect: Rect;
+      cellX: number;
+      cellW: number;
+    }> = [];
+
+    let cursorX = inner.x;
+    for (const [index, child] of rowChildren.entries()) {
+      const cellW = trackWidths[index] ?? 0;
+      const compiled = compileSceneNode(
+        child,
+        { x: 0, y: 0, w: cellW, h: layout.rowHeight ?? inner.h },
+        ctx,
+      );
+      rowItems.push({
+        child,
+        compiled,
+        rect: { ...compiled.rect },
+        cellX: cursorX,
+        cellW,
+      });
+      cursorX += cellW + columnGap;
+    }
+
+    const rowHeight = layout.rowHeight
+      ?? rowItems.reduce((max, item) => Math.max(max, item.rect.y + item.rect.h), 0);
+
+    for (const item of rowItems) {
+      const { child, cellX, cellW } = item;
+      let { compiled, rect } = item;
+
+      if (!hasExplicitX(child.frame)) {
+        rect.x = cellX;
+        if (cellW > 0 && !child.frame?.w && !child.frame?.left && !child.frame?.right) {
+          rect.w = cellW;
+        }
+      } else {
+        rect.x += cellX;
+      }
+
+      if (!hasExplicitY(child.frame)) {
+        rect.y = cursorY;
+        if (layout.rowHeight != null && !child.frame?.h && !child.frame?.top && !child.frame?.bottom) {
+          rect.h = layout.rowHeight;
+        }
+      } else {
+        rect.y += cursorY;
+      }
+
+      compiled = setElementRect(compiled, rect);
+      registerAnchorRect(ctx, compiled, parent);
+      elements.push(compiled);
+    }
+
+    cursorY += rowHeight + rowGap;
+  }
+
+  return elements;
+}
+
 function compileGroupNode(node: SceneGroupNode, parent: Rect, ctx: CompileContext): GroupElement {
   const hint = !node.frame ? { w: parent.w, h: parent.h } : {};
   const rect = resolveFrame(node.frame, parent, ctx, hint);
@@ -416,6 +518,8 @@ function compileGroupNode(node: SceneGroupNode, parent: Rect, ctx: CompileContex
     children = compileSceneChildren(node.children, { x: 0, y: 0, w: rect.w, h: rect.h }, ctx.guides, groupCtx);
   } else if (node.layout.type === "stack") {
     children = compileStackChildren(node.children, { x: 0, y: 0, w: rect.w, h: rect.h }, groupCtx, node.layout);
+  } else if (node.layout.type === "grid") {
+    children = compileGridChildren(node.children, { x: 0, y: 0, w: rect.w, h: rect.h }, groupCtx, node.layout);
   } else {
     children = compileRowChildren(node.children, { x: 0, y: 0, w: rect.w, h: rect.h }, groupCtx, node.layout);
   }

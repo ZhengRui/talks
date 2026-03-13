@@ -272,8 +272,8 @@ Recommended primitives:
 
 Prototype status:
 
-- implemented: absolute / overlay, `stack`, `row`, anchor refs, dedicated diagnostics for guides / ids
-- not yet implemented: `grid`, `distribute`
+- implemented: absolute / overlay, `stack`, `row`, `grid`, anchor refs, dedicated diagnostics for guides / ids
+- not yet implemented: `distribute`
 - partially covered already:
   - slide-level `fit` via `sourceSize` + `fit` + `align`
   - image `cover` / `contain` via `objectFit`
@@ -320,6 +320,15 @@ layout:
   columnGap: 24
   rowGap: 24
 ```
+
+Current implementation:
+
+- fixed `columns`
+- optional explicit `tracks`
+- optional `columnGap`, `rowGap`, `rowHeight`, and `padding`
+- row-major placement
+- no spanning
+- no responsive behavior
 
 ### `anchor`
 
@@ -557,8 +566,8 @@ Immediate priorities:
 
 Status in this branch:
 
-- done: 1, 2, 3, and a focused version of 4
-- next likely step: `grid`, or more authoring shorthand if repeated slide work still feels too verbose
+- done: 1, 2, 3, 5, and a focused version of 4
+- next likely step: either `distribute`, or more template-time ergonomics if repeated slide work still feels too verbose
 
 This phase matters more than adding a long tail of geometry primitives. The main gap after the prototype is authoring ergonomics, not proof of concept.
 

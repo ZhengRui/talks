@@ -131,6 +131,139 @@ describe("compileSceneSlide", () => {
     }
   });
 
+  it("lays out grid groups with equal columns", () => {
+    const slide: SceneSlideData = {
+      mode: "scene",
+      children: [
+        {
+          kind: "group",
+          id: "grid",
+          frame: { x: 0, y: 0, w: 330, h: 120 },
+          layout: { type: "grid", columns: 3, columnGap: 15, rowGap: 20 },
+          children: [
+            { kind: "shape", id: "a", frame: { h: 40 }, shape: "rect", style: { fill: "#ff6b35" } },
+            { kind: "shape", id: "b", frame: { h: 40 }, shape: "rect", style: { fill: "#00d4ff" } },
+            { kind: "shape", id: "c", frame: { h: 40 }, shape: "rect", style: { fill: "#00ffc8" } },
+            { kind: "shape", id: "d", frame: { h: 40 }, shape: "rect", style: { fill: "#ffd166" } },
+            { kind: "shape", id: "e", frame: { h: 40 }, shape: "rect", style: { fill: "#ef476f" } },
+          ],
+        },
+      ],
+    };
+
+    const result = compileSceneSlide(slide, resolveTheme("modern"), "/scene");
+    const grid = result.elements[0];
+
+    expect(grid.kind).toBe("group");
+    if (grid.kind === "group") {
+      expect(grid.children[0].rect).toMatchObject({ x: 0, y: 0, w: 100, h: 40 });
+      expect(grid.children[1].rect).toMatchObject({ x: 115, y: 0, w: 100, h: 40 });
+      expect(grid.children[2].rect).toMatchObject({ x: 230, y: 0, w: 100, h: 40 });
+      expect(grid.children[3].rect).toMatchObject({ x: 0, y: 60, w: 100, h: 40 });
+      expect(grid.children[4].rect).toMatchObject({ x: 115, y: 60, w: 100, h: 40 });
+    }
+  });
+
+  it("lays out grid groups with explicit tracks and fixed row height", () => {
+    const slide: SceneSlideData = {
+      mode: "scene",
+      children: [
+        {
+          kind: "group",
+          id: "grid",
+          frame: { x: 0, y: 0, w: 460, h: 140 },
+          layout: {
+            type: "grid",
+            columns: 2,
+            tracks: [160, 280],
+            columnGap: 20,
+            rowGap: 16,
+            rowHeight: 50,
+          },
+          children: [
+            { kind: "shape", id: "left-top", shape: "rect", style: { fill: "#ff6b35" } },
+            { kind: "shape", id: "right-top", shape: "rect", style: { fill: "#00d4ff" } },
+            { kind: "shape", id: "left-bottom", shape: "rect", style: { fill: "#00ffc8" } },
+          ],
+        },
+      ],
+    };
+
+    const result = compileSceneSlide(slide, resolveTheme("modern"), "/scene");
+    const grid = result.elements[0];
+
+    expect(grid.kind).toBe("group");
+    if (grid.kind === "group") {
+      expect(grid.children[0].rect).toMatchObject({ x: 0, y: 0, w: 160, h: 50 });
+      expect(grid.children[1].rect).toMatchObject({ x: 180, y: 0, w: 280, h: 50 });
+      expect(grid.children[2].rect).toMatchObject({ x: 0, y: 66, w: 160, h: 50 });
+    }
+  });
+
+  it("scales grid layouts with source-sized scenes", () => {
+    const slide: SceneSlideData = {
+      mode: "scene",
+      sourceSize: { w: 1000, h: 500 },
+      fit: "contain",
+      align: "center",
+      children: [
+        {
+          kind: "group",
+          id: "grid",
+          frame: { x: 100, y: 50, w: 520, h: 106 },
+          layout: {
+            type: "grid",
+            columns: 2,
+            tracks: [200, 300],
+            columnGap: 20,
+            rowGap: 10,
+            rowHeight: 40,
+          },
+          children: [
+            { kind: "shape", id: "left", shape: "rect", style: { fill: "#ff6b35" } },
+            { kind: "shape", id: "right", shape: "rect", style: { fill: "#00d4ff" } },
+          ],
+        },
+      ],
+    };
+
+    const result = compileSceneSlide(slide, resolveTheme("modern"), "/scene");
+    const grid = result.elements[0];
+
+    expect(grid.kind).toBe("group");
+    if (grid.kind === "group") {
+      expect(grid.rect.x).toBe(192);
+      expect(grid.rect.y).toBe(156);
+      expect(grid.rect.w).toBe(998.4);
+      expect(grid.rect.h).toBeCloseTo(203.52);
+      expect(grid.children[0].rect.x).toBe(0);
+      expect(grid.children[0].rect.w).toBe(384);
+      expect(grid.children[0].rect.h).toBeCloseTo(76.8);
+      expect(grid.children[1].rect.x).toBeCloseTo(422.4);
+      expect(grid.children[1].rect.w).toBe(576);
+      expect(grid.children[1].rect.h).toBeCloseTo(76.8);
+    }
+  });
+
+  it("throws when grid layout has no positive column count", () => {
+    const slide: SceneSlideData = {
+      mode: "scene",
+      children: [
+        {
+          kind: "group",
+          id: "grid",
+          frame: { x: 0, y: 0, w: 200, h: 100 },
+          layout: { type: "grid", columns: 0 },
+          children: [],
+        },
+      ],
+    };
+
+    expect(() => compileSceneSlide(slide, resolveTheme("modern"), "/scene")).toThrow(
+      /Grid layout requires columns > 0/,
+    );
+  });
+
   it("applies scene presets before normalization and keeps explicit node overrides", () => {
     const theme = resolveTheme("dark-tech");
     const slide: SceneSlideData = {

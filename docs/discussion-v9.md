@@ -93,16 +93,25 @@ That is a better migration tool than rushing to add scene-native `table`, `video
 
 ## What Is Still Missing
 
-Many items from the original v9 proposal are still unimplemented:
+The branch now covers the core scene-geometry backlog that mattered most for replication:
 
+- low-level escape hatch
+- scene-template DSL output
+- presets / macro-friendly scene authoring
+- diagnostics for bad guides / duplicate ids
+- anchors
 - `grid`
 
-This is fine.
-
-Those items are now missing in a different sense than before:
+What remains is now a different class of work:
 
 - they are no longer blockers to the architectural argument
 - they are now maturity / ergonomics backlog
+
+Examples:
+
+- `distribute`
+- richer diagnostics / debug tooling
+- additional template-time ergonomics if scene YAML still feels too heavy
 
 The prototype already answered the important question: for screenshot replication, the scene-first path is better aligned than the component-first path.
 
@@ -137,8 +146,8 @@ Priority order:
 
 Status in this branch:
 
-- done: 1, 2, 3, and focused versions of 4 and 5
-- remaining likely next step: `grid`, or additional scene shorthand if authoring still feels too verbose
+- done: 1, 2, 3, 5, and a focused version of 4
+- remaining likely next step: `distribute`, or additional template-time ergonomics if authoring still feels too verbose
 
 This order matters.
 
