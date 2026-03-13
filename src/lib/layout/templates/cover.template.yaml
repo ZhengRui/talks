@@ -9,6 +9,8 @@ style:
   titleSize: { type: number, default: 80 }
   subtitleSize: { type: number, default: 42 }
 
+{% import "scene/blocks.njk" as blocks %}
+
 {% set hasImage = image %}
 {% set resolvedOverlay = overlay or "dark" %}
 {% set darkText = hasImage and resolvedOverlay != "light" %}
@@ -29,26 +31,18 @@ background:
   overlay: "{{ resolvedOverlay }}"
 {% endif %}
 presets:
-  coverTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "{{ titleColor }}"
-      textAlign: center
-      lineHeight: 1.15
+{{ blocks.accent_pill_presets(
+  "authorPill",
+  "authorPillText",
+  "rgba(255,255,255,0.15)" if darkText else "theme.accent@0.13",
+  "rgba(255,255,255,0.2)" if darkText else "theme.accent",
+  "rgba(255,255,255,0.9)" if darkText else "theme.accent"
+) | indent(2, true) }}
+{{ blocks.heading_text_preset("coverTitle", "center", titleColor) | indent(2, true) }}
   divider:
     style:
       gradient: "theme.accentGradient"
-  coverSubtitle:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "{{ bodyColor }}"
-      textAlign: center
-      lineHeight: 1.6
-      {% if bodyShadow %}
-      textShadow: "{{ bodyShadow }}"
-      {% endif %}
+{{ blocks.body_text_preset("coverSubtitle", "center", bodyColor, 1.6, 400, none, none, bodyShadow) | indent(2, true) }}
 children:
   - kind: group
     id: cover-stack
@@ -90,21 +84,17 @@ children:
       {% if author %}
       - kind: shape
         id: cover-author-pill
+        preset: authorPill
         frame:
           centerX: 960
           y: {{ stackY + titleHeight + 16 + 4 + (40 + subtitleHeight if subtitle else 0) + (16 if author else 0) }}
           w: {{ tagWidth }}
           h: 44
         shape: pill
-        borderRadius: 100
-        style:
-          fill: "{{ 'rgba(255,255,255,0.15)' if darkText else 'rgba(79,109,245,0.13)' }}"
-        border:
-          width: 1
-          color: "{{ 'rgba(255,255,255,0.2)' if darkText else 'theme.accent' }}"
         entrance: { type: fade-up, delay: 300, duration: 600 }
       - kind: text
         id: cover-author
+        preset: authorPillText
         frame:
           centerX: 960
           y: {{ stackY + titleHeight + 16 + 4 + (40 + subtitleHeight if subtitle else 0) + (16 if author else 0) }}
@@ -112,12 +102,6 @@ children:
           h: 44
         text: "{{ author | yaml_string }}"
         style:
-          fontFamily: "body"
           fontSize: 20
-          fontWeight: 600
-          color: "{{ 'rgba(255,255,255,0.9)' if darkText else 'theme.accent' }}"
-          lineHeight: 1
-          textAlign: center
-          verticalAlign: middle
         entrance: { type: fade-up, delay: 300, duration: 600 }
       {% endif %}

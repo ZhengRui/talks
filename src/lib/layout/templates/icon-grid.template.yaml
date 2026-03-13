@@ -9,6 +9,8 @@ style:
   labelSize: { type: number, default: 26 }
   cardHeight: { type: number }
 
+{% import "scene/blocks.njk" as blocks %}
+
 {% set topPad = 60 %}
 {% set sidePad = 160 %}
 {% set resolvedColumns = columns or 3 %}
@@ -27,64 +29,25 @@ style:
 
 mode: scene
 presets:
-  sectionTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: center
-      lineHeight: 1.15
-  divider:
-    style:
-      gradient: "theme.accentGradient"
+{{ blocks.header_presets("sectionTitle", "divider") | indent(2, true) }}
   iconCard:
-    borderRadius: 12
+    borderRadius: "theme.radius"
     shadow:
-      offsetX: 0
-      offsetY: 4
-      blur: 24
-      spread: 0
-      color: "rgba(0, 0, 0, 0.06)"
+      offsetX: "theme.shadow.offsetX"
+      offsetY: "theme.shadow.offsetY"
+      blur: "theme.shadow.blur"
+      spread: "theme.shadow.spread"
+      color: "theme.shadow.color"
     border:
-      width: 1
-      color: "theme.border.color"
+      width: "theme.cardBorder.width"
+      color: "theme.cardBorder.color"
     style:
-      fill: "theme.bgSecondary"
-  iconGlyph:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "theme.text"
-      textAlign: center
-      lineHeight: 1.6
-  iconLabel:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "theme.text"
-      textAlign: center
-      lineHeight: 1.6
+      fill: "theme.cardBg"
+{{ blocks.body_text_preset("iconGlyph", "center", "theme.text", 1.6) | indent(2, true) }}
+{{ blocks.body_text_preset("iconLabel", "center", "theme.text", 1.6) | indent(2, true) }}
 children:
   {% if title %}
-  - kind: text
-    id: icon-grid-header-title
-    preset: sectionTitle
-    frame: { x: 160, y: 60, w: 1600, h: {{ titleHeight }} }
-    text: "{{ title }}"
-    style:
-      fontSize: {{ style.titleSize }}
-    entrance: { type: fade-up, delay: 0, duration: 600 }
-  - kind: shape
-    id: icon-grid-header-divider
-    preset: divider
-    frame:
-      centerX: "@icon-grid-header-title.centerX"
-      top: { ref: "@icon-grid-header-title.bottom", offset: 16 }
-      w: 80
-      h: 4
-    shape: rect
-    borderRadius: 2
-    entrance: { type: fade-up, delay: 100, duration: 600 }
+{{ blocks.section_title("icon-grid-header", 160, 60, 1600, title, style.titleSize, 80, 16, "sectionTitle", "divider", 0, 100, 600) | indent(2, true) }}
   {% endif %}
   - kind: group
     id: icon-grid-layout

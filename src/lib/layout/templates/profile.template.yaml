@@ -11,6 +11,8 @@ style:
   bioWidth: { type: number, default: 700 }
   avatarSize: { type: number, default: 200 }
 
+{% import "scene/blocks.njk" as blocks %}
+
 {% set nameHeight = name | text_height(style.nameSize, 1.15, 1600, 700) %}
 {% set titleHeight = title | text_height(style.titleSize, 1.3, 1600, 400) if title else 0 %}
 {% set bioHeight = bio | text_height(style.bioSize, 1.5, style.bioWidth, 400) if bio else 0 %}
@@ -18,27 +20,9 @@ style:
 
 mode: scene
 presets:
-  profileName:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: center
-      lineHeight: 1.15
-  profileTitle:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "theme.accent"
-      textAlign: center
-      lineHeight: 1.3
-  profileBio:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "theme.textMuted"
-      textAlign: center
-      lineHeight: 1.5
+{{ blocks.heading_text_preset("profileName", "center") | indent(2, true) }}
+{{ blocks.body_text_preset("profileTitle", "center", "theme.accent", 1.3) | indent(2, true) }}
+{{ blocks.body_text_preset("profileBio", "center", "theme.textMuted", 1.5) | indent(2, true) }}
   divider:
     style:
       gradient: "theme.accentGradient"

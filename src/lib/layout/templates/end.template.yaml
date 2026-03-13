@@ -3,58 +3,11 @@ params:
   title: { type: string }
   subtitle: { type: string }
 
+{% import "scene/blocks.njk" as blocks %}
+
 mode: scene
 presets:
-  endTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: center
-      lineHeight: 1.15
-  endSubtitle:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "theme.textMuted"
-      textAlign: center
-      lineHeight: 1.6
-  divider:
-    style:
-      gradient: "theme.accentGradient"
+{{ blocks.header_presets("endTitle", "divider") | indent(2, true) }}
+{{ blocks.body_text_preset("endSubtitle", "center", "theme.textMuted", 1.6) | indent(2, true) }}
 children:
-  - kind: group
-    id: end-stack
-    frame: { x: 0, y: 0, w: 1920, h: 1080 }
-    layout:
-      type: stack
-      gap: 28
-      align: center
-      justify: center
-      padding: [0, 160, 0, 160]
-    children:
-      - kind: text
-        id: end-title
-        preset: endTitle
-        frame: { w: 1600 }
-        text: "{{ title or 'Thank You' }}"
-        style:
-          fontSize: 80
-        entrance: { type: fade-up, delay: 0, duration: 600 }
-  {% if subtitle %}
-      - kind: shape
-        id: end-divider
-        preset: divider
-        frame: { w: 120, h: 4 }
-        shape: rect
-        borderRadius: 2
-        entrance: { type: fade-up, delay: 100, duration: 600 }
-      - kind: text
-        id: end-subtitle
-        preset: endSubtitle
-        frame: { w: 1600 }
-        text: "{{ subtitle }}"
-        style:
-          fontSize: 36
-        entrance: { type: fade-up, delay: 200, duration: 600 }
-  {% endif %}
+{{ blocks.centered_title_stack("end", title or "Thank You", "endTitle", 80, subtitle, "endSubtitle", 36, 1600, 28, 160, "divider", 120, 4, 0, 100, 200, 600) | indent(2, true) }}

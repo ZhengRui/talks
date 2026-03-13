@@ -10,6 +10,8 @@ style:
   captionWidth: { type: number, default: 900 }
   captionLineHeight: { type: number, default: 1.5 }
 
+{% import "scene/blocks.njk" as blocks %}
+
 {% set topPad = 60 %}
 {% set sidePad = 160 %}
 {% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) if title else 0 %}
@@ -19,23 +21,8 @@ style:
 
 mode: scene
 presets:
-  sectionTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: center
-      lineHeight: 1.15
-  divider:
-    style:
-      gradient: "theme.accentGradient"
-  captionText:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "theme.textMuted"
-      textAlign: center
-      lineHeight: {{ style.captionLineHeight }}
+{{ blocks.header_presets("sectionTitle", "divider") | indent(2, true) }}
+{{ blocks.body_text_preset("captionText", "center", "theme.textMuted", style.captionLineHeight) | indent(2, true) }}
 children:
   {% if title %}
   - kind: text

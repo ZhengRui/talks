@@ -11,6 +11,8 @@ style:
   leftAccent: { type: string, default: "#22c55e" }
   rightAccent: { type: string, default: "#ef4444" }
 
+{% import "scene/blocks.njk" as blocks %}
+
 {% set sidePad = 160 %}
 {% set topPad = 60 %}
 {% set columnGap = 32 %}
@@ -31,58 +33,12 @@ style:
 
 mode: scene
 presets:
-  sectionTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: center
-      lineHeight: 1.15
-  divider:
-    style:
-      gradient: "theme.accentGradient"
-  compareCard:
-    borderRadius: 12
-    shadow:
-      offsetX: 0
-      offsetY: 4
-      blur: 24
-      spread: 0
-      color: "rgba(0, 0, 0, 0.06)"
-    style:
-      fill: "theme.bgSecondary"
-    border:
-      width: 3
-      sides: ["top"]
-    clipContent: true
-  compareHeading:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: left
-      lineHeight: 1.15
+{{ blocks.header_presets("sectionTitle", "divider") | indent(2, true) }}
+{{ blocks.surface_card_preset("compareCard") | indent(2, true) }}
+{{ blocks.heading_text_preset("compareHeading", "left") | indent(2, true) }}
 children:
   {% if title %}
-  - kind: text
-    id: comparison-header-title
-    preset: sectionTitle
-    frame: { x: 160, y: 60, w: 1600 }
-    text: "{{ title }}"
-    style:
-      fontSize: {{ style.titleSize }}
-    entrance: { type: fade-up, delay: 0, duration: 600 }
-  - kind: shape
-    id: comparison-header-divider
-    preset: divider
-    frame:
-      centerX: "@comparison-header-title.centerX"
-      top: { ref: "@comparison-header-title.bottom", offset: 16 }
-      w: 80
-      h: 4
-    shape: rect
-    borderRadius: 2
-    entrance: { type: fade-up, delay: 100, duration: 600 }
+{{ blocks.section_title("comparison-header", 160, 60, 1600, title, style.titleSize, 80, 16, "sectionTitle", "divider", 0, 100, 600) | indent(2, true) }}
   {% endif %}
   - kind: group
     id: comparison-layout

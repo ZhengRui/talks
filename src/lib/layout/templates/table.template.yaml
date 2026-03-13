@@ -10,6 +10,8 @@ style:
   rowH: { type: number, default: 68 }
   headerH: { type: number, default: 72 }
 
+{% import "scene/blocks.njk" as blocks %}
+
 {% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) if title else 0 %}
 {% set contentTop = 60 if not title else (60 + titleHeight + 16 + 4 + 40) %}
 {% set pw = 1600 %}
@@ -19,16 +21,7 @@ style:
 
 mode: scene
 presets:
-  centeredTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: center
-      lineHeight: 1.15
-  divider:
-    style:
-      gradient: "theme.accentGradient"
+{{ blocks.header_presets("centeredTitle", "divider") | indent(2, true) }}
 children:
   {% if title %}
   - kind: text

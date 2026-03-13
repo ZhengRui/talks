@@ -1,3 +1,131 @@
+{% macro header_presets(title_preset="sectionTitle", divider_preset="divider", align="center") %}
+{{ title_preset }}:
+  style:
+    fontFamily: "heading"
+    fontWeight: 700
+    color: "theme.heading"
+    textAlign: "{{ align }}"
+    lineHeight: 1.15
+{{ divider_preset }}:
+  style:
+    gradient: "theme.accentGradient"
+{% endmacro %}
+
+{% macro heading_text_preset(name, align="left", color="theme.heading", line_height=1.15, weight=700, vertical_align=None) %}
+{{ name }}:
+  style:
+    fontFamily: "heading"
+    fontWeight: {{ weight }}
+    color: "{{ color }}"
+    textAlign: "{{ align }}"
+    lineHeight: {{ line_height }}
+{% if vertical_align %}
+    verticalAlign: "{{ vertical_align }}"
+{% endif %}
+{% endmacro %}
+
+{% macro body_text_preset(name, align="left", color="theme.text", line_height=1.6, weight=400, font_style=None, vertical_align=None, text_shadow=None) %}
+{{ name }}:
+  style:
+    fontFamily: "body"
+    fontWeight: {{ weight }}
+    color: "{{ color }}"
+    textAlign: "{{ align }}"
+    lineHeight: {{ line_height }}
+{% if font_style %}
+    fontStyle: "{{ font_style }}"
+{% endif %}
+{% if vertical_align %}
+    verticalAlign: "{{ vertical_align }}"
+{% endif %}
+{% if text_shadow %}
+    textShadow: "{{ text_shadow }}"
+{% endif %}
+{% endmacro %}
+
+{% macro surface_fill_preset(name, clip_content=true) %}
+{{ name }}:
+  borderRadius: "theme.radius"
+  style:
+    fill: "theme.cardBg"
+{% if clip_content %}
+  clipContent: true
+{% endif %}
+{% endmacro %}
+
+{% macro surface_card_preset(name, clip_content=true) %}
+{{ name }}:
+  borderRadius: "theme.radius"
+  shadow: "theme.shadow"
+  style:
+    fill: "theme.cardBg"
+  border:
+    width: "theme.cardBorder.width"
+    color: "theme.cardBorder.color"
+{% if clip_content %}
+  clipContent: true
+{% endif %}
+{% endmacro %}
+
+{% macro accent_edge_card_preset(name, side="top", accent="theme.accent", clip_content=true, with_shadow=true) %}
+{{ name }}:
+  borderRadius: "theme.radius"
+{% if with_shadow %}
+  shadow: "theme.shadow"
+{% endif %}
+  style:
+    fill: "theme.cardBg"
+  border:
+    width: 3
+    color: "{{ accent }}"
+    sides: ["{{ side }}"]
+{% if clip_content %}
+  clipContent: true
+{% endif %}
+{% endmacro %}
+
+{% macro accent_pill_presets(shape_preset, text_preset, fill="theme.accent@0.13", border="theme.accent", text_color="theme.accent") %}
+{{ shape_preset }}:
+  borderRadius: 100
+  style:
+    fill: "{{ fill }}"
+  border:
+    width: 1
+    color: "{{ border }}"
+{{ text_preset }}:
+  style:
+    fontFamily: "body"
+    fontWeight: 600
+    color: "{{ text_color }}"
+    textAlign: center
+    verticalAlign: middle
+    lineHeight: 1
+{% endmacro %}
+
+{% macro media_frame_preset(name) %}
+{{ name }}:
+  borderRadius: "theme.radius"
+  border: "theme.cardBorder"
+  shadow: "theme.shadow"
+{% endmacro %}
+
+{% macro code_element(id, w, h, code, language=None, font_size=24, padding=32, radius=12) %}
+kind: code
+id: "{{ id }}"
+rect: { x: 0, y: 0, w: {{ w }}, h: {{ h }} }
+code: {{ code | tojson }}
+{% if language %}
+language: {{ language | tojson }}
+{% endif %}
+style:
+  fontFamily: "theme.fontMono"
+  fontSize: {{ font_size }}
+  color: "theme.codeText"
+  background: "theme.codeBg"
+  borderRadius: {{ radius }}
+  padding: {{ padding }}
+{% endmacro %}
+
 {% macro eyebrow_title(id, x, y, width, eyebrow, title, divider_width=120, divider_gap=24, eyebrow_preset="eyebrow", title_preset="headline", divider_preset="divider") %}
 - kind: text
   id: "{{ id }}-eyebrow"
@@ -24,7 +152,7 @@
     fill: "#ff6b35"
 {% endmacro %}
 
-{% macro section_title(id, x, y, width, title, title_size=56, divider_width=80, divider_gap=16, title_preset="sectionTitle", divider_preset="divider") %}
+{% macro section_title(id, x, y, width, title, title_size=56, divider_width=80, divider_gap=16, title_preset="sectionTitle", divider_preset="divider", title_delay=0, divider_delay=100, duration=600) %}
 - kind: text
   id: "{{ id }}-title"
   preset: "{{ title_preset }}"
@@ -34,6 +162,7 @@
     fontSize: {{ title_size }}
     lineHeight: 1.15
     textAlign: center
+  entrance: { type: fade-up, delay: {{ title_delay }}, duration: {{ duration }} }
 - kind: shape
   id: "{{ id }}-divider"
   preset: "{{ divider_preset }}"
@@ -43,8 +172,48 @@
     w: {{ divider_width }}
     h: 4
   shape: rect
+  borderRadius: 2
   style:
     fill: "theme.accent"
+  entrance: { type: fade-up, delay: {{ divider_delay }}, duration: {{ duration }} }
+{% endmacro %}
+
+{% macro centered_title_stack(id, title, title_preset, title_size, subtitle=None, subtitle_preset="centeredSubtitle", subtitle_size=32, title_width=1600, gap=28, padding_x=160, divider_preset="divider", divider_width=120, divider_height=4, title_delay=0, divider_delay=100, subtitle_delay=200, duration=600) %}
+- kind: group
+  id: "{{ id }}-stack"
+  frame: { x: 0, y: 0, w: 1920, h: 1080 }
+  layout:
+    type: stack
+    gap: {{ gap }}
+    align: center
+    justify: center
+    padding: [0, {{ padding_x }}, 0, {{ padding_x }}]
+  children:
+    - kind: text
+      id: "{{ id }}-title"
+      preset: "{{ title_preset }}"
+      frame: { w: {{ title_width }} }
+      text: "{{ title | yaml_string }}"
+      style:
+        fontSize: {{ title_size }}
+      entrance: { type: fade-up, delay: {{ title_delay }}, duration: {{ duration }} }
+{% if subtitle %}
+    - kind: shape
+      id: "{{ id }}-divider"
+      preset: "{{ divider_preset }}"
+      frame: { w: {{ divider_width }}, h: {{ divider_height }} }
+      shape: rect
+      borderRadius: {{ divider_height / 2 }}
+      entrance: { type: fade-up, delay: {{ divider_delay }}, duration: {{ duration }} }
+    - kind: text
+      id: "{{ id }}-subtitle"
+      preset: "{{ subtitle_preset }}"
+      frame: { w: {{ title_width }} }
+      text: "{{ subtitle | yaml_string }}"
+      style:
+        fontSize: {{ subtitle_size }}
+      entrance: { type: fade-up, delay: {{ subtitle_delay }}, duration: {{ duration }} }
+{% endif %}
 {% endmacro %}
 
 {% macro stat_card(id, x, y, w, h, value, label, card_preset="statCard", value_preset="statValue", label_preset="statLabel") %}

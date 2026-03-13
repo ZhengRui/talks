@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { findTemplate, clearTemplateCache } from "./loader";
 import { expandDslTemplate } from "./engine";
 import { layoutSlide } from "@/lib/layout";
-import type { SlideData, ComponentSlideData, SceneSlideData } from "@/lib/types";
+import type { SlideData, ComponentSlideData, SceneSlideData, ThemeName } from "@/lib/types";
 import type { DslTemplateDef } from "./types";
 
 beforeEach(() => {
@@ -55,9 +55,10 @@ function allLayoutElements(elements: any[]): any[] {
 function expandAndLayout(
   templateName: string,
   params: Record<string, unknown>,
+  themeName: ThemeName = "modern",
 ) {
   const slide = expandDsl(templateName, params);
-  const layout = layoutSlide(slide, "modern", "/img");
+  const layout = layoutSlide(slide, themeName, "/img");
   return { slide, layout };
 }
 
@@ -117,7 +118,7 @@ describe("DSL integration: template expansion + layout", () => {
       kind: "group",
       rect: { x: 0, y: 0, w: 1600, h: 80 },
       style: { fill: "#ffffff" },
-      borderRadius: 8,
+      borderRadius: 12,
       border: { width: 3, color: "#4f6df5", sides: ["left"] },
       entrance: { type: "fade-up", delay: 200, duration: 600 },
     });
@@ -252,6 +253,31 @@ describe("DSL integration: template expansion + layout", () => {
       kind: "group",
       rect: { x: 0, y: 0, w: 1600, h: 200 },
       entrance: { type: "fade-up", delay: 0, duration: 600 },
+    });
+  });
+
+  it("stats: uses theme-derived card chrome for neon-cyber", () => {
+    const { layout } = expandAndLayout("stats", {
+      stats: [{ value: "35", label: "Templates" }],
+    }, "neon-cyber");
+
+    const elements = allLayoutElements(layout.elements);
+    expect(elements.find((element) => element.id === "stat-1")).toMatchObject({
+      kind: "group",
+      style: { fill: "#111827" },
+      borderRadius: 8,
+      shadow: {
+        offsetX: 0,
+        offsetY: 4,
+        blur: 24,
+        spread: 0,
+        color: "rgba(0, 255, 204, 0.08)",
+      },
+      border: {
+        width: 3,
+        color: "#00ffcc",
+        sides: ["top"],
+      },
     });
   });
 
@@ -502,6 +528,16 @@ describe("DSL integration: template expansion + layout", () => {
       borderRadius: 100,
       entrance: { type: "fade-up", delay: 200, duration: 600 },
     });
+    expect(elements.find((element) => element.id === "numbered-list-item-1-num")).toMatchObject({
+      kind: "text",
+      rect: { x: 0, y: 0, w: 44, h: 44 },
+      text: "1",
+      style: expect.objectContaining({
+        textAlign: "center",
+        verticalAlign: "middle",
+        lineHeight: 1,
+      }),
+    });
     expect(elements.find((element) => element.id === "numbered-list-item-1-text")).toMatchObject({
       kind: "text",
       rect: { x: 64, y: 4, w: 1536, h: 52 },
@@ -652,12 +688,12 @@ describe("DSL integration: template expansion + layout", () => {
 
     const children = sceneChildren(slide);
     expect(children).toHaveLength(3);
-    expect(children[0]).toMatchObject({ kind: "text", id: "qa-question", text: "What is the architecture?" });
+    expect(children[0]).toMatchObject({ kind: "text", id: "qa-title", text: "What is the architecture?" });
     expect(children[1]).toMatchObject({ kind: "shape", id: "qa-divider" });
     expect(children[2]).toMatchObject({ kind: "group", id: "qa-card" });
 
     const elements = allLayoutElements(layout.elements);
-    expect(elements.find((element) => element.id === "qa-question")).toMatchObject({
+    expect(elements.find((element) => element.id === "qa-title")).toMatchObject({
       kind: "text",
       rect: { x: 160, y: 60, w: 1600, h: 72.8 },
       text: "What is the architecture?",
@@ -812,6 +848,26 @@ describe("DSL integration: template expansion + layout", () => {
       rect: { x: 884, y: 641.6, w: 152, h: 44 },
       text: "Jane Doe",
       entrance: { type: "fade-up", delay: 300, duration: 600 },
+    });
+  });
+
+  it("cover: uses accent-tinted author pill without image", () => {
+    const { slide, layout } = expandAndLayout("cover", {
+      title: "Comparison Template",
+      author: "Design System",
+    }, "electric-studio");
+
+    expect((slide as SceneSlideData).background).toBeUndefined();
+
+    const elements = allLayoutElements(layout.elements);
+    expect(elements.find((element) => element.id === "cover-author-pill")).toMatchObject({
+      kind: "shape",
+      style: { fill: "rgba(67, 97, 238, 0.13)" },
+      border: { width: 1, color: "#4361ee" },
+    });
+    expect(elements.find((element) => element.id === "cover-author")).toMatchObject({
+      kind: "text",
+      style: { color: "#4361ee" },
     });
   });
 
@@ -1245,6 +1301,52 @@ describe("DSL integration: template expansion + layout", () => {
       items: ["Fast", "Auto"],
       rect: { x: 32, y: 97.8, w: 720, h: 106 },
       bulletColor: "#1a1a2e",
+    });
+  });
+
+  it("comparison: uses theme card chrome for split-pastel", () => {
+    const { layout } = expandAndLayout("comparison", {
+      title: "Comparison Template",
+      left: { heading: "Pros", items: ["Simple YAML content", "Type-safe templates"] },
+      right: { heading: "Cons", items: ["No WYSIWYG editor", "Requires dev knowledge"] },
+    }, "split-pastel");
+
+    const elements = allLayoutElements(layout.elements);
+    expect(elements.find((element) => element.id === "comparison-left-card")).toMatchObject({
+      kind: "group",
+      style: { fill: "#ffffff" },
+      borderRadius: 20,
+      shadow: {
+        offsetX: 0,
+        offsetY: 4,
+        blur: 20,
+        spread: 0,
+        color: "rgba(0, 0, 0, 0.06)",
+      },
+    });
+  });
+
+  it("comparison: resolves swiss-modern heading and list fonts", () => {
+    const { layout } = expandAndLayout("comparison", {
+      title: "Comparison Template",
+      left: { heading: "Pros", items: ["Simple YAML content", "Type-safe templates"] },
+      right: { heading: "Cons", items: ["No WYSIWYG editor", "Requires dev knowledge"] },
+    }, "swiss-modern");
+
+    const elements = allLayoutElements(layout.elements);
+    expect(elements.find((element) => element.id === "comparison-left-heading")).toMatchObject({
+      kind: "text",
+      style: {
+        fontFamily: "Archivo, Inter, system-ui, sans-serif",
+        fontWeight: 700,
+      },
+    });
+    expect(elements.find((element) => element.id === "comparison-left-list")).toMatchObject({
+      kind: "list",
+      itemStyle: {
+        fontFamily: "Nunito, Inter, system-ui, sans-serif",
+        fontWeight: 400,
+      },
     });
   });
 
@@ -2216,6 +2318,39 @@ describe("DSL integration: template expansion + layout", () => {
       kind: "group",
       rect: { x: 1088, y: 0, w: 512, h: 827.2 },
       entrance: { type: "scale-up", delay: 400, duration: 600 },
+    });
+  });
+
+  it("icon-grid: uses theme-derived card chrome for dark-tech", () => {
+    const slide = expandDsl("icon-grid", {
+      title: "十国一览",
+      columns: 5,
+      items: [
+        { icon: "🐉", label: "前蜀" },
+        { icon: "🐉", label: "后蜀" },
+        { icon: "🌊", label: "南吴" },
+        { icon: "🎭", label: "南唐" },
+        { icon: "🌙", label: "吴越" },
+      ],
+    });
+    const layout = layoutSlide(slide, "dark-tech", "/img");
+    const elements = allLayoutElements(layout.elements);
+
+    expect(elements.find((element) => element.id === "icon-grid-item-1")).toMatchObject({
+      kind: "group",
+      style: { fill: "#12121f" },
+      borderRadius: 8,
+      shadow: {
+        offsetX: 0,
+        offsetY: 4,
+        blur: 24,
+        spread: 0,
+        color: "rgba(0, 255, 200, 0.08)",
+      },
+      border: {
+        width: 1,
+        color: "rgba(0, 255, 200, 0.1)",
+      },
     });
   });
 

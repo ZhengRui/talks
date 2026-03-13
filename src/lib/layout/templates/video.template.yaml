@@ -7,22 +7,16 @@ style:
   titleSize: { type: number, default: 56 }
   height: { type: number }
 
+{% import "scene/blocks.njk" as blocks %}
+
 {% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) if title else 0 %}
 {% set contentTop = 60 if not title else (60 + titleHeight + 16 + 4 + 40) %}
 {% set mediaHeight = style.height if style.height else (1020 - contentTop) %}
 
 mode: scene
 presets:
-  centeredTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: center
-      lineHeight: 1.15
-  divider:
-    style:
-      gradient: "theme.accentGradient"
+{{ blocks.header_presets("centeredTitle", "divider") | indent(2, true) }}
+{{ blocks.media_frame_preset("mediaFrame") | indent(2, true) }}
 children:
   {% if title %}
   - kind: text
@@ -47,6 +41,7 @@ children:
   {% endif %}
   - kind: ir
     id: video-block
+    preset: mediaFrame
     frame: { x: 160, y: {{ contentTop }}, w: 1600, h: {{ mediaHeight }} }
     entrance: { type: fade-up, delay: {{ 200 if title else 0 }}, duration: 600 }
     element:
@@ -57,6 +52,3 @@ children:
       {% if poster %}
       poster: "{{ poster }}"
       {% endif %}
-      borderRadius: "theme.radius"
-      border: "theme.cardBorder"
-      shadow: "theme.shadow"

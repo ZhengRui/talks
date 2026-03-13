@@ -9,6 +9,8 @@ style:
   codePadding: { type: number, default: 24 }
   labelSize: { type: number, default: 24 }
 
+{% import "scene/blocks.njk" as blocks %}
+
 {% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) if title else 0 %}
 {% set contentTop = 60 if not title else (60 + titleHeight + 16 + 4 + 40) %}
 {% set beforeCodeHeight = before.code | code_height(style.codeFontSize, style.codePadding, 1.6) %}
@@ -21,44 +23,11 @@ style:
 
 mode: scene
 presets:
-  centeredTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: center
-      lineHeight: 1.15
-  divider:
-    style:
-      gradient: "theme.accentGradient"
-  codeLabel:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "theme.textMuted"
-      textAlign: center
-      lineHeight: 1.5
+{{ blocks.header_presets("centeredTitle", "divider") | indent(2, true) }}
+{{ blocks.body_text_preset("codeLabel", "center", "theme.textMuted", 1.5) | indent(2, true) }}
 children:
   {% if title %}
-  - kind: text
-    id: code-comparison-title
-    preset: centeredTitle
-    frame: { x: 160, y: 60, w: 1600, h: {{ titleHeight }} }
-    text: "{{ title | yaml_string }}"
-    style:
-      fontSize: {{ style.titleSize }}
-    entrance: { type: fade-up, delay: 0, duration: 600 }
-  - kind: shape
-    id: code-comparison-divider
-    preset: divider
-    frame:
-      centerX: "@code-comparison-title.centerX"
-      top: { ref: "@code-comparison-title.bottom", offset: 16 }
-      w: 80
-      h: 4
-    shape: rect
-    borderRadius: 2
-    entrance: { type: fade-up, delay: 100, duration: 600 }
+{{ blocks.section_title("code-comparison", 160, 60, 1600, title, style.titleSize, 80, 16, "centeredTitle", "divider", 0, 100, 600) | indent(2, true) }}
   {% endif %}
   - kind: group
     id: code-comparison-layout
@@ -85,20 +54,7 @@ children:
             id: code-comparison-before-code
             frame: { x: 0, y: {{ 52 if beforeHasLabel else 0 }}, w: 784, h: {{ beforeCodeHeight }} }
             element:
-              kind: code
-              id: code-comparison-before-code-element
-              rect: { x: 0, y: 0, w: 784, h: {{ beforeCodeHeight }} }
-              code: {{ before.code | tojson }}
-              {% if before.language %}
-              language: {{ before.language | tojson }}
-              {% endif %}
-              style:
-                fontFamily: "theme.fontMono"
-                fontSize: {{ style.codeFontSize }}
-                color: "theme.codeText"
-                background: "theme.codeBg"
-                borderRadius: 12
-                padding: {{ style.codePadding }}
+{{ blocks.code_element("code-comparison-before-code-element", 784, beforeCodeHeight, before.code, before.language, style.codeFontSize, style.codePadding, 12) | indent(14, true) }}
       - kind: group
         id: code-comparison-after
         frame: { w: 784, h: {{ afterHeight }} }
@@ -117,17 +73,4 @@ children:
             id: code-comparison-after-code
             frame: { x: 0, y: {{ 52 if afterHasLabel else 0 }}, w: 784, h: {{ afterCodeHeight }} }
             element:
-              kind: code
-              id: code-comparison-after-code-element
-              rect: { x: 0, y: 0, w: 784, h: {{ afterCodeHeight }} }
-              code: {{ after.code | tojson }}
-              {% if after.language %}
-              language: {{ after.language | tojson }}
-              {% endif %}
-              style:
-                fontFamily: "theme.fontMono"
-                fontSize: {{ style.codeFontSize }}
-                color: "theme.codeText"
-                background: "theme.codeBg"
-                borderRadius: 12
-                padding: {{ style.codePadding }}
+{{ blocks.code_element("code-comparison-after-code-element", 784, afterCodeHeight, after.code, after.language, style.codeFontSize, style.codePadding, 12) | indent(14, true) }}

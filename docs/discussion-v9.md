@@ -111,13 +111,15 @@ Examples:
 
 - `distribute`
 - richer diagnostics / debug tooling
+- visual regression / screenshot overlay tooling
 - additional template-time ergonomics if scene YAML still feels too heavy
+- migration of the remaining real v8 decks
 
 The prototype already answered the important question: for screenshot replication, the scene-first path is better aligned than the component-first path.
 
 ## The Real Remaining Problem: Verbosity
 
-The current `v9-test-replicate` examples are still verbose. That criticism is correct.
+The current direct scene replications and scene-backed templates are still verbose. That criticism is correct.
 
 The prototype improved:
 
@@ -136,22 +138,18 @@ That means the next major investment should not be more semantic components. It 
 
 ## What Should Come Next
 
-Priority order:
+Priority order now:
 
-1. add a low-level scene escape hatch
-2. let templates emit `mode: scene` slides directly
-3. add macros / presets to reduce repetition
-4. add diagnostics
-5. add anchors and `grid` only if repeated real slides need them
-
-Status in this branch:
-
-- done: 1, 2, 3, 5, and a focused version of 4
-- remaining likely next step: porting a few real templates/decks to shared scene macros and presets, then deciding whether `distribute` is still needed
+1. sync the docs and mental model to the branch as it exists today
+2. extract a small shared macro / preset layer from the migrated built-ins
+3. port the remaining real v8 presentation decks
+4. promote only the fragments that repeat there too
+5. add visual regression / overlay tooling
+6. only then revisit whether `distribute` or more primitives are still necessary
 
 This order matters.
 
-The highest-value next work is not "more node kinds" or "more layout primitives." It is making the scene path practical enough that people will actually prefer writing it.
+The highest-value next work is not "more node kinds" or "more layout primitives." It is making the scene path practical enough that people will actually prefer writing it, while proving it against real decks rather than only the built-in template set.
 
 ## Template Direction
 
@@ -161,6 +159,8 @@ Current state:
 
 - DSL templates can now emit scene slides directly
 - built-in and deck-local macro imports are available for scene templates
+- all built-in templates are now scene-backed
+- the shared macro library is still intentionally small and should grow only from repeated real patterns
 
 Desired direction:
 
@@ -199,14 +199,14 @@ v9 should continue to treat the IR as the stable backend contract for both:
 
 The current evidence supports this direction:
 
-1. keep v8 alive during migration
-2. use v9 scene mode for screenshot-first slides
-3. add the escape hatch and scene-template ergonomics next
-4. port a few real replicated decks and a few built-in templates
-5. remove the component layer only after scene plus its escape hatch covers real authoring needs
+1. keep the legacy path only as a migration shim
+2. treat scene as the default authoring model for all new work
+3. expand shared macros/presets slowly and only from repeated fragments
+4. port the remaining real v8 decks before attempting to delete the component layer
+5. add parity tooling before declaring migration complete
 
-So the prototype result is not "components are gone already." It is:
+So the branch result is now:
 
 - components are no longer the right default authoring abstraction for replication
 - scene plus compile-time geometry is the right foundation
-- the next step is to make that foundation comfortable to author at scale
+- the remaining work is ergonomics, migration completion, and parity verification

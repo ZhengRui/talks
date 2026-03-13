@@ -8,6 +8,8 @@ style:
   titleSize: { type: number, default: 80 }
   subtitleSize: { type: number, default: 32 }
 
+{% import "scene/blocks.njk" as blocks %}
+
 {% set hasImage = image %}
 {% set resolvedOverlay = overlay or "dark" %}
 {% set darkText = hasImage and resolvedOverlay != "light" %}
@@ -27,26 +29,11 @@ background:
   overlay: "{{ resolvedOverlay }}"
 {% endif %}
 presets:
-  sectionTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "{{ titleColor }}"
-      textAlign: center
-      lineHeight: 1.15
+{{ blocks.heading_text_preset("sectionTitle", "center", titleColor) | indent(2, true) }}
   divider:
     style:
       gradient: "theme.accentGradient"
-  sectionSubtitle:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "{{ bodyColor }}"
-      textAlign: center
-      lineHeight: 1.6
-      {% if bodyShadow %}
-      textShadow: "{{ bodyShadow }}"
-      {% endif %}
+{{ blocks.body_text_preset("sectionSubtitle", "center", bodyColor, 1.6, 400, none, none, bodyShadow) | indent(2, true) }}
 children:
   - kind: group
     id: section-divider-stack

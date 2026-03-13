@@ -5,6 +5,8 @@ params:
 style:
   titleSize: { type: number, default: 56 }
 
+{% import "scene/blocks.njk" as blocks %}
+
 {% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) %}
 {% set contentTop = 60 + titleHeight + 16 + 4 + 40 %}
 {% set itemHeight = 52 %}
@@ -13,31 +15,9 @@ style:
 
 mode: scene
 presets:
-  sectionTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: left
-      lineHeight: 1.15
-  divider:
-    style:
-      gradient: "theme.accentGradient"
-  badgeNumber:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.bg"
-      textAlign: center
-      verticalAlign: middle
-      lineHeight: 1
-  itemText:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "theme.text"
-      textAlign: left
-      lineHeight: 1.6
+{{ blocks.header_presets("sectionTitle", "divider", "left") | indent(2, true) }}
+{{ blocks.heading_text_preset("badgeNumber", "center", "theme.bg", 1, 700, "middle") | indent(2, true) }}
+{{ blocks.body_text_preset("itemText", "left", "theme.text", 1.6) | indent(2, true) }}
 children:
   - kind: text
     id: numbered-list-title

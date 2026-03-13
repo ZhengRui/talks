@@ -6,38 +6,19 @@ style:
   termSize: { type: number, default: 30 }
   descSize: { type: number, default: 28 }
 
+{% import "scene/blocks.njk" as blocks %}
+
 {% set titleHeight = title | text_height(56, 1.15, 1600, 700) %}
 {% set contentTop = 60 + titleHeight + 16 + 4 + 64 %}
 
 mode: scene
 presets:
-  sectionTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: left
-      lineHeight: 1.15
-  divider:
-    style:
-      gradient: "theme.accentGradient"
-  termText:
-    style:
-      fontFamily: "body"
-      fontWeight: 700
-      color: "theme.accent"
-      textAlign: left
-      lineHeight: 1.6
-  descText:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "theme.text"
-      textAlign: left
-      lineHeight: 1.6
+{{ blocks.header_presets("sectionTitle", "divider", "left") | indent(2, true) }}
+{{ blocks.body_text_preset("termText", "left", "theme.accent", 1.6, 700) | indent(2, true) }}
+{{ blocks.body_text_preset("descText", "left", "theme.text", 1.6) | indent(2, true) }}
   borderDivider:
     style:
-      fill: "rgba(0, 0, 0, 0.06)"
+      fill: "theme.border.color"
 children:
   - kind: text
     id: definition-title

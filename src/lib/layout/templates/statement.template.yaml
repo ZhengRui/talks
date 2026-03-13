@@ -3,58 +3,11 @@ params:
   statement: { type: string, required: true }
   subtitle: { type: string }
 
+{% import "scene/blocks.njk" as blocks %}
+
 mode: scene
 presets:
-  statementTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: center
-      lineHeight: 1.15
-  statementSubtitle:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "theme.textMuted"
-      textAlign: center
-      lineHeight: 1.6
-  divider:
-    style:
-      gradient: "theme.accentGradient"
+{{ blocks.header_presets("statementTitle", "divider") | indent(2, true) }}
+{{ blocks.body_text_preset("statementSubtitle", "center", "theme.textMuted", 1.6) | indent(2, true) }}
 children:
-  - kind: group
-    id: statement-stack
-    frame: { x: 0, y: 0, w: 1920, h: 1080 }
-    layout:
-      type: stack
-      gap: 28
-      align: center
-      justify: center
-      padding: [0, 160, 0, 160]
-    children:
-      - kind: text
-        id: statement-title
-        preset: statementTitle
-        frame: { w: 1600 }
-        text: "{{ statement }}"
-        style:
-          fontSize: 72
-        entrance: { type: fade-up, delay: 0, duration: 600 }
-  {% if subtitle %}
-      - kind: shape
-        id: statement-divider
-        preset: divider
-        frame: { w: 120, h: 4 }
-        shape: rect
-        borderRadius: 2
-        entrance: { type: fade-up, delay: 100, duration: 600 }
-      - kind: text
-        id: statement-subtitle
-        preset: statementSubtitle
-        frame: { w: 1600 }
-        text: "{{ subtitle }}"
-        style:
-          fontSize: 32
-        entrance: { type: fade-up, delay: 200, duration: 600 }
-  {% endif %}
+{{ blocks.centered_title_stack("statement", statement, "statementTitle", 72, subtitle, "statementSubtitle", 32, 1600, 28, 160, "divider", 120, 4, 0, 100, 200, 600) | indent(2, true) }}

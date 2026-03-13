@@ -150,6 +150,13 @@ function prefixImageSrc(src: string, imageBase: string): string {
   return `${imageBase}/${src}`;
 }
 
+function resolveSceneFontFamily(value: string | undefined, theme: ResolvedTheme): string {
+  if (!value || value === "body") return theme.fontBody;
+  if (value === "heading") return theme.fontHeading;
+  if (value === "mono") return theme.fontMono;
+  return resolveThemeToken(value, theme) ?? value;
+}
+
 const IR_TOKEN_SKIP = new Set(["text", "id", "code", "src", "language", "shape", "kind"]);
 
 function resolveIrTokenTree<T>(value: T, theme: ResolvedTheme, key?: string): T {
@@ -159,6 +166,9 @@ function resolveIrTokenTree<T>(value: T, theme: ResolvedTheme, key?: string): T 
   }
   if (typeof value === "string" && value.startsWith("theme.")) {
     return (resolveThemeTokenAny(value, theme) ?? value) as T;
+  }
+  if (key === "fontFamily" && typeof value === "string") {
+    return resolveSceneFontFamily(value, theme) as T;
   }
   if (typeof value === "string") {
     return value;
@@ -207,13 +217,6 @@ function resolveTokenTree<T>(value: T, theme: ResolvedTheme): T {
   return value;
 }
 
-function resolveSceneFontFamily(value: string | undefined, theme: ResolvedTheme): string {
-  if (!value || value === "body") return theme.fontBody;
-  if (value === "heading") return theme.fontHeading;
-  if (value === "mono") return theme.fontMono;
-  return resolveThemeToken(value, theme) ?? value;
-}
-
 function normalizeTextNode(node: SceneTextNode, theme: ResolvedTheme): SceneTextNode {
   const style: TextStyle = {
     fontFamily: resolveSceneFontFamily(node.style.fontFamily, theme),
@@ -233,6 +236,8 @@ function normalizeTextNode(node: SceneTextNode, theme: ResolvedTheme): SceneText
   return {
     ...node,
     style,
+    ...(node.opacity != null ? { opacity: resolveTokenTree(node.opacity, theme) } : {}),
+    ...(node.borderRadius != null ? { borderRadius: resolveTokenTree(node.borderRadius, theme) } : {}),
     ...(node.border ? { border: resolveTokenTree(node.border, theme) } : {}),
     ...(node.shadow ? { shadow: resolveTokenTree(node.shadow, theme) } : {}),
     ...(node.effects ? { effects: resolveTokenTree(node.effects, theme) } : {}),
@@ -243,6 +248,8 @@ function normalizeImageNode(node: SceneImageNode, theme: ResolvedTheme, imageBas
   return {
     ...node,
     src: prefixImageSrc(node.src, imageBase),
+    ...(node.opacity != null ? { opacity: resolveTokenTree(node.opacity, theme) } : {}),
+    ...(node.borderRadius != null ? { borderRadius: resolveTokenTree(node.borderRadius, theme) } : {}),
     ...(node.border ? { border: resolveTokenTree(node.border, theme) } : {}),
     ...(node.shadow ? { shadow: resolveTokenTree(node.shadow, theme) } : {}),
     ...(node.effects ? { effects: resolveTokenTree(node.effects, theme) } : {}),
@@ -257,6 +264,8 @@ function normalizeGroupNode(
 ): SceneGroupNode {
   return {
     ...node,
+    ...(node.opacity != null ? { opacity: resolveTokenTree(node.opacity, theme) } : {}),
+    ...(node.borderRadius != null ? { borderRadius: resolveTokenTree(node.borderRadius, theme) } : {}),
     ...(node.style ? { style: resolveTokenTree(node.style, theme) } : {}),
     ...(node.border ? { border: resolveTokenTree(node.border, theme) } : {}),
     ...(node.shadow ? { shadow: resolveTokenTree(node.shadow, theme) } : {}),
@@ -268,6 +277,11 @@ function normalizeGroupNode(
 function normalizeIrNode(node: SceneIrNode, theme: ResolvedTheme, imageBase: string): SceneIrNode {
   return {
     ...node,
+    ...(node.opacity != null ? { opacity: resolveTokenTree(node.opacity, theme) } : {}),
+    ...(node.borderRadius != null ? { borderRadius: resolveTokenTree(node.borderRadius, theme) } : {}),
+    ...(node.border ? { border: resolveTokenTree(node.border, theme) } : {}),
+    ...(node.shadow ? { shadow: resolveTokenTree(node.shadow, theme) } : {}),
+    ...(node.effects ? { effects: resolveTokenTree(node.effects, theme) } : {}),
     element: normalizeLayoutElement(node.element, theme, imageBase),
   };
 }
@@ -286,6 +300,8 @@ export function normalizeSceneNode(
     case "shape":
       return {
         ...mergedNode,
+        ...(mergedNode.opacity != null ? { opacity: resolveTokenTree(mergedNode.opacity, theme) } : {}),
+        ...(mergedNode.borderRadius != null ? { borderRadius: resolveTokenTree(mergedNode.borderRadius, theme) } : {}),
         style: resolveTokenTree(mergedNode.style, theme),
         ...(mergedNode.border ? { border: resolveTokenTree(mergedNode.border, theme) } : {}),
         ...(mergedNode.shadow ? { shadow: resolveTokenTree(mergedNode.shadow, theme) } : {}),

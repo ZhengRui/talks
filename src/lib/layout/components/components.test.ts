@@ -60,6 +60,10 @@ describe("resolveThemeToken", () => {
     expect(resolveThemeToken("theme.radius", theme)).toBe(String(theme.radius));
   });
 
+  it("resolves theme color tokens with alpha suffix", () => {
+    expect(resolveThemeToken("theme.accent@0.13", theme)).toBe("rgba(79, 109, 245, 0.13)");
+  });
+
   it("returns undefined for non-string theme properties", () => {
     // shadow is an object, not a string
     expect(resolveThemeToken("theme.shadow", theme)).toBeUndefined();

@@ -8,6 +8,8 @@ style:
   labelFontSize: { type: number, default: 26 }
   cardHeight: { type: number, default: 200 }
 
+{% import "scene/blocks.njk" as blocks %}
+
 {% set topPad = 60 %}
 {% set sidePad = 160 %}
 {% set dividerHeight = 4 %}
@@ -22,45 +24,10 @@ style:
 {% endif %}
 mode: scene
 presets:
-  sectionTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: center
-      lineHeight: 1.15
-  divider:
-    style:
-      gradient: "theme.accentGradient"
-  statCard:
-    borderRadius: 12
-    shadow:
-      offsetX: 0
-      offsetY: 4
-      blur: 24
-      spread: 0
-      color: "rgba(0, 0, 0, 0.06)"
-    style:
-      fill: "theme.bgSecondary"
-    border:
-      width: 3
-      color: "theme.accent"
-      sides: ["top"]
-    clipContent: true
-  statValue:
-    style:
-      fontFamily: "body"
-      fontWeight: 700
-      color: "theme.accent"
-      textAlign: center
-      lineHeight: 1.15
-  statLabel:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "theme.textMuted"
-      textAlign: center
-      lineHeight: 1.5
+{{ blocks.header_presets("sectionTitle", "divider") | indent(2, true) }}
+{{ blocks.accent_edge_card_preset("statCard", "top") | indent(2, true) }}
+{{ blocks.body_text_preset("statValue", "center", "theme.accent", 1.15, 700) | indent(2, true) }}
+{{ blocks.body_text_preset("statLabel", "center", "theme.textMuted", 1.5) | indent(2, true) }}
 children:
   {% if title %}
   - kind: text

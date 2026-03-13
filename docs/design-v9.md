@@ -63,21 +63,32 @@ slides.yaml
 
 The intended end state is that new authoring flows bypass the component resolver. Templates emit scene nodes directly. The compiler solves geometry, measures content, and emits absolute IR.
 
-## Prototype Status
+## Current Status
 
-This branch implements a narrow but working v9 prototype in parallel with v8:
+This branch now implements a working v9 scene system in parallel with the legacy path:
 
 - `SlideData` is now a union of legacy component slides and `mode: "scene"` slides
-- `layoutSlide()` dispatches scene slides to a new compiler path and leaves v8 untouched
-- scene slides currently support:
+- `layoutSlide()` dispatches scene slides to the scene compiler path and leaves legacy slides untouched
+- scene slides support:
   - typed `background`
   - optional `guides`
   - `sourceSize`, `fit`, `align` for screenshot-space normalization
-  - scene nodes: `text`, `shape`, `image`, `group`
-  - local `stack` and `row` group layouts
+  - scene nodes: `text`, `shape`, `image`, `group`, `ir`
+  - local `stack`, `row`, and `grid` group layouts
+  - anchors / frame references
+  - preset inheritance via `extends`
+  - built-in and deck-local macro imports
+  - basic diagnostics for duplicate ids and invalid guide refs
 - the output is still the existing `LayoutSlide` / `LayoutElement[]` IR
 
-This is enough to evaluate the architectural claim for screenshot replication without forcing a full repo-wide migration first.
+Migration status:
+
+- all built-in templates now emit scene slides directly
+- `v9-templates` acts as the migrated built-in template gallery
+- `v9-features` demonstrates the intended v9 feature story
+- the remaining migration work is focused on porting real v8 presentation decks and improving authoring ergonomics
+
+The branch is beyond the initial proof-of-concept stage. The architectural question is already answered; the remaining work is migration completion and authoring comfort.
 
 ## What Stays
 
@@ -241,6 +252,21 @@ This is the intended reuse model:
 - preset = one node's defaults
 - macro = one or more scene nodes
 - template = whole-slide composition
+
+Current macro strategy:
+
+- keep the shared macro library intentionally small
+- extract only stable scene fragments that repeat across templates and real decks
+- keep complex or domain-specific abstractions deck-local
+- do not rebuild the old runtime component layer under new macro names
+
+The most promising shared fragments are:
+
+- centered top headers
+- centered title stacks
+- card / panel shells
+- media framing blocks
+- repeated stat / comparison / quote fragments where they prove stable across more than one deck
 
 ### Groups
 

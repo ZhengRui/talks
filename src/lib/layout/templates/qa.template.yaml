@@ -7,6 +7,8 @@ style:
   answerSize: { type: number, default: 30 }
   cardWidth: { type: number, default: 1200 }
 
+{% import "scene/blocks.njk" as blocks %}
+
 {% set titleHeight = question | text_height(style.questionSize, 1.15, 1600, 700) %}
 {% set contentTop = 60 + titleHeight + 16 + 4 + 40 %}
 {% set bodyWidth = style.cardWidth - 80 %}
@@ -16,57 +18,11 @@ style:
 
 mode: scene
 presets:
-  centeredTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: center
-      lineHeight: 1.15
-  divider:
-    style:
-      gradient: "theme.accentGradient"
-  answerCard:
-    borderRadius: 12
-    shadow:
-      offsetX: 0
-      offsetY: 4
-      blur: 24
-      spread: 0
-      color: "rgba(0, 0, 0, 0.06)"
-    style:
-      fill: "theme.bgSecondary"
-    border:
-      width: 1
-      color: "rgba(0, 0, 0, 0.06)"
-    clipContent: true
-  answerText:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "theme.text"
-      textAlign: left
-      lineHeight: 1.6
+{{ blocks.header_presets("centeredTitle", "divider") | indent(2, true) }}
+{{ blocks.surface_card_preset("answerCard") | indent(2, true) }}
+{{ blocks.body_text_preset("answerText", "left", "theme.text", 1.6) | indent(2, true) }}
 children:
-  - kind: text
-    id: qa-question
-    preset: centeredTitle
-    frame: { x: 160, y: 60, w: 1600, h: {{ titleHeight }} }
-    text: "{{ question | yaml_string }}"
-    style:
-      fontSize: {{ style.questionSize }}
-    entrance: { type: fade-up, delay: 0, duration: 600 }
-  - kind: shape
-    id: qa-divider
-    preset: divider
-    frame:
-      centerX: "@qa-question.centerX"
-      top: { ref: "@qa-question.bottom", offset: 16 }
-      w: 80
-      h: 4
-    shape: rect
-    borderRadius: 2
-    entrance: { type: fade-up, delay: 100, duration: 600 }
+{{ blocks.section_title("qa", 160, 60, 1600, question, style.questionSize, 80, 16, "centeredTitle", "divider", 0, 100, 600) | indent(2, true) }}
   - kind: group
     id: qa-card
     preset: answerCard

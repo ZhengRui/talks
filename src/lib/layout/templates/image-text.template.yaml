@@ -9,6 +9,8 @@ style:
   titleSize: { type: number, default: 48 }
   bodySize: { type: number, default: 28 }
 
+{% import "scene/blocks.njk" as blocks %}
+
 {% set textWidth = 780 %}
 {% set titleY = 270 %}
 {% set titleHeight = title | text_height(style.titleSize, 1.15, textWidth, 700) %}
@@ -28,23 +30,11 @@ style:
 
 mode: scene
 presets:
-  imageTextTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: left
-      lineHeight: 1.15
+{{ blocks.heading_text_preset("imageTextTitle", "left") | indent(2, true) }}
   divider:
     style:
       gradient: "theme.accentGradient"
-  imageTextBody:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "theme.text"
-      textAlign: left
-      lineHeight: 1.7
+{{ blocks.body_text_preset("imageTextBody", "left", "theme.text", 1.7) | indent(2, true) }}
 children:
   - kind: group
     id: image-text-root

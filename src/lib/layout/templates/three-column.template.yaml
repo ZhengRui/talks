@@ -9,6 +9,8 @@ style:
   headingSize: { type: number, default: 32 }
   bodySize: { type: number, default: 28 }
 
+{% import "scene/blocks.njk" as blocks %}
+
 {% set topPad = 60 %}
 {% set sidePad = 160 %}
 {% set columnGap = 32 %}
@@ -34,52 +36,11 @@ style:
 
 mode: scene
 presets:
-  sectionTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: center
-      lineHeight: 1.15
-  divider:
-    style:
-      gradient: "theme.accentGradient"
-  columnCard:
-    borderRadius: 12
-    shadow:
-      offsetX: 0
-      offsetY: 4
-      blur: 24
-      spread: 0
-      color: "rgba(0, 0, 0, 0.06)"
-    style:
-      fill: "theme.bgSecondary"
-    border:
-      width: 3
-      color: "theme.accent"
-      sides: ["top"]
-    clipContent: true
-  columnIcon:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "theme.accent"
-      textAlign: center
-      lineHeight: 1.6
-  columnHeading:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: center
-      lineHeight: 1.15
-  columnBody:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "theme.text"
-      textAlign: center
-      lineHeight: 1.6
+{{ blocks.header_presets("sectionTitle", "divider") | indent(2, true) }}
+{{ blocks.accent_edge_card_preset("columnCard", "top") | indent(2, true) }}
+{{ blocks.body_text_preset("columnIcon", "center", "theme.accent", 1.6) | indent(2, true) }}
+{{ blocks.heading_text_preset("columnHeading", "center") | indent(2, true) }}
+{{ blocks.body_text_preset("columnBody", "center", "theme.text", 1.6) | indent(2, true) }}
 children:
   {% if title %}
   - kind: text

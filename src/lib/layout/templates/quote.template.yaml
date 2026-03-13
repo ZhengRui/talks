@@ -6,6 +6,8 @@ style:
   fontSize: { type: number, default: 36 }
   attributionFontSize: { type: number, default: 26 }
 
+{% import "scene/blocks.njk" as blocks %}
+
 mode: scene
 presets:
   quoteMark:
@@ -15,21 +17,8 @@ presets:
       color: "theme.accent"
       textAlign: center
       lineHeight: 1
-  quoteText:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      fontStyle: italic
-      color: "theme.text"
-      textAlign: center
-      lineHeight: 1.6
-  quoteAttribution:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "theme.textMuted"
-      textAlign: center
-      lineHeight: 1.5
+{{ blocks.body_text_preset("quoteText", "center", "theme.text", 1.6, 400, "italic") | indent(2, true) }}
+{{ blocks.body_text_preset("quoteAttribution", "center", "theme.textMuted", 1.5) | indent(2, true) }}
 children:
   - kind: group
     id: quote-stack

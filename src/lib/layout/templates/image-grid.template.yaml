@@ -8,6 +8,8 @@ style:
   imageHeight: { type: number }
   captionSize: { type: number, default: 24 }
 
+{% import "scene/blocks.njk" as blocks %}
+
 {% set topPad = 60 %}
 {% set sidePad = 160 %}
 {% set resolvedColumns = columns or 2 %}
@@ -24,44 +26,11 @@ style:
 
 mode: scene
 presets:
-  sectionTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: center
-      lineHeight: 1.15
-  divider:
-    style:
-      gradient: "theme.accentGradient"
-  gridCaption:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "theme.textMuted"
-      textAlign: center
-      lineHeight: {{ captionLineHeight }}
+{{ blocks.header_presets("sectionTitle", "divider") | indent(2, true) }}
+{{ blocks.body_text_preset("gridCaption", "center", "theme.textMuted", captionLineHeight) | indent(2, true) }}
 children:
   {% if title %}
-  - kind: text
-    id: image-grid-header-title
-    preset: sectionTitle
-    frame: { x: 160, y: 60, w: 1600, h: {{ titleHeight }} }
-    text: "{{ title }}"
-    style:
-      fontSize: {{ style.titleSize }}
-    entrance: { type: fade-up, delay: 0, duration: 600 }
-  - kind: shape
-    id: image-grid-header-divider
-    preset: divider
-    frame:
-      centerX: "@image-grid-header-title.centerX"
-      top: { ref: "@image-grid-header-title.bottom", offset: 16 }
-      w: 80
-      h: 4
-    shape: rect
-    borderRadius: 2
-    entrance: { type: fade-up, delay: 100, duration: 600 }
+{{ blocks.section_title("image-grid-header", 160, 60, 1600, title, style.titleSize, 80, 16, "sectionTitle", "divider", 0, 100, 600) | indent(2, true) }}
   {% endif %}
   - kind: group
     id: image-grid-layout

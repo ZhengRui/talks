@@ -6,6 +6,8 @@ style:
   titleSize: { type: number, default: 56 }
   bulletVariant: { type: string, default: card }
 
+{% import "scene/blocks.njk" as blocks %}
+
 {% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) %}
 {% set contentTop = 60 + titleHeight + 16 + 4 + 40 %}
 {% set plainGap = 20 %}
@@ -14,31 +16,9 @@ style:
 
 mode: scene
 presets:
-  sectionTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: left
-      lineHeight: 1.15
-  divider:
-    style:
-      gradient: "theme.accentGradient"
-  bulletText:
-    style:
-      fontFamily: "body"
-      fontWeight: 400
-      color: "theme.text"
-      textAlign: left
-      lineHeight: 1.6
-  bulletCard:
-    borderRadius: 8
-    style:
-      fill: "theme.bgSecondary"
-    border:
-      width: 3
-      color: "theme.accent"
-      sides: ["left"]
+{{ blocks.header_presets("sectionTitle", "divider", "left") | indent(2, true) }}
+{{ blocks.body_text_preset("bulletText", "left", "theme.text", 1.6) | indent(2, true) }}
+{{ blocks.accent_edge_card_preset("bulletCard", "left", "theme.accent", true, false) | indent(2, true) }}
 children:
   - kind: text
     id: bullets-title

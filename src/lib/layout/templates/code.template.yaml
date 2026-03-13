@@ -7,60 +7,22 @@ style:
   titleSize: { type: number, default: 56 }
   codeFontSize: { type: number, default: 24 }
 
+{% import "scene/blocks.njk" as blocks %}
+
 {% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) if title else 0 %}
 {% set contentTop = 60 if not title else (60 + titleHeight + 16 + 4 + 40) %}
 {% set codeHeight = code | code_height(style.codeFontSize, 32, 1.6) %}
 
 mode: scene
 presets:
-  centeredTitle:
-    style:
-      fontFamily: "heading"
-      fontWeight: 700
-      color: "theme.heading"
-      textAlign: center
-      lineHeight: 1.15
-  divider:
-    style:
-      gradient: "theme.accentGradient"
+{{ blocks.header_presets("centeredTitle", "divider") | indent(2, true) }}
 children:
   {% if title %}
-  - kind: text
-    id: code-title
-    preset: centeredTitle
-    frame: { x: 160, y: 60, w: 1600, h: {{ titleHeight }} }
-    text: "{{ title | yaml_string }}"
-    style:
-      fontSize: {{ style.titleSize }}
-    entrance: { type: fade-up, delay: 0, duration: 600 }
-  - kind: shape
-    id: code-divider
-    preset: divider
-    frame:
-      centerX: "@code-title.centerX"
-      top: { ref: "@code-title.bottom", offset: 16 }
-      w: 80
-      h: 4
-    shape: rect
-    borderRadius: 2
-    entrance: { type: fade-up, delay: 100, duration: 600 }
+{{ blocks.section_title("code", 160, 60, 1600, title, style.titleSize, 80, 16, "centeredTitle", "divider", 0, 100, 600) | indent(2, true) }}
   {% endif %}
   - kind: ir
     id: code-block
     frame: { x: 160, y: {{ contentTop }}, w: 1600, h: {{ codeHeight }} }
     entrance: { type: fade-up, delay: {{ 200 if title else 0 }}, duration: 600 }
     element:
-      kind: code
-      id: code-block-element
-      rect: { x: 0, y: 0, w: 1600, h: {{ codeHeight }} }
-      code: {{ code | tojson }}
-      {% if language %}
-      language: {{ language | tojson }}
-      {% endif %}
-      style:
-        fontFamily: "theme.fontMono"
-        fontSize: {{ style.codeFontSize }}
-        color: "theme.codeText"
-        background: "theme.codeBg"
-        borderRadius: 12
-        padding: 32
+{{ blocks.code_element("code-block-element", 1600, codeHeight, code, language, style.codeFontSize, 32, 12) | indent(6, true) }}
