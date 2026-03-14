@@ -205,14 +205,15 @@ v9 should continue to treat the IR as the stable backend contract for both:
 
 The current evidence supports this direction:
 
-1. keep the legacy path only as a migration shim
-2. treat scene as the default authoring model for all new work
-3. expand shared macros/presets slowly and only from repeated fragments
-4. port the remaining real v8 decks before attempting to delete the component layer
-5. add parity tooling before declaring migration complete
+1. treat scene as the default authoring model for all new work
+2. keep expanding shared macros/presets slowly and only from repeated fragments
+3. port the remaining real v8 decks through the scene path
+4. use parity tooling to verify migration quality continuously
+5. keep the IR as the stable backend contract for both web and PPTX
 
 So the branch result is now:
 
 - components are no longer the right default authoring abstraction for replication
 - scene plus compile-time geometry is the right foundation
+- the legacy component/autolayout path has now been removed
 - the remaining work is ergonomics, migration completion, and parity verification

@@ -19,13 +19,18 @@ describe("expandDslTemplate", () => {
     const def = makeDef({
       params: { title: { type: "string", required: true } },
       rawBody: `
-name: test
-params:
-  title: { type: string, required: true }
+mode: scene
 children:
-  - type: heading
+  - kind: text
+    id: title
+    frame: { x: 0, y: 0, w: 640 }
     text: "{{ title }}"
-    fontSize: 56
+    style:
+      fontFamily: "heading"
+      fontSize: 56
+      fontWeight: 700
+      color: "#ffffff"
+      lineHeight: 1.1
 `,
     });
 
@@ -33,9 +38,10 @@ children:
     expect(result).not.toHaveProperty("template");
     expect((result as unknown as { children: unknown[] }).children).toHaveLength(1);
     expect((result as unknown as { children: Record<string, unknown>[] }).children[0]).toMatchObject({
-      type: "heading",
+      kind: "text",
+      id: "title",
       text: "Hello World",
-      fontSize: 56,
+      style: { fontSize: 56 },
     });
   });
 
@@ -43,10 +49,24 @@ children:
     const def = makeDef({
       params: { bullets: { type: "string[]", required: true } },
       rawBody: `
-name: test
+mode: scene
 children:
-  - type: bullets
-    items: {{ bullets }}
+  - kind: ir
+    id: bullets
+    element:
+      kind: list
+      id: bullets-element
+      rect: { x: 0, y: 0, w: 640, h: 200 }
+      items: {{ bullets }}
+      ordered: false
+      itemStyle:
+        fontFamily: "body"
+        fontSize: 20
+        fontWeight: 400
+        color: "#ffffff"
+        lineHeight: 1.4
+      bulletColor: "#ffffff"
+      itemSpacing: 12
 `,
     });
 
@@ -55,8 +75,8 @@ children:
       def,
     );
     const children = (result as unknown as { children: Record<string, unknown>[] }).children;
-    expect(children[0]).toMatchObject({ type: "bullets" });
-    expect(children[0].items).toEqual(["First", "Second", "Third"]);
+    expect(children[0]).toMatchObject({ kind: "ir", id: "bullets" });
+    expect(children[0].element.items).toEqual(["First", "Second", "Third"]);
   });
 
   it("expands conditional block when value is present", () => {
@@ -66,14 +86,27 @@ children:
         subtitle: { type: "string" },
       },
       rawBody: `
-name: test
+mode: scene
 children:
-  - type: heading
+  - kind: text
+    id: statement
+    frame: { x: 0, y: 0, w: 800 }
     text: "{{ statement }}"
-    fontSize: 72
+    style:
+      fontFamily: "heading"
+      fontSize: 72
+      color: "#ffffff"
+      lineHeight: 1.1
   {% if subtitle %}
-  - type: body
+  - kind: text
+    id: subtitle
+    frame: { x: 0, y: 96, w: 800 }
     text: "{{ subtitle }}"
+    style:
+      fontFamily: "body"
+      fontSize: 28
+      color: "#bbbbbb"
+      lineHeight: 1.4
   {% endif %}
 `,
     });
@@ -95,14 +128,21 @@ children:
     const def = makeDef({
       params: { stats: { type: "array", required: true } },
       rawBody: `
-name: test
+mode: scene
 children:
-  - type: columns
+  - kind: group
+    id: stats
     children:
       {% for s in stats %}
-      - type: stat
-        value: "{{ s.value }}"
-        label: "{{ s.label }}"
+      - kind: text
+        id: "stat-{{ loop.index }}"
+        frame: { x: 0, y: {{ loop.index0 * 40 }}, w: 320 }
+        text: "{{ s.value }}: {{ s.label }}"
+        style:
+          fontFamily: "heading"
+          fontSize: 32
+          color: "#ffffff"
+          lineHeight: 1.2
       {% endfor %}
 `,
     });
@@ -121,25 +161,42 @@ children:
     const children = (result as unknown as { children: Record<string, unknown>[] }).children;
     const columns = children[0] as unknown as { children: Record<string, unknown>[] };
     expect(columns.children).toHaveLength(2);
-    expect(columns.children[0]).toMatchObject({ value: "42", label: "Answer" });
-    expect(columns.children[1]).toMatchObject({ value: "7", label: "Days" });
+    expect(columns.children[0]).toMatchObject({ text: "42: Answer" });
+    expect(columns.children[1]).toMatchObject({ text: "7: Days" });
   });
 
   it("supports loop.last for conditional dividers", () => {
     const def = makeDef({
       params: { defs: { type: "array", required: true } },
       rawBody: `
-name: test
+mode: scene
 children:
   {% for d in defs %}
-  - type: text
+  - kind: text
+    id: "term-{{ loop.index }}"
+    frame: { x: 0, y: {{ loop.index0 * 120 }}, w: 320 }
     text: "{{ d.term }}"
-    fontWeight: bold
-  - type: text
+    style:
+      fontFamily: "heading"
+      fontSize: 28
+      fontWeight: 700
+      color: "#ffffff"
+      lineHeight: 1.2
+  - kind: text
+    id: "desc-{{ loop.index }}"
+    frame: { x: 0, y: {{ loop.index0 * 120 + 40 }}, w: 420 }
     text: "{{ d.desc }}"
+    style:
+      fontFamily: "body"
+      fontSize: 20
+      color: "#bbbbbb"
+      lineHeight: 1.4
   {% if not loop.last %}
-  - type: divider
-    variant: border
+  - kind: shape
+    id: "divider-{{ loop.index }}"
+    frame: { x: 0, y: {{ loop.index0 * 120 + 92 }}, w: 240, h: 2 }
+    shape: rect
+    style: { fill: "#666666" }
   {% endif %}
   {% endfor %}
 `,
@@ -159,7 +216,7 @@ children:
     const children = (result as unknown as { children: unknown[] }).children;
     // A-term, A-desc, divider, B-term, B-desc (no divider after last)
     expect(children).toHaveLength(5);
-    expect((children[2] as Record<string, unknown>).type).toBe("divider");
+    expect((children[2] as Record<string, unknown>).kind).toBe("shape");
   });
 
   it("applies style defaults", () => {
@@ -167,17 +224,23 @@ children:
       params: { title: { type: "string", required: true } },
       style: { titleSize: { type: "number", default: 56 } },
       rawBody: `
-name: test
+mode: scene
 children:
-  - type: heading
+  - kind: text
+    id: title
+    frame: { x: 0, y: 0, w: 640 }
     text: "{{ title }}"
-    fontSize: {{ style.titleSize }}
+    style:
+      fontFamily: "heading"
+      fontSize: {{ style.titleSize }}
+      color: "#ffffff"
+      lineHeight: 1.1
 `,
     });
 
     const result = expandDslTemplate({ template: "test", title: "Test" }, def);
     const children = (result as unknown as { children: Record<string, unknown>[] }).children;
-    expect(children[0].fontSize).toBe(56);
+    expect(children[0].style.fontSize).toBe(56);
   });
 
   it("merges style overrides with defaults", () => {
@@ -185,11 +248,17 @@ children:
       params: { title: { type: "string", required: true } },
       style: { titleSize: { type: "number", default: 56 } },
       rawBody: `
-name: test
+mode: scene
 children:
-  - type: heading
+  - kind: text
+    id: title
+    frame: { x: 0, y: 0, w: 640 }
     text: "{{ title }}"
-    fontSize: {{ style.titleSize }}
+    style:
+      fontFamily: "heading"
+      fontSize: {{ style.titleSize }}
+      color: "#ffffff"
+      lineHeight: 1.1
 `,
     });
 
@@ -198,7 +267,7 @@ children:
       def,
     );
     const children = (result as unknown as { children: Record<string, unknown>[] }).children;
-    expect(children[0].fontSize).toBe(72);
+    expect(children[0].style.fontSize).toBe(72);
   });
 
   it("throws on missing required param", () => {
@@ -206,7 +275,7 @@ children:
       name: "my-template",
       params: { title: { type: "string", required: true } },
       rawBody: `
-name: my-template
+mode: scene
 children: []
 `,
     });
@@ -216,26 +285,34 @@ children: []
     );
   });
 
-  it("produces ComponentSlideData with children", () => {
+  it("produces scene slides with children", () => {
     const def = makeDef({
       params: { text: { type: "string", required: true } },
       rawBody: `
-name: test
+mode: scene
 children:
-  - type: heading
+  - kind: text
+    id: title
+    frame: { x: 0, y: 0, w: 400 }
     text: "{{ text }}"
+    style:
+      fontFamily: "heading"
+      fontSize: 48
+      color: "#ffffff"
+      lineHeight: 1.1
 `,
     });
 
     const result = expandDslTemplate({ template: "test", text: "Hi" }, def);
     expect(result).not.toHaveProperty("template");
+    expect(result).toHaveProperty("mode", "scene");
     expect(result).toHaveProperty("children");
   });
 
   it("passes through animation and theme from slide data", () => {
     const def = makeDef({
       rawBody: `
-name: test
+mode: scene
 children: []
 `,
     });
@@ -252,27 +329,41 @@ children: []
     const def = makeDef({
       params: { code: { type: "string", required: true } },
       rawBody: `
-name: test
+mode: scene
 children:
-  - type: code
-    code: {{ code | tojson }}
+  - kind: text
+    id: code
+    frame: { x: 0, y: 0, w: 640 }
+    text: {{ code | tojson }}
+    style:
+      fontFamily: "mono"
+      fontSize: 18
+      color: "#ffffff"
+      lineHeight: 1.4
 `,
     });
 
     const code = 'function greet() {\n  return "hello";\n}';
     const result = expandDslTemplate({ template: "test", code }, def);
     const children = (result as unknown as { children: Record<string, unknown>[] }).children;
-    expect(children[0].code).toBe(code);
+    expect(children[0].text).toBe(code);
   });
 
   it("handles or operator for default values", () => {
     const def = makeDef({
       params: { title: { type: "string" } },
       rawBody: `
-name: test
+mode: scene
 children:
-  - type: heading
+  - kind: text
+    id: title
+    frame: { x: 0, y: 0, w: 400 }
     text: "{{ title or 'Thank You' }}"
+    style:
+      fontFamily: "heading"
+      fontSize: 56
+      color: "#ffffff"
+      lineHeight: 1.1
 `,
     });
 
@@ -287,27 +378,21 @@ children:
     ).toBe("Thank You");
   });
 
-  it("outputs ComponentSlideData when no base field", () => {
+  it("throws when a template does not emit mode: scene", () => {
     const def = makeDef({
       params: { title: { type: "string", required: true } },
       rawBody: `
 children:
-  - type: box
-    variant: flat
-    padding: [60, 160]
-    height: 1080
-    children:
-      - type: heading
-        text: "{{ title }}"
+  - kind: text
+    id: title
+    frame: { x: 0, y: 0, w: 640 }
+    text: "{{ title }}"
 `,
     });
 
-    const result = expandDslTemplate({ template: "test", title: "No Base" }, def);
-    // Should NOT have a template field — it's a ComponentSlideData
-    expect(result).not.toHaveProperty("template");
-    expect(result).toHaveProperty("children");
-    const children = (result as unknown as { children: Record<string, unknown>[] }).children;
-    expect(children[0].type).toBe("box");
+    expect(() => expandDslTemplate({ template: "test", title: "No Base" }, def)).toThrow(
+      /must emit 'mode: scene'/,
+    );
   });
 
   it("expands templates that emit mode: scene slides", () => {

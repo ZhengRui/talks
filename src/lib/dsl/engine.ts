@@ -4,7 +4,6 @@ import { parse } from "yaml";
 import type { DslTemplateDef } from "./types";
 import { estimateTextHeight } from "@/lib/layout/helpers";
 import type {
-  ComponentSlideData,
   SceneSlideData,
   SlideBaseFields,
   SlideData,
@@ -185,13 +184,13 @@ function smartify(val: unknown): unknown {
 // --- Main expansion function ---
 
 /**
- * Expand a DSL template with slide data into a SlideData.
+ * Expand a DSL template with slide data into a scene SlideData.
  *
  * 1. Validate required params
  * 2. Build render context (params + style defaults + user style overrides)
  * 3. Render the .template.yaml through Nunjucks
  * 4. Parse the rendered YAML
- * 5. Construct SlideData
+ * 5. Construct scene SlideData
  */
 export function expandDslTemplate(
   slideData: Record<string, unknown>,
@@ -255,37 +254,30 @@ export function expandDslTemplate(
   if (slideData.animation) base.animation = slideData.animation as SlideBaseFields["animation"];
   if (slideData.theme) base.theme = slideData.theme as SlideBaseFields["theme"];
 
-  if (parsed.mode === "scene") {
-    const parsedPresets = parsed.presets as SceneSlideData["presets"] | undefined;
-    const overridePresets = slideData.presets as SceneSlideData["presets"] | undefined;
-    const presets = mergeScenePresetMaps(parsedPresets, overridePresets);
-
-    return {
-      mode: "scene",
-      ...(parsed.background !== undefined ? { background: parsed.background as SceneSlideData["background"] } : {}),
-      ...(parsed.guides !== undefined ? { guides: parsed.guides as SceneSlideData["guides"] } : {}),
-      ...(presets ? { presets } : {}),
-      ...(parsed.sourceSize !== undefined ? { sourceSize: parsed.sourceSize as SceneSlideData["sourceSize"] } : {}),
-      ...(parsed.fit !== undefined ? { fit: parsed.fit as SceneSlideData["fit"] } : {}),
-      ...(parsed.align !== undefined ? { align: parsed.align as SceneSlideData["align"] } : {}),
-      ...(slideData.background !== undefined ? { background: slideData.background as SceneSlideData["background"] } : {}),
-      ...(slideData.guides !== undefined ? { guides: slideData.guides as SceneSlideData["guides"] } : {}),
-      ...(slideData.fit !== undefined ? { fit: slideData.fit as SceneSlideData["fit"] } : {}),
-      ...(slideData.align !== undefined ? { align: slideData.align as SceneSlideData["align"] } : {}),
-      ...(slideData.sourceSize !== undefined ? { sourceSize: slideData.sourceSize as SceneSlideData["sourceSize"] } : {}),
-      children: (parsed.children ?? []) as SceneSlideData["children"],
-      ...base,
-    } as SceneSlideData & SlideBaseFields;
+  if (parsed.mode !== "scene") {
+    throw new Error(
+      `[dsl] Template "${templateDef.name}" must emit 'mode: scene'. Legacy component output is no longer supported.`,
+    );
   }
 
-  // Component template path. Slide-level background/backgroundImage still allow user overrides.
+  const parsedPresets = parsed.presets as SceneSlideData["presets"] | undefined;
+  const overridePresets = slideData.presets as SceneSlideData["presets"] | undefined;
+  const presets = mergeScenePresetMaps(parsedPresets, overridePresets);
+
   return {
-    ...(parsed.background !== undefined ? { background: String(parsed.background) } : {}),
-    ...(parsed.backgroundImage !== undefined ? { backgroundImage: String(parsed.backgroundImage) } : {}),
-    ...(slideData.background !== undefined ? { background: String(slideData.background) } : {}),
-    ...(slideData.backgroundImage !== undefined ? { backgroundImage: String(slideData.backgroundImage) } : {}),
-    ...(parsed.overlay !== undefined ? { overlay: String(parsed.overlay) } : {}),
-    children: (parsed.children ?? []) as ComponentSlideData["children"],
+    mode: "scene",
+    ...(parsed.background !== undefined ? { background: parsed.background as SceneSlideData["background"] } : {}),
+    ...(parsed.guides !== undefined ? { guides: parsed.guides as SceneSlideData["guides"] } : {}),
+    ...(presets ? { presets } : {}),
+    ...(parsed.sourceSize !== undefined ? { sourceSize: parsed.sourceSize as SceneSlideData["sourceSize"] } : {}),
+    ...(parsed.fit !== undefined ? { fit: parsed.fit as SceneSlideData["fit"] } : {}),
+    ...(parsed.align !== undefined ? { align: parsed.align as SceneSlideData["align"] } : {}),
+    ...(slideData.background !== undefined ? { background: slideData.background as SceneSlideData["background"] } : {}),
+    ...(slideData.guides !== undefined ? { guides: slideData.guides as SceneSlideData["guides"] } : {}),
+    ...(slideData.fit !== undefined ? { fit: slideData.fit as SceneSlideData["fit"] } : {}),
+    ...(slideData.align !== undefined ? { align: slideData.align as SceneSlideData["align"] } : {}),
+    ...(slideData.sourceSize !== undefined ? { sourceSize: slideData.sourceSize as SceneSlideData["sourceSize"] } : {}),
+    children: (parsed.children ?? []) as SceneSlideData["children"],
     ...base,
-  } as ComponentSlideData & SlideBaseFields;
+  } as SceneSlideData & SlideBaseFields;
 }

@@ -1,5 +1,5 @@
 import type { LayoutElement, ResolvedTheme, TextStyle } from "@/lib/layout/types";
-import { resolveThemeToken, resolveThemeTokenAny } from "@/lib/layout/components/theme-tokens";
+import { resolveThemeToken, resolveThemeTokenAny } from "@/lib/layout/theme-tokens";
 import type {
   SceneAlign,
   SceneBackgroundSpec,

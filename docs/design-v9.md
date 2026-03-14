@@ -65,10 +65,10 @@ The intended end state is that new authoring flows bypass the component resolver
 
 ## Current Status
 
-This branch now implements a working v9 scene system in parallel with the legacy path:
+This branch now implements a working v9 scene system as the only authoring/layout path:
 
-- `SlideData` is now a union of legacy component slides and `mode: "scene"` slides
-- `layoutSlide()` dispatches scene slides to the scene compiler path and leaves legacy slides untouched
+- `SlideData` is now scene-only
+- `layoutSlide()` always compiles through the scene compiler path
 - scene slides support:
   - typed `background`
   - optional `guides`
@@ -86,7 +86,8 @@ Migration status:
 - all built-in templates now emit scene slides directly
 - `v9-templates` acts as the migrated built-in template gallery
 - `v9-features` demonstrates the intended v9 feature story
-- the remaining migration work is focused on porting real v8 presentation decks and improving authoring ergonomics
+- the legacy component/autolayout path has been removed
+- the remaining migration work is focused on porting real v8 presentation decks, improving authoring ergonomics, and expanding parity tooling
 
 The branch is beyond the initial proof-of-concept stage. The architectural question is already answered; the remaining work is migration completion and authoring comfort.
 
@@ -518,9 +519,9 @@ These are better expressed as template snippets that emit scene nodes than as ru
 
 Current status:
 
-- the existing DSL engine still expands templates to component slides
-- the next template milestone is to let `.template.yaml` emit `mode: scene` slides directly
-- after that, macros and presets become the main way to solve scene verbosity
+- the DSL engine now requires `.template.yaml` files to emit `mode: scene` slides directly
+- macros and presets are now the main way to solve scene verbosity
+- the remaining work is extracting better shared fragments from real deck migrations
 
 ## Screenshot-First Workflow
 
@@ -651,14 +652,19 @@ This phase matters more than adding a long tail of geometry primitives. The main
 
 Port one or two screenshot-replicated presentations first, then move built-in templates from component-emitting DSL to scene-emitting DSL where it improves clarity.
 
-### Phase 4: Remove Runtime Components
+### Phase 4: Legacy Removal
 
-Delete `src/lib/layout/components/` once:
+This branch has already removed:
 
-- enough templates are ported
-- replicated decks are easier to author than both v8 components and old raw/freeform
-- web/PPTX parity remains stable
-- scene plus its escape hatch covers full required expressiveness
+- `src/lib/layout/components/`
+- the old component resolver path
+- the old auto-layout pass from the main layout pipeline
+
+What remains is migration validation:
+
+- confirm the remaining real v8 decks are comfortably portable
+- keep web/PPTX parity stable
+- keep scene plus its escape hatch expressive enough for future decks
 
 ## Why This Fits This Repo
 

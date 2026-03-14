@@ -12,7 +12,7 @@ export function loadPresentation(slug: string): PresentationData {
   const raw = fs.readFileSync(filePath, "utf-8");
   const data = parse(raw) as { title: string; author?: string; theme?: string; slides: Record<string, unknown>[] };
 
-  // Expand DSL templates into ComponentSlideData before returning
+  // Expand DSL templates into scene slides before returning
   const slides = data.slides.map((slide) => expandSlideIfDsl(slide, slug));
 
   return { ...data, slides } as unknown as PresentationData;

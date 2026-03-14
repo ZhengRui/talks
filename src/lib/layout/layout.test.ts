@@ -154,9 +154,9 @@ describe("staggerDelay", () => {
 // Note: Group 1-4 rigid templates removed in v7 — now DSL-based
 // Integration tests for DSL templates are in src/lib/dsl/integration.test.ts
 
-// --- Raw component passthrough ---
+// --- Scene IR passthrough ---
 
-describe("layoutPresentation - raw component", () => {
+describe("layoutPresentation - scene IR passthrough", () => {
   const textEl = {
     kind: "text" as const,
     id: "t1",
@@ -179,12 +179,16 @@ describe("layoutPresentation - raw component", () => {
     style: { fill: "#0d0b09" },
   };
 
-  const rawSlide: SlideData = {
-    children: [{ type: "raw", height: 1080, elements: [textEl, shapeEl] }],
+  const sceneSlide: SlideData = {
+    mode: "scene",
+    children: [
+      { kind: "ir", id: "scene-ir-text", element: textEl },
+      { kind: "ir", id: "scene-ir-shape", element: shapeEl },
+    ],
   };
 
   it("passes through elements", () => {
-    const result = layoutPresentation("Test", [rawSlide], "modern", "/img");
+    const result = layoutPresentation("Test", [sceneSlide], "modern", "/img");
     const slide = result.slides[0];
     const text = slide.elements.find((e) => e.id === "t1");
     const shape = slide.elements.find((e) => e.id === "s1");
@@ -197,14 +201,15 @@ describe("layoutPresentation - raw component", () => {
   });
 
   it("uses theme background when none specified", () => {
-    const result = layoutPresentation("Test", [rawSlide], "modern", "/img");
+    const result = layoutPresentation("Test", [sceneSlide], "modern", "/img");
     expect(result.slides[0].background).toBe("#f8f9fc");
   });
 
   it("uses custom background when specified", () => {
     const slide: SlideData = {
+      mode: "scene",
       background: "#1a1714",
-      children: [{ type: "raw", height: 1080, elements: [textEl] }],
+      children: [{ kind: "ir", id: "scene-ir-text", element: textEl }],
     };
     const result = layoutPresentation("Test", [slide], "modern", "/img");
     expect(result.slides[0].background).toBe("#1a1714");
@@ -212,17 +217,18 @@ describe("layoutPresentation - raw component", () => {
 
   it("handles empty elements array", () => {
     const slide: SlideData = {
-      children: [{ type: "raw", height: 1080, elements: [] }],
+      mode: "scene",
+      children: [],
     };
     const result = layoutPresentation("Test", [slide], "modern", "/img");
-    // Only the raw wrapper elements (may be empty)
     expect(result.slides[0].elements).toBeDefined();
   });
 
   it("respects per-slide theme override", () => {
     const slide: SlideData = {
+      mode: "scene",
       theme: "bold",
-      children: [{ type: "raw", height: 1080, elements: [] }],
+      children: [],
     };
     const result = layoutPresentation("Test", [slide], "modern", "/img");
     expect(result.slides[0].background).toBe("#0a0a0a");
@@ -234,7 +240,22 @@ describe("layoutPresentation - raw component", () => {
 describe("per-slide theme override", () => {
   it("uses slide-level theme when specified", () => {
     const slide: SlideData = {
-      children: [{ type: "heading", text: "Dark Cover" }],
+      mode: "scene",
+      children: [
+        {
+          kind: "text",
+          id: "title",
+          frame: { x: 160, y: 120, w: 600 },
+          text: "Dark Cover",
+          style: {
+            fontFamily: "heading",
+            fontSize: 64,
+            fontWeight: 700,
+            color: "theme.heading",
+            lineHeight: 1.1,
+          },
+        },
+      ],
       theme: "dark-tech",
     };
     const result = layoutPresentation("Test", [slide], "modern", "/img");
@@ -244,20 +265,31 @@ describe("per-slide theme override", () => {
   });
 });
 
-// --- Component slide (children directly, no template/base layer) ---
+// --- Scene slide ---
 
-describe("component slide", () => {
-  it("resolves root component tree without stacker", () => {
+describe("scene slide", () => {
+  it("resolves a direct scene graph", () => {
     const slide: SlideData = {
+      mode: "scene",
       children: [
         {
-          type: "box",
-          variant: "flat",
-          padding: 0,
-          height: 1080,
-          layout: { type: "flex", direction: "column", gap: 28 },
+          kind: "group",
+          id: "root-stack",
+          frame: { x: 160, y: 120, w: 600, h: 240 },
+          layout: { type: "stack", gap: 28 },
           children: [
-            { type: "heading", text: "Hello Component" },
+            {
+              kind: "text",
+              id: "hello-heading",
+              text: "Hello Scene",
+              style: {
+                fontFamily: "heading",
+                fontSize: 64,
+                fontWeight: 700,
+                color: "theme.heading",
+                lineHeight: 1.1,
+              },
+            },
           ],
         },
       ],
@@ -267,16 +299,16 @@ describe("component slide", () => {
     expect(layout.width).toBe(1920);
     expect(layout.height).toBe(1080);
     expect(layout.elements.length).toBeGreaterThan(0);
-    // Find the heading text element inside the box group
     const heading = layout.elements.flatMap((el) =>
       el.kind === "group" ? (el as { children: typeof layout.elements }).children : [el],
-    ).find((el) => el.kind === "text" && el.id.includes("heading"));
+    ).find((el) => el.kind === "text" && el.id === "hello-heading");
     expect(heading).toBeDefined();
   });
 
   it("uses theme background", () => {
     const slide: SlideData = {
-      children: [{ type: "heading", text: "Test" }],
+      mode: "scene",
+      children: [],
     };
     const result = layoutPresentation("Test", [slide], "modern", "/img");
     expect(result.slides[0].background).toBe("#f8f9fc");
@@ -284,11 +316,11 @@ describe("component slide", () => {
 
   it("uses custom background", () => {
     const slide: SlideData = {
+      mode: "scene",
       background: "#111111",
-      children: [{ type: "heading", text: "Test" }],
+      children: [],
     };
     const result = layoutPresentation("Test", [slide], "modern", "/img");
     expect(result.slides[0].background).toBe("#111111");
   });
 });
-

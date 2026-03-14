@@ -1,4 +1,3 @@
-import type { SlideComponent } from "./layout/components/types";
 import type {
   SceneAlign,
   SceneBackgroundSpec,
@@ -9,17 +8,7 @@ import type {
   SceneSize,
 } from "./scene/types";
 
-// Re-export for convenience
-export type { SlideComponent };
 export type { SceneAlign, SceneBackgroundSpec, SceneFitMode, SceneGuides, SceneNode, ScenePreset, SceneSize };
-
-// Component slide (root component tree)
-export interface ComponentSlideData {
-  children: SlideComponent[];
-  background?: string;
-  backgroundImage?: string;
-  overlay?: "dark" | "light" | "none" | string;
-}
 
 export interface SceneSlideData {
   mode: "scene";
@@ -34,7 +23,7 @@ export interface SceneSlideData {
 
 // --- Slide data ---
 
-export type SlideData = (ComponentSlideData | SceneSlideData) & SlideBaseFields;
+export type SlideData = SceneSlideData & SlideBaseFields;
 
 // --- Animation override ---
 
@@ -69,10 +58,4 @@ export interface PresentationSummary {
   title: string;
   author?: string;
   slideCount: number;
-}
-
-export function isSceneSlideData(
-  slide: SlideData,
-): slide is SceneSlideData & SlideBaseFields {
-  return (slide as { mode?: string }).mode === "scene";
 }

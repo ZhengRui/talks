@@ -1,4 +1,4 @@
-import type { ResolvedTheme } from "../types";
+import type { ResolvedTheme } from "./types";
 
 function colorWithAlpha(color: string, alpha: number): string | undefined {
   if (!Number.isFinite(alpha) || alpha < 0 || alpha > 1) return undefined;
@@ -50,16 +50,6 @@ function resolveThemePath(
   return colorWithAlpha(resolved, alpha);
 }
 
-/**
- * Resolve a "theme.*" token string to a concrete value from the theme.
- * Returns the original string unchanged if it's not a theme reference.
- *
- * Examples:
- *   "theme.accent"       → "#4f6df5"
- *   "theme.bgSecondary"  → "#f5f5f5"
- *   "theme.border.color" → "#e2e0dc" (dot-path)
- *   "#1a1714"            → "#1a1714" (passthrough)
- */
 export function resolveThemeToken(
   value: string | undefined,
   theme: ResolvedTheme,
@@ -72,15 +62,9 @@ export function resolveThemeToken(
   if (typeof resolved === "string") return resolved;
   if (typeof resolved === "number") return String(resolved);
 
-  // For non-string theme values (objects like shadow, gradient, etc.), return undefined
   return undefined;
 }
 
-/**
- * Resolve a "theme.*" token to any value (string, number, or object).
- * Used by raw element token resolution where border/shadow are objects.
- * Returns undefined if the path doesn't exist in the theme.
- */
 export function resolveThemeTokenAny(
   value: string,
   theme: ResolvedTheme,
@@ -89,10 +73,6 @@ export function resolveThemeTokenAny(
   return resolveThemePath(value, theme);
 }
 
-/**
- * Resolve a color value that could be a theme token or a hardcoded hex/rgba.
- * Falls back to the provided default if resolution fails.
- */
 export function resolveColor(
   value: string | undefined,
   theme: ResolvedTheme,

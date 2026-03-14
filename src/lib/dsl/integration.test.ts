@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { findTemplate, clearTemplateCache } from "./loader";
 import { expandDslTemplate } from "./engine";
 import { layoutSlide } from "@/lib/layout";
-import type { SlideData, ComponentSlideData, SceneSlideData, ThemeName } from "@/lib/types";
+import type { SlideData, SceneSlideData, ThemeName } from "@/lib/types";
 import type { DslTemplateDef } from "./types";
 
 beforeEach(() => {
@@ -20,16 +20,6 @@ function expandDsl(
     { template: templateName, ...params },
     def!,
   ) as unknown as SlideData;
-}
-
-/** Helper: get inner children from the root box wrapper */
-function innerChildren(slide: SlideData): unknown[] {
-  const fc = slide as ComponentSlideData;
-  // Templates now produce a root box wrapper; content children are inside it
-  if (fc.children.length === 1 && (fc.children[0] as { type: string }).type === "box") {
-    return (fc.children[0] as { children: unknown[] }).children;
-  }
-  return fc.children;
 }
 
 function sceneChildren(slide: SlideData): unknown[] {
