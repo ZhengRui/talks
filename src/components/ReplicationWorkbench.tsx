@@ -221,30 +221,29 @@ export default function ReplicationWorkbench({
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#0a0f18] text-[#e6edf7]">
-      <div className="mx-auto flex min-h-screen w-full min-w-0 max-w-[1880px] flex-col gap-6 px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
-        <div className="flex flex-col gap-3 rounded-[20px] border border-[#253044] bg-[#121a28] px-4 py-4 sm:px-5">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#7c8ca8]">
+      <div className="mx-auto flex min-h-screen w-full min-w-0 max-w-[1760px] flex-col gap-4 px-3 py-3 sm:px-5 sm:py-5 lg:px-6">
+        <section className="flex flex-col gap-4 rounded-[18px] border border-[#253044] bg-[#121a28] px-4 py-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7c8ca8]">
                 Replication Workbench
               </div>
-              <h1 className="font-[var(--font-space-grotesk)] text-[2rem] font-semibold tracking-tight text-white sm:text-[2.35rem]">
+              <h1 className="font-[var(--font-space-grotesk)] text-[1.8rem] font-semibold tracking-tight text-white sm:text-[2rem]">
                 Screenshot-to-slide comparison
               </h1>
-              <p className="mt-1 max-w-3xl text-[13px] leading-6 text-[#98a5bb]">
-                Load any migrated deck, attach a reference screenshot, and inspect the result in render,
-                reference, overlay, split, or difference view. Use the CLI for exact mismatch reporting.
+              <p className="mt-1 max-w-3xl text-[13px] leading-5 text-[#98a5bb]">
+                Compare migrated slides against reference screenshots in render, overlay, diff, or split view.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-3 text-xs text-[#7c8ca8]">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-[#7c8ca8]">
               <span className="rounded-full border border-[#334155] px-3 py-1">
-                Interactive parity review
+                Parity review
               </span>
             </div>
           </div>
 
-          <div className="grid min-w-0 gap-3 md:grid-cols-2 2xl:grid-cols-12">
-            <label className="flex min-w-0 flex-col gap-1.5 text-[13px] text-[#9eabc0] 2xl:col-span-4">
+          <div className="grid min-w-0 gap-3 lg:grid-cols-12">
+            <label className="flex min-w-0 flex-col gap-1.5 text-[13px] text-[#9eabc0] lg:col-span-4">
               <span className="font-medium text-slate-100">Presentation</span>
               <select
                 value={slug}
@@ -252,7 +251,7 @@ export default function ReplicationWorkbench({
                   setSlug(e.target.value);
                   setSlideIndex(0);
                 }}
-                className="h-12 rounded-2xl border border-[#2b3648] bg-[#0d1421] px-4 text-[15px] text-white outline-none ring-0"
+                className="h-11 min-w-0 rounded-xl border border-[#2b3648] bg-[#0d1421] px-4 text-[14px] text-white outline-none ring-0"
               >
                 {presentations.map((presentation) => (
                   <option key={presentation.slug} value={presentation.slug}>
@@ -262,13 +261,13 @@ export default function ReplicationWorkbench({
               </select>
             </label>
 
-            <label className="flex min-w-0 flex-col gap-1.5 text-[13px] text-[#9eabc0] 2xl:col-span-2">
+            <label className="flex min-w-0 flex-col gap-1.5 text-[13px] text-[#9eabc0] lg:col-span-3">
               <span className="font-medium text-slate-100">Slide</span>
-              <div className="flex h-12 items-center gap-2 rounded-2xl border border-[#2b3648] bg-[#0d1421] px-3">
+              <div className="flex h-11 min-w-0 items-center gap-2 rounded-xl border border-[#2b3648] bg-[#0d1421] px-2.5">
                 <button
                   type="button"
                   onClick={() => setSlideIndex((value) => clampSlide(value - 1, maxSlides))}
-                  className="h-9 rounded-xl border border-[#364152] bg-[#1a2232] px-4 text-[15px] text-white disabled:opacity-40"
+                  className="h-8 shrink-0 rounded-lg border border-[#364152] bg-[#1a2232] px-3 text-[13px] text-white disabled:opacity-40"
                   disabled={slideIndex <= 0}
                 >
                   Prev
@@ -282,13 +281,13 @@ export default function ReplicationWorkbench({
                     const next = Number.parseInt(e.target.value, 10);
                     setSlideIndex(clampSlide((Number.isFinite(next) ? next : 1) - 1, maxSlides));
                   }}
-                  className="h-9 w-20 rounded-xl border border-[#364152] bg-[#0b111c] px-3 text-center text-[15px] text-white"
+                  className="h-8 w-16 shrink-0 rounded-lg border border-[#364152] bg-[#0b111c] px-3 text-center text-[13px] text-white"
                 />
-                <span className="min-w-[3rem] text-xs text-[#8b98ae]">/ {maxSlides || 0}</span>
+                <span className="min-w-0 shrink text-[12px] text-[#8b98ae]">/ {maxSlides || 0}</span>
                 <button
                   type="button"
                   onClick={() => setSlideIndex((value) => clampSlide(value + 1, maxSlides))}
-                  className="ml-auto h-9 rounded-xl border border-[#364152] bg-[#1a2232] px-4 text-[15px] text-white disabled:opacity-40"
+                  className="ml-auto h-8 shrink-0 rounded-lg border border-[#364152] bg-[#1a2232] px-3 text-[13px] text-white disabled:opacity-40"
                   disabled={slideIndex >= maxSlides - 1}
                 >
                   Next
@@ -296,17 +295,17 @@ export default function ReplicationWorkbench({
               </div>
             </label>
 
-            <label className="flex min-w-0 flex-col gap-1.5 text-[13px] text-[#9eabc0] 2xl:col-span-3">
+            <label className="flex min-w-0 flex-col gap-1.5 text-[13px] text-[#9eabc0] lg:col-span-3">
               <span className="font-medium text-slate-100">Reference path</span>
               <input
                 value={referenceInput}
                 onChange={(e) => setReferenceInput(e.target.value)}
                 placeholder="refs/slide-{n}.png or /shared/ref.png"
-                className="h-12 rounded-2xl border border-[#2b3648] bg-[#0d1421] px-4 text-[15px] text-white placeholder:text-[#64748b]"
+                className="h-11 min-w-0 rounded-xl border border-[#2b3648] bg-[#0d1421] px-4 text-[14px] text-white placeholder:text-[#64748b]"
               />
             </label>
 
-            <label className="flex min-w-0 flex-col gap-1.5 text-[13px] text-[#9eabc0] 2xl:col-span-3">
+            <label className="flex min-w-0 flex-col gap-1.5 text-[13px] text-[#9eabc0] lg:col-span-2">
               <span className="font-medium text-slate-100">Upload screenshot</span>
               <input
                 id={uploadInputId}
@@ -325,10 +324,10 @@ export default function ReplicationWorkbench({
                 }}
                 className="hidden"
               />
-              <div className="flex h-12 items-center gap-3 rounded-2xl border border-[#2b3648] bg-[#0d1421] px-3">
+              <div className="flex h-11 min-w-0 items-center gap-3 rounded-xl border border-[#2b3648] bg-[#0d1421] px-3">
                 <label
                   htmlFor={uploadInputId}
-                  className="inline-flex h-9 shrink-0 cursor-pointer items-center rounded-xl border border-[#2f5168] bg-[#133247] px-4 text-[13px] font-medium text-[#c6e5f4]"
+                  className="inline-flex h-8 shrink-0 cursor-pointer items-center rounded-lg border border-[#2f5168] bg-[#133247] px-3 text-[13px] font-medium text-[#c6e5f4]"
                 >
                   Choose File
                 </label>
@@ -339,14 +338,14 @@ export default function ReplicationWorkbench({
             </label>
           </div>
 
-          <div className="flex min-w-0 flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               {(["render", "reference", "overlay", "diff", "split"] as WorkbenchMode[]).map((entry) => (
                 <button
                   key={entry}
                   type="button"
                   onClick={() => setMode(entry)}
-                  className={`h-10 rounded-xl px-4 text-[14px] font-medium transition ${
+                  className={`h-9 rounded-lg px-3.5 text-[13px] font-medium transition ${
                       mode === entry
                         ? "border border-[#4568a6] bg-[#2e5fbf] text-white"
                         : "border border-[#364152] bg-[#1a2232] text-slate-200"
@@ -357,7 +356,7 @@ export default function ReplicationWorkbench({
               ))}
             </div>
 
-            <div className="flex min-w-0 flex-col gap-3 text-[13px] text-[#a6b3c9] sm:flex-row sm:flex-wrap sm:items-center xl:justify-end">
+            <div className="flex min-w-0 flex-col gap-3 text-[13px] text-[#a6b3c9] md:flex-row md:flex-wrap md:items-center md:justify-between lg:justify-end">
               <label className="flex min-w-0 flex-wrap items-center gap-3">
                 <span>Overlay opacity</span>
                 <input
@@ -368,35 +367,35 @@ export default function ReplicationWorkbench({
                   value={overlayOpacity}
                   onChange={(e) => setOverlayOpacity(Number.parseFloat(e.target.value))}
                 />
-                <span className="w-12 text-right text-[13px] text-[#7c8ca8]">{Math.round(overlayOpacity * 100)}%</span>
+                <span className="w-12 text-right text-[12px] text-[#7c8ca8]">{Math.round(overlayOpacity * 100)}%</span>
               </label>
               <Link
                 href={viewerUrl}
-                className="inline-flex h-10 w-fit items-center rounded-xl border border-[#364152] bg-[#1a2232] px-4 text-[14px] font-medium text-slate-200 hover:bg-[#222c3f]"
+                className="inline-flex h-9 w-fit items-center rounded-lg border border-[#364152] bg-[#1a2232] px-3.5 text-[13px] font-medium text-slate-200 hover:bg-[#222c3f]"
               >
                 Open viewer
               </Link>
             </div>
           </div>
-        </div>
+        </section>
 
-        <div className="grid min-h-0 min-w-0 flex-1 gap-6 2xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="flex min-h-0 min-w-0 flex-col gap-3">
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+          <div className="flex min-h-0 min-w-0 flex-col gap-2">
             <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7c8ca8]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7c8ca8]">
                 Preview
               </div>
-              <div className="min-w-0 text-[11px] text-[#7c8ca8] sm:text-xs">
+              <div className="min-w-0 text-[11px] text-[#7c8ca8] sm:text-[12px]">
                 {mode === "split" ? "Reference vs rendered" : "Rendered slide canvas"}
               </div>
             </div>
             {mode === "split" ? (
-              <div className="grid gap-4 xl:grid-cols-2">
+              <div className="grid min-w-0 gap-4 xl:grid-cols-2">
                 <div className="flex flex-col gap-3">
-                  <div className="px-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7c8ca8]">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7c8ca8]">
                     Reference
                   </div>
-                  <div className="aspect-[16/9] min-h-[260px]">
+                  <div className="aspect-[16/9] min-h-[200px] sm:min-h-[240px]">
                     <SlideCanvas
                       slide={currentSlide}
                       themeClass={themeClass}
@@ -407,10 +406,10 @@ export default function ReplicationWorkbench({
                   </div>
                 </div>
                 <div className="flex flex-col gap-3">
-                  <div className="px-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#7c8ca8]">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7c8ca8]">
                     Rendered
                   </div>
-                  <div className="aspect-[16/9] min-h-[260px]">
+                  <div className="aspect-[16/9] min-h-[200px] sm:min-h-[240px]">
                     <SlideCanvas
                       slide={currentSlide}
                       themeClass={themeClass}
@@ -422,7 +421,7 @@ export default function ReplicationWorkbench({
                 </div>
               </div>
             ) : (
-              <div className="aspect-[16/9] min-h-[320px]">
+              <div className="aspect-[16/9] min-h-[220px] sm:min-h-[300px]">
                 <SlideCanvas
                   slide={currentSlide}
                   themeClass={themeClass}
@@ -434,12 +433,12 @@ export default function ReplicationWorkbench({
             )}
           </div>
 
-          <div className="grid min-w-0 items-start gap-3 xl:grid-cols-2 2xl:grid-cols-1">
-            <div className="min-w-0 self-start rounded-[18px] border border-[#253044] bg-[#121a28] p-4">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#59b0d4]">
+          <div className="grid min-w-0 items-start gap-3 xl:grid-cols-3">
+            <div className="min-w-0 self-start rounded-[16px] border border-[#253044] bg-[#121a28] p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#59b0d4]">
                 Current state
               </div>
-              <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm text-[#c3cfdf]">
+              <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[13px] text-[#c3cfdf]">
                 <dt className="text-[#7c8ca8]">Deck</dt>
                 <dd className="text-white">{layout?.title ?? slug}</dd>
                 <dt className="text-[#7c8ca8]">Slide</dt>
@@ -455,31 +454,31 @@ export default function ReplicationWorkbench({
               </dl>
             </div>
 
-            <div className="min-w-0 self-start rounded-[18px] border border-[#253044] bg-[#121a28] p-4">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#59b0d4]">
+            <div className="min-w-0 self-start rounded-[16px] border border-[#253044] bg-[#121a28] p-4 xl:col-span-2">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#59b0d4]">
                 CLI diff
               </div>
-              <pre className="mt-3 overflow-x-auto rounded-2xl border border-[#2b3648] bg-[#0b111c] p-3 text-xs leading-6 text-slate-200">
+              <pre className="mt-3 overflow-x-auto rounded-xl border border-[#2b3648] bg-[#0b111c] p-3 text-[12px] leading-5 text-slate-200">
 {`bun run slide:diff -- --base-url http://127.0.0.1:4000 --slug ${slug} --slide ${slideIndex + 1} --reference /absolute/path/to/reference.png`}
               </pre>
-              <p className="mt-3 text-sm leading-6 text-[#98a5bb]">
+              <p className="mt-3 text-[13px] leading-5 text-[#98a5bb]">
                 Use the page for interactive visual inspection. Use the CLI when you need a rendered PNG,
                 diff PNG, and machine-readable mismatch report.
               </p>
             </div>
 
-            <div className="min-w-0 self-start rounded-[18px] border border-[#253044] bg-[#121a28] p-4">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#59b0d4]">
+            <div className="min-w-0 self-start rounded-[16px] border border-[#253044] bg-[#121a28] p-4 xl:col-span-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#59b0d4]">
                 Notes
               </div>
-              <ul className="mt-3 space-y-2 text-sm leading-6 text-[#c3cfdf]">
+              <ul className="mt-3 grid gap-2 text-[13px] leading-5 text-[#c3cfdf] md:grid-cols-3">
                 <li><code>diff</code> mode uses CSS difference blending for fast visual inspection.</li>
                 <li><code>overlay</code> mode is best for alignment and spacing checks.</li>
                 <li>For per-slide refs in <code>public/&lt;slug&gt;/refs/</code>, use <code>refs/slide-12.png</code> as the reference path.</li>
               </ul>
             </div>
           </div>
-        </div>
+        </section>
 
         {(loading || error) && (
           <div className="rounded-2xl border border-[#253044] bg-[#121a28] px-4 py-3 text-sm text-[#c3cfdf]">
