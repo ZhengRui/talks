@@ -720,8 +720,7 @@ cssStyle: { mixBlendMode: "overlay" }  # web-only
   style: { fill: "#ffffff" }
   clipContent: true                  # optional
   layout:                            # optional auto-layout
-    type: flex
-    direction: row
+    type: row
     gap: 16
 ```
 
