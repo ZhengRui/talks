@@ -1,42 +1,46 @@
 ---
 name: create-slides
-description: Use when generating presentation slides, creating a deck, or building a presentation. This is the primary slide generation skill — it can use shortcut templates (bullets, stats, cover, etc.), composable templates (split-compose, full-compose with typed components), or freeform templates (pixel-level control). Prefer this for most slide generation tasks.
+description: Use when generating presentation slides, creating a deck, or building a presentation. Default output is freeform scene YAML with explicit geometry. Templates (bullets, stats, cover, etc.) are available as concise shortcuts when content naturally fits. Prefer this for most slide generation tasks.
 ---
 
 # Slide Generation
 
-Generate presentation slides. Two modes available — choose based on what each slide needs.
+Generate presentation slides as scene YAML — explicit geometry on a 1920×1080 canvas. Templates available as shortcuts when content fits a standard layout.
 
-See [reference.md](reference.md) for full syntax of all templates, components, element types, and themes.
+See [reference.md](reference.md) for full syntax of all templates, scene node types, and themes.
 
-## Choosing an Approach
+## Generation Modes
 
-| Approach | When to use | YAML verbosity |
-|----------|-------------|----------------|
-| Shortcut templates | Standard layouts (cover, bullets, stats, comparison, timeline) | Low — fill in props |
-| Component trees | Custom compositions, multi-panel layouts, pixel-precise designs | Medium to high |
+| Mode | Trigger | Behavior |
+|------|---------|----------|
+| **Auto** (default) | No preference stated | Route each slide: template if natural fit, scene if not |
+| **Scene-only** | "generate freely" / "no templates" / "freeform" | All slides as freeform scene YAML |
+| **Template-only** | "use templates" / "only templates" | Pick best-fit template for each slide |
+
+### Auto-Routing Decision Tree
 
 ```
 What does this slide need?
 
-Standard layout with known structure?
-  → Shortcut template (cover, bullets, stats, comparison, etc.)
-  → 35 templates, concise YAML, proven layouts
+Content naturally fits a template?
+  Title + subtitle                         → cover
+  Title + 3-5 bullet points               → bullets
+  2-4 numbers with labels                  → stats
+  Single quote + attribution               → quote
+  Code block with optional title           → code
+  Before/after comparison                  → comparison
+  Simple image + text                      → image-text
+  Section break with big text              → section-divider / statement
 
-Custom composition mixing content types?
-  → Component tree with Box + auto-layout
-  → tag + heading + bullets + stats in any arrangement
-
-Two-panel layout?
-  → Component tree: root Box with layout: { type: flex, direction: row }
-  → Two child Boxes with different backgrounds
-
-Pixel-precise element placement?
-  → Component tree with position: absolute, or raw component for IR elements
-  → Overlapping elements, layered compositions, creative layouts
+Content needs custom composition?
+  Custom multi-panel layouts               → scene
+  Mixed content in non-standard arrangement → scene
+  Visual/creative with overlapping elements → scene
+  Data-heavy with custom positioning       → scene
+  Anything that would require fighting a template → scene
 ```
 
-All slides are component trees. Templates are shortcuts that expand into components.
+All slides compile to `mode: "scene"`. Templates are shortcuts that expand into scene nodes via DSL.
 
 ## Design Philosophy
 
@@ -71,15 +75,15 @@ Pick a theme. See [reference.md](reference.md) for full palette details.
 | Futuristic | `neon-cyber` | Glowing accents, deep purples |
 
 ### Phase 3: Plan Slide Compositions
-Plan the visual arc. Vary slide types:
+Plan the visual arc. For each slide, decide template or scene. Vary slide types:
 
-- **Title/Section** — `cover`, `section-divider`, or `statement` template
-- **Content** — `bullets` template, or component tree with heading + bullets + quote
-- **Data** — `stats` template, or component tree with stat components
-- **Comparison** — `comparison` template, or two-panel Box layout
-- **Visual** — component tree with absolute positioning for layered compositions
-- **Cards** — component tree with heading + grid/columns of cards
-- **Closing** — `end` template or statement component tree
+- **Title/Section** — `cover`, `section-divider`, or `statement` template; or scene with bold typography
+- **Content** — `bullets` template; or scene with text nodes in a stack layout
+- **Data** — `stats` template; or scene with large stat text + label groups
+- **Comparison** — `comparison` template; or scene with two-panel group layout
+- **Visual** — scene with overlapping shapes, rotated decorative elements, layered compositions
+- **Cards** — scene with grid layout group containing styled card groups
+- **Closing** — `end` template or scene statement slide
 
 **Composition vocabulary** (mix at least 3-4 types in a deck):
 - **Hero**: One giant element (number, word, image) dominates. Supporting text is small.
@@ -93,12 +97,38 @@ Plan the visual arc. Vary slide types:
 ### Phase 4: Write the YAML
 **Save to**: `content/<slug>/slides.yaml` (kebab-case slug). Create the directory if needed. Images go in `content/<slug>/images/`. Run `bun run sync-content` after adding images.
 
+**Scene slide structure:**
+```yaml
+- mode: scene
+  background: { type: solid, color: "theme.bg" }  # or string, or image bg
+  guides:                            # named alignment points
+    x: { content-left: 160, split: 960 }
+    y: { top: 80 }
+  presets:                           # reusable style defaults
+    myPreset:
+      style: { fontFamily: heading, fontSize: 48, fontWeight: 700, color: "theme.heading" }
+  children:                          # scene nodes: text, shape, image, group, ir
+    - kind: text
+      id: title
+      preset: myPreset
+      frame: { left: "@x.content-left", top: "@y.top", w: 1000 }
+      text: "Slide Title"
+      entrance: { type: fade-up, delay: 0, duration: 600 }
+```
+
+**Key scene concepts:**
+- `frame` uses FrameSpec — partial constraints (`left`, `right`, `centerX`, `w`, `h`, etc.) compiled to absolute Rect
+- Guides — named x/y alignment points referenced as `@x.name` or `@y.name`
+- Anchors — reference compiled siblings: `@sibling-id.right`, `{ ref: "@sibling-id.bottom", offset: 24 }`
+- Theme tokens — `theme.accent`, `theme.bg`, `theme.heading`, `theme.fontBody`, etc.
+- `kind: ir` — escape hatch wrapping a raw LayoutElement (for code, table, list, video, iframe)
+
 ### Phase 5: Review
 Check content density limits (see reference.md). If a slide feels crowded, split into two.
 
 ## Examples
 
-### Example 1: Shortcut template (concise)
+### Example 1: Template usage (concise)
 
 ```yaml
 - template: bullets
@@ -109,132 +139,322 @@ Check content density limits (see reference.md). If a slide feels crowded, split
     - "Regulatory compliance across jurisdictions"
 ```
 
-### Example 2: Component tree — two-panel layout with auto-layout
+### Example 2: Two-panel scene layout with guides
 
 ```yaml
-- children:
-    - type: box
-      variant: flat
-      layout: { type: flex, direction: row }
-      padding: 0
-      height: 1080
-      children:
-        # Left panel (55%)
-        - type: box
-          variant: flat
-          width: 1056
-          padding: [80, 60]
-          children:
-            - type: tag
-              text: "Chapter 1"
-              color: theme.accent
-            - type: heading
-              text: "The Fall of Tang"
-            - type: divider
-              variant: gradient
-            - type: bullets
-              items:
-                - "The An Lushan Rebellion weakened central authority"
-                - "Regional military governors became autonomous"
-        # Right panel (45%)
-        - type: box
-          background: "#1a1714"
-          padding: [80, 60]
-          verticalAlign: center
-          children:
-            - type: stat
-              value: "907"
-              label: "Year of Tang's Fall"
-              color: "#ff2d2d"
-            - type: stat
-              value: "8"
-              label: "Years of Civil War"
-```
-
-### Example 3: Component tree — mixed auto-layout + absolute positioning
-
-```yaml
-- backgroundImage: "stadium.jpg"
-  overlay: "rgba(0,0,0,0.72)"
+- mode: scene
+  background: { type: solid, color: "theme.bg" }
+  guides:
+    x: { content-left: 160, split: 1200, right-content: 1280 }
+    y: { top: 120 }
+  presets:
+    sectionTitle:
+      style:
+        fontFamily: heading
+        fontWeight: 700
+        color: "theme.heading"
+        lineHeight: 1.15
+    bodyText:
+      style:
+        fontFamily: body
+        fontWeight: 400
+        color: "theme.text"
+        lineHeight: 1.6
   children:
-    - type: box
-      variant: flat
-      padding: [300, 160, 80, 160]
-      height: 1080
+    - kind: shape
+      id: right-panel
+      frame: { left: "@x.split", top: 0, right: 0, bottom: 0 }
+      shape: rect
+      style: { fill: "theme.bgSecondary" }
+    - kind: group
+      id: left-content
+      frame: { left: "@x.content-left", top: "@y.top", w: 900, h: 800 }
+      layout: { type: stack, gap: 28 }
       children:
-        # Gradient strip — positioned absolutely, outside normal flow
-        - type: raw
-          position: "absolute"
-          x: 0
-          y: 0
-          width: 1920
-          height: 5
-          elements:
-            - kind: shape
-              id: strip
-              rect: { x: 0, y: 0, w: 1920, h: 5 }
-              shape: rect
-              style:
-                gradient: { type: linear, angle: 90, stops: [{ color: "#ff6b35", position: 0 }, { color: "#00d4ff", position: 1 }] }
-        # Content flows vertically (default flex-column)
-        - type: heading
-          text: "SUPER BOWL"
-          fontSize: 120
-          fontWeight: 900
-          color: "#ffffff"
-          entranceType: fade-up
-        - type: heading
-          text: "LX"
-          level: 2
-          fontSize: 72
-          color: theme.accent
-          entranceType: fade-up
-          entranceDelay: 200
-```
-
-### Example 4: Component tree — rich text with inline styling
-
-```yaml
-- children:
-    - type: box
-      variant: flat
-      padding: [100, 160]
-      children:
-        - type: heading
-          text:
-            - "The "
-            - text: "Fall"
-              color: "#c41e3a"
-              bold: true
-            - " of Tang"
-        - type: body
-          text: "A dynasty that lasted **289 years** crumbled in a decade."
-```
-
-### Example 5: Creative techniques with raw IR elements
-
-```yaml
-# Giant background text as decorative element
-- children:
-    - type: raw
-      position: "absolute"
-      x: -50
-      y: 100
-      width: 1000
-      height: 600
-      elements:
         - kind: text
-          id: bg-number
-          rect: { x: 0, y: 0, w: 1000, h: 600 }
-          text: "01"
-          style: { fontFamily: "Inter, sans-serif", fontSize: 400, fontWeight: 900, color: "rgba(0,0,0,0.03)", lineHeight: 1.0 }
-    - type: box
-      variant: flat
-      padding: [200, 160]
+          id: eyebrow
+          frame: { w: 900 }
+          text: "CHAPTER ONE"
+          style:
+            fontFamily: body
+            fontSize: 18
+            fontWeight: 700
+            color: "theme.accent"
+            letterSpacing: 2
+            textTransform: uppercase
+        - kind: text
+          id: title
+          preset: sectionTitle
+          frame: { w: 900 }
+          text: "The Fall of Tang"
+          style: { fontSize: 56 }
+          entrance: { type: fade-up, delay: 0, duration: 600 }
+        - kind: shape
+          id: divider
+          frame: { w: 120, h: 4 }
+          shape: rect
+          style:
+            gradient: { type: linear, angle: 90, stops: [{ color: "theme.accent", position: 0 }, { color: "theme.accent2", position: 1 }] }
+        - kind: text
+          id: body
+          preset: bodyText
+          frame: { w: 700 }
+          text: "A dynasty that lasted 289 years crumbled in a decade. Regional military governors became autonomous warlords."
+          style: { fontSize: 28 }
+    - kind: group
+      id: stats
+      frame: { x: "@x.right-content", top: "@y.top", w: 480, h: 400 }
+      layout: { type: stack, gap: 36 }
       children:
-        - type: heading
-          text: "Introduction"
-          fontSize: 54
-        - type: body
-          text: "Setting the stage for what comes next."
+        - kind: text
+          id: stat-year
+          frame: { w: 480 }
+          text: "907"
+          style: { fontFamily: heading, fontSize: 72, fontWeight: 700, color: "theme.accent", lineHeight: 1 }
+          entrance: { type: scale-up, delay: 200 }
+        - kind: text
+          id: stat-label
+          frame: { w: 480 }
+          text: "Year of Tang's Fall"
+          style: { fontFamily: body, fontSize: 24, color: "theme.textMuted", lineHeight: 1.4 }
+```
+
+### Example 3: Creative scene with overlapping shapes and layering
+
+```yaml
+- mode: scene
+  background: { type: solid, color: "theme.bg" }
+  children:
+    # Giant background text as decorative element
+    - kind: text
+      id: bg-number
+      frame: { x: -80, y: 60, w: 1200, h: 700 }
+      text: "01"
+      style:
+        fontFamily: heading
+        fontSize: 500
+        fontWeight: 900
+        color: "rgba(255,255,255,0.03)"
+        lineHeight: 1.0
+    # Overlapping accent shape — semi-transparent
+    - kind: shape
+      id: accent-blob
+      frame: { x: 1300, y: -120, w: 800, h: 800 }
+      shape: circle
+      style: { fill: "theme.accent@0.08" }
+    # Rotated decorative diamond
+    - kind: shape
+      id: diamond-deco
+      frame: { x: 1500, y: 700, w: 200, h: 200 }
+      shape: diamond
+      style: { fill: "theme.accent2@0.12" }
+      transform: { rotate: 25 }
+    # Foreground content
+    - kind: group
+      id: content
+      frame: { x: 160, y: 280, w: 1100, h: 600 }
+      layout: { type: stack, gap: 32 }
+      children:
+        - kind: text
+          id: eyebrow
+          frame: { w: 1100 }
+          text: "INTRODUCTION"
+          style:
+            fontFamily: body
+            fontSize: 16
+            fontWeight: 700
+            color: "theme.accent"
+            letterSpacing: 3
+            textTransform: uppercase
+          entrance: { type: fade-up, delay: 0, duration: 600 }
+        - kind: text
+          id: title
+          frame: { w: 1100 }
+          text: "Setting the Stage"
+          style:
+            fontFamily: heading
+            fontSize: 64
+            fontWeight: 700
+            color: "theme.heading"
+            lineHeight: 1.15
+          entrance: { type: fade-up, delay: 100, duration: 600 }
+        - kind: shape
+          id: divider
+          frame: { w: 80, h: 4 }
+          shape: rect
+          style: { fill: "theme.accent" }
+          borderRadius: 2
+        - kind: text
+          id: body
+          frame: { w: 900 }
+          text: "Every great transformation begins with a single moment of clarity. This is that moment."
+          style:
+            fontFamily: body
+            fontSize: 28
+            fontWeight: 400
+            color: "theme.text"
+            lineHeight: 1.7
+          entrance: { type: fade-up, delay: 200, duration: 600 }
+```
+
+### Example 4: Rich text with inline styling
+
+```yaml
+- mode: scene
+  background: { type: solid, color: "theme.bg" }
+  children:
+    - kind: text
+      id: title
+      frame: { left: 160, top: 200, w: 1000 }
+      text:
+        - "The "
+        - text: "Fall"
+          color: "#c41e3a"
+          bold: true
+        - " of Tang"
+      style:
+        fontFamily: heading
+        fontSize: 64
+        fontWeight: 700
+        color: "theme.heading"
+        lineHeight: 1.15
+      entrance: { type: fade-up, delay: 0, duration: 600 }
+    - kind: text
+      id: body
+      frame:
+        left: 160
+        top: { ref: "@title.bottom", offset: 40 }
+        w: 1000
+      text:
+        - "A dynasty that lasted "
+        - text: "289 years"
+          bold: true
+          color: "theme.accent"
+        - " crumbled in a decade. The "
+        - text: "An Lushan Rebellion"
+          italic: true
+        - " shattered central authority forever."
+      style:
+        fontFamily: body
+        fontSize: 30
+        fontWeight: 400
+        color: "theme.text"
+        lineHeight: 1.7
+      entrance: { type: fade-up, delay: 200, duration: 600 }
+```
+
+### Example 5: Presets with inheritance for repeated styling
+
+```yaml
+- mode: scene
+  background: { type: solid, color: "theme.bg" }
+  guides:
+    x: { left: 160, right-edge: 1760 }
+    y: { top: 100, cards: 340 }
+  presets:
+    cardBase:
+      borderRadius: 16
+      style: { fill: "theme.cardBg" }
+      border: { width: 1, color: "theme.cardBorder.color" }
+    cardTitle:
+      style:
+        fontFamily: heading
+        fontSize: 28
+        fontWeight: 700
+        color: "theme.heading"
+        lineHeight: 1.3
+    cardBody:
+      style:
+        fontFamily: body
+        fontSize: 20
+        fontWeight: 400
+        color: "theme.text"
+        lineHeight: 1.6
+    cardAccentNumber:
+      extends: cardTitle
+      style:
+        fontSize: 48
+        color: "theme.accent"
+        lineHeight: 1.0
+  children:
+    - kind: text
+      id: title
+      frame: { left: "@x.left", top: "@y.top", w: 1600 }
+      text: "Three Pillars"
+      style:
+        fontFamily: heading
+        fontSize: 52
+        fontWeight: 700
+        color: "theme.heading"
+        lineHeight: 1.15
+      entrance: { type: fade-up, delay: 0, duration: 600 }
+    - kind: shape
+      id: divider
+      frame: { left: "@x.left", top: { ref: "@title.bottom", offset: 20 }, w: 80, h: 4 }
+      shape: rect
+      style: { fill: "theme.accent" }
+      borderRadius: 2
+    # Card grid — 3 columns
+    - kind: group
+      id: card-grid
+      frame: { left: "@x.left", top: "@y.cards", w: 1600, h: 600 }
+      layout: { type: row, gap: 40, tracks: [1, 1, 1] }
+      children:
+        - kind: group
+          id: card-1
+          preset: cardBase
+          frame: { h: 360 }
+          layout: { type: stack, gap: 16, padding: [32, 28, 32, 28] }
+          entrance: { type: fade-up, delay: 100, duration: 600 }
+          children:
+            - kind: text
+              id: card-1-number
+              preset: cardAccentNumber
+              text: "01"
+            - kind: text
+              id: card-1-title
+              preset: cardTitle
+              text: "Resilience"
+            - kind: text
+              id: card-1-body
+              preset: cardBody
+              text: "Systems that bend without breaking adapt to unexpected conditions."
+        - kind: group
+          id: card-2
+          preset: cardBase
+          frame: { h: 360 }
+          layout: { type: stack, gap: 16, padding: [32, 28, 32, 28] }
+          entrance: { type: fade-up, delay: 200, duration: 600 }
+          children:
+            - kind: text
+              id: card-2-number
+              preset: cardAccentNumber
+              text: "02"
+            - kind: text
+              id: card-2-title
+              preset: cardTitle
+              text: "Clarity"
+            - kind: text
+              id: card-2-body
+              preset: cardBody
+              text: "Removing ambiguity at every layer makes the whole system legible."
+        - kind: group
+          id: card-3
+          preset: cardBase
+          frame: { h: 360 }
+          layout: { type: stack, gap: 16, padding: [32, 28, 32, 28] }
+          entrance: { type: fade-up, delay: 300, duration: 600 }
+          children:
+            - kind: text
+              id: card-3-number
+              preset: cardAccentNumber
+              text: "03"
+            - kind: text
+              id: card-3-title
+              preset: cardTitle
+              text: "Velocity"
+            - kind: text
+              id: card-3-body
+              preset: cardBody
+              text: "Speed without direction is waste. Velocity is speed with purpose."
 ```
