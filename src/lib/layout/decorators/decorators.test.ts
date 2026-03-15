@@ -175,7 +175,8 @@ describe("applyDecorators", () => {
 describe("decorator integration", () => {
   it("bold-signal slides include section numbers", () => {
     const slide: SlideData = {
-      children: [{ type: "heading", text: "Test" }],
+      mode: "scene",
+      children: [{ kind: "text", id: "t", text: "Test", style: { fontSize: 48 } }],
     };
     const result = layoutPresentation("Test", [slide], "bold-signal", "/img");
     const layout = result.slides[0];
@@ -185,7 +186,8 @@ describe("decorator integration", () => {
 
   it("electric-studio slides include split background", () => {
     const slide: SlideData = {
-      children: [{ type: "heading", text: "Test" }],
+      mode: "scene",
+      children: [{ kind: "text", id: "t", text: "Test", style: { fontSize: 48 } }],
     };
     const result = layoutPresentation("Test", [slide], "electric-studio", "/img");
     const layout = result.slides[0];
@@ -196,7 +198,8 @@ describe("decorator integration", () => {
 
   it("modern theme has no decorator elements", () => {
     const slide: SlideData = {
-      children: [{ type: "heading", text: "Test" }],
+      mode: "scene",
+      children: [{ kind: "text", id: "t", text: "Test", style: { fontSize: 48 } }],
     };
     const result = layoutPresentation("Test", [slide], "modern", "/img");
     const layout = result.slides[0];
@@ -328,7 +331,7 @@ describe("applyDecorators — Tier 1B", () => {
 
 describe("Tier 1B integration", () => {
   it("neon-cyber slides include glow decorators", () => {
-    const slide: SlideData = { children: [{ type: "heading", text: "Test" }] };
+    const slide: SlideData = { mode: "scene", children: [{ kind: "text", id: "t", text: "Test", style: { fontSize: 48 } }] };
     const result = layoutPresentation("Test", [slide], "neon-cyber", "/img");
     const layout = result.slides[0];
     const glowEls = layout.elements.filter((e) => e.id.startsWith("deco-glow"));
@@ -341,7 +344,7 @@ describe("Tier 1B integration", () => {
   });
 
   it("terminal-green slides include scan-lines", () => {
-    const slide: SlideData = { children: [{ type: "heading", text: "Test" }] };
+    const slide: SlideData = { mode: "scene", children: [{ kind: "text", id: "t", text: "Test", style: { fontSize: 48 } }] };
     const result = layoutPresentation("Test", [slide], "terminal-green", "/img");
     const layout = result.slides[0];
     const scanEl = layout.elements.find((e) => e.id === "deco-scan-lines");

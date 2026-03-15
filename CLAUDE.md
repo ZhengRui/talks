@@ -27,24 +27,41 @@ Follow TDD: write failing test → implement → green. Enforced by Superpowers 
 
 ## Architecture
 
-YAML + layout-model-driven presentation hub. See `docs/design-v8.md` for current architecture, `docs/discussion-v8.md` for design history and remaining work.
+YAML + scene-compiler-driven presentation hub. See `docs/design-v9.md` for current architecture, `docs/discussion-v9.md` for design history.
 
-**Data flow:** `content/[slug]/slides.yaml` → `loadPresentation()` → `layoutPresentation()` → `resolveLayouts()` (auto-layout pre-pass) → `LayoutPresentation` JSON → `LayoutRenderer` (web) or `exportPptx()` (PPTX)
+**Data flow:** `content/[slug]/slides.yaml` → `loadPresentation()` (DSL/template expansion) → `layoutPresentation()` → `compileSceneSlide()` (scene compiler) → `LayoutPresentation` JSON → `LayoutRenderer` (web) or `exportPptx()` (PPTX)
+
+All slides use `mode: "scene"`. The legacy component layer has been removed.
 
 ### Key Files
 
-- `src/lib/types.ts` — `SlideData` (component tree), `PresentationData`, `ThemeName`, `AnimationOverride`
+**Scene compiler** (v9 — the authoring/compilation layer):
+- `src/lib/scene/types.ts` — `SceneSlideData`, `SceneNode` (5 kinds: text, shape, image, group, ir), `FrameSpec`, `SceneGuides`, `ScenePreset`, `SceneLayout` (stack/row/grid)
+- `src/lib/scene/compiler.ts` — `compileSceneSlide()`: normalize → viewport scaling → geometry solve → IR emit
+- `src/lib/scene/solve.ts` — frame resolution, guide/anchor references, stack/row/grid layout
+- `src/lib/scene/normalize.ts` — theme token resolution, preset inheritance, image path prefixing
+- `src/lib/scene/import-layout.ts` — `importLayoutPresentation()`: v8 IR → scene slide converter for migration
+
+**Layout IR** (the render/export target — unchanged from v8):
+- `src/lib/types.ts` — `SlideData` (`SceneSlideData & SlideBaseFields`), `PresentationData`, `ThemeName`
 - `src/lib/loadPresentation.ts` — `loadPresentation()`, `discoverPresentations()`, `getAllSlugs()`
-- `src/lib/layout/types.ts` — `LayoutSlide`, `LayoutElement` (9 kinds: text, image, shape, group, code, table, list, video, iframe), `ResolvedTheme`, `TransformDef`, `RichText`, `LayoutMode` (flex/grid)
-- `src/lib/layout/auto-layout.ts` — `resolveLayouts()` pre-pass: flex-row, flex-column, grid, wrap, absolute positioning
+- `src/lib/layout/types.ts` — `LayoutSlide`, `LayoutElement` (9 kinds: text, image, shape, group, code, table, list, video, iframe), `ResolvedTheme`, `TransformDef`, `RichText`
 - `src/lib/layout/theme.ts` — 16 resolved theme definitions, `resolveTheme()`
-- `src/lib/layout/helpers.ts` — shared layout utilities (`titleBlock`, `stackVertical`, etc.)
-- `src/lib/layout/components/` — composable component layer: types (18 components), resolvers, theme tokens
-- `src/lib/layout/templates/` — 35 DSL YAML templates (`.template.yaml`), registry in `index.ts`
-- `src/lib/dsl/` — DSL template loader, Nunjucks compiler, integration tests
+- `src/lib/layout/theme-tokens.ts` — `resolveThemeToken()`, alpha suffixes (`theme.accent@0.13`)
+- `src/lib/layout/helpers.ts` — shared layout utilities, text height estimation
+- `src/lib/layout/decorators/` — theme decorators (background/foreground elements per theme)
+
+**DSL & templates:**
+- `src/lib/layout/templates/` — 35 DSL YAML templates (`.template.yaml`), all emit `mode: scene`
+- `src/lib/dsl/engine.ts` — DSL template loader, Nunjucks compiler with scene macro support
+- `src/lib/dsl/macros/scene/blocks.njk` — shared scene macros (eyebrow_title, stat_card, section_title, etc.)
+
+**Export:**
 - `src/lib/export/pptx.ts` — `exportPptx()` via PptxGenJS, spid tracking + JSZip post-processing for animations
 - `src/lib/export/pptx-animations.ts` — OOXML `<p:timing>` XML builder for entrance animations
 - `src/lib/export/pptx-helpers.ts` — coordinate/color/font conversion utilities
+
+**Rendering & UI:**
 - `src/components/SlideEngine.tsx` — custom presentation engine (keyboard nav, scaling, themes, export button)
 - `src/components/LayoutRenderer.tsx` — unified web renderer (layout model → absolute-positioned divs)
 - `src/styles/engine.css` — slide engine base styles (scaling, layout, transitions)
@@ -55,13 +72,34 @@ YAML + layout-model-driven presentation hub. See `docs/design-v8.md` for current
 - `src/app/api/layout/route.ts` — GET /api/layout?slug=X → layout JSON
 - `src/app/api/export_pptx/route.ts` — POST layout JSON → .pptx download
 
+**Tooling:**
+- `scripts/port-layout-to-scene.mjs` — batch migration of v8 layout.json → scene slides.yaml
+- `scripts/slide-diff.mjs` — pixel-diff comparison between rendered slide and reference image
+
+### Scene Authoring Model
+
+Slides are authored as scene nodes with explicit geometry, not semantic components.
+
+**Reuse hierarchy** (each tier has hard boundaries):
+- **Presets** — node-level style defaults (no children, no content). Supports `extends` inheritance.
+- **Macros** — Nunjucks-time scene node fragments (parameterized, compile-time only). In `src/lib/dsl/macros/scene/`.
+- **Templates** — whole-slide composition via `.template.yaml`. May call macros.
+
+**Key scene features:**
+- `FrameSpec` — partial geometry constraints (`left`, `right`, `centerX`, etc.) compiled to absolute `Rect`
+- Guides — named alignment points (`@x.content-left`, `@y.title-top`)
+- Anchors — reference previously compiled siblings (`@panel.right`, `{ ref: "@title.bottom", offset: 24 }`)
+- `sourceSize` + `fit` + `align` — author in screenshot pixel space, compiler scales to 1920×1080
+- Layout primitives — `stack`, `row`, `grid` on groups (explicit gap/tracks, no hidden defaults)
+- `kind: "ir"` — escape hatch wrapping raw `LayoutElement` for code/table/list/video/iframe
+
 ### Recipes
 
 **New presentation:** Create `content/my-talk/slides.yaml`, put images in `content/my-talk/images/`. Run `bun run sync-content` to copy to `public/`. Auto-discovered.
 
 **Preview all templates:** Visit `/example` — one slide per template with sample content.
 
-**New template:** Create `src/lib/layout/templates/foo.template.yaml` with `name`, `params`, `style`, and `children` (component tree). Auto-discovered by DSL loader — no registry update needed.
+**New template:** Create `src/lib/layout/templates/foo.template.yaml` with `name`, `params`, `style`, and scene `children`. Must emit `mode: scene`. Auto-discovered by DSL loader — no registry update needed.
 
 **New theme:** Add a new `ResolvedTheme` object in `src/lib/layout/theme.ts` → add to `ThemeName` union in `types.ts`. Both web and PPTX renderers use the same resolved values.
 
