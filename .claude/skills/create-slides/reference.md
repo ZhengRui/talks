@@ -1,6 +1,6 @@
 # Slide Generation Reference
 
-Complete syntax spec for shortcut templates and component tree slides.
+Complete syntax spec for shortcut templates and scene slide authoring.
 
 ## Presentation Structure
 
@@ -14,11 +14,14 @@ slides:
   - template: bullets
     title: "..."
     bullets: [...]
-  - children:                    # component tree (no template field)
-      - type: heading
+  - mode: scene                  # scene slide (custom layout)
+    background: "theme.bg"
+    children:
+      - kind: text
+        id: title
+        frame: { left: 160, top: 120, w: 900 }
         text: "Custom Slide"
-      - type: bullets
-        items: [...]
+        style: { fontFamily: heading, fontSize: 54, fontWeight: 700, color: "theme.heading" }
 ```
 
 **Save to**: `content/<slug>/slides.yaml`. Images in `content/<slug>/images/`. Run `bun run sync-content` after adding images.
@@ -27,7 +30,7 @@ slides:
 
 ## Shortcut Templates
 
-Concise YAML for standard layouts. Each has specific props — internally they expand to component trees via DSL.
+Concise YAML for standard layouts. Each has specific props — internally they emit scene slides via DSL.
 
 ### Title & Section
 
@@ -386,59 +389,200 @@ Concise YAML for standard layouts. Each has specific props — internally they e
 
 ---
 
-## Component Tree Slides
+## Scene Slide Syntax
 
-Slides without a `template` field are component trees. They have `children` (array of components) and optional `background`, `backgroundImage`, `overlay`.
+Scene slides use `mode: scene` and contain a tree of positioned nodes. This is the default authoring format for custom layouts.
+
+### Slide Structure
 
 ```yaml
-- background: "#0a0a0a"
-  backgroundImage: "hero.jpg"        # optional
-  overlay: "rgba(0,0,0,0.5)"        # optional
-  children:
-    - type: heading
-      text: "Hello World"
-    - type: body
-      text: "This is a component tree slide."
+- mode: scene
+  background: { type: solid, color: "theme.bg" }  # or string, or { type: image, src: "bg.jpg", overlay: "rgba(0,0,0,0.5)" }
+  guides:                                          # optional named alignment points
+    x: { content-left: 160, split: 1200 }
+    y: { top: 120, bottom: 960 }
+  presets:                                         # optional reusable style defaults
+    sectionTitle:
+      style: { fontFamily: heading, fontWeight: 700, color: "theme.heading", lineHeight: 1.15 }
+  sourceSize: { w: 1920, h: 1080 }               # optional, author in different pixel space
+  fit: contain                                     # optional: contain | cover | stretch | none
+  align: center                                    # optional: top-left | top | top-right | left | center | right | bottom-left | bottom | bottom-right
+  children: [...]                                  # scene nodes
 ```
 
-Top-level children are wrapped in a slide-sized Box with default flex-column layout (16px gap, 60px padding).
+### Scene Node Types
 
-### Shared Mixin
+#### text
+```yaml
+- kind: text
+  id: title
+  preset: sectionTitle           # optional, inherits style defaults
+  frame: { left: 160, top: 120, w: 900 }
+  text: "Title Text"             # string or TextRun[]
+  style:
+    fontFamily: heading           # heading | body | mono | CSS font-family
+    fontSize: 56
+    fontWeight: 700
+    color: "theme.heading"        # theme token or hex
+    lineHeight: 1.15
+    textAlign: left               # left | center | right
+    # also: fontStyle, letterSpacing, textTransform, verticalAlign, highlightColor, textShadow
+  entrance: { type: fade-up, delay: 0, duration: 600 }  # optional
+```
 
-All 18 component types accept these props. Applied to the component's root element after component-specific resolution.
+#### shape
+```yaml
+- kind: shape
+  id: panel
+  frame: { left: "@x.split", top: 0, right: 0, bottom: 0 }
+  shape: rect                     # rect | circle | line | pill | arrow | triangle | chevron | diamond | star | callout
+  style:
+    fill: "theme.bgSecondary"
+    # also: gradient, stroke, strokeWidth, strokeDash, patternFill
+  borderRadius: 16               # optional
+  transform: { rotate: 25 }     # optional
+```
+
+#### image
+```yaml
+- kind: image
+  id: photo
+  frame: { x: 0, y: 0, w: 960, h: 1080 }
+  src: "photo.jpg"                # relative to content/[slug]/images/
+  objectFit: cover                # cover | contain
+  clipCircle: false               # optional
+```
+
+#### group (layout container)
+```yaml
+- kind: group
+  id: content-stack
+  frame: { left: 160, top: 120, w: 900, h: 800 }
+  layout:
+    type: stack                   # stack | row | grid
+    gap: 24
+    align: start                  # start | center | end | stretch
+    justify: center               # stack only: start | center | end
+    padding: [20, 24, 20, 24]     # optional
+  style: { fill: "theme.cardBg" } # optional group background
+  clipContent: true               # optional
+  children: [...]
+```
+
+**Layout types:**
+- `stack` — vertical, children flow top-to-bottom, explicit gap
+- `row` — horizontal, explicit tracks: `tracks: [400, "1fr", 300]` or equal-width with gap
+- `grid` — fixed columns: `columns: 3`, optional `tracks` for column widths, `rowGap`/`columnGap`
+
+#### ir (escape hatch)
+```yaml
+- kind: ir
+  id: code-block
+  frame: { x: 160, y: 400, w: 1600, h: 400 }
+  element:
+    kind: code
+    id: code-element
+    rect: { x: 0, y: 0, w: 1600, h: 400 }
+    code: "const x = 42;"
+    language: typescript
+    style: { fontFamily: "theme.fontMono", fontSize: 24, color: "theme.codeText", background: "theme.codeBg", borderRadius: 12, padding: 32 }
+```
+
+Use `kind: ir` when you need code blocks, tables, lists, video, or iframe elements that don't have native scene node equivalents. The `element` wraps a raw LayoutElement (see IR Element Types below). The `frame` participates in scene geometry (guides, anchors, scaling).
+
+### FrameSpec (Positioning)
+
+Scene nodes use `frame` instead of `rect`. FrameSpec supports partial geometry — specify only what you need, the compiler resolves the rest.
 
 ```yaml
-# Style passthrough
-entranceType: fade-up              # fade-up | fade-in | slide-left | slide-right | scale-up | count-up | none
-entranceDelay: 200                 # ms offset
-opacity: 0.8                      # 0-1
-transform: { rotate: -5 }         # rotate (degrees), scaleX, scaleY, flipH, flipV
-effects: { glow: { color: "#ff6b35", radius: 15, opacity: 0.4 } }  # glow, softEdge, blur
-borderRadius: 12                   # px
-clipPath: "polygon(0 0, 100% 0, 100% 85%, 0 100%)"  # CSS clip-path
-cssStyle: { mixBlendMode: "overlay" }  # web-only CSS overrides
+# Explicit position and size
+frame: { x: 160, y: 120, w: 900, h: 400 }
 
-# Layout control
-width: 600                         # explicit width (enables justify in flex-row)
-height: 400                        # explicit height
-margin: [20, 0]                    # CSS-style: number | [vert, horiz] | [top, right, bottom, left]
-position: "absolute"               # opt out of parent flow layout
-x: 100                            # absolute x position within parent
-y: 200                            # absolute y position within parent
+# Edge-pinned (stretches to fill)
+frame: { left: 160, top: 0, right: 0, bottom: 0 }
+
+# Centered
+frame: { centerX: 960, centerY: 540, w: 600, h: 400 }
+
+# Width only (height auto, position from parent/layout)
+frame: { w: 900 }
+
+# Guide references
+frame: { left: "@x.content-left", top: "@y.top", w: 900 }
+
+# Anchor references (relative to sibling)
+frame: { left: "@panel.right", top: "@panel.top", w: 500, h: 400 }
+frame: { top: { ref: "@title.bottom", offset: 24 }, left: 160, w: 900 }
+```
+
+**Available constraints:** `x`, `y`, `w`, `h`, `left`, `right`, `top`, `bottom`, `centerX`, `centerY`
+
+### Guides
+
+Named alignment points referenced with `@x.name` or `@y.name` in FrameSpec values.
+
+```yaml
+guides:
+  x: { content-left: 160, content-right: 1760, split: 1200 }
+  y: { top: 120, bottom: 960 }
+```
+
+### Anchors
+
+Reference the compiled rect of a previously defined sibling node. The referenced node must appear earlier in the children array.
+
+```yaml
+children:
+  - kind: shape
+    id: panel
+    frame: { left: 0, top: 0, w: 960, h: 1080 }
+    shape: rect
+    style: { fill: "theme.bgSecondary" }
+  - kind: text
+    id: title
+    frame: { left: { ref: "@panel.right", offset: 80 }, top: 120, w: 800 }
+    text: "Title next to panel"
+    style: { fontFamily: heading, fontSize: 48, color: "theme.heading" }
+```
+
+### Presets
+
+Reusable style defaults applied to nodes via the `preset` field. Presets support `extends` for inheritance.
+
+```yaml
+presets:
+  baseText:
+    style: { fontFamily: body, fontWeight: 400, color: "theme.text", lineHeight: 1.6 }
+  sectionTitle:
+    extends: baseText
+    style: { fontFamily: heading, fontWeight: 700, fontSize: 48, color: "theme.heading", lineHeight: 1.15 }
+  bodyText:
+    extends: baseText
+    style: { fontSize: 28 }
+```
+
+Node-level style overrides merge on top of preset defaults:
+```yaml
+- kind: text
+  id: title
+  preset: sectionTitle
+  frame: { w: 900 }
+  text: "Custom Title"
+  style: { fontSize: 64 }         # overrides preset's fontSize, keeps other preset styles
 ```
 
 ### Rich Text
 
-All text-bearing components (`text`, `heading`, `body`, `bullets`, `stat`, `tag`, `quote`, `card`) accept `RichText` — either a plain string or an array of styled runs.
+Text nodes accept plain strings or TextRun arrays for inline styling:
 
 ```yaml
-# Plain string (backward compatible)
+# Plain string
 text: "Simple text"
 
-# Markdown shorthand — **bold** and *italic* parsed by renderers
+# Markdown shorthand
 text: "The **Fall** of *Tang*"
 
-# Styled runs — full control per segment
+# TextRun array — full control per segment
 text:
   - "The "
   - text: "Fall"
@@ -451,378 +595,41 @@ text:
 # letterSpacing, highlight (background color), superscript, subscript
 ```
 
-For `bullets`, each item can be RichText:
+### Common Node Properties
+
+All scene nodes support:
+
 ```yaml
-- type: bullets
-  items:
-    - "Plain bullet"
-    - - "Revenue grew "
-      - text: "47%"
-        bold: true
-        color: "#22c55e"
-      - " year over year"
+opacity: 0.8                        # 0-1
+borderRadius: 12                     # px
+shadow: { offsetX: 0, offsetY: 4, blur: 24, color: "rgba(0,0,0,0.1)" }
+effects:
+  glow: { color: "#ff6b35", radius: 15, opacity: 0.6 }
+  softEdge: 8
+  blur: 4
+border: { width: 2, color: "#c41e3a", sides: ["left"], dash: "dash" }
+entrance: { type: fade-up, delay: 0, duration: 500 }
+transform: { rotate: 45, scaleX: 1.2, flipH: true }
+clipPath: "polygon(0 0, 100% 0, 100% 85%, 0 100%)"
+cssStyle: { mixBlendMode: "overlay" }  # web-only
 ```
 
-### Components
-
-#### text
-```yaml
-- type: text
-  text: "Custom styled text"          # RichText
-  fontSize: 24                       # optional
-  fontWeight: 700                    # optional: 100-900
-  color: theme.accent               # optional, theme token or hex
-  textAlign: left                    # optional: left | center | right
-  fontStyle: italic                  # optional: normal | italic
-  fontFamily: heading                # optional: heading | body | mono (maps to theme fonts)
-  lineHeight: 1.4                    # optional
-  letterSpacing: 2                   # optional, px
-  textTransform: uppercase           # optional: uppercase | lowercase | none
-  textShadow: "0 2px 4px rgba(0,0,0,0.3)"  # optional, string or false to suppress
-  maxWidth: 800                      # optional, centered within panel
-```
-
-#### heading
-```yaml
-- type: heading
-  text: "Title Text"                 # RichText
-  level: 1                          # optional: 1 (54px), 2 (42px), 3 (34px)
-  fontSize: 54                      # optional, overrides level default
-  textAlign: left                   # optional: left | center | right
-  color: theme.heading              # optional
-  fontFamily: heading               # optional, theme token or raw CSS font-family
-  fontWeight: 700                   # optional
-  letterSpacing: -1                 # optional, px
-  textTransform: uppercase          # optional
-```
-
-#### body
-```yaml
-- type: body
-  text: "Paragraph text."           # RichText
-  fontSize: 28                      # optional
-  color: theme.text                 # optional
-  textAlign: left                   # optional
-  lineHeight: 1.6                   # optional
-```
-
-#### bullets
-```yaml
-- type: bullets
-  items:                             # RichText[]
-    - "Point one"
-    - "Point two"
-  fontSize: 26                      # optional
-  gap: 16                           # optional, spacing between items
-  ordered: false                    # optional: true = numbered, false = accent bars
-  variant: card                     # optional: card | plain | list
-  bulletColor: theme.accent         # optional
-  highlightColor: "#ff6b35"         # optional, color for **bold** segments
-```
-
-#### stat
-```yaml
-- type: stat
-  value: "907"                       # RichText
-  label: "Year of Tang's Fall"      # RichText
-  textAlign: left                   # optional: left | center
-  fontSize: 64                      # optional, value font size
-  labelFontSize: 24                 # optional
-  color: theme.accent               # optional, value color
-  labelColor: theme.textMuted       # optional
-  fontFamily: heading               # optional, value font
-  labelFontWeight: 400              # optional
-  letterSpacing: 2                  # optional, label letter-spacing
-  textTransform: uppercase          # optional, label text-transform
-```
-
-#### tag
-```yaml
-- type: tag
-  text: "Chapter 1"                 # RichText
-  color: theme.accent               # optional
-  align: left                       # optional: left | center
-  fontSize: 20                      # optional
-  padding: [12, 20]                 # optional, CSS-style
-  borderWidth: 1                    # optional, set 0 for no border
-  borderColor: "#ccc"               # optional
-  letterSpacing: 2                  # optional, px
-```
-
-#### divider
-```yaml
-- type: divider
-  variant: gradient                  # optional: solid | gradient | ink | border
-  width: 80                         # optional, percentage of panel width
-  color: theme.accent               # optional
-  align: left                       # optional: left | center
-```
-
-#### quote
-```yaml
-- type: quote
-  text: "The empire, long united, must divide."  # RichText
-  attribution: "Romance of the Three Kingdoms"   # optional
-  textAlign: left                   # optional: left | center | right
-  fontSize: 30                      # optional
-  attributionFontSize: 22           # optional
-  decorative: true                  # optional, large opening quote mark
-```
-
-#### card
-```yaml
-- type: card
-  title: "Card Title"               # RichText
-  body: "Card description."         # RichText
-  dark: false                        # optional, dark background variant
-```
-
-#### image
-```yaml
-- type: image
-  src: "photo.jpg"                   # relative to content/[slug]/images/
-  height: 400                        # optional, omit to fill remaining space
-  objectFit: cover                   # optional: cover | contain
-  clipCircle: false                  # optional, circular crop
-```
-
-#### video
-```yaml
-- type: video
-  src: "demo.mp4"                    # .mp4/.webm or YouTube/Vimeo URL
-  poster: "thumbnail.jpg"           # optional
-  height: 500                        # optional
-```
-
-#### iframe
-```yaml
-- type: iframe
-  src: "https://example.com"
-  height: 500                        # optional
-```
-
-#### code
-```yaml
-- type: code
-  code: "const x = 42;\nconsole.log(x);"
-  language: typescript               # optional
-  fontSize: 24                       # optional
-  padding: 32                        # optional
-```
-
-#### spacer
-```yaml
-- type: spacer
-  height: 200                        # optional, px
-  flex: true                         # optional, fills remaining vertical space
-```
-
-#### box (layout container)
-
-The primary layout container. Children stack vertically by default (flex-column, 16px gap). Use `layout` for flex-row or grid arrangements.
+### Background Spec
 
 ```yaml
-- type: box
-  variant: card                      # optional: card | flat | panel
-  padding: 28                        # optional: number | [vert, horiz] | [top, right, bottom, left]
-  background: theme.cardBg           # optional
-  maxWidth: 800                      # optional, centered
-  height: 300                        # optional, fixed height
-  fill: false                        # optional, expand to fill panel height
-  verticalAlign: top                 # optional: top | center | bottom
-  accentTop: true                    # optional, 3px accent bar
-  accentColor: theme.accent          # optional
-  borderColor: "#ccc"               # optional
-  borderWidth: 2                     # optional
-  borderSides: [left]               # optional: top | right | bottom | left
-  autoEntrance:                      # optional, stagger animations on children
-    type: fade-up
-    stagger: 100                     # ms per child
-    baseDelay: 0                     # ms
-  layout:                            # optional, default is flex-column
-    type: flex                       # flex | grid
-    direction: row                   # flex only: row | column (default column)
-    gap: 24                          # px between items
-    align: center                    # cross-axis: start | center | end | stretch
-    justify: space-between           # main-axis: start | center | end | space-between | space-around
-    wrap: true                       # flex-row only: wrap to next row
-    columns: 3                       # grid only: items per row
-    rowGap: 16                       # grid only
-    columnGap: 24                    # grid only
-  children:
-    - type: heading
-      text: "Inside a box"
-    - type: body
-      text: "Children stack vertically by default."
-```
+# Solid color (theme token or hex)
+background: "theme.bg"
+background: { type: solid, color: "theme.bg" }
 
-**Layout examples:**
-
-```yaml
-# Flex row — horizontal arrangement
-- type: box
-  variant: flat
-  layout: { type: flex, direction: row, gap: 32, align: center }
-  children:
-    - type: stat
-      value: "100"
-      label: "First"
-      width: 300
-    - type: stat
-      value: "200"
-      label: "Second"
-      width: 300
-
-# Grid — 2x2 card layout
-- type: box
-  variant: flat
-  layout: { type: grid, columns: 2, gap: 24 }
-  children:
-    - type: card
-      title: "Card 1"
-      body: "Description"
-    - type: card
-      title: "Card 2"
-      body: "Description"
-    - type: card
-      title: "Card 3"
-      body: "Description"
-    - type: card
-      title: "Card 4"
-      body: "Description"
-
-# Flex column with justify center (vertically centered)
-- type: box
-  variant: flat
-  height: 800
-  layout: { type: flex, direction: column, gap: 24, justify: center }
-  children:
-    - type: heading
-      text: "Centered Content"
-    - type: body
-      text: "This group is vertically centered."
-```
-
-**Absolute positioning within a box:**
-
-Children with `position: "absolute"` are taken out of flow. They use `x`/`y` coordinates relative to the box's content area. Other children flow normally.
-
-```yaml
-- type: box
-  variant: flat
-  children:
-    # This decorative shape is positioned absolutely
-    - type: raw
-      position: "absolute"
-      x: 0
-      y: 0
-      width: 200
-      height: 200
-      elements:
-        - kind: shape
-          id: accent
-          rect: { x: 0, y: 0, w: 200, h: 200 }
-          shape: circle
-          style: { fill: "rgba(79,109,245,0.08)" }
-    # These children flow normally
-    - type: heading
-      text: "Title"
-    - type: body
-      text: "Content flows around the absolute element."
-```
-
-#### columns (horizontal split)
-```yaml
-- type: columns
-  gap: 32                            # optional, default 32
-  ratio: 0.3                         # optional, first column width fraction (2-column)
-  equalHeight: true                  # optional
-  children:
-    - type: stat
-      value: "100"
-      label: "First"
-    - type: stat
-      value: "200"
-      label: "Second"
-```
-
-#### grid (multi-row)
-```yaml
-- type: grid
-  columns: 3                         # optional, default 3
-  gap: 32                            # optional, default 32
-  equalHeight: true                  # optional
-  children:
-    - type: card
-      title: "Card 1"
-      body: "Description"
-    - type: card
-      title: "Card 2"
-      body: "Description"
-```
-
-#### raw (IR element escape hatch)
-
-Embeds raw `LayoutElement[]` directly. Coordinates relative to the component's bounding box. Use for pixel-precise elements within a component tree.
-
-```yaml
-- type: raw
-  height: 65                         # required (unless position: absolute)
-  elements:
-    - kind: shape
-      id: seal-border
-      rect: { x: 0, y: 0, w: 65, h: 65 }
-      shape: rect
-      style: { fill: "transparent", stroke: "#c41e3a", strokeWidth: 2 }
-    - kind: text
-      id: seal-char
-      rect: { x: 0, y: 10, w: 65, h: 45 }
-      text: "唐"
-      style: { fontFamily: "Noto Serif SC, serif", fontSize: 28, fontWeight: 700, color: "#c41e3a", textAlign: center }
-```
-
-### Two-Panel Layout Pattern
-
-The old `split-compose` template is now a component tree pattern:
-
-```yaml
-- children:
-    - type: box
-      variant: flat
-      layout: { type: flex, direction: row }
-      padding: 0
-      height: 1080
-      children:
-        - type: box
-          width: 1056                  # 55% of 1920
-          padding: [80, 60]
-          variant: flat
-          children: [...]              # left panel content
-        - type: box
-          background: "#1a1714"
-          padding: [80, 60]
-          verticalAlign: center
-          children: [...]              # right panel content
-```
-
-### Full-Width Centered Layout Pattern
-
-The old `full-compose` template is now:
-
-```yaml
-- children:
-    - type: box
-      variant: flat
-      padding: [80, 160]
-      maxWidth: 1200                   # or omit for full width (1600px with padding)
-      children: [...]
+# Image with optional overlay
+background: { type: image, src: "hero.jpg", overlay: "rgba(0,0,0,0.5)" }
 ```
 
 ---
 
 ## IR Element Types
 
-Used inside `raw` components and for understanding the underlying layout model. Each element has `kind`, `id`, `rect: {x, y, w, h}`, and type-specific props.
+Used inside `kind: ir` scene nodes and for understanding the underlying layout model. Each element has `kind`, `id`, `rect: {x, y, w, h}`, and type-specific props.
 
 **Canvas**: 1920 x 1080 px. **Safe area**: x: 160..1760, y: 60..1020. **Center**: (960, 540).
 
@@ -991,7 +798,7 @@ cssStyle: { mixBlendMode: "overlay" }  # web-only
 | `count-up` | Number count-up (web only) | Stat values |
 | `none` | No animation | Static elements |
 
-**Stagger**: Increment delay by 100-150ms between sequential elements. Compose templates handle this automatically. Use `autoEntrance` on Box for automatic staggering.
+**Stagger**: Increment delay by 100-150ms between sequential elements using the `entrance.delay` property on scene nodes.
 
 ---
 
@@ -1067,7 +874,7 @@ cssStyle: { mixBlendMode: "overlay" }  # web-only
 
 ### Theme Token Reference
 
-Use in component `color`, `background`, and style fields:
+Use in scene node `color`, `fill`, and style fields:
 
 | Token | Resolves to |
 |-------|-------------|
@@ -1092,8 +899,8 @@ Use in component `color`, `background`, and style fields:
 - **Center**: (960, 540)
 - **Estimate text height**: `lines * fontSize * lineHeight`
 - **Estimate text width**: ~0.55 * fontSize * characterCount
-- **z-order** (raw elements): Later elements render on top. Background shapes first, text last.
-- **Group children**: Coordinates relative to the group's `rect` origin.
+- **z-order** (scene nodes): Later children render on top. Background shapes first, text last.
+- **Group children**: Use FrameSpec within scene groups; coordinates resolve relative to the group's compiled rect origin.
 
 ## Content Density Limits
 
@@ -1122,88 +929,59 @@ Use in component `color`, `background`, and style fields:
 
 ### Giant background text
 ```yaml
-- type: raw
-  position: "absolute"
-  x: -50
-  y: 100
-  width: 1000
-  height: 600
-  elements:
-    - kind: text
-      id: bg-number
-      rect: { x: 0, y: 0, w: 1000, h: 600 }
-      text: "01"
-      style: { fontFamily: "Inter, sans-serif", fontSize: 400, fontWeight: 900, color: "rgba(0,0,0,0.03)", lineHeight: 1.0 }
+- kind: text
+  id: bg-number
+  frame: { x: -50, y: 100, w: 1000 }
+  text: "01"
+  style: { fontFamily: "Inter, sans-serif", fontSize: 400, fontWeight: 900, color: "rgba(255,255,255,0.03)", lineHeight: 1.0 }
 ```
 
-### Overlapping elements for depth
+### Overlapping accent shape
 ```yaml
-- type: raw
-  position: "absolute"
-  x: 0
-  y: 250
-  width: 300
-  height: 300
-  elements:
-    - kind: shape
-      id: accent-block
-      rect: { x: 0, y: 0, w: 300, h: 300 }
-      shape: rect
-      style: { fill: "rgba(79,109,245,0.08)", borderRadius: 16 }
-# Text that flows over the shape via normal layout
-- type: heading
-  text: "Design is how it works."
-  margin: [60, 0, 0, 0]
+- kind: shape
+  id: accent-block
+  frame: { x: 0, y: 250, w: 300, h: 300 }
+  shape: rect
+  style: { fill: "rgba(79,109,245,0.08)" }
+  borderRadius: 16
 ```
 
-### Rotated accent shape
+### Rotated decorative shape
 ```yaml
-- type: raw
-  position: "absolute"
-  x: 1400
-  y: -100
-  width: 400
-  height: 400
-  elements:
-    - kind: shape
-      id: rotated-accent
-      rect: { x: 0, y: 0, w: 400, h: 400 }
-      shape: rect
-      style: { fill: "rgba(79,109,245,0.05)", borderRadius: 24 }
-      transform: { rotate: 25 }
+- kind: shape
+  id: rotated-accent
+  frame: { x: 1400, y: -100, w: 400, h: 400 }
+  shape: rect
+  style: { fill: "rgba(79,109,245,0.05)" }
+  borderRadius: 24
+  transform: { rotate: 25 }
 ```
 
 ### Asymmetric split with gradient divider
 ```yaml
-- children:
-    - type: box
-      variant: flat
-      layout: { type: flex, direction: row }
-      padding: 0
-      height: 1080
-      children:
-        - type: box
-          variant: flat
-          width: 1250
-          padding: [100, 80]
-          children: [...]
-        # Gradient divider
-        - type: raw
-          position: "absolute"
-          x: 1247
-          y: 80
-          width: 3
-          height: 920
-          elements:
-            - kind: shape
-              id: divider
-              rect: { x: 0, y: 0, w: 3, h: 920 }
-              shape: rect
-              style:
-                gradient: { type: linear, angle: 180, stops: [{ color: "#4f6df5", position: 0 }, { color: "rgba(79,109,245,0)", position: 1 }] }
-        - type: box
-          background: "#0a0a0a"
-          padding: [100, 60]
-          verticalAlign: center
-          children: [...]
+- mode: scene
+  guides:
+    x: { split: 1250 }
+  children:
+    - kind: shape
+      id: right-panel
+      frame: { left: "@x.split", top: 0, right: 0, bottom: 0 }
+      shape: rect
+      style: { fill: "#0a0a0a" }
+    - kind: shape
+      id: divider
+      frame: { x: 1247, y: 80, w: 3, h: 920 }
+      shape: rect
+      style:
+        gradient: { type: linear, angle: 180, stops: [{ color: "#4f6df5", position: 0 }, { color: "rgba(79,109,245,0)", position: 1 }] }
+    - kind: group
+      id: left-content
+      frame: { left: 80, top: 100, w: 1090, h: 880 }
+      layout: { type: stack, gap: 24 }
+      children: [...]
+    - kind: group
+      id: right-content
+      frame: { left: { ref: "@x.split", offset: 60 }, top: 100, w: 530, h: 880 }
+      layout: { type: stack, gap: 24, justify: center }
+      children: [...]
 ```
