@@ -1,4 +1,5 @@
 name: code
+scope: slide
 params:
   code: { type: string, required: true }
   title: { type: string }
@@ -13,7 +14,6 @@ style:
 {% set contentTop = 60 if not title else (60 + titleHeight + 16 + 4 + 40) %}
 {% set codeHeight = code | code_height(style.codeFontSize, 32, 1.6) %}
 
-mode: scene
 presets:
 {{ blocks.header_presets("centeredTitle", "divider") | indent(2, true) }}
 children:

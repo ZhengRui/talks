@@ -34,7 +34,7 @@ children:
 `,
     });
 
-    const result = expandDslTemplate({ template: "test", title: "Hello World" }, def);
+    const result = expandDslTemplate({ template: "test", params: { title: "Hello World" } }, def);
     expect(result).not.toHaveProperty("template");
     expect((result as unknown as { children: unknown[] }).children).toHaveLength(1);
     expect((result as unknown as { children: Record<string, unknown>[] }).children[0]).toMatchObject({
@@ -71,7 +71,7 @@ children:
     });
 
     const result = expandDslTemplate(
-      { template: "test", bullets: ["First", "Second", "Third"] },
+      { template: "test", params: { bullets: ["First", "Second", "Third"] } },
       def,
     );
     const children = (result as unknown as { children: Record<string, unknown>[] }).children;
@@ -112,11 +112,11 @@ children:
     });
 
     const withSub = expandDslTemplate(
-      { template: "test", statement: "Big Idea", subtitle: "Details" },
+      { template: "test", params: { statement: "Big Idea", subtitle: "Details" } },
       def,
     );
     const withoutSub = expandDslTemplate(
-      { template: "test", statement: "Big Idea" },
+      { template: "test", params: { statement: "Big Idea" } },
       def,
     );
 
@@ -150,10 +150,12 @@ children:
     const result = expandDslTemplate(
       {
         template: "test",
-        stats: [
-          { value: "42", label: "Answer" },
-          { value: "7", label: "Days" },
-        ],
+        params: {
+          stats: [
+            { value: "42", label: "Answer" },
+            { value: "7", label: "Days" },
+          ],
+        },
       },
       def,
     );
@@ -205,10 +207,12 @@ children:
     const result = expandDslTemplate(
       {
         template: "test",
-        defs: [
-          { term: "A", desc: "Desc A" },
-          { term: "B", desc: "Desc B" },
-        ],
+        params: {
+          defs: [
+            { term: "A", desc: "Desc A" },
+            { term: "B", desc: "Desc B" },
+          ],
+        },
       },
       def,
     );
@@ -238,7 +242,7 @@ children:
 `,
     });
 
-    const result = expandDslTemplate({ template: "test", title: "Test" }, def);
+    const result = expandDslTemplate({ template: "test", params: { title: "Test" } }, def);
     const children = (result as unknown as { children: Record<string, unknown>[] }).children;
     expect(children[0].style.fontSize).toBe(56);
   });
@@ -263,7 +267,7 @@ children:
     });
 
     const result = expandDslTemplate(
-      { template: "test", title: "Test", style: { titleSize: 72 } },
+      { template: "test", params: { title: "Test" }, style: { titleSize: 72 } },
       def,
     );
     const children = (result as unknown as { children: Record<string, unknown>[] }).children;
@@ -303,7 +307,7 @@ children:
 `,
     });
 
-    const result = expandDslTemplate({ template: "test", text: "Hi" }, def);
+    const result = expandDslTemplate({ template: "test", params: { text: "Hi" } }, def);
     expect(result).not.toHaveProperty("template");
     expect(result).toHaveProperty("mode", "scene");
     expect(result).toHaveProperty("children");
@@ -344,7 +348,7 @@ children:
     });
 
     const code = 'function greet() {\n  return "hello";\n}';
-    const result = expandDslTemplate({ template: "test", code }, def);
+    const result = expandDslTemplate({ template: "test", params: { code } }, def);
     const children = (result as unknown as { children: Record<string, unknown>[] }).children;
     expect(children[0].text).toBe(code);
   });
@@ -367,7 +371,7 @@ children:
 `,
     });
 
-    const withTitle = expandDslTemplate({ template: "test", title: "Goodbye" }, def);
+    const withTitle = expandDslTemplate({ template: "test", params: { title: "Goodbye" } }, def);
     const withoutTitle = expandDslTemplate({ template: "test" }, def);
 
     expect(
@@ -378,20 +382,17 @@ children:
     ).toBe("Thank You");
   });
 
-  it("throws when a template does not emit mode: scene", () => {
+  it("throws when a template emits a non-scene mode", () => {
     const def = makeDef({
       params: { title: { type: "string", required: true } },
       rawBody: `
-children:
-  - kind: text
-    id: title
-    frame: { x: 0, y: 0, w: 640 }
-    text: "{{ title }}"
+mode: legacy
+children: []
 `,
     });
 
-    expect(() => expandDslTemplate({ template: "test", title: "No Base" }, def)).toThrow(
-      /must emit 'mode: scene'/,
+    expect(() => expandDslTemplate({ template: "test", params: { title: "No Base" } }, def)).toThrow(
+      /mode.*legacy.*expected.*scene/i,
     );
   });
 
@@ -420,7 +421,7 @@ children:
 `,
     });
 
-    const result = expandDslTemplate({ template: "test", title: "Scene Title" }, def);
+    const result = expandDslTemplate({ template: "test", params: { title: "Scene Title" } }, def);
     expect(result).toMatchObject({
       mode: "scene",
       sourceSize: { w: 640, h: 360 },
@@ -598,6 +599,48 @@ children: []
       sourceSize: { w: 800, h: 600 },
       fit: "cover",
       align: "center",
+    });
+  });
+
+  describe("scope-based mode injection", () => {
+    it("allows scope: slide templates to omit mode: scene", () => {
+      const def = makeDef({
+        scope: "slide",
+        params: { title: { type: "string", required: true } },
+        rawBody: `
+name: normalized
+scope: slide
+params:
+  title: { type: string, required: true }
+
+background: { type: solid, color: "#111" }
+children:
+  - kind: text
+    id: title
+    frame: { x: 0, y: 0, w: 640 }
+    text: "{{ title }}"
+    style: { fontFamily: "heading", fontSize: 56, color: "#fff", lineHeight: 1.1 }
+`,
+      });
+
+      const result = expandDslTemplate(
+        { template: "test", params: { title: "No Mode" } },
+        def,
+      );
+      expect(result).toHaveProperty("mode", "scene");
+      expect((result as any).children[0]).toMatchObject({ text: "No Mode" });
+    });
+
+    it("rejects scope: block templates at slide level", () => {
+      const def = makeDef({
+        scope: "block",
+        params: { label: { type: "string" } },
+        rawBody: `kind: group\nchildren: []`,
+      });
+
+      expect(() =>
+        expandDslTemplate({ template: "test", params: { label: "Hi" } }, def),
+      ).toThrow(/scope.*block.*cannot.*slide/i);
     });
   });
 });

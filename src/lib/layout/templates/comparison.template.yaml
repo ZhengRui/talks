@@ -1,4 +1,5 @@
 name: comparison
+scope: slide
 params:
   title: { type: string }
   left: { type: object, required: true }
@@ -31,7 +32,6 @@ style:
 {% set layoutY = (1080 - cardHeight) / 2 %}
 {% endif %}
 
-mode: scene
 presets:
 {{ blocks.header_presets("sectionTitle", "divider") | indent(2, true) }}
 {{ blocks.surface_card_preset("compareCard") | indent(2, true) }}

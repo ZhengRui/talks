@@ -1,11 +1,11 @@
 name: statement
+scope: slide
 params:
   statement: { type: string, required: true }
   subtitle: { type: string }
 
 {% import "scene/blocks.njk" as blocks %}
 
-mode: scene
 presets:
 {{ blocks.header_presets("statementTitle", "divider") | indent(2, true) }}
 {{ blocks.body_text_preset("statementSubtitle", "center", "theme.textMuted", 1.6) | indent(2, true) }}

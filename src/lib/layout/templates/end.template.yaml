@@ -1,11 +1,11 @@
 name: end
+scope: slide
 params:
   title: { type: string }
   subtitle: { type: string }
 
 {% import "scene/blocks.njk" as blocks %}
 
-mode: scene
 presets:
 {{ blocks.header_presets("endTitle", "divider") | indent(2, true) }}
 {{ blocks.body_text_preset("endSubtitle", "center", "theme.textMuted", 1.6) | indent(2, true) }}

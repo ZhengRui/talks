@@ -1,4 +1,5 @@
 name: section-divider
+scope: slide
 params:
   title: { type: string, required: true }
   subtitle: { type: string }
@@ -21,7 +22,6 @@ style:
 {% set stackHeight = titleHeight + 16 + 4 + (32 + subtitleHeight if subtitle else 0) %}
 {% set stackY = 60 + (960 - stackHeight) / 2 %}
 
-mode: scene
 {% if image %}
 background:
   type: image

@@ -1,4 +1,5 @@
 name: three-column
+scope: slide
 params:
   title: { type: string }
   columns: { type: array, required: true }
@@ -34,7 +35,6 @@ style:
 {% set maxHeight = col1Height if col1Height >= col2Height and col1Height >= col3Height else (col2Height if col2Height >= col3Height else col3Height) %}
 {% set layoutY = contentTop if verticalAlign != "center" else (contentTop + ((1080 - contentTop - topPad) - maxHeight) / 2) %}
 
-mode: scene
 presets:
 {{ blocks.header_presets("sectionTitle", "divider") | indent(2, true) }}
 {{ blocks.accent_edge_card_preset("columnCard", "top") | indent(2, true) }}

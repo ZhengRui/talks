@@ -16,8 +16,9 @@ function expandDsl(
 ): SlideData {
   const def = findTemplate(templateName);
   expect(def).not.toBeNull();
+  const { style, ...rest } = params;
   return expandDslTemplate(
-    { template: templateName, ...params },
+    { template: templateName, params: rest, ...(style !== undefined ? { style } : {}) },
     def!,
   ) as unknown as SlideData;
 }
@@ -2602,8 +2603,7 @@ describe("DSL integration: template expansion + layout", () => {
     const slide = expandDslTemplate(
       {
         template: "bullets",
-        title: "Custom Size",
-        bullets: ["A"],
+        params: { title: "Custom Size", bullets: ["A"] },
         style: { titleSize: 72 },
       },
       def!,
@@ -2656,7 +2656,7 @@ children:
 `,
     });
 
-    const slide = expandDslTemplate({ template: "inline-test", title: "Scene DSL" }, def);
+    const slide = expandDslTemplate({ template: "inline-test", params: { title: "Scene DSL" } }, def);
     expect(slide).toMatchObject({ mode: "scene" });
 
     const layout = layoutSlide(slide, "modern", "/img");
@@ -2708,7 +2708,7 @@ children:
 `,
     });
 
-    const slide = expandDslTemplate({ template: "inline-test", title: "Scene Macro" }, def);
+    const slide = expandDslTemplate({ template: "inline-test", params: { title: "Scene Macro" } }, def);
     expect(slide).toMatchObject({ mode: "scene" });
 
     const layout = layoutSlide(slide, "modern", "/img");
@@ -2759,7 +2759,7 @@ children:
 `,
     });
 
-    const slide = expandDslTemplate({ template: "inline-test" }, def);
+    const slide = expandDslTemplate({ template: "inline-test", params: {} }, def);
     const layout = layoutSlide(slide, "modern", "/img");
     const elements = allLayoutElements(layout.elements);
 

@@ -313,6 +313,11 @@ export function normalizeSceneNode(
       return normalizeIrNode(mergedNode, theme, imageBase);
     case "group":
       return normalizeGroupNode(mergedNode, theme, imageBase, presets);
+    case "block":
+      throw new Error(
+        `[scene] Block node "${mergedNode.id}" must be expanded before normalization. ` +
+        `Call expandBlockNodes() before compileSceneSlide().`,
+      );
   }
 }
 

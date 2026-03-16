@@ -14,6 +14,7 @@ export interface DslStyleDef {
 export interface DslTemplateDef {
   name: string;
   alias?: string; // redirect to another template by name
+  scope?: "slide" | "block";
   params: Record<string, DslParamDef>;
   style?: Record<string, DslStyleDef>;
   sourcePath?: string;

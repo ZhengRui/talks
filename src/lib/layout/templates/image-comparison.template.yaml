@@ -1,4 +1,5 @@
 name: image-comparison
+scope: slide
 params:
   title: { type: string }
   before: { type: object, required: true }
@@ -23,7 +24,6 @@ style:
 {% set titleHeight = title | text_height(style.titleSize, 1.15, 1600, 700) if title else 0 %}
 {% set layoutY = topPad if not title else (topPad + titleHeight + 16 + 4 + 40) %}
 
-mode: scene
 presets:
 {{ blocks.header_presets("sectionTitle", "divider") | indent(2, true) }}
 {{ blocks.surface_card_preset("imageCard") | indent(2, true) }}

@@ -69,6 +69,17 @@ function resolveAlias(
   return findTemplate(def.alias, slug);
 }
 
+/**
+ * Infer scope from the raw template body when no explicit `scope:` is declared.
+ * - `mode: scene` at the top level → slide template
+ * - `kind: group` at the top level → block template
+ */
+function inferScope(raw: string): "slide" | "block" | undefined {
+  if (/^mode:\s*scene\b/m.test(raw)) return "slide";
+  if (/^kind:\s*group\b/m.test(raw)) return "block";
+  return undefined;
+}
+
 function parseTemplateFile(
   filePath: string,
   templateName: string,
@@ -92,9 +103,13 @@ function parseTemplateFile(
     // name/params/style from the front matter, so duplicates are harmless.
     const parsed = parse(stripped, { uniqueKeys: false });
 
+    const explicitScope = parsed.scope as "slide" | "block" | undefined;
+    const scope = explicitScope ?? inferScope(raw);
+
     return {
       name: parsed.name ?? templateName,
       ...(parsed.alias ? { alias: parsed.alias } : {}),
+      ...(scope ? { scope } : {}),
       params: parsed.params ?? {},
       style: parsed.style,
       sourcePath: filePath,
@@ -109,7 +124,7 @@ function parseTemplateFile(
 function extractTemplateHeader(raw: string): string {
   const lines = raw.split("\n");
   const headerLines: string[] = [];
-  const allowedTopLevelKeys = new Set(["name", "alias", "params", "style"]);
+  const allowedTopLevelKeys = new Set(["name", "alias", "scope", "params", "style"]);
   let activeSectionIndent: number | null = null;
 
   for (const line of lines) {

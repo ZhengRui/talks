@@ -1,4 +1,5 @@
 name: steps
+scope: slide
 params:
   title: { type: string }
   steps: { type: array, required: true }
@@ -22,7 +23,6 @@ style:
 {% set cardPad = 24 %}
 {% set bodyHeight = (steps.length * stepH) + ((steps.length - 1) * style.stepGap) if steps.length > 0 else 0 %}
 
-mode: scene
 presets:
 {{ blocks.header_presets("centeredTitle", "divider") | indent(2, true) }}
 children:

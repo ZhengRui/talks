@@ -1,4 +1,5 @@
 name: video
+scope: slide
 params:
   src: { type: string, required: true }
   title: { type: string }
@@ -13,7 +14,6 @@ style:
 {% set contentTop = 60 if not title else (60 + titleHeight + 16 + 4 + 40) %}
 {% set mediaHeight = style.height if style.height else (1020 - contentTop) %}
 
-mode: scene
 presets:
 {{ blocks.header_presets("centeredTitle", "divider") | indent(2, true) }}
 {{ blocks.media_frame_preset("mediaFrame") | indent(2, true) }}

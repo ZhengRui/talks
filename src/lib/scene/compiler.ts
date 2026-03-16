@@ -466,6 +466,11 @@ function scaleSceneNode(node: SceneNode, viewport: SceneViewport): SceneNode {
         ...(node.layout ? { layout: scaleLayout(node.layout, viewport) } : {}),
         children: node.children.map((child) => scaleSceneNode(child, viewport)),
       } satisfies SceneGroupNode;
+    case "block":
+      throw new Error(
+        `[scene] Block node "${node.id}" must be expanded before compilation. ` +
+        `Call expandBlockNodes() before compileSceneSlide().`,
+      );
   }
 }
 

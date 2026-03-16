@@ -1,4 +1,5 @@
 name: profile
+scope: slide
 params:
   name: { type: string, required: true }
   title: { type: string }
@@ -18,7 +19,6 @@ style:
 {% set bioHeight = bio | text_height(style.bioSize, 1.5, style.bioWidth, 400) if bio else 0 %}
 {% set minimalOffset = 12 if (not image and not title and not bio) else 0 %}
 
-mode: scene
 presets:
 {{ blocks.heading_text_preset("profileName", "center") | indent(2, true) }}
 {{ blocks.body_text_preset("profileTitle", "center", "theme.accent", 1.3) | indent(2, true) }}

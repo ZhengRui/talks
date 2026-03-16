@@ -1,4 +1,5 @@
 name: top-bottom
+scope: slide
 params:
   title: { type: string }
   top: { type: string, required: true }
@@ -17,7 +18,6 @@ style:
 {% set bodyHeight = top | text_height(style.bodySize, 1.6, 1536, 400) %}
 {% set bottomBodyHeight = bottom | text_height(style.bodySize, 1.6, 1536, 400) %}
 
-mode: scene
 presets:
 {{ blocks.header_presets("sectionTitle", "divider") | indent(2, true) }}
 {{ blocks.surface_card_preset("panelCard") | indent(2, true) }}

@@ -1,4 +1,5 @@
 name: code-comparison
+scope: slide
 params:
   title: { type: string }
   before: { type: object, required: true }
@@ -21,7 +22,6 @@ style:
 {% set afterHeight = afterCodeHeight + (52 if afterHasLabel else 0) %}
 {% set layoutHeight = beforeHeight if beforeHeight >= afterHeight else afterHeight %}
 
-mode: scene
 presets:
 {{ blocks.header_presets("centeredTitle", "divider") | indent(2, true) }}
 {{ blocks.body_text_preset("codeLabel", "center", "theme.textMuted", 1.5) | indent(2, true) }}

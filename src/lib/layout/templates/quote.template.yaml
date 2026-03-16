@@ -1,4 +1,5 @@
 name: quote
+scope: slide
 params:
   quote: { type: string, required: true }
   attribution: { type: string }
@@ -8,7 +9,6 @@ style:
 
 {% import "scene/blocks.njk" as blocks %}
 
-mode: scene
 presets:
   quoteMark:
     style:

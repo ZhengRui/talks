@@ -1,4 +1,5 @@
 name: full-image
+scope: slide
 params:
   image: { type: string, required: true }
   title: { type: string }
@@ -20,7 +21,6 @@ style:
 {% set stackHeight = titleHeight + (28 + bodyHeight if title and body else bodyHeight) %}
 {% set stackY = 60 + (960 - stackHeight) / 2 %}
 
-mode: scene
 background:
   type: image
   src: "{{ image }}"

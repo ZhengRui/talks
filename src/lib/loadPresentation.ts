@@ -4,6 +4,8 @@ import { parse } from "yaml";
 import type { PresentationData, PresentationSummary } from "./types";
 import { findTemplate } from "./dsl/loader";
 import { expandDslTemplate } from "./dsl/engine";
+import { expandBlockNodes } from "./dsl/block-expand";
+import type { SceneSlideData } from "./scene/types";
 
 const CONTENT_DIR = path.join(process.cwd(), "content");
 
@@ -13,7 +15,16 @@ export function loadPresentation(slug: string): PresentationData {
   const data = parse(raw) as { title: string; author?: string; theme?: string; slides: Record<string, unknown>[] };
 
   // Expand DSL templates into scene slides before returning
-  const slides = data.slides.map((slide) => expandSlideIfDsl(slide, slug));
+  const slides = data.slides.map((slide) => {
+    const expanded = expandSlideIfDsl(slide, slug);
+    if ((expanded as Record<string, unknown>).mode === "scene") {
+      return expandBlockNodes(
+        expanded as unknown as SceneSlideData,
+        slug,
+      ) as unknown as Record<string, unknown>;
+    }
+    return expanded;
+  });
 
   return { ...data, slides } as unknown as PresentationData;
 }

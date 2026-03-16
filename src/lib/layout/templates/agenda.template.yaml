@@ -1,4 +1,5 @@
 name: agenda
+scope: slide
 params:
   title: { type: string, required: true }
   items: { type: array, required: true }
@@ -13,7 +14,6 @@ style:
 {% set contentTop = 60 + titleHeight + 16 + 4 + 40 %}
 {% set totalHeight = (items | list_height(style.itemSize, 1.6, 1552, 12, false, 400)) + (items.length * 32) if items.length > 0 else 0 %}
 
-mode: scene
 presets:
 {{ blocks.header_presets("sectionTitle", "divider", "left") | indent(2, true) }}
 {{ blocks.body_text_preset("itemText", "left", "theme.text", 1.6) | indent(2, true) }}

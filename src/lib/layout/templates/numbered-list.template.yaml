@@ -1,4 +1,5 @@
 name: numbered-list
+scope: slide
 params:
   title: { type: string, required: true }
   items: { type: "string[]", required: true }
@@ -13,7 +14,6 @@ style:
 {% set badgeSize = 44 %}
 {% set itemGap = 20 %}
 
-mode: scene
 presets:
 {{ blocks.header_presets("sectionTitle", "divider", "left") | indent(2, true) }}
 {{ blocks.heading_text_preset("badgeNumber", "center", "theme.bg", 1, 700, "middle") | indent(2, true) }}

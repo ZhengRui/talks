@@ -1,4 +1,5 @@
 name: image-gallery
+scope: slide
 params:
   title: { type: string }
   images: { type: array, required: true }
@@ -20,7 +21,6 @@ style:
 {% set contentTop = topPad if not title else (topPad + titleHeight + 16 + 4 + 40) %}
 {% set contentHeight = 1080 - contentTop - topPad %}
 
-mode: scene
 presets:
 {{ blocks.header_presets("sectionTitle", "divider") | indent(2, true) }}
 {{ blocks.body_text_preset("galleryCaption", "center", "theme.textMuted", captionLineHeight) | indent(2, true) }}

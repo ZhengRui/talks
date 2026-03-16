@@ -165,12 +165,20 @@ export interface SceneGroupNode extends SceneNodeBase {
   layout?: SceneLayout;
 }
 
+export interface SceneBlockNode extends SceneNodeBase {
+  kind: "block";
+  template: string;
+  params?: Record<string, unknown>;
+  style?: Record<string, string | number>;
+}
+
 export type SceneNode =
   | SceneTextNode
   | SceneShapeNode
   | SceneImageNode
   | SceneIrNode
-  | SceneGroupNode;
+  | SceneGroupNode
+  | SceneBlockNode;
 
 export type SceneBackgroundSpec =
   | string

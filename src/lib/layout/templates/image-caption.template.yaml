@@ -1,4 +1,5 @@
 name: image-caption
+scope: slide
 params:
   title: { type: string }
   image: { type: string, required: true }
@@ -19,7 +20,6 @@ style:
 {% set contentTop = topPad if not title else (topPad + titleHeight + 16 + 4 + 40) %}
 {% set resolvedImageHeight = style.imageHeight or (1080 - contentTop - 20 - captionHeight - topPad) %}
 
-mode: scene
 presets:
 {{ blocks.header_presets("sectionTitle", "divider") | indent(2, true) }}
 {{ blocks.body_text_preset("captionText", "center", "theme.textMuted", style.captionLineHeight) | indent(2, true) }}

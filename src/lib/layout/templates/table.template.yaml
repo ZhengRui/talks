@@ -1,4 +1,5 @@
 name: table
+scope: slide
 params:
   title: { type: string }
   headers: { type: array, required: true }
@@ -19,7 +20,6 @@ style:
 {% set colW = pw / colCount %}
 {% set tableH = style.headerH + rows.length * style.rowH %}
 
-mode: scene
 presets:
 {{ blocks.header_presets("centeredTitle", "divider") | indent(2, true) }}
 children:

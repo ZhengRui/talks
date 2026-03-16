@@ -1,4 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import fs from "fs";
+import path from "path";
 import {
   loadPresentation,
   discoverPresentations,
@@ -101,5 +103,74 @@ describe("getAllSlugs", () => {
     const slugs = getAllSlugs();
 
     expect(slugs).toContain("example-v9");
+  });
+});
+
+describe("loadPresentation block expansion", () => {
+  const slug = "__test-block-expand__";
+  const contentDir = path.join(process.cwd(), "content", slug);
+  const templatesDir = path.join(contentDir, "templates");
+
+  beforeAll(() => {
+    fs.mkdirSync(templatesDir, { recursive: true });
+
+    fs.writeFileSync(
+      path.join(templatesDir, "test-badge.template.yaml"),
+      `name: test-badge
+params:
+  text: { type: string, required: true }
+
+kind: group
+children:
+  - kind: text
+    id: label
+    frame: { x: 0, y: 0, w: 120 }
+    text: "{{ text }}"
+    style:
+      fontSize: 18
+      lineHeight: 1.1
+`,
+    );
+
+    fs.writeFileSync(
+      path.join(contentDir, "slides.yaml"),
+      `title: Block Test
+slides:
+  - mode: scene
+    children:
+      - kind: text
+        id: title
+        frame: { x: 100, y: 50, w: 600 }
+        text: "Slide Title"
+        style:
+          fontSize: 48
+          lineHeight: 1.1
+      - kind: block
+        id: badge
+        template: test-badge
+        frame: { x: 100, y: 200, w: 200, h: 60 }
+        params:
+          text: "NEW"
+`,
+    );
+  });
+
+  afterAll(() => {
+    fs.rmSync(contentDir, { recursive: true, force: true });
+  });
+
+  it("expands block nodes during presentation loading", () => {
+    const pres = loadPresentation(slug);
+    const slide = pres.slides[0];
+
+    expect(slide.mode).toBe("scene");
+    expect(slide.children).toHaveLength(2);
+    expect(slide.children[0].kind).toBe("text");
+    expect(slide.children[1].kind).toBe("group");
+    expect(slide.children[1].id).toBe("badge");
+
+    const group = slide.children[1] as { children: Array<{ id: string; text: string }> };
+    expect(group.children[0].id).toBe("badge.label");
+    expect(group.children[0].text).toBe("NEW");
   });
 });
