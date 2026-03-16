@@ -7,6 +7,8 @@ description: Use when generating presentation slides, creating a deck, or buildi
 
 Generate presentation slides as scene YAML — explicit geometry on a 1920×1080 canvas. Templates available as shortcuts when content fits a standard layout.
 
+This repo is fully on the v9 path: scene slides are the only authoring/layout path, and built-in templates expand directly to `mode: scene`.
+
 See [reference.md](reference.md) for full syntax of all templates, scene node types, and themes.
 
 ## Generation Modes

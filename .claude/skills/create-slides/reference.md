@@ -32,6 +32,8 @@ slides:
 
 Concise YAML for standard layouts. Each has specific props — internally they emit scene slides via DSL.
 
+The repo is now fully v9 scene-first. Templates are concise scene-backed shortcuts, and only the documented params below are supported.
+
 ### Title & Section
 
 #### cover
@@ -48,7 +50,6 @@ Concise YAML for standard layouts. Each has specific props — internally they e
 - template: statement
   statement: "One powerful sentence."
   subtitle: "Supporting context"       # optional
-  image: "bg.jpg"                     # optional background
 ```
 
 #### section-divider
@@ -57,6 +58,7 @@ Concise YAML for standard layouts. Each has specific props — internally they e
   title: "Part Two"
   subtitle: "The Journey Continues"    # optional
   image: "section-bg.jpg"             # optional background
+  overlay: dark                       # optional: dark | light | none | custom rgba(...)
 ```
 
 #### end
@@ -64,7 +66,6 @@ Concise YAML for standard layouts. Each has specific props — internally they e
 - template: end
   title: "Thank You"                  # optional
   subtitle: "Questions?"              # optional
-  image: "bg.jpg"                     # optional background
 ```
 
 ### Content
@@ -76,7 +77,6 @@ Concise YAML for standard layouts. Each has specific props — internally they e
   bullets:
     - "First point"
     - "Second point"
-  image: "bg.jpg"                     # optional background
 ```
 
 #### numbered-list
@@ -142,7 +142,6 @@ Concise YAML for standard layouts. Each has specific props — internally they e
 - template: quote
   quote: "The best way to predict the future is to invent it."
   attribution: "Alan Kay"             # optional
-  image: "bg.jpg"                     # optional background
 ```
 
 ### Data & Technical
@@ -221,7 +220,7 @@ Concise YAML for standard layouts. Each has specific props — internally they e
 - template: diagram
   title: "Architecture"              # optional
   image: "arch-diagram.png"
-  caption: "System overview"         # optional
+  caption: "System overview"         # required
 ```
 
 #### chart-placeholder
@@ -229,7 +228,7 @@ Concise YAML for standard layouts. Each has specific props — internally they e
 - template: chart-placeholder
   title: "Growth Over Time"
   image: "chart.png"
-  caption: "Source: Internal data"   # optional
+  caption: "Source: Internal data"   # required
 ```
 
 ### Media
@@ -293,7 +292,7 @@ Concise YAML for standard layouts. Each has specific props — internally they e
   image: "hero.jpg"
   title: "Optional Overlay Title"    # optional
   body: "Optional overlay text"      # optional
-  overlay: dark                      # optional: dark | light
+  overlay: dark                      # optional: dark | light | none | custom rgba(...)
 ```
 
 ### Layout
@@ -384,7 +383,7 @@ Concise YAML for standard layouts. Each has specific props — internally they e
 #### blank
 ```yaml
 - template: blank
-  image: "bg.jpg"                   # optional background
+  # no template params
 ```
 
 ---
@@ -471,7 +470,7 @@ Scene slides use `mode: scene` and contain a tree of positioned nodes. This is t
 
 **Layout types:**
 - `stack` — vertical, children flow top-to-bottom, explicit gap
-- `row` — horizontal, explicit tracks: `tracks: [400, "1fr", 300]` or equal-width with gap
+- `row` — horizontal, optional explicit tracks: `tracks: [400, 500, 300]` or `tracks: ["30%", "40%", "30%"]`. If omitted, remaining width is divided equally.
 - `grid` — fixed columns: `columns: 3`, optional `tracks` for column widths, `rowGap`/`columnGap`
 
 #### ir (escape hatch)
@@ -622,6 +621,7 @@ background: "theme.bg"
 background: { type: solid, color: "theme.bg" }
 
 # Image with optional overlay
+background: { type: image, src: "hero.jpg", overlay: "dark" }
 background: { type: image, src: "hero.jpg", overlay: "rgba(0,0,0,0.5)" }
 ```
 

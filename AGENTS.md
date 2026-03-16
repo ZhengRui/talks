@@ -35,8 +35,12 @@
 ## Commit & Pull Request Guidelines
 - Use conventional commits with scope and a bullet list body, ending with a co-author line.
   Example:
-  `feat(layout): add quote layout`
-  `- Add layoutQuote template function`
-  `- Update layout template registry`
-  `Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>`
+  ```
+  feat(layout): add quote layout
+
+  - Add layoutQuote template function
+  - Update layout template registry
+
+  Co-Authored-By: Codex <codex@openai.com>
+  ```
 - PRs should include a clear summary, relevant test commands run, and screenshots/GIFs for visual slide changes. Link related issues when applicable.

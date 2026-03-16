@@ -1,781 +1,818 @@
 # Slide Replication Reference
 
-Comprehensive IR element reference, layout behavior rules, hidden defaults, and CSS-to-IR translation for replicating slides with pixel-level accuracy.
+This repo is fully on the v9 scene-first path.
+
+- `SlideData` is scene-only
+- the legacy component/autolayout path is gone
+- replication should default to scene authoring with explicit geometry
+- built-in templates still exist, but they are now scene-backed shortcuts
+
+Primary replication goal: extract a reusable scene-backed template whenever the source layout is shareable, then instantiate the replicated slide from that template.
+
+Use this reference for replication-specific guidance. For full template coverage, see the built-in templates in `src/lib/layout/templates/`.
 
 ---
 
-## Canvas & Coordinate System
+## Two-Layer Model
 
+### Layer 1: Core Replication Contract
+
+This is the default mode. It is the right model for an API or service.
+
+- Input: screenshot or visual source, optional markup, optional user corrections
+- Output: analysis, reusable template YAML, slide instance YAML, verification plan
+- No arbitrary repo reads
+- No file writes
+- No invented slugs, decks, or scratch paths
+
+Use this layer unless the caller explicitly wants repo integration.
+
+### Layer 2: Repo Adapter
+
+This is the repo-specific wrapper around Layer 1.
+
+- Input: Layer 1 inputs plus slug and target slide or explicit repo path
+- Output: files written under `content/<slug>/...`, plus repo verification artifacts
+- Minimal allowed reads: target `slides.yaml`, target template file if updating, target deck assets
+- Minimal allowed writes: target template, target slide entry, optional overlay refs
+- Verification surfaces: `/workbench/replicate` and `bun run slide:diff`
+
+Do not enter Layer 2 just because the repo is available. Enter it only when the user asks for repo changes or provides a concrete target deck.
+
+---
+
+## Replication Workflow
+
+### 0. Choose The Layer
+
+- If the user asked for a service-style result, API payload, or did not provide a concrete slug or output path, stay in Layer 1.
+- If the user explicitly asked for repo edits or provided a real deck target, use Layer 2.
+- If slug or path is missing, do not invent one. Return Layer 1 output instead.
+
+### 1. Prepare The Reference
+
+- Prefer a cropped slide screenshot with no browser chrome.
+- If the source includes extra margins or UI, crop it first or measure the slide bounds precisely.
+- Record the reference image size. That becomes `sourceSize` when authoring in screenshot-space.
+
+### 2. Choose The Coordinate Space
+
+- For screenshot replication, `sourceSize` is the default.
+- If you are measuring directly from the screenshot, keep those measurements and set `sourceSize`.
+- If exact 1920x1080 coordinates were explicitly provided or already normalized outside the skill, omit `sourceSize`.
+- Do not manually rescale twice.
+
+### 3. Author The Scene
+
+- Start with background and largest panels.
+- Add `guides` for repeated edges, splits, and baselines.
+- Use `frame` constraints plus anchors for local relationships.
+- Use `stack`, `row`, and `grid` only where the source is actually regular.
+- Use `kind: ir` as an escape hatch when scene-native nodes are not enough.
+
+### 4. Extract The Template
+
+- Prefer a reusable scene template unless the slide is clearly one-off. In Layer 2, write it into `content/<slug>/templates/`.
+- Promote the stable layout skeleton into the template:
+  - guides
+  - region frames
+  - z-order
+  - recurring chrome
+  - presets
+  - local layout rules
+- Parameterize what should vary:
+  - text
+  - arrays
+  - image paths
+  - optional regions
+  - meaningful style knobs
+- Instantiate the original replicated slide from that template in `slides.yaml` when in Layer 2.
+- In Layer 1, return the template body and slide instance body without writing files.
+
+### 5. Verify
+
+- In Layer 1, return a verification plan and recommended commands or URLs.
+- In Layer 2, use the repo's named verification surfaces:
+  - interactive review: `/workbench/replicate`
+  - overlay viewer:
+    - `/<slug>?slide=12&chrome=0&overlay=refs/slide-12.png&overlayOpacity=0.5`
+    - `/<slug>?slide=12&chrome=0&overlayDir=refs&overlayPattern=slide-{n}.png&overlayOpacity=0.5`
+  - CLI diff:
+    - `bun run slide:diff -- --slug <slug> --slide <n> --reference /absolute/path/to/reference.png`
+
+Use `overlay` for alignment and spacing. Use `diff` for fast mismatch inspection.
+If `slide:diff` is used, describe it by that name even though the script uses Playwright internally. Do not present a raw Playwright screenshot loop as the public workflow.
+
+---
+
+## Service-Safe Rules
+
+### Default Read Boundary
+
+In Layer 1, only read:
+
+- the provided screenshot or reference asset
+- the provided HTML/CSS or markup, if any
+- this skill and its reference
+
+Do not read:
+
+- unrelated `slides.yaml` files
+- existing decks just to infer format
+- solver or engine internals
+- arbitrary theme files or implementation code
+
+### When Repo Reads Are Allowed
+
+In Layer 2, read only what is minimally necessary:
+
+- `content/<slug>/slides.yaml`
+- `content/<slug>/templates/<template-name>.template.yaml` if updating rather than creating
+- target deck assets or `public/<slug>/refs/` if verification setup needs them
+
+Only inspect implementation code if:
+
+- the skill/reference is insufficient to produce valid v9 scene YAML, or
+- repo integration fails and you are debugging a compile or runtime issue
+
+### Write Boundary
+
+- Layer 1: no writes
+- Layer 2: write only the requested template, slide instance, and verification support files
+- Never invent a scratch slug or temporary deck unless the user explicitly asked for one
+- If creating a new `slides.yaml`, write a full presentation wrapper with at least `title` and `slides`
+- `theme` is optional; do not invent an invalid theme name
+- If no repo theme is a good match, omit `theme` and rely on explicit scene styles for fidelity
+
+### Output Contract
+
+Layer 1 should return:
+
+1. analysis
+2. authoring decision
+3. reusable template YAML
+4. slide instance YAML
+5. verification plan
+
+Layer 2 should return:
+
+1. analysis
+2. authoring decision
+3. template file contents
+4. slide instance YAML
+5. concrete file paths written
+6. verification method and, if run, diff result
+
+---
+
+## Repo Adapter Workflow
+
+When Layer 2 is active:
+
+1. run Layer 1 logic first
+2. write or update the template file
+3. write or update the slide instance
+4. set up overlay refs only if needed
+5. verify with `/workbench/replicate` or `bun run slide:diff`
+
+---
+
+## Template-First Heuristics
+
+### Create Or Update A Deck-Local Template When
+
+- the composition could reasonably appear in more than one slide
+- the slide belongs to a family in the source deck
+- the structure is stable but content varies
+- the slide uses recognizable recurring regions such as hero, split, stat rail, image + caption, or repeated cards
+
+### Use An Inline Scene Only When
+
+- the composition is highly bespoke and not worth parameterizing
+- almost every node would stay hardcoded anyway
+- extracting a template would create a fake abstraction with no reuse value
+
+### Use A Built-In Template When
+
+- the source is already a close match
+- built-in params and style controls cover the needed fidelity
+- introducing a deck-local template would duplicate an existing built-in shape
+
+---
+
+## Deck-Local Template Output
+
+File location:
+
+```text
+content/<slug>/templates/<template-name>.template.yaml
 ```
-Canvas: 1920 × 1080 (fixed, all values in px)
-Safe area: x:160, y:60 → x:1760, y:1020 (1600 × 960)
-Center: (960, 540)
-Split ratios: 50/50=960|960  55/45=1056|864  60/40=1152|768  65/35=1250|670  70/30=1344|576
-z-order: later elements in YAML render on top
+
+The loader checks deck-local templates before built-ins, so no registry update is needed.
+
+Typical replication output is:
+
+1. template file
+2. slide instance in `content/<slug>/slides.yaml`
+
+This section applies to Layer 2 only. In Layer 1, return the same material as payload rather than writing files.
+
+### Parameterization Rules
+
+Always parameterize:
+
+- titles, body, labels, captions
+- arrays of repeated items
+- image paths
+- optional blocks
+- the values that actually vary across sibling slides
+
+Parameterize as `style` defaults when useful:
+
+- split widths
+- panel padding
+- font sizes
+- accent colors that define the template family
+- repeated spacing values
+
+Usually hardcode:
+
+- the guide system
+- the overall composition skeleton
+- layer ordering
+- the default local layout types
+- stable chrome and decorative geometry
+
+When the slide does not fit an existing repo theme well:
+
+- omit top-level `theme` rather than forcing a poor match
+- prefer explicit colors over theme tokens
+- prefer explicit font-family strings over `heading` / `body` / `mono` tokens when typography fidelity matters
+
+---
+
+## Scene Template Skeleton
+
+Deck-local templates still emit `mode: scene`.
+
+```yaml
+name: split-stat-rail
+params:
+  eyebrow: { type: string }
+  title: { type: string, required: true }
+  body: { type: string, required: true }
+  stats: { type: array, required: true }
+style:
+  split: { type: number, default: 910 }
+  accent: { type: string, default: "#ff6b35" }
+
+mode: scene
+sourceSize: { w: 1366, h: 768 }
+fit: contain
+align: center
+background: { type: solid, color: "#0f0a05" }
+guides:
+  x: { left: 96, split: {{ style.split }}, stats: 1000 }
+  y: { top: 64 }
+presets:
+  titleText:
+    style:
+      fontFamily: heading
+      fontSize: 52
+      fontWeight: 700
+      color: "#ffffff"
+      lineHeight: 1.1
+  bodyText:
+    style:
+      fontFamily: body
+      fontSize: 20
+      fontWeight: 400
+      color: "#b0a898"
+      lineHeight: 1.6
+  statValue:
+    style:
+      fontFamily: heading
+      fontSize: 56
+      fontWeight: 700
+      color: "{{ style.accent }}"
+      lineHeight: 1
+  statLabel:
+    style:
+      fontFamily: body
+      fontSize: 16
+      fontWeight: 400
+      color: "#8a8078"
+      lineHeight: 1.3
+children:
+  - kind: shape
+    id: right-panel
+    frame: { left: "@x.split", top: 0, right: 0, bottom: 0 }
+    shape: rect
+    style: { fill: "#1a1714" }
+  - kind: text
+    id: title
+    preset: titleText
+    frame: { left: "@x.left", top: "@y.top", w: 560 }
+    text: "{{ title | yaml_string }}"
+  - kind: text
+    id: body
+    preset: bodyText
+    frame: { left: "@x.left", top: 220, w: 560 }
+    text: "{{ body | yaml_string }}"
+  - kind: group
+    id: stats
+    frame: { left: "@x.stats", top: 180, w: 220, h: 300 }
+    layout: { type: stack, gap: 36 }
+    children:
+{% for stat in stats %}
+      - kind: group
+        id: stat-{{ loop.index0 }}
+        frame: { w: 220, h: 84 }
+        layout: { type: stack, gap: 8 }
+        children:
+          - kind: text
+            id: stat-{{ loop.index0 }}-value
+            preset: statValue
+            frame: { w: 220 }
+            text: "{{ stat.value | yaml_string }}"
+          - kind: text
+            id: stat-{{ loop.index0 }}-label
+            preset: statLabel
+            frame: { w: 220 }
+            text: "{{ stat.label | yaml_string }}"
+{% endfor %}
+```
+
+Slide instance:
+
+```yaml
+- template: split-stat-rail
+  eyebrow: "CHAPTER 03"
+  title: "The Fall of an Empire"
+  body: "Regional warlords, rebellions, and fiscal strain fractured an empire that had lasted nearly three centuries."
+  stats:
+    - value: "907 CE"
+      label: "Year of collapse"
+    - value: "289"
+      label: "Years of reign"
 ```
 
 ---
 
-## IR Element Reference
+## Scene Skeleton
 
-All elements share the ElementBase properties below. There are 9 element kinds, each with additional kind-specific properties.
+```yaml
+- mode: scene
+  sourceSize: { w: 1366, h: 768 }     # optional, author in reference-image coordinates
+  fit: contain                        # optional: contain | cover | stretch | none
+  align: center                       # optional: top-left | top | top-right | left | center | right | bottom-left | bottom | bottom-right
+  background: { type: solid, color: "#0b1020" }
+  guides:
+    x: { left: 96, split: 910, right: 1240 }
+    y: { top: 64, baseline: 312 }
+  presets:
+    title:
+      style:
+        fontFamily: heading
+        fontSize: 54
+        fontWeight: 700
+        color: "#ffffff"
+        lineHeight: 1.1
+  children:
+    - kind: shape
+      id: panel
+      frame: { left: "@x.split", top: 0, right: 0, bottom: 0 }
+      shape: rect
+      style: { fill: "#171b26" }
+    - kind: text
+      id: title
+      preset: title
+      frame: { left: "@x.left", top: "@y.top", w: 560 }
+      text: "Replication Example"
+```
 
-### ElementBase (shared by ALL elements)
+---
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `id` | string, required | Unique element identifier |
-| `rect` | `{x, y, w, h}`, required | Position and size in canvas px |
-| `opacity` | number (0–1) | Transparency |
-| `borderRadius` | number | Uniform corner radius in px |
-| `shadow` | `{offsetX, offsetY, blur, spread?, color}` | Box shadow |
-| `effects` | `{glow?: {color, radius, opacity?}, softEdge?: number, blur?: number}` | Visual effects |
-| `border` | `{width, color, sides?: ("top"\|"right"\|"bottom"\|"left")[], dash?: "solid"\|"dash"\|"dot"\|"dashDot"}` | Border styling |
-| `entrance` | `{type: "fade-up"\|"fade-in"\|"slide-left"\|"slide-right"\|"scale-up"\|"count-up"\|"none", delay, duration}` | Entrance animation |
-| `animation` | string | Raw CSS animation shorthand |
-| `clipPath` | string | CSS clip-path value |
-| `transform` | `{rotate?, scaleX?, scaleY?, flipH?, flipV?}` | Transform operations |
-| `cssStyle` | `Record<string,string>` | Web-only inline CSS overrides (ignored in PPTX) |
-| `position` | `"absolute"` | Opt out of parent's flow layout |
+## Coordinate Normalization
 
-### Kind 1: `text`
+### `sourceSize`
 
-Rich text element with full typographic control.
+`sourceSize` declares the pixel space you are authoring in.
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `text` | RichText (string or TextRun[]) | Text content |
-| `style` | TextStyle | Typography and alignment |
+```yaml
+sourceSize: { w: 1366, h: 768 }
+```
 
-**TextStyle properties:** `fontFamily`, `fontSize`, `fontWeight`, `fontStyle?`, `color`, `lineHeight`, `textAlign?`, `textShadow?`, `letterSpacing?`, `textTransform?`, `verticalAlign?`, `highlightColor?`
+When `sourceSize` is present, the compiler scales geometry and visual metrics into the final 1920x1080 slide:
 
-**TextRun properties:** `{text, bold?, italic?, underline?, strikethrough?, color?, fontSize?, fontFamily?, letterSpacing?, highlight?, superscript?, subscript?}`
+- `frame` values
+- guide positions
+- font sizes
+- letter spacing
+- border widths
+- border radii
+- shadow offsets and blur
+- effect radii
+- `kind: ir` element rects and styles
+
+### `fit`
+
+- `contain`: preserve aspect ratio, fit fully inside 1920x1080
+- `cover`: preserve aspect ratio, fill 1920x1080 and crop overflow
+- `stretch`: scale X and Y independently
+- `none`: no scaling, just place the source-space scene inside the 1920x1080 canvas
+
+Recommended default for replication: `fit: contain`.
+
+### `align`
+
+Controls where the scaled source-space scene sits inside the 1920x1080 canvas.
+
+Common default: `align: center`.
+
+### Practical Rules
+
+- If the reference is a clean slide screenshot, use its native pixel size as `sourceSize`.
+- If the reference contains browser chrome, crop first. Do not rely on `fit` to hide chrome.
+- If the source is already 16:9, `contain` will usually be the right default.
+
+---
+
+## Backgrounds
+
+Use the v9 background spec. Do not use legacy top-level `backgroundImage` fields.
+
+```yaml
+background: "theme.bg"
+background: { type: solid, color: "#0b1020" }
+background: { type: image, src: "hero.jpg", overlay: "dark" }
+background: { type: image, src: "hero.jpg", overlay: "rgba(0,0,0,0.45)" }
+```
+
+`overlay` supports `dark`, `light`, `none`, or a custom color string.
+
+---
+
+## Scene Nodes
+
+### `text`
 
 ```yaml
 - kind: text
   id: title
-  rect: { x: 160, y: 200, w: 1600, h: 70 }
-  text: "Hello World"
-  style: { fontFamily: "Inter, sans-serif", fontSize: 54, fontWeight: 700, color: "#fff", lineHeight: 1.15, textAlign: left }
+  frame: { left: 96, top: 64, w: 560 }
+  text: "Title"
+  style:
+    fontFamily: heading
+    fontSize: 54
+    fontWeight: 700
+    color: "#ffffff"
+    lineHeight: 1.1
+    textAlign: left
 ```
 
-### Kind 2: `shape`
+`text` accepts:
 
-Geometric shapes with fill, gradient, stroke, and pattern support.
+- plain strings
+- markdown-style strings such as `"The **Fall** of *Tang*"`
+- `TextRun[]` for mixed inline styling
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `shape` | `"rect"\|"circle"\|"line"\|"pill"\|"arrow"\|"triangle"\|"chevron"\|"diamond"\|"star"\|"callout"` | Shape type |
-| `style` | ShapeStyle | Fill, stroke, gradient, pattern |
+Text style fields:
 
-**ShapeStyle properties:** `fill?`, `stroke?`, `strokeWidth?`, `strokeDash?`, `gradient?: {type: "linear", angle, stops: [{color, position}]}`, `patternFill?: {preset, fgColor, fgOpacity?, bgColor?, bgOpacity?}`
+- `fontFamily`: `heading` | `body` | `mono` | CSS font-family string
+- `fontSize`
+- `fontWeight`
+- `fontStyle`
+- `color`
+- `lineHeight`
+- `textAlign`
+- `textShadow`
+- `letterSpacing`
+- `textTransform`
+- `verticalAlign`
+- `highlightColor`
 
-**PatternPresets:** `narHorz`, `narVert`, `smGrid`, `lgGrid`, `dotGrid`, `pct5`, `pct10`, `dnDiag`, `upDiag`, `diagCross`
+### `shape`
 
 ```yaml
 - kind: shape
-  id: bg-panel
-  rect: { x: 0, y: 0, w: 1920, h: 1080 }
-  shape: rect
-  style: { fill: "#1a1a2e" }
-```
-
-### Kind 3: `image`
-
-Positioned image with fit and clipping options.
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `src` | string | Image path or URL |
-| `objectFit` | `"cover"\|"contain"` | How image fits within rect |
-| `clipCircle?` | boolean | Clip to circular shape |
-
-```yaml
-- kind: image
-  id: hero
-  rect: { x: 960, y: 0, w: 960, h: 1080 }
-  src: "hero.jpg"
-  objectFit: cover
-  borderRadius: 0
-```
-
-### Kind 4: `group`
-
-Container element that holds child elements. Supports flex and grid layout modes.
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `children` | LayoutElement[] | Child elements |
-| `style?` | ShapeStyle | Background fill for the group |
-| `clipContent?` | boolean | Clip children to group bounds |
-| `layout?` | FlexLayout \| GridLayout | Layout mode for children |
-
-**FlexLayout:** `{type: "flex", direction: "row"|"column", gap?, align?: "start"|"center"|"end"|"stretch", justify?: "start"|"center"|"end"|"space-between"|"space-around", wrap?, padding?}`
-
-**GridLayout:** `{type: "grid", columns, gap?, rowGap?, columnGap?, padding?}`
-
-```yaml
-- kind: group
-  id: container
-  rect: { x: 160, y: 200, w: 1600, h: 600 }
-  layout: { type: flex, direction: column, gap: 20, align: start }
-  children:
-    - kind: text
-      id: child-1
-      rect: { x: 0, y: 0, w: 0, h: 0 }
-      text: "Auto-laid-out child"
-      style: { fontFamily: "Inter", fontSize: 28, fontWeight: 400, color: "#333", lineHeight: 1.6 }
-```
-
-### Kind 5: `code`
-
-Code block with language-specific rendering.
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `code` | string | Source code content |
-| `language?` | string | Programming language for highlighting |
-| `style` | `{fontFamily, fontSize, color, background, borderRadius, padding}` | Code block styling |
-
-```yaml
-- kind: code
-  id: snippet
-  rect: { x: 160, y: 300, w: 1600, h: 400 }
-  code: "const x = 42;\nconsole.log(x);"
-  language: javascript
-  style: { fontFamily: "JetBrains Mono", fontSize: 24, color: "#e0e0e0", background: "#1e1e2e", borderRadius: 12, padding: 32 }
-```
-
-### Kind 6: `table`
-
-Table with headers and rows, styled independently.
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `headers` | RichText[] | Column header text |
-| `rows` | RichText[][] | Row data (array of arrays) |
-| `headerStyle` | TextStyle & `{background}` | Header cell styling |
-| `cellStyle` | TextStyle & `{background, altBackground}` | Body cell styling |
-| `borderColor` | string | Border color between cells |
-
-```yaml
-- kind: table
-  id: data-table
-  rect: { x: 160, y: 300, w: 1600, h: 500 }
-  headers: ["Name", "Role", "Status"]
-  rows: [["Alice", "Engineer", "Active"], ["Bob", "Designer", "Away"]]
-  headerStyle: { fontSize: 22, fontWeight: 700, color: "#fff", background: "#333" }
-  cellStyle: { fontSize: 20, fontWeight: 400, color: "#333", background: "#fff", altBackground: "#f5f5f5" }
-  borderColor: "#e0e0e0"
-```
-
-### Kind 7: `list`
-
-Ordered or unordered list with bullet styling.
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `items` | RichText[] | List item text |
-| `ordered` | boolean | Numbered (true) or bulleted (false) |
-| `itemStyle` | TextStyle | Style for each list item |
-| `bulletColor?` | string | Color of bullets or numbers |
-| `itemSpacing` | number | Vertical spacing between items |
-
-```yaml
-- kind: list
-  id: features
-  rect: { x: 160, y: 300, w: 1600, h: 400 }
-  items: ["Fast startup", "Low memory", "Type safe"]
-  ordered: false
-  itemStyle: { fontFamily: "Inter", fontSize: 28, fontWeight: 400, color: "#333", lineHeight: 1.6 }
-  bulletColor: "#4f6df5"
-  itemSpacing: 16
-```
-
-### Kind 8: `video`
-
-Video player element.
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `src` | string | Video source URL |
-| `poster?` | string | Poster image shown before playback |
-
-```yaml
-- kind: video
-  id: demo
-  rect: { x: 160, y: 200, w: 1600, h: 700 }
-  src: "demo.mp4"
-  poster: "demo-poster.jpg"
-```
-
-### Kind 9: `iframe`
-
-Embedded web content.
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `src` | string | URL to embed |
-
-```yaml
-- kind: iframe
-  id: embed
-  rect: { x: 160, y: 200, w: 1600, h: 700 }
-  src: "https://example.com"
-```
-
----
-
-## CSS to IR Translation Table
-
-| CSS | IR Equivalent |
-|-----|---------------|
-| `background-color: #1a1a2e` | shape element: `style: { fill: "#1a1a2e" }` |
-| `background: linear-gradient(90deg, #ff6b35, #00d4ff)` | shape: `style: { gradient: { type: linear, angle: 90, stops: [{color: "#ff6b35", position: 0}, {color: "#00d4ff", position: 1}] } }` |
-| `color: #fff; font-size: 42px; font-weight: 700` | text: `style: { color: "#fff", fontSize: 42, fontWeight: 700 }` |
-| `position: absolute; top: 100px; left: 200px; width: 300px; height: 50px` | any element: `rect: { x: 200, y: 100, w: 300, h: 50 }` |
-| `display: flex; flex-direction: column; gap: 20px; align-items: center` | group: `layout: { type: flex, direction: column, gap: 20, align: center }` |
-| `display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px` | group: `layout: { type: grid, columns: 3, gap: 24 }` |
-| `border-left: 3px solid #c41e3a` | `border: { width: 3, color: "#c41e3a", sides: ["left"] }` |
-| `border-radius: 12px` | `borderRadius: 12` |
-| `box-shadow: 0 4px 24px rgba(0,0,0,0.1)` | `shadow: { offsetX: 0, offsetY: 4, blur: 24, color: "rgba(0,0,0,0.1)" }` |
-| `opacity: 0.8` | `opacity: 0.8` |
-| `transform: rotate(45deg) scaleX(1.2)` | `transform: { rotate: 45, scaleX: 1.2 }` |
-| `clip-path: polygon(...)` | `clipPath: "polygon(...)"` |
-| `text-align: center` | text style: `textAlign: "center"` |
-| `text-transform: uppercase` | text style: `textTransform: "uppercase"` |
-| `letter-spacing: 2px` | text style: `letterSpacing: 2` |
-| `line-height: 1.4` | text style: `lineHeight: 1.4` |
-| `font-style: italic` | text style: `fontStyle: "italic"` |
-| `overflow: hidden` | group: `clipContent: true` |
-| `filter: blur(4px)` | `effects: { blur: 4 }` |
-| `border: 1px dashed #ccc` | `border: { width: 1, color: "#ccc", dash: "dash" }` |
-| `<span style="color:red">text</span>` inside text | TextRun: `[{text: "text", color: "red"}]` |
-| `vertical-align: middle` on single-line text | text style: `verticalAlign: "middle"` |
-
-### NOT Supported in IR
-
-These CSS features have no IR equivalent and must be worked around:
-
-- Radial gradients
-- Per-corner border-radius (only uniform `borderRadius`)
-- `backdrop-filter`
-- `mix-blend-mode`
-- `text-stroke` / `-webkit-text-stroke`
-- Inset box-shadow
-- `mask-image`
-- SVG paths (use `clipPath` polygon approximations instead)
-
----
-
-## Layout Modes (group + layout)
-
-Layout modes control how a `group` element positions its children. Understanding these rules is critical for predicting rendered output.
-
-### Flex-Row Rules
-
-- Children **without** explicit width → split remaining space equally (there is NO flex-grow/flex-basis; it is always equal division)
-- Children **with** explicit width → locked at that width; remaining space distributed among width-less children
-- `gap`: px between children on the **main axis only** (horizontal gaps between columns)
-- `align` (cross-axis): `start` | `center` | `end` | `stretch`
-  - `stretch` fills the container height
-  - Other values use the child's explicit height, or fall back to the container height
-- `justify` (main-axis): `start` | `center` | `end` | `space-between` | `space-around`
-  - Only meaningful when children have explicit widths (otherwise children fill all available space and there is nothing to distribute)
-- `wrap: true` splits children into multiple rows when total widths exceed container width
-  - Row height in wrap mode = tallest child's explicit height in that row
-- `padding`: insets the layout area (reduces available space for children)
-
-### Flex-Column Rules
-
-Same as flex-row but transposed (height and width swap roles):
-
-- Children **without** explicit height → split remaining vertical space equally
-- Children **with** explicit height → locked at that height
-- `gap`: px between children on the **main axis** (vertical gaps between rows)
-- `align` controls **width**: `stretch` = container width, otherwise uses explicit width or container width
-- `justify` controls **vertical distribution**: only meaningful when children have explicit heights
-- `padding`: insets the layout area
-
-### Grid Rules
-
-- `columns`: fixed column count; ALL columns have equal width = `(innerW - (cols-1) * gap) / cols`
-- NO column spanning; NO unequal column widths
-- Row height: tallest explicit child height in that row, or equal share of remaining height if no child has an explicit height
-- `rowGap` / `columnGap` override the uniform `gap` value when specified
-- `padding`: insets the grid area
-
-### Absolute Positioning
-
-- Any element with `position: "absolute"` is **removed from flow layout**
-- Positioned at its own `rect` coordinates within the parent group's coordinate space
-- Z-order preserved by YAML order (mixed with flow elements — absolute elements render in document order alongside flow elements)
-
----
-
-## Component Defaults Cheat Sheet
-
-These are the implicit defaults applied by each component resolver. Claude must know these to predict rendered output without trial and error.
-
-| Component | fontSize | lineHeight | fontWeight | textAlign | fontFamily | Other Defaults |
-|-----------|----------|------------|------------|-----------|------------|----------------|
-| `heading` (level 1) | 54 | 1.15 | 700 | left | theme.fontHeading | — |
-| `heading` (level 2) | 42 | 1.15 | 700 | left | theme.fontHeading | — |
-| `heading` (level 3) | 34 | 1.15 | 700 | left | theme.fontHeading | — |
-| `body` | 28 | 1.6 | 400 | left | theme.fontBody | — |
-| `text` | 28 | 1.6 | 400 | left | theme.fontBody | — |
-| `stat` value | 64 | 1.15 | 700 | left | theme.fontHeading | color: theme.accent |
-| `stat` label | 24 | 1.5 | 400 | left | theme.fontBody | color: theme.textMuted, gap: 8px above |
-| `tag` | 20 | 1.0 | 600 | center | theme.fontBody | padding: [12,20], pill bg: accent+"22", border: 1px accent |
-| `quote` | 30 | 1.6 | 400 | left | theme.fontBody | fontStyle: italic, accent bar 4px left when left-aligned |
-| `card` title | 26 | 1.3 | 700 | left | theme.fontHeading | padding: 28, gap: 12 to body |
-| `card` body | 24 | 1.6 | 400 | left | theme.fontBody | color: theme.textMuted |
-| `code` | 24 | 1.6 | — | — | theme.fontMono | padding: 32, bg: theme.codeBg |
-| `divider` solid | — | — | — | left | — | w: min(panel,200), h: 4, opacity: 0.4 |
-| `divider` gradient | — | — | — | left | — | w: min(panel,200), h: 4, theme.accentGradient |
-| `divider` ink | — | — | — | left | — | w: min(panel,200), h: 4, accent→transparent |
-| `divider` border | — | — | — | left | — | w: full panel, h: 1, theme.border.color |
-| `bullets` card | 30 | 1.6 | 400 | left | theme.fontBody | gap: 16, padding: 16, bgSecondary fill, 3px accent left bar |
-| `bullets` plain | 30 | — | 400 | left | theme.fontBody | gap: 20, itemH: 52, ordered: badge 44px circle |
-| `bullets` list | 30 | 1.6 | 400 | left | theme.fontBody | gap: 10, bulletIndent: 30 |
-| `image` | — | — | — | — | — | objectFit: contain, borderRadius: theme.radiusSm |
-| `spacer` | — | — | — | — | — | flex: true (fills remaining space) when no explicit height |
-
----
-
-## Box Behavior Rules
-
-The `box` component is the primary layout container. These 8 rules govern its behavior:
-
-1. **Default layout is flex-column** — even with no `layout` prop specified, children stack vertically
-2. **Default padding: 28px all sides** — CSS-style values: `number` | `[vert, horiz]` | `[top, right, bottom, left]`
-3. **Default gap: 16px** between children
-4. **Default variant: "card"** = cardBg fill + theme border + shadow + radius + clipContent
-5. **`variant: "flat"`** = no fill, no border, no shadow, no radius, no clipContent — invisible structural container
-6. **`variant: "panel"`** = fill, no shadow, selective border only if explicitly set
-7. **`fill: true`** = height expands to fill parent (like flex-grow: 1)
-8. **`verticalAlign`** (`"top"` | `"center"` | `"bottom"`) shifts content within the box, not the box position itself
-
-### When to Use Each Variant
-
-- **`flat`** — transparent structural containers (slide-level wrapper, split panels with no visible chrome)
-- **`card`** (default) — themed content boxes with visible background, border, shadow
-- **`panel`** — filled areas without shadow (sidebar panels, content areas with background but no card chrome)
-
-### Additional Box Properties
-
-- `maxWidth` constrains and centers the box horizontally within its parent
-- `accentTop: true` adds a 3px accent-colored top border
-- `background` overrides the default cardBg fill (works with all variants including flat)
-- Children's `margin`: CSS-style values, baked into layout calculations (vertical margin into placeholder height for flex-column, horizontal for flex-row)
-
----
-
-## Text Height Estimation
-
-The formula the framework uses to calculate text element heights. Use this to predict how much vertical space text will consume.
-
-```
-charWidth = isBold ? fontSize × 0.57 : fontSize × 0.52
-            (CJK characters: fontSize × 1.0)
-
-For each \n-separated paragraph:
-  paragraphWidth = sum(charWidth for each character)
-  lines = max(1, ceil(paragraphWidth / containerWidth))
-
-totalLines = sum of lines across all paragraphs
-height = totalLines × fontSize × lineHeight
-       + (lineHeight < 1.3 ? fontSize × 0.15 : 0)   ← descender padding
-```
-
-### Quick Estimates for Common Cases
-
-| Element | Parameters | Height per Line |
-|---------|-----------|----------------|
-| Heading (level 1) | 54px, bold, lineHeight 1.15 | ~62px per line, +8px descender |
-| Body text | 28px, lineHeight 1.6 | ~45px per line |
-| Single-line stat value | 64px, lineHeight 1.15 | ~74px |
-| Tag | 20px, lineHeight 1.0 | ~20px + padding |
-
----
-
-## Component vs Raw Decision Matrix
-
-| Scenario | Use | Why |
-|----------|-----|-----|
-| Background color panel | raw `kind: shape` | Exact rect at exact position, no component overhead |
-| Gradient strip or decorative line | raw `kind: shape` | Pixel-precise position + gradient fill |
-| Watermark text at low opacity | raw `kind: text` | Needs exact x,y + opacity control |
-| Overlapping/layered elements | raw elements | Components in flow layout can't overlap |
-| Precise text at specific coordinates | raw `kind: text` | Full control over position and style |
-| Circular decorative shape | raw `kind: shape` (circle) | Exact size and position |
-| Content with bullet cards | `bullets` component | Card rendering has complex internal layout (bg, accent bar, padding) |
-| Code block with syntax highlighting | `code` component | Handles theme colors, padding, font |
-| Stat value + label pair | `stat` component | Handles two-line layout with proper gap and sizing |
-| Table with headers and rows | `table` component | Header/row/alternating styling built-in |
-| Two-panel split layout | `box` with flex-row children | Handles width distribution + padding |
-| Vertically centered content | `box` with `verticalAlign: center` | Handles offset math internally |
-| Equal-width card columns | `box` with flex-row or `columns` | Auto-distributes width |
-| Grid of repeated items | `grid` component | Equal columns + row layout |
-
-**Rule of thumb:** Use raw when POSITION matters. Use components when STRUCTURE matters.
-
----
-
-## Common Visual Patterns as IR
-
-Complete YAML snippets for frequently needed replication patterns. Each is a `children` array entry ready to use in a template.
-
-### 1. Full-Bleed Background Panel
-
-Shape covering entire slide or a portion:
-
-```yaml
-- kind: shape
-  id: bg-panel
-  rect: { x: 1250, y: 0, w: 670, h: 1080 }
-  shape: rect
-  style: { fill: "#1a1a2e" }
-```
-
-### 2. Gradient Accent Strip
-
-Full-width thin line at top:
-
-```yaml
-- kind: shape
-  id: accent-strip
-  rect: { x: 0, y: 0, w: 1920, h: 4 }
+  id: strip
+  frame: { x: 0, y: 0, w: 1366, h: 4 }
   shape: rect
   style:
-    gradient: { type: linear, angle: 90, stops: [{ color: "#ff6b35", position: 0 }, { color: "#00d4ff", position: 1 }] }
+    gradient:
+      type: linear
+      angle: 90
+      stops:
+        - { color: "#ff6b35", position: 0 }
+        - { color: "#00d4ff", position: 1 }
 ```
 
-### 3. Centered Text Block
+Supported shapes:
 
-Heading centered on slide:
+- `rect`
+- `circle`
+- `line`
+- `pill`
+- `arrow`
+- `triangle`
+- `chevron`
+- `diamond`
+- `star`
+- `callout`
 
-```yaml
-- kind: text
-  id: title
-  rect: { x: 160, y: 440, w: 1600, h: 70 }
-  text: "Centered Title"
-  style: { fontFamily: "Inter, sans-serif", fontSize: 56, fontWeight: 700, color: "#ffffff", lineHeight: 1.15, textAlign: center }
-```
-
-### 4. Overlapping Watermark
-
-Large text behind content at low opacity:
-
-```yaml
-- kind: text
-  id: watermark
-  rect: { x: -50, y: 100, w: 1000, h: 600 }
-  text: "01"
-  style: { fontFamily: "Inter, sans-serif", fontSize: 400, fontWeight: 900, color: "rgba(255,255,255,0.03)", lineHeight: 1.0 }
-```
-
-### 5. Card with Accent Top Border
-
-Grouped content with visual chrome:
-
-```yaml
-- kind: group
-  id: card-0
-  rect: { x: 160, y: 200, w: 740, h: 300 }
-  style: { fill: "#1e1e2e" }
-  borderRadius: 12
-  border: { width: 3, color: "#4f6df5", sides: ["top"] }
-  shadow: { offsetX: 0, offsetY: 4, blur: 24, color: "rgba(0,0,0,0.15)" }
-  clipContent: true
-  children:
-    - kind: text
-      id: card-0-title
-      rect: { x: 28, y: 28, w: 684, h: 34 }
-      text: "Card Title"
-      style: { fontFamily: "Inter, sans-serif", fontSize: 26, fontWeight: 700, color: "#ffffff", lineHeight: 1.3, textAlign: left }
-    - kind: text
-      id: card-0-body
-      rect: { x: 28, y: 74, w: 684, h: 90 }
-      text: "Card body text goes here with supporting details."
-      style: { fontFamily: "Inter, sans-serif", fontSize: 22, fontWeight: 400, color: "rgba(255,255,255,0.6)", lineHeight: 1.6, textAlign: left }
-```
-
-### 6. Flex Container for Equal Columns
-
-Group with flex-row layout for auto-distributed columns:
-
-```yaml
-- kind: group
-  id: cols
-  rect: { x: 160, y: 200, w: 1600, h: 600 }
-  layout: { type: flex, direction: row, gap: 32, align: stretch }
-  children:
-    - kind: group
-      id: col-0
-      rect: { x: 0, y: 0, w: 0, h: 0 }
-      style: { fill: "#f0f0f0" }
-      borderRadius: 8
-      children: []
-    - kind: group
-      id: col-1
-      rect: { x: 0, y: 0, w: 0, h: 0 }
-      style: { fill: "#f0f0f0" }
-      borderRadius: 8
-      children: []
-```
-
-Note: children with `w:0, h:0` get auto-sized by the flex layout engine (equal share of available space).
-
-### 7. Staggered Entrance Animation
-
-Elements appearing sequentially with increasing delay:
-
-```yaml
-- kind: text
-  id: line-1
-  rect: { x: 160, y: 300, w: 1600, h: 50 }
-  text: "First line"
-  style: { fontFamily: "Inter", fontSize: 32, fontWeight: 400, color: "#333", lineHeight: 1.4 }
-  entrance: { type: fade-up, delay: 0, duration: 600 }
-- kind: text
-  id: line-2
-  rect: { x: 160, y: 370, w: 1600, h: 50 }
-  text: "Second line"
-  style: { fontFamily: "Inter", fontSize: 32, fontWeight: 400, color: "#333", lineHeight: 1.4 }
-  entrance: { type: fade-up, delay: 100, duration: 600 }
-- kind: text
-  id: line-3
-  rect: { x: 160, y: 440, w: 1600, h: 50 }
-  text: "Third line"
-  style: { fontFamily: "Inter", fontSize: 32, fontWeight: 400, color: "#333", lineHeight: 1.4 }
-  entrance: { type: fade-up, delay: 200, duration: 600 }
-```
-
-### 8. Image with Rounded Corners
-
-Positioned image with shadow:
+### `image`
 
 ```yaml
 - kind: image
   id: photo
-  rect: { x: 1000, y: 100, w: 800, h: 880 }
-  src: "hero-photo.jpg"
+  frame: { x: 960, y: 0, w: 406, h: 768 }
+  src: "hero.jpg"
   objectFit: cover
   borderRadius: 16
-  shadow: { offsetX: 0, offsetY: 8, blur: 32, color: "rgba(0,0,0,0.2)" }
+```
+
+Image fields:
+
+- `src`
+- `objectFit`: `cover` | `contain`
+- `clipCircle`
+
+### `group`
+
+Use `group` for a local scene subtree. It can be purely absolute or use a local layout.
+
+```yaml
+- kind: group
+  id: stats
+  frame: { x: 1000, y: 180, w: 240, h: 260 }
+  layout: { type: stack, gap: 48 }
+  children: [...]
+```
+
+#### `stack`
+
+```yaml
+layout:
+  type: stack
+  gap: 24
+  align: start          # start | center | end | stretch
+  justify: center       # start | center | end
+  padding: [20, 24, 20, 24]
+```
+
+#### `row`
+
+```yaml
+layout:
+  type: row
+  gap: 32
+  tracks: [480, 720]    # numbers or percentages, not fr units
+  align: stretch        # start | center | end | stretch
+  padding: 24
+```
+
+`tracks` support:
+
+- numbers, such as `480`
+- percentages, such as `"35%"`
+
+Do not use `1fr`. That is not part of the scene layout model.
+
+#### `grid`
+
+```yaml
+layout:
+  type: grid
+  columns: 3
+  columnGap: 24
+  rowGap: 24
+  rowHeight: 180
+  tracks: ["30%", "40%", "30%"]
+  padding: 24
+```
+
+### `ir`
+
+Use `kind: ir` when you need a raw `LayoutElement` subtree inside a scene slide.
+
+Typical cases:
+
+- code
+- table
+- list
+- video
+- iframe
+- a low-level raw IR subtree that is easier to reuse than rebuilding in scene nodes
+
+```yaml
+- kind: ir
+  id: code-block
+  frame: { x: 96, y: 420, w: 720, h: 220 }
+  element:
+    kind: code
+    id: code-element
+    rect: { x: 0, y: 0, w: 720, h: 220 }
+    code: "const x = 42;"
+    language: typescript
+    style:
+      fontFamily: "theme.fontMono"
+      fontSize: 24
+      color: "theme.codeText"
+      background: "theme.codeBg"
+      borderRadius: 12
+      padding: 24
 ```
 
 ---
 
-## Template Structural Signatures
+## FrameSpec
 
-### Title & Section
+Scene nodes use `frame`, not `rect`.
 
-| Template | Structure | Style Controls |
-|----------|-----------|----------------|
-| `cover` | centered box > heading + divider + [subtitle] + [tag/author] | — |
-| `statement` | centered box (gap: 28) > heading + [divider + subtitle] | — |
-| `section-divider` | centered box > heading + divider + [subtitle] | optional background image/overlay |
-| `end` | centered box (gap: 28) > heading + [divider + subtitle] | — |
+Available constraints:
 
-### Content
+- `x`, `y`, `w`, `h`
+- `left`, `top`, `right`, `bottom`
+- `centerX`, `centerY`
 
-| Template | Structure | Style Controls |
-|----------|-----------|----------------|
-| `bullets` | box > heading + divider + bullets | `titleSize`, `bulletVariant` (card/plain/list) |
-| `numbered-list` | box > heading + divider + bullets (ordered: true) | — |
-| `comparison` | box > [heading + divider] + columns (2x: heading + bullets, accent-top) | — |
-| `definition` | box > heading + divider + looped (term + description + divider) | — |
-| `agenda` | box > heading + divider + looped panel boxes | `activeIndex` highlights one item |
-| `highlight-box` | box > [heading + divider] + styled panel box > body | `variant` (info/warning/success) |
-| `qa` | box > heading (question) + divider + box > body (answer) | — |
-| `quote` | centered box > quote component (decorative) + [attribution] | — |
+Examples:
 
-### Data & Technical
-
-| Template | Structure | Style Controls |
-|----------|-----------|----------------|
-| `stats` | box > [heading + divider] + spacer + columns (N stat cards) + spacer | — |
-| `code` | box > [heading + divider] + code component | — |
-| `code-comparison` | box > [heading + divider] + columns (2x: label + code) | — |
-| `table` | box > [heading + divider] + raw (header + rows with borders) | — |
-| `timeline` | box > [heading + divider] + raw (horizontal: connector + dots + labels) | — |
-| `steps` | box > [heading + divider] + raw (vertical: badges + connectors + cards) | — |
-
-### Media
-
-| Template | Structure | Style Controls |
-|----------|-----------|----------------|
-| `image-text` | columns (50/50) > text-box (heading + divider + body/bullets) + image-box | `imagePosition` (left/right) |
-| `image-caption` | box > [heading + divider] + image + caption | — |
-| `image-grid` | box > [heading + divider] + grid (N columns of images + captions) | `columns` (2/3) |
-| `image-comparison` | box > [heading + divider] + columns (2x: image + label) | — |
-| `image-gallery` | box > [heading + divider] + columns (N images + captions) | — |
-| `full-image` | centered box > [heading + body] with background image/overlay | `overlay` (dark/light) |
-| `diagram` | alias → `image-caption` | — |
-| `chart-placeholder` | alias → `image-caption` | — |
-
-### Layout
-
-| Template | Structure | Style Controls |
-|----------|-----------|----------------|
-| `two-column` | box > [heading + divider] + columns (2x: body text) | — |
-| `three-column` | box > [heading + divider] + columns (3x: icon + heading + body, accent-top) | — |
-| `sidebar` | box > columns (variable ratio) > main-box + sidebar-panel-box | `sidebarPosition` (left/right) |
-| `top-bottom` | box > [heading + divider] + box (top body) + divider + box (bottom body) | — |
-
-### Special
-
-| Template | Structure | Style Controls |
-|----------|-----------|----------------|
-| `profile` | centered box > [circle image] + heading + [title + divider + bio] | — |
-| `icon-grid` | box > [heading + divider] + grid (N columns of icon + label) | `columns` (2/3/4) |
-| `video` | box > [heading + divider] + video component | — |
-| `iframe` | box > [heading + divider] + iframe component | — |
-| `blank` | empty (no children) | optional background image |
-
----
-
-## Template Creation Conventions
-
-### File Location
-
-```
-content/[slug]/templates/<descriptive-name>.template.yaml
-```
-
-The DSL loader checks per-presentation templates first, then falls back to built-in. No registry update needed — auto-discovered from filesystem.
-
-### Param Types
-
-| Type | YAML declaration | Usage |
-|------|-----------------|-------|
-| `string` | `{ type: string }` | `"{{ title }}"` |
-| `number` | `{ type: number }` | `{{ style.titleSize }}` |
-| `string[]` | `{ type: "string[]" }` | `{{ bullets }}` (auto-serialized) |
-| `array` | `{ type: array }` | `{% for s in stats %}...{% endfor %}` |
-| `object` | `{ type: object }` | `{{ before.code }}`, `{{ before.label }}` |
-
-### Nunjucks Patterns
-
-**Variable interpolation:**
 ```yaml
-text: "{{ title }}"
-fontSize: {{ style.titleSize }}
-color: {{ style.accentColor }}
-```
-
-**Conditional blocks (optional elements):**
-```yaml
-{% if subtitle %}
-- type: body
-  text: "{{ subtitle }}"
-{% endif %}
-```
-
-**Loops (repeating elements):**
-```yaml
-{% for s in stats %}
-- type: stat
-  value: "{{ s.value }}"
-  label: "{{ s.label }}"
-{% endfor %}
-```
-
-**Loop variables:**
-- `loop.index` — 1-based index
-- `loop.index0` — 0-based index
-- `loop.length` — total count
-- `loop.first`, `loop.last` — boolean
-
-**Filters:**
-```yaml
-code: {{ code | tojson }}           # JSON-escape for code blocks
-text: "{{ text | yaml_string }}"    # YAML-safe string escaping
-```
-
-### Parameterization Guidelines
-
-**Always parameterize:**
-- All text content (titles, body, bullets, stats, labels)
-- Arrays of repeating elements (stats, cards, bullets, timeline events)
-- Optional elements (wrap in `{% if %}`)
-
-**Parameterize as `style` (with defaults from original):**
-- Split ratios, panel widths
-- Font sizes, font weights
-- Colors that are design choices (not theme-derived)
-- Padding values, gap sizes
-- Element counts (grid columns)
-
-**Hardcode in template:**
-- Layout direction (flex-row vs flex-column)
-- Component types and nesting structure
-- Divider variant, box variant
-- Theme token references (use `theme.accent` not a hardcoded hex when the color matches the theme)
-- Animation types (entrance, stagger pattern)
-
-### Theme Token Usage
-
-**Use theme tokens when:**
-- The color matches the presentation's theme accent/bg/text
-- You want the template to work across different themes
-- The original slide clearly follows a theme palette
-
-**Use hardcoded hex when:**
-- The color is a specific design choice (a brand color, a unique accent)
-- The color doesn't match any theme token
-- Exactness matters more than theme-switchability
-
-**Theme tokens available in template context:**
-```yaml
-color: {{ theme.accent }}
-background: {{ theme.bgSecondary }}
+frame: { x: 96, y: 64, w: 560, h: 120 }
+frame: { left: 96, top: 64, right: 64, h: 4 }
+frame: { centerX: 683, centerY: 384, w: 600, h: 200 }
+frame: { w: 560 }  # width only; height may be inferred for text
 ```
 
 ---
 
-## Theme Palettes
+## Guides And Anchors
 
-### Light Themes
+### Guides
 
-| Theme | Accent | Bg | Fonts |
-|-------|--------|----|-------|
-| `modern` | `#4f6df5` | `#f8f9fc` | Inter |
-| `elegant` | `#b8860b` | `#faf8f5` | Playfair Display / Inter |
-| `paper-ink` | `#c41e3a` | `#faf9f7` | Cormorant Garamond / Source Serif 4 |
-| `swiss-modern` | `#e63946` | `#ffffff` | Helvetica Neue |
-| `split-pastel` | `#e8937a` | `#fef7f0` | Outfit |
-| `notebook-tabs` | `#c7b8ea` | `#f8f6f1` | Bodoni Moda / DM Sans |
-| `pastel-geometry` | `#5a7c6a` | `#c8d9e6` | Plus Jakarta Sans |
-| `vintage-editorial` | `#e8d4c0` | `#f5f3ee` | Fraunces / Work Sans |
+Guides are named alignment points:
 
-### Dark Themes
+```yaml
+guides:
+  x: { left: 96, split: 910, right: 1240 }
+  y: { top: 64, baseline: 312 }
+```
 
-| Theme | Accent | Bg | Fonts |
-|-------|--------|----|-------|
-| `bold` | `#ff6b35` | `#0a0a0a` | Inter |
-| `dark-tech` | `#00ffc8` | `#0a0a12` | JetBrains Mono / Inter |
-| `bold-signal` | `#ff6b6b` | `#1a1a1a` | Inter |
-| `electric-studio` | `#4361ee` | `#0a0a0a` | Manrope |
-| `creative-voltage` | `#d4ff00` | `#1a1a2e` | Syne / Space Mono |
-| `dark-botanical` | `#d4a574` | `#0f0f0f` | Cormorant / IBM Plex Sans |
-| `neon-cyber` | `#ff00ff` | `#0a0014` | Orbitron / Inter |
-| `terminal-green` | `#00ff41` | `#0a0a0a` | VT323 |
+Reference them with:
 
-### Theme Tokens
+```yaml
+frame: { left: "@x.left", top: "@y.top", w: 560 }
+```
 
-| Token | Resolves to |
-|-------|-------------|
-| `theme.bg` | Primary background |
-| `theme.bgSecondary` | Secondary background |
-| `theme.bgTertiary` | Tertiary background |
-| `theme.text` | Primary text color |
-| `theme.textMuted` | Muted text color |
-| `theme.heading` | Heading text color |
-| `theme.accent` | Primary accent |
-| `theme.accent2` | Secondary accent |
-| `theme.cardBg` | Card background |
-| `theme.codeBg` | Code block background |
-| `theme.codeText` | Code text color |
+When `sourceSize` is present, guide values should be in source pixels.
+
+### Anchors
+
+Anchor references target already-compiled siblings in the same container.
+
+```yaml
+frame: { left: "@panel.right", top: "@panel.top", w: 240, h: 120 }
+frame: { top: { ref: "@title.bottom", offset: 24 }, left: 96, w: 560 }
+```
+
+Supported anchor fields:
+
+- `left`, `right`, `centerX`, `x`, `w`, `width`
+- `top`, `bottom`, `centerY`, `y`, `h`, `height`
+
+Rules:
+
+- the target node must appear earlier in the same `children` array
+- ids must be unique across the whole slide
+
+---
+
+## Presets
+
+Use `presets` for repeated styles in a slide.
+
+```yaml
+presets:
+  baseBody:
+    style: { fontFamily: body, fontSize: 20, fontWeight: 400, color: "#b0a898", lineHeight: 1.6 }
+  title:
+    extends: baseBody
+    style: { fontFamily: heading, fontSize: 52, fontWeight: 700, color: "#ffffff", lineHeight: 1.1 }
+```
+
+Node-level overrides merge on top of preset defaults.
+
+---
+
+## Template Vs Scene
+
+### Prefer Templates Only For Near-Exact Matches
+
+Good candidates:
+
+- `cover`, `statement`, `section-divider`, `end`
+- `bullets`, `numbered-list`, `quote`, `stats`
+- `code`, `code-comparison`, `table`, `timeline`, `steps`
+- `comparison`, `two-column`, `three-column`, `sidebar`, `top-bottom`
+- `image-text`, `image-caption`, `diagram`, `chart-placeholder`
+- `image-grid`, `image-gallery`, `image-comparison`, `full-image`
+- `agenda`, `highlight-box`, `qa`, `profile`, `icon-grid`, `video`, `iframe`, `blank`
+
+### Prefer Scene When The Slide Has
+
+- asymmetric custom splits
+- overlapping or layered elements
+- watermark text or decorative geometry
+- screenshot-space alignment that depends on guides
+- mixed local structures that do not fit one built-in template
+- exact placement requirements that would fight a template
+
+For replication, scene should be the default choice.
+
+---
+
+## Verification Tooling
+
+### Workbench
+
+Use `/workbench/replicate` for:
+
+- slide selection
+- reference upload
+- render / reference / overlay / diff / split modes
+- viewer URL generation
+
+Reference path conventions:
+
+- per-slide refs in `public/<slug>/refs/slide-12.png` can be entered as `refs/slide-12.png`
+- absolute `/shared/...` style paths also work
+- uploaded screenshots work without creating a public file
+
+### CLI Diff
+
+```bash
+bun run slide:diff -- --slug <slug> --slide <n> --reference /absolute/path/to/reference.png
+```
+
+Useful flags:
+
+- `--base-url http://127.0.0.1:3000`
+- `--threshold 24`
+- `--max-mismatch 0.02`
+- `--out-dir .artifacts/slide-diff`
+
+Outputs:
+
+- rendered PNG
+- diff PNG
+- JSON report with mismatch ratio
+
+`slide:diff` uses Playwright internally. Treat that as an implementation detail, not as a separate public workflow.
+
+---
+
+## Common Patterns
+
+### Asymmetric Split
+
+- add a `split` guide
+- create one `shape` for the panel background
+- keep copy and stats in separate `group` nodes
+
+### Watermark
+
+- use a large `text` node early in `children`
+- set low `opacity`
+- keep it behind foreground nodes by order
+
+### Mixed Emphasis In A Heading
+
+- use rich text runs inside one `text` node, or
+- split into multiple text nodes if geometry differs
+
+### Regular Subregions
+
+- use `stack` for copy blocks
+- use `row` for clear side-by-side panels
+- use `grid` for actual repeated cells
+
+### Escape Hatch
+
+- if a code/table/list/video/iframe block is already easy to express as raw IR, wrap it in `kind: ir`
+
+---
+
+## Pitfalls
+
+- Do not use old `type: box`, `type: raw`, `type: heading`, `type: stat`, or `verticalAlign` container props.
+- Do not use legacy top-level `backgroundImage`.
+- Do not use `layout: { type: flex }` in scene groups. Scene layouts are `stack`, `row`, or `grid`.
+- Do not use `1fr` tracks.
+- Do not anchor to later siblings.
+- Do not reuse ids.
+- Do not store overlay refs under `content/<slug>/refs/` and expect `sync-content` to publish them.
+- Do not read unrelated repo files just to infer format or behavior.
+- Do not invent a slug or scratch deck when one was not provided.
+- Do not normalize screenshot coordinates to 1920x1080 by default; prefer `sourceSize`.
+- Do not present an ad hoc Playwright screenshot loop as the verification workflow.
