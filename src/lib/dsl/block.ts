@@ -1,30 +1,106 @@
 import { parse } from "yaml";
 import type { DslTemplateDef } from "./types";
 import { createTemplateEnvironment, smartify } from "./nunjucks-env";
-import type {
-  SceneBlockNode,
-  SceneGroupNode,
-  SceneNode,
-  SceneNodeBase,
-  ScenePreset,
+import {
+  SCENE_ANCHOR_PROPERTIES,
+  type SceneBlockNode,
+  type SceneGroupNode,
+  type SceneNode,
+  type SceneNodeBase,
+  type ScenePreset,
 } from "@/lib/scene/types";
 
-// --- ID/preset prefixing ---
+// --- Separator for block ID prefixing ---
+// Uses __ instead of . because the anchor parser splits on . to separate nodeId from property.
+const SEP = "__";
+
+// --- ID/preset/anchor rewriting ---
+
+// Derived from the single source of truth in types.ts
+const ANCHOR_PROPERTIES = new Set<string>(SCENE_ANCHOR_PROPERTIES);
+
+// Guide namespace prefixes — @x.foo and @y.foo are guide refs unless foo is an anchor property.
+const GUIDE_PREFIXES = new Set(["x", "y"]);
+
+function collectIds(nodes: Record<string, unknown>[]): Set<string> {
+  const ids = new Set<string>();
+  for (const node of nodes) {
+    if (typeof node.id === "string") ids.add(node.id);
+    if (Array.isArray(node.children)) {
+      for (const child of node.children) {
+        if (typeof child === "object" && child !== null) {
+          for (const id of collectIds([child as Record<string, unknown>])) {
+            ids.add(id);
+          }
+        }
+      }
+    }
+  }
+  return ids;
+}
 
 /**
- * Recursively prefix `id` and `preset` fields on scene nodes.
+ * Rewrite anchor references in a string value.
+ * Replaces @oldId.property with @prefix__oldId.property for any oldId in the known set.
+ *
+ * Special case: @x.foo and @y.foo are guide refs unless the property is a known anchor
+ * property (left, right, top, etc.) AND x/y is in knownIds. This lets blocks have
+ * children named "x" or "y" while still supporting guide refs.
  */
-function prefixNode(node: Record<string, unknown>, prefix: string): void {
+function rewriteAnchors(value: string, prefix: string, knownIds: Set<string>): string {
+  return value.replace(/@([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)/g, (match, nodeId, prop) => {
+    if (!knownIds.has(nodeId)) return match;
+    // If nodeId is a guide prefix (x or y), only rewrite when the property
+    // is a known anchor property — otherwise it's a guide ref like @x.content
+    if (GUIDE_PREFIXES.has(nodeId) && !ANCHOR_PROPERTIES.has(prop)) {
+      return match;
+    }
+    return `@${prefix}${SEP}${nodeId}.${prop}`;
+  });
+}
+
+/**
+ * Rewrite anchor references in frame values (both string refs and { ref, offset } objects).
+ */
+function rewriteFrameAnchors(
+  frame: Record<string, unknown>,
+  prefix: string,
+  knownIds: Set<string>,
+): void {
+  for (const [key, val] of Object.entries(frame)) {
+    if (typeof val === "string" && val.startsWith("@")) {
+      frame[key] = rewriteAnchors(val, prefix, knownIds);
+    } else if (val && typeof val === "object" && !Array.isArray(val)) {
+      const ref = (val as Record<string, unknown>).ref;
+      if (typeof ref === "string" && ref.startsWith("@")) {
+        (val as Record<string, unknown>).ref = rewriteAnchors(ref, prefix, knownIds);
+      }
+    }
+  }
+}
+
+/**
+ * Recursively prefix `id`, `preset` fields and rewrite anchor references on scene nodes.
+ */
+function prefixNode(
+  node: Record<string, unknown>,
+  prefix: string,
+  knownIds: Set<string>,
+): void {
   if (typeof node.id === "string") {
-    node.id = `${prefix}.${node.id}`;
+    node.id = `${prefix}${SEP}${node.id}`;
   }
   if (typeof node.preset === "string") {
-    node.preset = `${prefix}.${node.preset}`;
+    node.preset = `${prefix}${SEP}${node.preset}`;
+  }
+  // Rewrite anchor refs in frame
+  if (node.frame && typeof node.frame === "object" && !Array.isArray(node.frame)) {
+    rewriteFrameAnchors(node.frame as Record<string, unknown>, prefix, knownIds);
   }
   if (Array.isArray(node.children)) {
     for (const child of node.children) {
       if (typeof child === "object" && child !== null) {
-        prefixNode(child as Record<string, unknown>, prefix);
+        prefixNode(child as Record<string, unknown>, prefix, knownIds);
       }
     }
   }
@@ -144,21 +220,33 @@ export function expandBlockTemplate(
     );
   }
 
-  // 7. Extract and namespace presets
+  // 7. Collect known child IDs before any prefixing (needed for anchor rewriting)
+  const children = (parsed.children ?? []) as Record<string, unknown>[];
+  const knownIds = collectIds(children);
+
+  // 8. Extract and namespace presets, rewriting extends and frame anchor references
   let presets: Record<string, ScenePreset> | undefined;
-  if (parsed.presets && typeof parsed.presets === "object") {
+  const rawPresets = parsed.presets as Record<string, ScenePreset> | undefined;
+  if (rawPresets && typeof rawPresets === "object") {
+    const originalPresetNames = new Set(Object.keys(rawPresets));
     presets = {};
-    for (const [name, preset] of Object.entries(
-      parsed.presets as Record<string, ScenePreset>,
-    )) {
-      presets[`${blockId}.${name}`] = preset;
+    for (const [name, preset] of Object.entries(rawPresets)) {
+      const namespaced = { ...preset };
+      // Rewrite extends reference if it points to a preset within this block
+      if (typeof namespaced.extends === "string" && originalPresetNames.has(namespaced.extends)) {
+        namespaced.extends = `${blockId}${SEP}${namespaced.extends}`;
+      }
+      // Rewrite anchor refs in preset frame
+      if (namespaced.frame && typeof namespaced.frame === "object") {
+        rewriteFrameAnchors(namespaced.frame as Record<string, unknown>, blockId, knownIds);
+      }
+      presets[`${blockId}${SEP}${name}`] = namespaced;
     }
   }
 
-  // 8. Prefix child IDs and preset references
-  const children = (parsed.children ?? []) as Record<string, unknown>[];
+  // 9. Prefix child IDs, preset references, and anchor references
   for (const child of children) {
-    prefixNode(child, blockId);
+    prefixNode(child, blockId, knownIds);
   }
 
   // 9. Build the group node — start from template output, overlay block props

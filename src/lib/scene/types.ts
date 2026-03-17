@@ -180,6 +180,14 @@ export type SceneNode =
   | SceneGroupNode
   | SceneBlockNode;
 
+/** Anchor property names recognized by the solver in @nodeId.property references. */
+export const SCENE_ANCHOR_PROPERTIES = [
+  "left", "right", "centerX", "x", "w", "width",
+  "top", "bottom", "centerY", "y", "h", "height",
+] as const;
+
+export type SceneAnchorKey = typeof SCENE_ANCHOR_PROPERTIES[number];
+
 export type SceneBackgroundSpec =
   | string
   | { type: "solid"; color: string }

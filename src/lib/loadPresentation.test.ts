@@ -170,7 +170,7 @@ slides:
     expect(slide.children[1].id).toBe("badge");
 
     const group = slide.children[1] as { children: Array<{ id: string; text: string }> };
-    expect(group.children[0].id).toBe("badge.label");
+    expect(group.children[0].id).toBe("badge__label");
     expect(group.children[0].text).toBe("NEW");
   });
 });

@@ -73,7 +73,7 @@ children:
     expect((result.node as SceneGroupNode).children).toHaveLength(1);
     expect((result.node as SceneGroupNode).children[0]).toMatchObject({
       kind: "text",
-      id: "my-block.label",
+      id: "my-block__label",
       text: "Hello",
     });
   });
@@ -129,11 +129,11 @@ children:
 
     const result = expandBlockTemplate(blockNode, def);
     expect(result.presets).toBeDefined();
-    expect(result.presets!["card-block.cardBg"]).toMatchObject({
+    expect(result.presets!["card-block__cardBg"]).toMatchObject({
       borderRadius: 12,
     });
     expect((result.node as SceneGroupNode).children[0]).toMatchObject({
-      preset: "card-block.cardBg",
+      preset: "card-block__cardBg",
     });
   });
 
@@ -165,6 +165,146 @@ children:
     const result = expandBlockTemplate(blockNode, def);
     const text = (result.node as SceneGroupNode).children[0] as { style: { fontSize: number } };
     expect(text.style.fontSize).toBe(48);
+  });
+
+  it("rewrites anchor references when prefixing IDs", () => {
+    const def = makeBlockDef({
+      rawBody: `
+kind: group
+children:
+  - kind: text
+    id: title
+    frame: { x: 0, y: 0, w: 200 }
+    text: "Hello"
+    style: { fontSize: 24, lineHeight: 1 }
+  - kind: shape
+    id: rule
+    frame: { left: 0, top: { ref: "@title.bottom", offset: 16 }, w: 200, h: 4 }
+    shape: rect
+    style: { fill: "#333" }
+`,
+    });
+
+    const blockNode: SceneBlockNode = {
+      kind: "block",
+      id: "card",
+      template: "test-block",
+    };
+
+    const result = expandBlockTemplate(blockNode, def);
+    const rule = (result.node as SceneGroupNode).children[1] as Record<string, unknown>;
+    const frame = rule.frame as Record<string, unknown>;
+    const top = frame.top as { ref: string; offset: number };
+    expect(top.ref).toBe("@card__title.bottom");
+    expect(top.offset).toBe(16);
+  });
+
+  it("rewrites preset extends references when namespacing", () => {
+    const def = makeBlockDef({
+      rawBody: `
+presets:
+  base:
+    borderRadius: 12
+  emphasized:
+    extends: base
+    border:
+      width: 2
+      color: "#ff0000"
+kind: group
+children:
+  - kind: shape
+    id: bg
+    preset: emphasized
+    frame: { x: 0, y: 0, w: 200, h: 100 }
+    shape: rect
+    style: { fill: "#222" }
+`,
+    });
+
+    const blockNode: SceneBlockNode = {
+      kind: "block",
+      id: "hero",
+      template: "test-block",
+    };
+
+    const result = expandBlockTemplate(blockNode, def);
+    expect(result.presets).toHaveProperty("hero__base");
+    expect(result.presets).toHaveProperty("hero__emphasized");
+    expect(result.presets!["hero__emphasized"].extends).toBe("hero__base");
+    expect((result.node as SceneGroupNode).children[0]).toMatchObject({
+      preset: "hero__emphasized",
+    });
+  });
+
+  it("rewrites anchor refs in preset frames", () => {
+    const def = makeBlockDef({
+      rawBody: `
+presets:
+  anchored:
+    frame:
+      top: { ref: "@title.bottom", offset: 8 }
+      left: "@title.left"
+kind: group
+children:
+  - kind: text
+    id: title
+    frame: { x: 0, y: 0, w: 200 }
+    text: "Hi"
+    style: { fontSize: 24, lineHeight: 1 }
+  - kind: shape
+    id: rule
+    preset: anchored
+    frame: { w: 200, h: 4 }
+    shape: rect
+    style: { fill: "#333" }
+`,
+    });
+
+    const blockNode: SceneBlockNode = {
+      kind: "block",
+      id: "card",
+      template: "test-block",
+    };
+
+    const result = expandBlockTemplate(blockNode, def);
+    const presetFrame = result.presets!["card__anchored"].frame as Record<string, unknown>;
+    expect((presetFrame.top as { ref: string }).ref).toBe("@card__title.bottom");
+    expect(presetFrame.left).toBe("@card__title.left");
+  });
+
+  it("distinguishes guide refs from anchor refs when child has id: x", () => {
+    const def = makeBlockDef({
+      rawBody: `
+kind: group
+children:
+  - kind: text
+    id: x
+    frame: { x: 0, y: 0, w: 100 }
+    text: "X"
+    style: { fontSize: 16, lineHeight: 1 }
+  - kind: shape
+    id: divider
+    frame: { left: "@x.content", top: "@x.bottom", w: 100, h: 2 }
+    shape: rect
+    style: { fill: "#333" }
+`,
+    });
+
+    const blockNode: SceneBlockNode = {
+      kind: "block",
+      id: "nav",
+      template: "test-block",
+    };
+
+    const result = expandBlockTemplate(blockNode, def);
+    const divider = (result.node as SceneGroupNode).children[1] as Record<string, unknown>;
+    const frame = divider.frame as Record<string, unknown>;
+    // @x.content is a guide ref (content is not an anchor property) — NOT rewritten
+    expect(frame.left).toBe("@x.content");
+    // @x.bottom IS an anchor ref (bottom is a known anchor property) — rewritten
+    expect(frame.top).toBe("@nav__x.bottom");
+    // The id itself is still prefixed
+    expect((result.node as SceneGroupNode).children[0].id).toBe("nav__x");
   });
 
   it("throws on missing required param", () => {
@@ -238,7 +378,7 @@ children:
     expect(result.node.kind).toBe("group");
     expect(result.node.id).toBe("norm");
     expect((result.node as SceneGroupNode).children[0]).toMatchObject({
-      id: "norm.label",
+      id: "norm__label",
       text: "Works",
     });
     expect(result.node.layout).toMatchObject({ type: "stack", gap: 8 });
@@ -308,7 +448,7 @@ children:
     expect(result.children[1].id).toBe("stats");
     const group = result.children[1] as SceneGroupNode;
     expect(group.children).toHaveLength(1);
-    expect(group.children[0].id).toBe("stats.val-0");
+    expect(group.children[0].id).toBe("stats__val-0");
   });
 
   it("expands nested block nodes inside groups", () => {
@@ -351,7 +491,7 @@ children:
     expect(container.children[0].kind).toBe("group");
     expect(container.children[0].id).toBe("inner");
     const inner = container.children[0] as SceneGroupNode;
-    expect(inner.children[0].id).toBe("inner.label");
+    expect(inner.children[0].id).toBe("inner__label");
   });
 
   it("merges block presets into slide presets", () => {
@@ -392,7 +532,7 @@ children:
     });
 
     expect(result.presets).toHaveProperty("existing");
-    expect(result.presets).toHaveProperty("card.cardBg");
+    expect(result.presets).toHaveProperty("card__cardBg");
   });
 
   it("detects circular block references via depth guard", () => {

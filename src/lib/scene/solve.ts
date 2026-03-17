@@ -8,21 +8,23 @@ import type {
   ShapeElement,
   TextElement,
 } from "@/lib/layout/types";
-import type {
-  FrameSpec,
-  SceneGridLayout,
-  SceneGroupNode,
-  SceneGuides,
-  SceneImageNode,
-  SceneIrNode,
-  SceneNode,
-  ScenePadding,
-  SceneRowLayout,
-  SceneReferenceValue,
-  SceneShapeNode,
-  SceneStackLayout,
-  SceneTextNode,
-  SceneValue,
+import {
+  SCENE_ANCHOR_PROPERTIES,
+  type SceneAnchorKey,
+  type FrameSpec,
+  type SceneGridLayout,
+  type SceneGroupNode,
+  type SceneGuides,
+  type SceneImageNode,
+  type SceneIrNode,
+  type SceneNode,
+  type ScenePadding,
+  type SceneRowLayout,
+  type SceneReferenceValue,
+  type SceneShapeNode,
+  type SceneStackLayout,
+  type SceneTextNode,
+  type SceneValue,
 } from "./types";
 
 interface CompileContext {
@@ -60,20 +62,6 @@ function resolveGuide(value: string, guides: SceneGuides | undefined): number | 
   return Number.isFinite(numeric) ? numeric : undefined;
 }
 
-type SceneAnchorKey =
-  | "left"
-  | "right"
-  | "centerX"
-  | "x"
-  | "w"
-  | "width"
-  | "top"
-  | "bottom"
-  | "centerY"
-  | "y"
-  | "h"
-  | "height";
-
 function resolveAnchorValue(rect: Rect, anchor: SceneAnchorKey): number {
   switch (anchor) {
     case "left":
@@ -99,8 +87,12 @@ function resolveAnchorValue(rect: Rect, anchor: SceneAnchorKey): number {
   }
 }
 
+const ANCHOR_REGEX = new RegExp(
+  `^@([A-Za-z0-9_-]+)\\.(${SCENE_ANCHOR_PROPERTIES.join("|")})$`,
+);
+
 function resolveAnchorReference(value: string, ctx: CompileContext): number | undefined {
-  const match = value.match(/^@([A-Za-z0-9_-]+)\.(left|right|centerX|x|w|width|top|bottom|centerY|y|h|height)$/);
+  const match = value.match(ANCHOR_REGEX);
   if (!match) return undefined;
 
   const [, nodeId, anchor] = match;
