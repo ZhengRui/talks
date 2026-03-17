@@ -79,21 +79,35 @@ export async function POST(request: NextRequest) {
         let resultText = "";
         send("status", { message: "Starting analysis..." });
 
+        const queryOptions = {
+          cwd: process.cwd(),
+          settingSources: ["project"] as const,
+          allowedTools: ["Read", "Glob"],
+          maxTurns: 5,
+          model: "claude-opus-4-6",
+          thinking: { type: "adaptive" as const },
+          effort: "high" as const,
+          systemPrompt: ANALYSIS_SYSTEM_PROMPT,
+          includePartialMessages: true,
+          // Use Claude Code subscription auth, not API key
+          pathToClaudeCodeExecutable: "/Users/zerry/.local/bin/claude",
+          env: { ...process.env, ANTHROPIC_API_KEY: "" },
+        };
+
         for await (const message of query({
           prompt: analysisPrompt,
-          options: {
-            cwd: process.cwd(),
-            settingSources: ["project"],
-            allowedTools: ["Read", "Glob"],
-            maxTurns: 5,
-            systemPrompt: ANALYSIS_SYSTEM_PROMPT,
-            includePartialMessages: true,
-            // Use Claude Code subscription auth, not API key
-            pathToClaudeCodeExecutable: "/Users/zerry/.local/bin/claude",
-            env: { ...process.env, ANTHROPIC_API_KEY: "" },
-          },
+          options: queryOptions,
         })) {
           const msg = message as Record<string, unknown>;
+
+          // Surface init message to show which model is being used
+          if (msg.type === "system" && msg.subtype === "init") {
+            const model = msg.model as string | undefined;
+            send("status", {
+              message: `Session started — model: ${model ?? "unknown"}, thinking: ${queryOptions.thinking.type}, effort: ${queryOptions.effort}`,
+            });
+            continue;
+          }
 
           // Token-by-token streaming deltas
           if (msg.type === "stream_event") {

@@ -53,7 +53,8 @@ Output a JSON object wrapped in a \`\`\`json code fence:
 - Always propose at least one slide-scope template for the whole slide
 - Propose block-scope templates for reusable sub-regions (stat cards, feature rows, etc.)
 - Slide templates can reference block templates via kind: block nodes in their body
-- Use sourceSize matching the screenshot dimensions, with fit: contain and align: center
+- Use the source.dimensions value you report for sourceSize in the template body, with fit: contain and align: center
+- CRITICAL: For source.dimensions, report ONLY what you visually perceive as the image size. Do NOT guess standard resolutions like 1920x1080, 1366x768, etc. If the image appears to be about 840 pixels wide, report 840, not 1366.
 - Use guides for repeated alignment lines
 - All positions are in source-pixel coordinates
 - Do NOT include mode: scene or kind: group in the body — the system injects these based on scope`;
@@ -64,7 +65,7 @@ export function buildAnalysisPrompt(
   slug: string | null,
 ): string {
   let prompt = `Analyze this screenshot and propose reusable scene templates. Read .claude/skills/replicate-slides/reference.md first for the correct scene YAML syntax.\n\nScreenshot: ${imagePath}`;
-  prompt += `\nReport the image dimensions as you perceive them in source.dimensions. Do NOT guess or assume — measure from what you see.`;
+  prompt += `\n\nCRITICAL for source.dimensions: Report the pixel dimensions as you visually perceive the image — typically around 800-1100px wide. Do NOT round to standard resolutions (not 1366x768, not 1920x1080). Your coordinates and region boxes must be consistent with the dimensions you report.`;
   if (text) prompt += `\n\nAdditional context: ${text}`;
   if (slug) prompt += `\n\nTarget slug: ${slug}`;
   return prompt;
