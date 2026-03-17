@@ -158,7 +158,7 @@ export function importLayoutSlide(
 export function importLayoutPresentation(
   presentation: LayoutPresentation,
   options?: ImportLayoutOptions,
-): LayoutPresentation & { slides: SceneSlideData[] } {
+): Omit<LayoutPresentation, "slides"> & { slides: SceneSlideData[] } {
   return {
     title: presentation.title,
     ...(presentation.author ? { author: presentation.author } : {}),

@@ -348,7 +348,7 @@ function compileStackChildren(children: SceneNode[], parent: Rect, ctx: CompileC
 
   for (const child of children) {
     let compiled = compileSceneNode(child, { x: 0, y: 0, w: inner.w, h: inner.h }, ctx);
-    let rect = { ...compiled.rect };
+    const rect = { ...compiled.rect };
 
     if (!hasExplicitX(child.frame)) {
       if (layout.align === "center") rect.x = inner.x + (inner.w - rect.w) / 2;
@@ -422,7 +422,7 @@ function compileRowChildren(children: SceneNode[], parent: Rect, ctx: CompileCon
   for (const [i, child] of children.entries()) {
     const trackW = tracks[i] ?? autoTrack;
     let compiled = compileSceneNode(child, { x: 0, y: 0, w: trackW, h: inner.h }, ctx);
-    let rect = { ...compiled.rect };
+    const rect = { ...compiled.rect };
 
     if (!hasExplicitX(child.frame)) {
       rect.x = cursorX;
@@ -504,7 +504,8 @@ function compileGridChildren(children: SceneNode[], parent: Rect, ctx: CompileCo
 
     for (const item of rowItems) {
       const { child, cellX, cellW } = item;
-      let { compiled, rect } = item;
+      const { rect } = item;
+      let { compiled } = item;
 
       if (!hasExplicitX(child.frame)) {
         rect.x = cellX;
@@ -573,6 +574,11 @@ export function compileSceneNode(node: SceneNode, parent: Rect, ctx: CompileCont
       return compileIrNode(node, parent, ctx);
     case "group":
       return compileGroupNode(node, parent, ctx);
+    case "block":
+      throw new Error(
+        `[scene] Block node "${node.id}" must be expanded before compilation. ` +
+        `Call expandBlockNodes() before compileSceneSlide().`,
+      );
   }
 }
 

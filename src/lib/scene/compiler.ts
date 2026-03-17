@@ -5,11 +5,9 @@ import type {
   ElementEffects,
   GroupElement,
   LayoutSlide,
-  ListElement,
   LayoutElement,
   ResolvedTheme,
   ShapeStyle,
-  TableElement,
   TextElement,
   TextRun,
   TextStyle,
@@ -22,8 +20,6 @@ import type {
   SceneFitMode,
   SceneGuides,
   SceneGridLayout,
-  SceneGroupNode,
-  SceneIrNode,
   SceneNode,
   ScenePadding,
   SceneReferenceValue,
@@ -316,16 +312,16 @@ function scaleLayoutElement(
       return {
         ...base,
         style: scaleShapeStyle(element.style, { x: 0, y: 0, w: 0, h: 0, scaleX, scaleY, visualScale }) ?? element.style,
-      };
+      } as LayoutElement;
     case "image":
-      return base;
+      return base as LayoutElement;
     case "group":
       return {
         ...base,
         ...(element.style ? { style: scaleShapeStyle(element.style, { x: 0, y: 0, w: 0, h: 0, scaleX, scaleY, visualScale }) } : {}),
         ...(element.layout ? { layout: scaleIrLayoutMode(element.layout, scaleX, scaleY) } : {}),
         children: element.children.map((child) => scaleLayoutElement(child, scaleX, scaleY)),
-      };
+      } as LayoutElement;
     case "code":
       return {
         ...base,
@@ -335,7 +331,7 @@ function scaleLayoutElement(
           borderRadius: element.style.borderRadius * visualScale,
           padding: element.style.padding * visualScale,
         },
-      };
+      } as LayoutElement;
     case "table":
       return {
         ...base,
@@ -348,16 +344,16 @@ function scaleLayoutElement(
           background: element.cellStyle.background,
           altBackground: element.cellStyle.altBackground,
         },
-      } as TableElement;
+      } as LayoutElement;
     case "list":
       return {
         ...base,
         itemStyle: scaleTextStyle(element.itemStyle, { x: 0, y: 0, w: 0, h: 0, scaleX, scaleY, visualScale }),
         ...(element.itemSpacing != null ? { itemSpacing: element.itemSpacing * scaleY } : {}),
-      } as ListElement;
+      } as LayoutElement;
     case "video":
     case "iframe":
-      return base;
+      return base as LayoutElement;
   }
 }
 
@@ -446,26 +442,26 @@ function scaleSceneNode(node: SceneNode, viewport: SceneViewport): SceneNode {
           fontSize: node.style.fontSize * viewport.visualScale,
           ...(node.style.letterSpacing != null ? { letterSpacing: node.style.letterSpacing * viewport.visualScale } : {}),
         },
-      };
+      } as SceneNode;
     case "shape":
       return {
         ...base,
         style: scaleShapeStyle(node.style, viewport) ?? node.style,
-      };
+      } as SceneNode;
     case "image":
-      return base;
+      return base as SceneNode;
     case "ir":
       return {
         ...base,
         element: scaleLayoutElement(node.element, viewport.scaleX, viewport.scaleY),
-      } satisfies SceneIrNode;
+      } as SceneNode;
     case "group":
       return {
         ...base,
         ...(node.style ? { style: scaleShapeStyle(node.style, viewport) } : {}),
         ...(node.layout ? { layout: scaleLayout(node.layout, viewport) } : {}),
         children: node.children.map((child) => scaleSceneNode(child, viewport)),
-      } satisfies SceneGroupNode;
+      } as SceneNode;
     case "block":
       throw new Error(
         `[scene] Block node "${node.id}" must be expanded before compilation. ` +

@@ -628,7 +628,7 @@ children:
         def,
       );
       expect(result).toHaveProperty("mode", "scene");
-      expect((result as any).children[0]).toMatchObject({ text: "No Mode" });
+      expect((result as unknown as { children: Record<string, unknown>[] }).children[0]).toMatchObject({ text: "No Mode" });
     });
 
     it("rejects scope: block templates at slide level", () => {

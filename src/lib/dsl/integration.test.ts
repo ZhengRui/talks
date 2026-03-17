@@ -32,6 +32,7 @@ function sceneChildren(slide: SlideData): unknown[] {
 /** Helper: recursively collect all layout elements (including nested children) */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function allLayoutElements(elements: any[]): any[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const result: any[] = [];
   for (const el of elements) {
     result.push(el);

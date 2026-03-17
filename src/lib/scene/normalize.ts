@@ -11,7 +11,6 @@ import type {
   SceneNode,
   ScenePreset,
   SceneSize,
-  SceneShapeNode,
   SceneTextNode,
 } from "./types";
 
@@ -41,6 +40,9 @@ function mergeOptionalObject<T extends Record<string, unknown> | undefined>(
   } as T;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const merge = mergeOptionalObject as (a: any, b: any) => any;
+
 function applyScenePreset<T extends SceneNode>(
   node: T,
   presets: Record<string, ScenePreset> | undefined,
@@ -54,25 +56,25 @@ function applyScenePreset<T extends SceneNode>(
   const base = {
     ...preset,
     ...node,
-    ...(preset.frame || node.frame ? { frame: mergeOptionalObject(preset.frame, node.frame) } : {}),
-    ...(preset.shadow || node.shadow ? { shadow: mergeOptionalObject(preset.shadow, node.shadow) } : {}),
-    ...(preset.effects || node.effects ? { effects: mergeOptionalObject(preset.effects, node.effects) } : {}),
-    ...(preset.border || node.border ? { border: mergeOptionalObject(preset.border, node.border) } : {}),
-    ...(preset.entrance || node.entrance ? { entrance: mergeOptionalObject(preset.entrance, node.entrance) } : {}),
-    ...(preset.transform || node.transform ? { transform: mergeOptionalObject(preset.transform, node.transform) } : {}),
-    ...(preset.cssStyle || node.cssStyle ? { cssStyle: mergeOptionalObject(preset.cssStyle, node.cssStyle) } : {}),
+    ...(preset.frame || node.frame ? { frame: merge(preset.frame, node.frame) } : {}),
+    ...(preset.shadow || node.shadow ? { shadow: merge(preset.shadow, node.shadow) } : {}),
+    ...(preset.effects || node.effects ? { effects: merge(preset.effects, node.effects) } : {}),
+    ...(preset.border || node.border ? { border: merge(preset.border, node.border) } : {}),
+    ...(preset.entrance || node.entrance ? { entrance: merge(preset.entrance, node.entrance) } : {}),
+    ...(preset.transform || node.transform ? { transform: merge(preset.transform, node.transform) } : {}),
+    ...(preset.cssStyle || node.cssStyle ? { cssStyle: merge(preset.cssStyle, node.cssStyle) } : {}),
   };
 
   switch (node.kind) {
     case "text":
       return {
         ...base,
-        style: mergeOptionalObject(preset.style as SceneTextNode["style"] | undefined, node.style)!,
+        style: merge(preset.style, node.style) ?? node.style,
       } as T;
     case "shape":
       return {
         ...base,
-        style: mergeOptionalObject(preset.style as SceneShapeNode["style"] | undefined, node.style)!,
+        style: merge(preset.style, node.style) ?? node.style,
       } as T;
     case "image":
       return {
@@ -83,12 +85,14 @@ function applyScenePreset<T extends SceneNode>(
     case "group":
       return {
         ...base,
-        ...(preset.style || node.style ? { style: mergeOptionalObject(preset.style as SceneGroupNode["style"] | undefined, node.style) } : {}),
+        ...(preset.style || node.style ? { style: merge(preset.style, node.style) } : {}),
         clipContent: node.clipContent ?? preset.clipContent,
-        ...(preset.layout || node.layout ? { layout: mergeOptionalObject(preset.layout, node.layout) } : {}),
+        ...(preset.layout || node.layout ? { layout: merge(preset.layout, node.layout) } : {}),
       } as T;
     case "ir":
       return base as T;
+    case "block":
+      return node;
   }
 }
 
@@ -97,6 +101,7 @@ function resolveScenePresets(
 ): Record<string, ScenePreset> | undefined {
   if (!presets) return undefined;
 
+  const presetsMap = presets;
   const resolved = new Map<string, ScenePreset>();
   const resolving = new Set<string>();
 
@@ -104,7 +109,7 @@ function resolveScenePresets(
     const cached = resolved.get(name);
     if (cached) return cached;
 
-    const preset = presets[name];
+    const preset = presetsMap[name];
     if (!preset) {
       throw new Error(`[scene] Unknown preset "${name}"`);
     }
@@ -119,15 +124,15 @@ function resolveScenePresets(
           ...base,
           ...preset,
           extends: preset.extends,
-          ...(base.frame || preset.frame ? { frame: mergeOptionalObject(base.frame, preset.frame) } : {}),
-          ...(base.shadow || preset.shadow ? { shadow: mergeOptionalObject(base.shadow, preset.shadow) } : {}),
-          ...(base.effects || preset.effects ? { effects: mergeOptionalObject(base.effects, preset.effects) } : {}),
-          ...(base.border || preset.border ? { border: mergeOptionalObject(base.border, preset.border) } : {}),
-          ...(base.entrance || preset.entrance ? { entrance: mergeOptionalObject(base.entrance, preset.entrance) } : {}),
-          ...(base.transform || preset.transform ? { transform: mergeOptionalObject(base.transform, preset.transform) } : {}),
-          ...(base.cssStyle || preset.cssStyle ? { cssStyle: mergeOptionalObject(base.cssStyle, preset.cssStyle) } : {}),
-          ...(base.style || preset.style ? { style: mergeOptionalObject(base.style, preset.style) } : {}),
-          ...(base.layout || preset.layout ? { layout: mergeOptionalObject(base.layout, preset.layout) } : {}),
+          ...(base.frame || preset.frame ? { frame: merge(base.frame, preset.frame) } : {}),
+          ...(base.shadow || preset.shadow ? { shadow: merge(base.shadow, preset.shadow) } : {}),
+          ...(base.effects || preset.effects ? { effects: merge(base.effects, preset.effects) } : {}),
+          ...(base.border || preset.border ? { border: merge(base.border, preset.border) } : {}),
+          ...(base.entrance || preset.entrance ? { entrance: merge(base.entrance, preset.entrance) } : {}),
+          ...(base.transform || preset.transform ? { transform: merge(base.transform, preset.transform) } : {}),
+          ...(base.cssStyle || preset.cssStyle ? { cssStyle: merge(base.cssStyle, preset.cssStyle) } : {}),
+          ...(base.style || preset.style ? { style: merge(base.style, preset.style) } : {}),
+          ...(base.layout || preset.layout ? { layout: merge(base.layout, preset.layout) } : {}),
         }
       : preset;
 

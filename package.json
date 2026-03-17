@@ -17,6 +17,7 @@
     "slide:diff": "node scripts/slide-diff.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.76",
     "jszip": "^3.10.1",
     "next": "15.2.5",
     "nunjucks": "^3.2.4",

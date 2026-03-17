@@ -7,9 +7,53 @@ This repo is fully on the v9 scene-first path.
 - replication should default to scene authoring with explicit geometry
 - built-in templates still exist, but they are now scene-backed shortcuts
 
-Primary replication goal: extract a reusable scene-backed template whenever the source layout is shareable, then instantiate the replicated slide from that template.
+Primary replication goal: extract reusable templates — at **slide level and block level** — whenever the source layout is shareable, then instantiate the replicated slide from those templates.
 
 Use this reference for replication-specific guidance. For full template coverage, see the built-in templates in `src/lib/layout/templates/`.
+
+---
+
+## Template System
+
+### Two scopes
+
+Templates have `scope: slide` (whole-slide composition) or `scope: block` (reusable fragment/group).
+
+Both use identical header syntax. The body contains just `children:` plus scope-appropriate config — the system injects `mode: scene` or `kind: group` based on `scope`.
+
+### Template references
+
+Slide templates are referenced at slide level with nested `params:`:
+
+```yaml
+- template: split-stat-rail
+  params:
+    title: "The Fall of an Empire"
+    stats: [...]
+  style:
+    accent: "#ff6b35"
+```
+
+Block templates are referenced inside children as `kind: block` nodes:
+
+```yaml
+- kind: block
+  id: stat-card-1
+  template: stat-card
+  frame: { x: 100, y: 200, w: 300, h: 150 }
+  params:
+    value: "42%"
+    label: "Growth"
+```
+
+A slide template can use block templates in its body via `kind: block` nodes.
+
+### Reuse hierarchy
+
+- **Presets** — node-level style defaults (no children, no content). Supports `extends`.
+- **Macros** — Nunjucks-time scene node fragments (compile-time only, in `src/lib/dsl/macros/scene/`). Best for template-internal composition.
+- **Block templates** (`scope: block`) — reusable scene fragments (a group with children). Referenced as `kind: block` nodes. Best for cross-template reuse and UI-driven extraction.
+- **Slide templates** (`scope: slide`) — whole-slide composition. May contain macros and/or block template references.
 
 ---
 
@@ -20,7 +64,7 @@ Use this reference for replication-specific guidance. For full template coverage
 This is the default mode. It is the right model for an API or service.
 
 - Input: screenshot or visual source, optional markup, optional user corrections
-- Output: analysis, reusable template YAML, slide instance YAML, verification plan
+- Output: analysis, reusable template YAML (slide + block), slide instance YAML, verification plan
 - No arbitrary repo reads
 - No file writes
 - No invented slugs, decks, or scratch paths
@@ -34,7 +78,7 @@ This is the repo-specific wrapper around Layer 1.
 - Input: Layer 1 inputs plus slug and target slide or explicit repo path
 - Output: files written under `content/<slug>/...`, plus repo verification artifacts
 - Minimal allowed reads: target `slides.yaml`, target template file if updating, target deck assets
-- Minimal allowed writes: target template, target slide entry, optional overlay refs
+- Minimal allowed writes: target templates (slide + block), target slide entry, optional overlay refs
 - Verification surfaces: `/workbench/replicate` and `bun run slide:diff`
 
 Do not enter Layer 2 just because the repo is available. Enter it only when the user asks for repo changes or provides a concrete target deck.
@@ -69,11 +113,15 @@ Do not enter Layer 2 just because the repo is available. Enter it only when the 
 - Use `frame` constraints plus anchors for local relationships.
 - Use `stack`, `row`, and `grid` only where the source is actually regular.
 - Use `kind: ir` as an escape hatch when scene-native nodes are not enough.
+- **Identify block template candidates**: any sub-region that repeats 2+ times or would be useful across different slides.
 
-### 4. Extract The Template
+### 4. Extract Templates
 
-- Prefer a reusable scene template unless the slide is clearly one-off. In Layer 2, write it into `content/<slug>/templates/`.
-- Promote the stable layout skeleton into the template:
+- Prefer reusable templates unless the slide is clearly one-off.
+- Extract **block-scope templates** for repeating sub-regions (stat cards, feature rows, quote blocks).
+- Extract a **slide-scope template** for the overall layout, using `kind: block` to reference the block templates.
+- In Layer 2, write templates into `content/<slug>/templates/`.
+- Promote the stable layout skeleton into the slide template:
   - guides
   - region frames
   - z-order
@@ -86,7 +134,7 @@ Do not enter Layer 2 just because the repo is available. Enter it only when the 
   - image paths
   - optional regions
   - meaningful style knobs
-- Instantiate the original replicated slide from that template in `slides.yaml` when in Layer 2.
+- Instantiate the original replicated slide from the template in `slides.yaml` when in Layer 2.
 - In Layer 1, return the template body and slide instance body without writing files.
 
 ### 5. Verify
@@ -138,7 +186,7 @@ Only inspect implementation code if:
 ### Write Boundary
 
 - Layer 1: no writes
-- Layer 2: write only the requested template, slide instance, and verification support files
+- Layer 2: write only the requested templates (slide + block), slide instance, and verification support files
 - Never invent a scratch slug or temporary deck unless the user explicitly asked for one
 - If creating a new `slides.yaml`, write a full presentation wrapper with at least `title` and `slides`
 - `theme` is optional; do not invent an invalid theme name
@@ -148,17 +196,18 @@ Only inspect implementation code if:
 
 Layer 1 should return:
 
-1. analysis
+1. analysis (including block template candidates)
 2. authoring decision
-3. reusable template YAML
-4. slide instance YAML
-5. verification plan
+3. block-scope template YAML (if any)
+4. slide-scope template YAML
+5. slide instance YAML
+6. verification plan
 
 Layer 2 should return:
 
 1. analysis
 2. authoring decision
-3. template file contents
+3. template file contents (slide + block)
 4. slide instance YAML
 5. concrete file paths written
 6. verification method and, if run, diff result
@@ -170,21 +219,28 @@ Layer 2 should return:
 When Layer 2 is active:
 
 1. run Layer 1 logic first
-2. write or update the template file
-3. write or update the slide instance
-4. set up overlay refs only if needed
-5. verify with `/workbench/replicate` or `bun run slide:diff`
+2. write or update block template files (if any)
+3. write or update the slide template file
+4. write or update the slide instance
+5. set up overlay refs only if needed
+6. verify with `/workbench/replicate` or `bun run slide:diff`
 
 ---
 
 ## Template-First Heuristics
 
-### Create Or Update A Deck-Local Template When
+### Extract Block Templates When
+
+- a sub-region repeats 2+ times in the slide (e.g., stat cards, feature rows)
+- a sub-region would be useful across different slides (e.g., quote block, chart card)
+- the sub-region has its own internal structure (children, layout)
+
+### Create A Slide Template When
 
 - the composition could reasonably appear in more than one slide
 - the slide belongs to a family in the source deck
 - the structure is stable but content varies
-- the slide uses recognizable recurring regions such as hero, split, stat rail, image + caption, or repeated cards
+- the slide uses recognizable recurring regions
 
 ### Use An Inline Scene Only When
 
@@ -197,6 +253,8 @@ When Layer 2 is active:
 - the source is already a close match
 - built-in params and style controls cover the needed fidelity
 - introducing a deck-local template would duplicate an existing built-in shape
+
+For replication, scene with extracted templates should be the default choice.
 
 ---
 
@@ -212,8 +270,9 @@ The loader checks deck-local templates before built-ins, so no registry update i
 
 Typical replication output is:
 
-1. template file
-2. slide instance in `content/<slug>/slides.yaml`
+1. block template files (if any)
+2. slide template file
+3. slide instance in `content/<slug>/slides.yaml`
 
 This section applies to Layer 2 only. In Layer 1, return the same material as payload rather than writing files.
 
@@ -251,12 +310,13 @@ When the slide does not fit an existing repo theme well:
 
 ---
 
-## Scene Template Skeleton
+## Scene Template Skeletons
 
-Deck-local templates still emit `mode: scene`.
+### Slide-Scope Template
 
 ```yaml
 name: split-stat-rail
+scope: slide
 params:
   eyebrow: { type: string }
   title: { type: string, required: true }
@@ -266,7 +326,6 @@ style:
   split: { type: number, default: 910 }
   accent: { type: string, default: "#ff6b35" }
 
-mode: scene
 sourceSize: { w: 1366, h: 768 }
 fit: contain
 align: center
@@ -289,20 +348,6 @@ presets:
       fontWeight: 400
       color: "#b0a898"
       lineHeight: 1.6
-  statValue:
-    style:
-      fontFamily: heading
-      fontSize: 56
-      fontWeight: 700
-      color: "{{ style.accent }}"
-      lineHeight: 1
-  statLabel:
-    style:
-      fontFamily: body
-      fontSize: 16
-      fontWeight: 400
-      color: "#8a8078"
-      lineHeight: 1.3
 children:
   - kind: shape
     id: right-panel
@@ -325,36 +370,64 @@ children:
     layout: { type: stack, gap: 36 }
     children:
 {% for stat in stats %}
-      - kind: group
+      - kind: block
         id: stat-{{ loop.index0 }}
+        template: stat-card
         frame: { w: 220, h: 84 }
-        layout: { type: stack, gap: 8 }
-        children:
-          - kind: text
-            id: stat-{{ loop.index0 }}-value
-            preset: statValue
-            frame: { w: 220 }
-            text: "{{ stat.value | yaml_string }}"
-          - kind: text
-            id: stat-{{ loop.index0 }}-label
-            preset: statLabel
-            frame: { w: 220 }
-            text: "{{ stat.label | yaml_string }}"
+        params:
+          value: "{{ stat.value | yaml_string }}"
+          label: "{{ stat.label | yaml_string }}"
 {% endfor %}
 ```
 
-Slide instance:
+### Block-Scope Template
+
+```yaml
+name: stat-card
+scope: block
+params:
+  value: { type: string, required: true }
+  label: { type: string, required: true }
+style:
+  valueColor: { type: string, default: "#ff6b35" }
+
+layout: { type: stack, gap: 8 }
+children:
+  - kind: text
+    id: value
+    frame: { w: 220 }
+    text: "{{ value | yaml_string }}"
+    style:
+      fontFamily: heading
+      fontSize: 56
+      fontWeight: 700
+      color: "{{ style.valueColor }}"
+      lineHeight: 1
+  - kind: text
+    id: label
+    frame: { w: 220 }
+    text: "{{ label | yaml_string }}"
+    style:
+      fontFamily: body
+      fontSize: 16
+      fontWeight: 400
+      color: "#8a8078"
+      lineHeight: 1.3
+```
+
+### Slide Instance (nested params)
 
 ```yaml
 - template: split-stat-rail
-  eyebrow: "CHAPTER 03"
-  title: "The Fall of an Empire"
-  body: "Regional warlords, rebellions, and fiscal strain fractured an empire that had lasted nearly three centuries."
-  stats:
-    - value: "907 CE"
-      label: "Year of collapse"
-    - value: "289"
-      label: "Years of reign"
+  params:
+    eyebrow: "CHAPTER 03"
+    title: "The Fall of an Empire"
+    body: "Regional warlords, rebellions, and fiscal strain fractured an empire that had lasted nearly three centuries."
+    stats:
+      - value: "907 CE"
+        label: "Year of collapse"
+      - value: "289"
+        label: "Years of reign"
 ```
 
 ---
@@ -592,6 +665,33 @@ layout:
   padding: 24
 ```
 
+### `block`
+
+Use `kind: block` to reference a block-scope template from within a slide or slide template.
+
+```yaml
+- kind: block
+  id: stat-card-1
+  template: stat-card
+  frame: { x: 100, y: 200, w: 300, h: 150 }
+  params:
+    value: "42%"
+    label: "Growth"
+  style:
+    valueColor: "#00ff88"
+```
+
+Block nodes support all `SceneNodeBase` properties (frame, opacity, entrance, etc.) plus:
+
+- `template`: name of the block-scope template to expand
+- `params`: template parameter values
+- `style`: template style overrides
+
+The system expands block nodes before compilation:
+- Child IDs are prefixed with the block node's ID (e.g., `stat-card-1.value`)
+- Block presets are namespaced (e.g., `stat-card-1.presetName`)
+- The expanded group inherits frame, entrance, and other props from the block node
+
 ### `ir`
 
 Use `kind: ir` when you need a raw `LayoutElement` subtree inside a scene slide.
@@ -797,6 +897,12 @@ Outputs:
 - use `row` for clear side-by-side panels
 - use `grid` for actual repeated cells
 
+### Repeating Sub-Regions (Block Templates)
+
+- extract a block-scope template for patterns like stat cards, feature rows, quote blocks
+- reference from the slide template via `kind: block` nodes
+- each block instance gets its own `id`, `frame`, and `params`
+
 ### Escape Hatch
 
 - if a code/table/list/video/iframe block is already easy to express as raw IR, wrap it in `kind: ir`
@@ -816,3 +922,5 @@ Outputs:
 - Do not invent a slug or scratch deck when one was not provided.
 - Do not normalize screenshot coordinates to 1920x1080 by default; prefer `sourceSize`.
 - Do not present an ad hoc Playwright screenshot loop as the verification workflow.
+- Do not include `mode: scene` or `kind: group` in template bodies — the system injects them based on `scope`.
+- Do not use flat params on slide template references — use nested `params:`.

@@ -573,6 +573,7 @@ describe("normalize guard for block nodes", () => {
       template: "something",
     };
     expect(() =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       normalizeSceneNode(blockNode as any, theme, "/test"),
     ).toThrow(/must be expanded/i);
   });

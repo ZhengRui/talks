@@ -29,19 +29,21 @@ function mergeScenePresetMaps(
   const merged: NonNullable<SceneSlideData["presets"]> = { ...base };
   for (const [name, preset] of Object.entries(override)) {
     const existing = merged[name];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const merge = mergeOptionalObject as (a: any, b: any) => any;
     merged[name] = existing
       ? {
           ...existing,
           ...preset,
-          ...(existing.frame || preset.frame ? { frame: mergeOptionalObject(existing.frame, preset.frame) } : {}),
-          ...(existing.shadow || preset.shadow ? { shadow: mergeOptionalObject(existing.shadow, preset.shadow) } : {}),
-          ...(existing.effects || preset.effects ? { effects: mergeOptionalObject(existing.effects, preset.effects) } : {}),
-          ...(existing.border || preset.border ? { border: mergeOptionalObject(existing.border, preset.border) } : {}),
-          ...(existing.entrance || preset.entrance ? { entrance: mergeOptionalObject(existing.entrance, preset.entrance) } : {}),
-          ...(existing.transform || preset.transform ? { transform: mergeOptionalObject(existing.transform, preset.transform) } : {}),
-          ...(existing.cssStyle || preset.cssStyle ? { cssStyle: mergeOptionalObject(existing.cssStyle, preset.cssStyle) } : {}),
-          ...(existing.style || preset.style ? { style: mergeOptionalObject(existing.style, preset.style) } : {}),
-          ...(existing.layout || preset.layout ? { layout: mergeOptionalObject(existing.layout, preset.layout) } : {}),
+          ...(existing.frame || preset.frame ? { frame: merge(existing.frame, preset.frame) } : {}),
+          ...(existing.shadow || preset.shadow ? { shadow: merge(existing.shadow, preset.shadow) } : {}),
+          ...(existing.effects || preset.effects ? { effects: merge(existing.effects, preset.effects) } : {}),
+          ...(existing.border || preset.border ? { border: merge(existing.border, preset.border) } : {}),
+          ...(existing.entrance || preset.entrance ? { entrance: merge(existing.entrance, preset.entrance) } : {}),
+          ...(existing.transform || preset.transform ? { transform: merge(existing.transform, preset.transform) } : {}),
+          ...(existing.cssStyle || preset.cssStyle ? { cssStyle: merge(existing.cssStyle, preset.cssStyle) } : {}),
+          ...(existing.style || preset.style ? { style: merge(existing.style, preset.style) } : {}),
+          ...(existing.layout || preset.layout ? { layout: merge(existing.layout, preset.layout) } : {}),
         }
       : preset;
   }

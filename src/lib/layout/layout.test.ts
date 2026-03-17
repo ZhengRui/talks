@@ -9,7 +9,7 @@ import {
   staggerDelay,
   CONTENT_X,
 } from "./helpers";
-import { layoutPresentation, layoutSlide } from "./index";
+import { layoutPresentation } from "./index";
 import type { SlideData } from "@/lib/types";
 
 // --- Theme resolution ---
