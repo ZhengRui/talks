@@ -64,6 +64,7 @@ export function buildAnalysisPrompt(
   slug: string | null,
 ): string {
   let prompt = `Analyze this screenshot and propose reusable scene templates. Read .claude/skills/replicate-slides/reference.md first for the correct scene YAML syntax.\n\nScreenshot: ${imagePath}`;
+  prompt += `\nReport the image dimensions as you perceive them in source.dimensions. Do NOT guess or assume — measure from what you see.`;
   if (text) prompt += `\n\nAdditional context: ${text}`;
   if (slug) prompt += `\n\nTarget slug: ${slug}`;
   return prompt;
