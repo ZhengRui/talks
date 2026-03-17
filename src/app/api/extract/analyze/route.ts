@@ -88,6 +88,9 @@ export async function POST(request: NextRequest) {
             maxTurns: 5,
             systemPrompt: ANALYSIS_SYSTEM_PROMPT,
             includePartialMessages: true,
+            // Use Claude Code subscription auth, not API key
+            pathToClaudeCodeExecutable: "/Users/zerry/.local/bin/claude",
+            env: { ...process.env, ANTHROPIC_API_KEY: "" },
           },
         })) {
           const msg = message as Record<string, unknown>;
