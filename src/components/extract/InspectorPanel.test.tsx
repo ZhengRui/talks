@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach, vi, beforeEach } from "vitest";
-import { render, cleanup, fireEvent } from "@testing-library/react";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { render, cleanup } from "@testing-library/react";
 import InspectorPanel from "./InspectorPanel";
 import type { SlideCard } from "./store";
 
@@ -89,7 +89,6 @@ describe("InspectorPanel", () => {
     expect(textarea).not.toBeNull();
 
     // Should show the Analyze button
-    const analyzeBtn = container.querySelector("button");
     const buttons = Array.from(container.querySelectorAll("button"));
     const analyzeBtnFound = buttons.some(
       (b) => b.textContent?.includes("Analyze"),

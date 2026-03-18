@@ -11,12 +11,10 @@ vi.mock("./store", async () => {
     await vi.importActual<typeof import("./store")>("./store");
   return {
     ...actual,
-    useExtractStore: (...args: unknown[]) => {
-      const { useStore } = require("zustand");
-      if (typeof args[0] === "function") {
-        return useStore(testStore, args[0] as (s: ExtractState) => unknown);
-      }
-      return useStore(testStore);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    useExtractStore: (selector?: any) => {
+      const state = testStore.getState();
+      return selector ? selector(state) : state;
     },
   };
 });
@@ -50,7 +48,6 @@ describe("SlideCard", () => {
 
   it("click on image card selects the card", () => {
     const { container } = render(<SlideCard cardId={cardId} />);
-    // The clickable area is the inner .group div (image card)
     const imageCard = container.querySelector(".group") as HTMLElement;
     fireEvent.click(imageCard);
     expect(testStore.getState().selectedCardId).toBe(cardId);

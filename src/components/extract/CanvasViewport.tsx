@@ -8,11 +8,8 @@ export default function CanvasViewport() {
   const pan = useExtractStore((s) => s.pan);
   const zoom = useExtractStore((s) => s.zoom);
   const cardOrder = useExtractStore((s) => s.cardOrder);
-  const selectedCardId = useExtractStore((s) => s.selectedCardId);
   const setPan = useExtractStore((s) => s.setPan);
-  const setZoom = useExtractStore((s) => s.setZoom);
   const selectCard = useExtractStore((s) => s.selectCard);
-  const addCard = useExtractStore((s) => s.addCard);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const isPanning = useRef(false);

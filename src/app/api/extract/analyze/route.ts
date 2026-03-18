@@ -79,14 +79,14 @@ export async function POST(request: NextRequest) {
         let resultText = "";
         send("status", { message: "Starting analysis..." });
 
-        const queryOptions = {
+        const queryOptions: import("@anthropic-ai/claude-agent-sdk").Options = {
           cwd: process.cwd(),
-          settingSources: ["project"] as const,
+          settingSources: ["project"],
           allowedTools: ["Read", "Glob"],
           maxTurns: 5,
           model: "claude-opus-4-6",
-          thinking: { type: "adaptive" as const },
-          effort: "high" as const,
+          thinking: { type: "adaptive" },
+          effort: "high",
           systemPrompt: ANALYSIS_SYSTEM_PROMPT,
           includePartialMessages: true,
           // Use Claude Code subscription auth, not API key
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
           if (msg.type === "system" && msg.subtype === "init") {
             const model = msg.model as string | undefined;
             send("status", {
-              message: `Session started — model: ${model ?? "unknown"}, thinking: ${queryOptions.thinking.type}, effort: ${queryOptions.effort}`,
+              message: `Session started — model: ${model ?? "unknown"}, thinking: ${queryOptions.thinking?.type ?? "default"}, effort: ${queryOptions.effort}`,
             });
             continue;
           }
