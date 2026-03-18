@@ -14,6 +14,7 @@ export interface LogEntry {
 
 export interface SlideCard {
   id: string;
+  label: string;
   file: File;
   previewUrl: string;
   position: { x: number; y: number };
@@ -36,6 +37,8 @@ export interface ExtractState {
   selectedCardId: string | null;
   yamlModal: { open: boolean; cardId: string; templateIndex: number };
   logModal: { open: boolean; cardId: string };
+  panelWidth: number; // 0 when collapsed
+  layoutKey: string; // "row" | "1" | "2" | "3" | "custom-N"
 
   // Actions
   addCard: (file: File) => string;
@@ -50,6 +53,9 @@ export interface ExtractState {
   tickElapsed: (id: string) => void;
   setPan: (pan: { x: number; y: number }) => void;
   setZoom: (zoom: number) => void;
+  zoomToCard: (id: string, viewportW: number, viewportH: number, leftGap?: number) => void;
+  arrangeCards: (cols: number, key: string) => void;
+  setPanelWidth: (width: number) => void;
   openYamlModal: (cardId: string, templateIndex: number) => void;
   closeYamlModal: () => void;
   openLogModal: (cardId: string) => void;
@@ -63,7 +69,7 @@ export interface ExtractState {
 const CARD_W = 480;
 const CARD_H = 270;
 const GAP = 40;
-const COLS = 4;
+const COLS = 3;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -114,6 +120,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
     selectedCardId: null,
     yamlModal: { open: false, cardId: "", templateIndex: 0 },
     logModal: { open: false, cardId: "" },
+    panelWidth: 380,
+    layoutKey: "3", // default: 3-column grid
 
     // Actions
 
@@ -122,8 +130,10 @@ export function createExtractStore(): StoreApi<ExtractState> {
       const previewUrl = URL.createObjectURL(file);
       const index = get().cardOrder.length;
       const position = gridPosition(index);
+      const label = `Slide #${Math.random().toString(36).slice(2, 5)}`;
       const card: SlideCard = {
         id,
+        label,
         file,
         previewUrl,
         position,
@@ -242,7 +252,57 @@ export function createExtractStore(): StoreApi<ExtractState> {
     },
 
     setZoom(zoom: number) {
-      set({ zoom: Math.min(2.0, Math.max(0.25, zoom)) });
+      set({ zoom: Math.min(2.5, Math.max(0.25, zoom)) });
+    },
+
+    zoomToCard(id: string, viewportW: number, viewportH: number, leftGap = 0) {
+      const card = get().cards.get(id);
+      if (!card) return;
+
+      const maxZoom = 2.5;
+      // Padding around the card (including label row above)
+      const pad = 40;
+      const labelHeight = 24;
+      const totalCardH = card.size.h + labelHeight;
+
+      // Available space in viewport
+      const availW = viewportW - leftGap - pad * 2;
+      const availH = viewportH - pad * 2;
+
+      // Fit card into available space, but don't exceed max zoom
+      const zoom = Math.min(maxZoom, availW / card.size.w, availH / totalCardH);
+
+      // Center the card in the available space
+      const scaledW = card.size.w * zoom;
+      const scaledH = totalCardH * zoom;
+      const panX = leftGap + (availW - scaledW) / 2 + pad - card.position.x * zoom;
+      const panY = (viewportH - scaledH) / 2 - (card.position.y - labelHeight) * zoom;
+
+      set({ zoom, pan: { x: panX, y: panY } });
+    },
+
+    arrangeCards(cols: number, key: string) {
+      const { cards, cardOrder } = get();
+      if (cardOrder.length === 0) return;
+      const newCards = new Map(cards);
+      cardOrder.forEach((id, i) => {
+        const card = newCards.get(id);
+        if (!card) return;
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        newCards.set(id, {
+          ...card,
+          position: {
+            x: GAP + col * (CARD_W + GAP),
+            y: GAP + row * (CARD_H + GAP + 24), // 24 for label row
+          },
+        });
+      });
+      set({ cards: newCards, layoutKey: key });
+    },
+
+    setPanelWidth(width: number) {
+      set({ panelWidth: width });
     },
 
     openYamlModal(cardId: string, templateIndex: number) {

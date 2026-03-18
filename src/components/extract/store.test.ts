@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { createExtractStore } from "../store";
+import { createExtractStore } from "./store";
 import type { StoreApi } from "zustand/vanilla";
-import type { ExtractState } from "../store";
+import type { ExtractState } from "./store";
 
 function makeFile(name = "slide.png"): File {
   return new File(["fake"], name, { type: "image/png" });
@@ -44,14 +44,14 @@ describe("ExtractStore", () => {
       expect(card2.position).toEqual({ x: 40 + 520, y: 40 });
     });
 
-    it("wraps to next row after 4 cards", () => {
-      for (let i = 0; i < 4; i++) {
+    it("wraps to next row after 3 cards", () => {
+      for (let i = 0; i < 3; i++) {
         store.getState().addCard(makeFile(`${i}.png`));
       }
-      const id5 = store.getState().addCard(makeFile("4.png"));
-      const card5 = store.getState().cards.get(id5)!;
-      // Fifth card: column 0, row 1 → x = 40, y = 40 + (270+40)*1
-      expect(card5.position).toEqual({ x: 40, y: 40 + 310 });
+      const id4 = store.getState().addCard(makeFile("3.png"));
+      const card4 = store.getState().cards.get(id4)!;
+      // Fourth card: column 0, row 1 → x = 40, y = 40 + (270+40)*1
+      expect(card4.position).toEqual({ x: 40, y: 40 + 310 });
     });
 
     it("sets card size to 480x270", () => {
@@ -304,9 +304,9 @@ describe("ExtractStore", () => {
       expect(store.getState().zoom).toBe(0.25);
     });
 
-    it("setZoom clamps to maximum 2.0", () => {
-      store.getState().setZoom(3.0);
-      expect(store.getState().zoom).toBe(2.0);
+    it("setZoom clamps to maximum 2.5", () => {
+      store.getState().setZoom(5.0);
+      expect(store.getState().zoom).toBe(2.5);
     });
   });
 
