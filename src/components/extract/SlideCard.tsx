@@ -1,7 +1,9 @@
 "use client";
 
+import { X } from "lucide-react";
 import { regionColor } from "./types";
 import { useExtractStore } from "./store";
+import { ZoomToFitIcon } from "./icons";
 
 interface SlideCardProps {
   cardId: string;
@@ -50,45 +52,46 @@ export default function SlideCard({ cardId }: SlideCardProps) {
         )}
         {card.status === "analyzed" && card.analysis && (
           <span className="text-[11px] text-emerald-600">
-            {card.analysis.proposals.length} template{card.analysis.proposals.length !== 1 ? "s" : ""}
+            {card.analysis.proposals.length} template
+            {card.analysis.proposals.length !== 1 ? "s" : ""}
           </span>
         )}
         {card.status === "error" && (
           <span className="text-[11px] text-red-500">Error</span>
         )}
-        {/* Center: zoom-to-fit + delete */}
-        {isSelected && <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
+        {/* Center: zoom-to-fit */}
+        {isSelected && (
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                const vw = window.innerWidth;
+                const vh = window.innerHeight;
+                const rightGap = panelWidth > 0 ? panelWidth + 32 : 0;
+                zoomToCard(cardId, vw - rightGap, vh, 40);
+              }}
+              className="flex h-5 w-5 items-center justify-center text-gray-400 transition-colors hover:text-gray-600"
+              title="Zoom to fit"
+            >
+              <ZoomToFitIcon className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+        {/* Delete button — only on selected card */}
+        {isSelected && (
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              const vw = window.innerWidth;
-              const vh = window.innerHeight;
-              const rightGap = panelWidth > 0 ? panelWidth + 32 : 0;
-              zoomToCard(cardId, vw - rightGap, vh, 40);
+              removeCard(cardId);
             }}
-            className="flex h-4 w-4 items-center justify-center text-gray-400 transition-colors hover:text-gray-600"
-            title="Zoom to fit"
+            className="ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-red-400"
+            title="Remove slide"
           >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-            </svg>
+            <X className="h-4 w-4 translate-y-px" strokeWidth={2} />
           </button>
-        </div>}
-        {/* Delete button — only on selected card */}
-        {isSelected && <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            removeCard(cardId);
-          }}
-          className="ml-auto flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:text-red-400"
-          title="Remove slide"
-        >
-          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-          </svg>
-        </button>}
+        )}
       </div>
 
       {/* Image card */}
@@ -101,7 +104,9 @@ export default function SlideCard({ cardId }: SlideCardProps) {
         style={{
           width: card.size.w,
           height: card.size.h,
-          outline: isSelected ? "2px solid #22d3ee" : "1px solid rgba(0,0,0,0.1)",
+          outline: isSelected
+            ? "2px solid #22d3ee"
+            : "1px solid rgba(0,0,0,0.1)",
           outlineOffset: -1,
           boxShadow: isSelected
             ? "0 8px 30px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.1)"
@@ -125,7 +130,10 @@ export default function SlideCard({ cardId }: SlideCardProps) {
         {isSelected && isAnalyzed && (
           <div className="absolute inset-0 overflow-hidden rounded-lg">
             {card.analysis!.proposals.map((proposal, i) => {
-              if (proposal.region.w > srcW * 0.9 && proposal.region.h > srcH * 0.9) {
+              if (
+                proposal.region.w > srcW * 0.9 &&
+                proposal.region.h > srcH * 0.9
+              ) {
                 return null;
               }
 

@@ -198,14 +198,22 @@ export default function LogModal() {
   const card = open && cardId ? cards.get(cardId) : undefined;
   const log = card?.log ?? [];
 
+  const wasAtBottom = useRef(true);
+  useEffect(() => {
+    wasAtBottom.current = true;
+  }, [open]);
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
-    if (isNearBottom) {
+    if (wasAtBottom.current) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [log.length]);
+  }, [log.length, log[log.length - 1]?.timestamp]);
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    wasAtBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -225,7 +233,7 @@ export default function LogModal() {
       onClick={closeLogModal}
     >
       <div
-        className="w-[700px] max-w-[90vw] max-h-[80vh] rounded-xl border border-gray-200 bg-white shadow-2xl flex flex-col"
+        className="w-[1100px] max-w-[90vw] max-h-[80vh] rounded-xl border border-gray-200 bg-white shadow-2xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
@@ -235,14 +243,14 @@ export default function LogModal() {
             <button
               type="button"
               onClick={closeLogModal}
-              className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1"
+              className="flex h-6 w-6 items-center justify-center rounded text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             >
-              &times;
+              <X className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 min-h-0">
+        <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 min-h-0">
           {log.length === 0 ? (
             <p className="text-[13px] text-gray-400">No log entries yet.</p>
           ) : (

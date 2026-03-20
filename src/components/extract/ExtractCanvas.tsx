@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef } from "react";
 import CanvasViewport from "./CanvasViewport";
 import CanvasToolbar from "./CanvasToolbar";
 import InspectorPanel from "./InspectorPanel";
-import YamlModal from "./YamlModal";
 import LogModal from "./LogModal";
 import { useExtractStore, type LogEntry } from "./store";
 import type { AnalysisResult } from "./types";
@@ -186,7 +185,6 @@ export default function ExtractCanvas() {
       <CanvasViewport />
       <CanvasToolbar />
       <InspectorPanel onAnalyze={handleAnalyze} />
-      <YamlModal />
       <LogModal />
     </div>
   );

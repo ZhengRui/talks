@@ -70,10 +70,9 @@ describe("ExtractCanvas", () => {
     expect(getByTestId("inspector-panel")).toBeDefined();
   });
 
-  it("renders yaml and log modals", () => {
+  it("renders log modal", () => {
     const { getByTestId } = render(<ExtractCanvas />);
 
-    expect(getByTestId("yaml-modal")).toBeDefined();
     expect(getByTestId("log-modal")).toBeDefined();
   });
 

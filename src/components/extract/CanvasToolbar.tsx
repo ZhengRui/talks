@@ -2,10 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useExtractStore } from "./store";
-
-// Stroke-only icons for thin, clean look
-const S = "currentColor";
-const W = 1.2;
+import { RowLayoutIcon, ColLayoutIcon, Grid2x2Icon, Grid3x3Icon, CustomGridIcon } from "./icons";
 
 const layouts = [
   {
@@ -13,59 +10,28 @@ const layouts = [
     key: "row",
     label: "Row",
     title: "Arrange in one row",
-    icon: (
-      <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke={S} strokeWidth={W}>
-        <rect x="1.5" y="5.5" width="4.5" height="9" rx="1" />
-        <rect x="7.75" y="5.5" width="4.5" height="9" rx="1" />
-        <rect x="14" y="5.5" width="4.5" height="9" rx="1" />
-      </svg>
-    ),
+    icon: <RowLayoutIcon />,
   },
   {
     cols: 1,
     key: "1",
     label: "Col",
     title: "Arrange in one column",
-    icon: (
-      <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke={S} strokeWidth={W}>
-        <rect x="3.5" y="1.5" width="13" height="4.5" rx="1" />
-        <rect x="3.5" y="7.75" width="13" height="4.5" rx="1" />
-        <rect x="3.5" y="14" width="13" height="4.5" rx="1" />
-      </svg>
-    ),
+    icon: <ColLayoutIcon />,
   },
   {
     cols: 2,
     key: "2",
     label: "2x2",
     title: "Arrange in 2-column grid",
-    icon: (
-      <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke={S} strokeWidth={W}>
-        <rect x="1.5" y="1.5" width="7" height="7" rx="1" />
-        <rect x="11.5" y="1.5" width="7" height="7" rx="1" />
-        <rect x="1.5" y="11.5" width="7" height="7" rx="1" />
-        <rect x="11.5" y="11.5" width="7" height="7" rx="1" />
-      </svg>
-    ),
+    icon: <Grid2x2Icon />,
   },
   {
     cols: 3,
     key: "3",
     label: "3x3",
     title: "Arrange in 3-column grid",
-    icon: (
-      <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke={S} strokeWidth={W}>
-        <rect x="1.5" y="1.5" width="4.5" height="4.5" rx="0.75" />
-        <rect x="7.75" y="1.5" width="4.5" height="4.5" rx="0.75" />
-        <rect x="14" y="1.5" width="4.5" height="4.5" rx="0.75" />
-        <rect x="1.5" y="7.75" width="4.5" height="4.5" rx="0.75" />
-        <rect x="7.75" y="7.75" width="4.5" height="4.5" rx="0.75" />
-        <rect x="14" y="7.75" width="4.5" height="4.5" rx="0.75" />
-        <rect x="1.5" y="14" width="4.5" height="4.5" rx="0.75" />
-        <rect x="7.75" y="14" width="4.5" height="4.5" rx="0.75" />
-        <rect x="14" y="14" width="4.5" height="4.5" rx="0.75" />
-      </svg>
-    ),
+    icon: <Grid3x3Icon />,
   },
 ];
 
@@ -134,24 +100,7 @@ export default function CanvasToolbar() {
           }`}
           title="Custom grid"
         >
-          <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={W}>
-            <rect x="1.5" y="1.5" width="3" height="3" rx="0.5" />
-            <rect x="6.25" y="1.5" width="3" height="3" rx="0.5" />
-            <rect x="11" y="1.5" width="3" height="3" rx="0.5" />
-            <rect x="15.5" y="1.5" width="3" height="3" rx="0.5" />
-            <rect x="1.5" y="6.25" width="3" height="3" rx="0.5" />
-            <rect x="6.25" y="6.25" width="3" height="3" rx="0.5" />
-            <rect x="11" y="6.25" width="3" height="3" rx="0.5" />
-            <rect x="15.5" y="6.25" width="3" height="3" rx="0.5" />
-            <rect x="1.5" y="11" width="3" height="3" rx="0.5" />
-            <rect x="6.25" y="11" width="3" height="3" rx="0.5" />
-            <rect x="11" y="11" width="3" height="3" rx="0.5" />
-            <rect x="15.5" y="11" width="3" height="3" rx="0.5" />
-            <rect x="1.5" y="15.5" width="3" height="3" rx="0.5" />
-            <rect x="6.25" y="15.5" width="3" height="3" rx="0.5" />
-            <rect x="11" y="15.5" width="3" height="3" rx="0.5" />
-            <rect x="15.5" y="15.5" width="3" height="3" rx="0.5" />
-          </svg>
+          <CustomGridIcon />
         </button>
 
         {showCustom && (

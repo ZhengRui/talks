@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useExtractStore } from "./store";
 import ThumbnailStrip from "./ThumbnailStrip";
 import AnalyzeForm from "./AnalyzeForm";
@@ -8,7 +9,7 @@ import AnalyzingSpinner from "./AnalyzingSpinner";
 import TemplateInspector from "./TemplateInspector";
 
 const MIN_WIDTH = 300;
-const MAX_WIDTH = 560;
+const MAX_WIDTH = 800;
 const DEFAULT_WIDTH = 380;
 
 interface InspectorPanelProps {
@@ -69,9 +70,7 @@ export default function InspectorPanel({ onAnalyze }: InspectorPanelProps) {
         style={{ right: 0, bottom: 24 }}
         title="Expand panel"
       >
-        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-        </svg>
+        <ChevronLeft className="h-4 w-4" />
       </button>
     );
   }
@@ -90,13 +89,11 @@ export default function InspectorPanel({ onAnalyze }: InspectorPanelProps) {
         }}
         title="Collapse panel"
       >
-        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-        </svg>
+        <ChevronRight className="h-4 w-4" />
       </button>
 
       <div
-        className="fixed z-20 flex flex-col rounded-xl border border-gray-200 bg-gray-50/80 shadow-xl backdrop-blur-sm"
+        className="fixed z-20 flex flex-col rounded-xl border border-gray-200 bg-gray-100/95 shadow-xl backdrop-blur-sm"
         style={{ right: 16, top: 16, bottom: 16, width }}
       >
         {/* Resize handle — hover animates the vertical line */}
@@ -109,7 +106,7 @@ export default function InspectorPanel({ onAnalyze }: InspectorPanelProps) {
 
         <ThumbnailStrip />
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex flex-1 flex-col min-h-0">
           {!card && (
             <div className="flex h-full items-center justify-center text-sm text-gray-400">
               Select a slide to inspect
@@ -117,7 +114,9 @@ export default function InspectorPanel({ onAnalyze }: InspectorPanelProps) {
           )}
 
           {card && (card.status === "idle" || card.status === "error") && (
-            <AnalyzeForm card={card} onAnalyze={onAnalyze} />
+            <div className="overflow-y-auto">
+              <AnalyzeForm card={card} onAnalyze={onAnalyze} />
+            </div>
           )}
 
           {card && card.status === "analyzing" && (

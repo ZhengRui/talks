@@ -51,6 +51,7 @@ export interface ExtractState {
   completeAnalysis: (id: string, result: AnalysisResult) => void;
   failAnalysis: (id: string, error: string) => void;
   setNaturalSize: (id: string, w: number, h: number) => void;
+  resetAnalysis: (id: string) => void;
   selectTemplate: (id: string, index: number) => void;
   tickElapsed: (id: string) => void;
   setPan: (pan: { x: number; y: number }) => void;
@@ -253,6 +254,19 @@ export function createExtractStore(): StoreApi<ExtractState> {
         updateCard(state, id, () => ({
           naturalSize: { w, h },
           size: { w: Math.round(displayW), h: Math.round(displayH) },
+        })),
+      );
+    },
+
+    resetAnalysis(id: string) {
+      set((state) =>
+        updateCard(state, id, () => ({
+          status: "idle" as const,
+          analysis: null,
+          log: [],
+          elapsed: 0,
+          error: null,
+          selectedTemplateIndex: 0,
         })),
       );
     },

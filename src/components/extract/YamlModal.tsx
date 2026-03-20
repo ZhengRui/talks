@@ -147,7 +147,7 @@ export default function YamlModal() {
       onClick={closeYamlModal}
     >
       <div
-        className="w-[900px] max-w-[90vw] max-h-[80vh] rounded-xl border border-gray-200 bg-white shadow-2xl flex flex-col"
+        className="w-[1100px] max-w-[90vw] max-h-[80vh] rounded-xl border border-gray-200 bg-white shadow-2xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
