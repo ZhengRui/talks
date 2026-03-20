@@ -19,6 +19,7 @@ export interface SlideCard {
   previewUrl: string;
   position: { x: number; y: number };
   size: { w: number; h: number };
+  naturalSize: { w: number; h: number } | null; // original image dimensions
   status: "idle" | "analyzing" | "analyzed" | "error";
   description: string;
   analysis: AnalysisResult | null;
@@ -49,6 +50,7 @@ export interface ExtractState {
   appendLog: (id: string, entry: LogEntry) => void;
   completeAnalysis: (id: string, result: AnalysisResult) => void;
   failAnalysis: (id: string, error: string) => void;
+  setNaturalSize: (id: string, w: number, h: number) => void;
   selectTemplate: (id: string, index: number) => void;
   tickElapsed: (id: string) => void;
   setPan: (pan: { x: number; y: number }) => void;
@@ -66,8 +68,9 @@ export interface ExtractState {
 // Constants
 // ---------------------------------------------------------------------------
 
-const CARD_W = 480;
-const CARD_H = 270;
+const CELL_SIZE = 480; // square cell for grid layout
+const CARD_W = 480;   // default display width (overridden when naturalSize known)
+const CARD_H = 270;   // default display height (16:9 fallback)
 const GAP = 40;
 const COLS = 3;
 
@@ -80,13 +83,13 @@ function generateId(): string {
   return `card-${++nextId}-${Date.now()}`;
 }
 
-/** Compute grid position for the nth card. */
+/** Compute grid position for the nth card using square cells. */
 function gridPosition(index: number): { x: number; y: number } {
   const col = index % COLS;
   const row = Math.floor(index / COLS);
   return {
-    x: GAP + col * (CARD_W + GAP),
-    y: GAP + row * (CARD_H + GAP),
+    x: GAP + col * (CELL_SIZE + GAP),
+    y: GAP + row * (CELL_SIZE + GAP),
   };
 }
 
@@ -138,6 +141,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
         previewUrl,
         position,
         size: { w: CARD_W, h: CARD_H },
+        naturalSize: null,
         status: "idle",
         description: "",
         analysis: null,
@@ -231,6 +235,28 @@ export function createExtractStore(): StoreApi<ExtractState> {
       );
     },
 
+    setNaturalSize(id: string, w: number, h: number) {
+      // Compute display size: fit within CELL_SIZE maintaining aspect ratio
+      const aspect = w / h;
+      let displayW: number;
+      let displayH: number;
+      if (aspect >= 1) {
+        // Landscape or square — fit width
+        displayW = CELL_SIZE;
+        displayH = CELL_SIZE / aspect;
+      } else {
+        // Portrait — fit height
+        displayH = CELL_SIZE;
+        displayW = CELL_SIZE * aspect;
+      }
+      set((state) =>
+        updateCard(state, id, () => ({
+          naturalSize: { w, h },
+          size: { w: Math.round(displayW), h: Math.round(displayH) },
+        })),
+      );
+    },
+
     selectTemplate(id: string, index: number) {
       set((state) =>
         updateCard(state, id, () => ({ selectedTemplateIndex: index })),
@@ -293,8 +319,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
         newCards.set(id, {
           ...card,
           position: {
-            x: GAP + col * (CARD_W + GAP),
-            y: GAP + row * (CARD_H + GAP + 24), // 24 for label row
+            x: GAP + col * (CELL_SIZE + GAP),
+            y: GAP + row * (CELL_SIZE + GAP),
           },
         });
       });

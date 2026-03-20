@@ -50,8 +50,8 @@ describe("ExtractStore", () => {
       }
       const id4 = store.getState().addCard(makeFile("3.png"));
       const card4 = store.getState().cards.get(id4)!;
-      // Fourth card: column 0, row 1 → x = 40, y = 40 + (270+40)*1
-      expect(card4.position).toEqual({ x: 40, y: 40 + 310 });
+      // Fourth card: column 0, row 1 → x = 40, y = 40 + (480+40)*1
+      expect(card4.position).toEqual({ x: 40, y: 40 + 520 });
     });
 
     it("sets card size to 480x270", () => {

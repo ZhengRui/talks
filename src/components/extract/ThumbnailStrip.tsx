@@ -21,10 +21,10 @@ export default function ThumbnailStrip() {
             key={id}
             type="button"
             onClick={() => selectCard(id)}
-            className="shrink-0 overflow-hidden rounded-md"
+            className="shrink-0 flex items-center justify-center overflow-hidden rounded-md"
             style={{
-              width: 64,
-              height: 36,
+              width: 48,
+              height: 48,
               border: isSelected
                 ? "2px solid #22d3ee"
                 : "2px solid transparent",
@@ -34,7 +34,7 @@ export default function ThumbnailStrip() {
             <img
               src={card.previewUrl}
               alt={`Slide ${id}`}
-              className="h-full w-full object-cover"
+              className="max-h-full max-w-full object-contain"
             />
           </button>
         );

@@ -15,7 +15,7 @@ export default function TemplateTabs({
   onSelect,
 }: TemplateTabsProps) {
   return (
-    <div className="flex overflow-x-auto border-b border-gray-200 bg-gray-50/50">
+    <div className="flex overflow-x-auto border-b border-gray-200 bg-gray-50/50" style={{ scrollbarWidth: "none" }}>
       {proposals.map((proposal, i) => {
         const isActive = i === selectedIndex;
         return (

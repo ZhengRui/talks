@@ -17,7 +17,10 @@ function truncate(value: unknown, max = 30): string {
 
 function FieldRow({ name, field }: { name: string; field: ProposalField }) {
   return (
-    <div className="flex items-center gap-2 rounded-md bg-gray-50 px-2 py-1 text-xs">
+    <div
+      className="flex items-center gap-2 rounded-md bg-gray-50 px-2 py-1 text-xs"
+      title={typeof field.value === "string" ? field.value : JSON.stringify(field.value)}
+    >
       <span className="shrink-0 font-medium text-gray-800">{name}</span>
       <span className="rounded bg-gray-200 px-1 py-0.5 text-[10px] text-gray-500">
         {field.type}
@@ -65,10 +68,8 @@ export default function ParamsStyleView({ proposal }: ParamsStyleViewProps) {
       {proposal.description && (
         <p className="text-xs text-gray-500">{proposal.description}</p>
       )}
-      <div className="flex gap-3">
-        <FieldColumn title="Params" fields={proposal.params} />
-        <FieldColumn title="Style" fields={proposal.style} />
-      </div>
+      <FieldColumn title="Params" fields={proposal.params} />
+      <FieldColumn title="Style" fields={proposal.style} />
     </div>
   );
 }

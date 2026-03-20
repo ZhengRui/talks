@@ -15,6 +15,7 @@ export default function SlideCard({ cardId }: SlideCardProps) {
   const removeCard = useExtractStore((s) => s.removeCard);
   const zoomToCard = useExtractStore((s) => s.zoomToCard);
   const panelWidth = useExtractStore((s) => s.panelWidth);
+  const setNaturalSize = useExtractStore((s) => s.setNaturalSize);
 
   if (!card) return null;
 
@@ -111,7 +112,13 @@ export default function SlideCard({ cardId }: SlideCardProps) {
         <img
           src={imgSrc}
           alt=""
-          className="pointer-events-none h-full w-full object-cover select-none"
+          className="pointer-events-none h-full w-full object-contain select-none"
+          onLoad={(e) => {
+            if (!card.naturalSize) {
+              const img = e.currentTarget;
+              setNaturalSize(cardId, img.naturalWidth, img.naturalHeight);
+            }
+          }}
         />
 
         {/* Region overlays — only when selected AND analyzed */}
