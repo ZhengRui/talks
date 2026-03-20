@@ -229,7 +229,7 @@ export default function LogModal() {
   return (
     <div
       data-testid="log-modal-backdrop"
-      className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm flex items-center justify-center"
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center"
       onClick={closeLogModal}
     >
       <div

@@ -93,7 +93,7 @@ export default function InspectorPanel({ onAnalyze }: InspectorPanelProps) {
       </button>
 
       <div
-        className="fixed z-20 flex flex-col rounded-xl border border-gray-200 bg-gray-100/95 shadow-xl backdrop-blur-sm"
+        className="fixed z-20 flex flex-col rounded-xl border border-gray-200 bg-gray-100 shadow-xl"
         style={{ right: 16, top: 16, bottom: 16, width }}
       >
         {/* Resize handle — hover animates the vertical line */}

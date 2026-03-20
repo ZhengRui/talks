@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { FileText, RotateCcw } from "lucide-react";
 import { useExtractStore } from "./store";
 import type { SlideCard } from "./store";
@@ -15,6 +16,7 @@ export default function TemplateInspector({ card }: TemplateInspectorProps) {
   const selectTemplate = useExtractStore((s) => s.selectTemplate);
   const openLogModal = useExtractStore((s) => s.openLogModal);
   const resetAnalysis = useExtractStore((s) => s.resetAnalysis);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const proposals = card.analysis?.proposals ?? [];
 
@@ -42,15 +44,44 @@ export default function TemplateInspector({ card }: TemplateInspectorProps) {
           <FileText className="h-3.5 w-3.5" />
           Log
         </button>
-        <button
-          type="button"
-          onClick={() => resetAnalysis(card.id)}
-          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-200/60 hover:text-gray-700"
-          title="Reset analysis"
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-          Reset
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowResetConfirm(true)}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-200/60 hover:text-gray-700"
+            title="Reset analysis"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Reset
+          </button>
+          {showResetConfirm && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowResetConfirm(false)} />
+              <div className="absolute left-0 top-[calc(100%+7px)] z-20 w-56 rounded-lg border border-gray-200 bg-white p-3 shadow-lg">
+                <p className="text-xs text-gray-600 mb-2.5">Clear all extracted templates?</p>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetAnalysis(card.id);
+                      setShowResetConfirm(false);
+                    }}
+                    className="rounded-md bg-red-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-600 transition-colors"
+                  >
+                    Reset
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowResetConfirm(false)}
+                    className="rounded-md px-2.5 py-1 text-xs text-gray-500 hover:bg-gray-100 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Fixed: template tabs */}
