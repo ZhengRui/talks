@@ -1,3 +1,4 @@
+import type nunjucks from "nunjucks";
 import type { DslTemplateDef } from "./types";
 import type {
   SceneBlockNode,
@@ -7,13 +8,23 @@ import type {
   SceneSlideData,
 } from "@/lib/scene/types";
 import { expandBlockTemplate } from "./block";
-import { findTemplate } from "./loader";
 
 const MAX_EXPANSION_DEPTH = 5;
 
-/**
- * Check whether a node tree contains any `kind: "block"` nodes.
- */
+// ---------------------------------------------------------------------------
+// Runtime interface — injected by callers to decouple from fs/loader
+// ---------------------------------------------------------------------------
+
+export interface BlockExpansionRuntime {
+  resolveTemplate(name: string): DslTemplateDef | null;
+  createEnvironment(templateDef: DslTemplateDef): nunjucks.Environment;
+  sourceLabel?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
 function hasBlockNodes(nodes: SceneNode[]): boolean {
   for (const node of nodes) {
     if (node.kind === "block") return true;
@@ -22,36 +33,9 @@ function hasBlockNodes(nodes: SceneNode[]): boolean {
   return false;
 }
 
-/**
- * Resolve a template definition — prefer overrides (test-only), fall back to
- * filesystem via `findTemplate`.
- */
-function resolveTemplate(
-  name: string,
-  slug: string | undefined,
-  overrides?: Record<string, DslTemplateDef>,
-): DslTemplateDef {
-  if (overrides && name in overrides) {
-    return overrides[name];
-  }
-  const def = findTemplate(name, slug);
-  if (!def) {
-    throw new Error(
-      `[block-expand] Template "${name}" not found${slug ? ` (slug: ${slug})` : ""}`,
-    );
-  }
-  return def;
-}
-
-/**
- * Recursively walk a list of scene nodes, expanding `kind: "block"` nodes via
- * `expandBlockTemplate()`. Returns the transformed node list and any collected
- * presets.
- */
 function walkChildren(
   nodes: SceneNode[],
-  slug: string | undefined,
-  overrides: Record<string, DslTemplateDef> | undefined,
+  runtime: BlockExpansionRuntime,
   depth: number,
 ): { nodes: SceneNode[]; presets: Record<string, ScenePreset> } {
   const collectedPresets: Record<string, ScenePreset> = {};
@@ -66,40 +50,33 @@ function walkChildren(
       }
 
       const blockNode = node as SceneBlockNode;
-      const def = resolveTemplate(blockNode.template, slug, overrides);
-      const expanded = expandBlockTemplate(blockNode, def);
+      const def = runtime.resolveTemplate(blockNode.template);
+      if (!def) {
+        const label = runtime.sourceLabel ?? "unknown";
+        throw new Error(
+          `[block-expand] Template "${blockNode.template}" not found (source: ${label})`,
+        );
+      }
+      const env = runtime.createEnvironment(def);
+      const expanded = expandBlockTemplate(blockNode, def, env);
 
-      // Collect presets from this block
       if (expanded.presets) {
         Object.assign(collectedPresets, expanded.presets);
       }
 
-      // Recursively expand any block nodes in the expanded group's children
       const groupNode = expanded.node;
-      const inner = walkChildren(
-        groupNode.children,
-        slug,
-        overrides,
-        depth + 1,
-      );
+      const inner = walkChildren(groupNode.children, runtime, depth + 1);
       groupNode.children = inner.nodes;
       Object.assign(collectedPresets, inner.presets);
 
       result.push(groupNode);
     } else if (node.kind === "group") {
       const groupNode = node as SceneGroupNode;
-      const inner = walkChildren(
-        groupNode.children,
-        slug,
-        overrides,
-        depth,
-      );
-      // Mutate children in place — same depth level (groups don't increase depth)
+      const inner = walkChildren(groupNode.children, runtime, depth);
       groupNode.children = inner.nodes;
       Object.assign(collectedPresets, inner.presets);
       result.push(groupNode);
     } else {
-      // text, shape, image, ir — pass through unchanged
       result.push(node);
     }
   }
@@ -107,37 +84,22 @@ function walkChildren(
   return { nodes: result, presets: collectedPresets };
 }
 
-/**
- * Recursively walks slide children, expands `kind: "block"` nodes via
- * `expandBlockTemplate()`, collects presets into parent slide, with depth
- * guard for circular references.
- *
- * @param slide        The scene slide to process
- * @param slug         Presentation slug for template lookup
- * @param overrides    Test-only template overrides (bypasses filesystem)
- * @returns            The modified SceneSlideData with blocks expanded
- */
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 export function expandBlockNodes(
   slide: SceneSlideData,
-  slug?: string,
-  overrides?: Record<string, DslTemplateDef>,
+  runtime: BlockExpansionRuntime,
 ): SceneSlideData {
-  // Fast path: no block nodes in the tree — return as-is
   if (!hasBlockNodes(slide.children)) {
     return slide;
   }
 
-  const { nodes, presets } = walkChildren(
-    slide.children,
-    slug,
-    overrides,
-    0,
-  );
+  const { nodes, presets } = walkChildren(slide.children, runtime, 0);
 
-  // Build result slide with expanded children
   const result: SceneSlideData = { ...slide, children: nodes };
 
-  // Merge collected presets into slide presets
   if (Object.keys(presets).length > 0) {
     result.presets = { ...(slide.presets ?? {}), ...presets };
   }

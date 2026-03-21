@@ -5,6 +5,7 @@ import type { PresentationData, PresentationSummary } from "./types";
 import { findTemplate } from "./dsl/loader";
 import { expandDslTemplate } from "./dsl/engine";
 import { expandBlockNodes } from "./dsl/block-expand";
+import { createServerRuntime } from "./dsl/server-runtime";
 import type { SceneSlideData } from "./scene/types";
 
 const CONTENT_DIR = path.join(process.cwd(), "content");
@@ -20,7 +21,7 @@ export function loadPresentation(slug: string): PresentationData {
     if ((expanded as Record<string, unknown>).mode === "scene") {
       return expandBlockNodes(
         expanded as unknown as SceneSlideData,
-        slug,
+        createServerRuntime(slug),
       ) as unknown as Record<string, unknown>;
     }
     return expanded;

@@ -27,6 +27,7 @@ export interface SlideCard {
   elapsed: number;
   error: string | null;
   selectedTemplateIndex: number;
+  viewMode: "original" | "replica";
 }
 
 export interface ExtractState {
@@ -52,6 +53,7 @@ export interface ExtractState {
   failAnalysis: (id: string, error: string) => void;
   setNaturalSize: (id: string, w: number, h: number) => void;
   resetAnalysis: (id: string) => void;
+  setViewMode: (id: string, mode: "original" | "replica") => void;
   selectTemplate: (id: string, index: number) => void;
   tickElapsed: (id: string) => void;
   setPan: (pan: { x: number; y: number }) => void;
@@ -150,6 +152,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
         elapsed: 0,
         error: null,
         selectedTemplateIndex: 0,
+        viewMode: "original",
       };
       set((state) => {
         const next = new Map(state.cards);
@@ -218,11 +221,18 @@ export function createExtractStore(): StoreApi<ExtractState> {
     },
 
     completeAnalysis(id: string, result: AnalysisResult) {
+      // Sort proposals: slide-scope first, then blocks
+      const sorted = [...result.proposals].sort((a, b) => {
+        if (a.scope === "slide" && b.scope !== "slide") return -1;
+        if (a.scope !== "slide" && b.scope === "slide") return 1;
+        return 0;
+      });
       set((state) =>
         updateCard(state, id, () => ({
           status: "analyzed" as const,
-          analysis: result,
+          analysis: { ...result, proposals: sorted },
           selectedTemplateIndex: 0,
+          viewMode: "original" as const,
         })),
       );
     },
@@ -267,8 +277,13 @@ export function createExtractStore(): StoreApi<ExtractState> {
           elapsed: 0,
           error: null,
           selectedTemplateIndex: 0,
+          viewMode: "original" as const,
         })),
       );
+    },
+
+    setViewMode(id: string, mode: "original" | "replica") {
+      set((state) => updateCard(state, id, () => ({ viewMode: mode })));
     },
 
     selectTemplate(id: string, index: number) {

@@ -3,12 +3,22 @@ import path from "path";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { SceneBlockNode, SceneGroupNode, SceneNode, SceneSlideData } from "./types";
 import { expandBlockTemplate } from "@/lib/dsl/block";
-import { expandBlockNodes } from "@/lib/dsl/block-expand";
+import { expandBlockNodes, type BlockExpansionRuntime } from "@/lib/dsl/block-expand";
+import { createMinimalEnvironment } from "@/lib/dsl/nunjucks-filters";
 import { findTemplate, clearTemplateCache } from "@/lib/dsl/loader";
 import type { DslTemplateDef } from "@/lib/dsl/types";
 import { normalizeSceneNode } from "./normalize";
 import { compileSceneSlide } from "./compiler";
 import { resolveTheme } from "@/lib/layout/theme";
+
+const minimalEnv = createMinimalEnvironment();
+
+function makeRuntime(templates: Record<string, DslTemplateDef>): BlockExpansionRuntime {
+  return {
+    resolveTemplate: (name) => templates[name] ?? null,
+    createEnvironment: () => minimalEnv,
+  };
+}
 
 function makeBlockDef(overrides: Partial<DslTemplateDef>): DslTemplateDef {
   return {
@@ -67,7 +77,7 @@ children:
       params: { label: "Hello" },
     };
 
-    const result = expandBlockTemplate(blockNode, def);
+    const result = expandBlockTemplate(blockNode, def, minimalEnv);
     expect(result.node.kind).toBe("group");
     expect(result.node.id).toBe("my-block");
     expect((result.node as SceneGroupNode).children).toHaveLength(1);
@@ -98,7 +108,7 @@ children:
       frame: { left: 100, top: 200, w: 400, h: 300 },
     };
 
-    const result = expandBlockTemplate(blockNode, def);
+    const result = expandBlockTemplate(blockNode, def, minimalEnv);
     expect(result.node.frame).toEqual({ left: 100, top: 200, w: 400, h: 300 });
   });
 
@@ -127,7 +137,7 @@ children:
       template: "test-block",
     };
 
-    const result = expandBlockTemplate(blockNode, def);
+    const result = expandBlockTemplate(blockNode, def, minimalEnv);
     expect(result.presets).toBeDefined();
     expect(result.presets!["card-block__cardBg"]).toMatchObject({
       borderRadius: 12,
@@ -162,7 +172,7 @@ children:
       style: { fontSize: 48 },
     };
 
-    const result = expandBlockTemplate(blockNode, def);
+    const result = expandBlockTemplate(blockNode, def, minimalEnv);
     const text = (result.node as SceneGroupNode).children[0] as { style: { fontSize: number } };
     expect(text.style.fontSize).toBe(48);
   });
@@ -191,7 +201,7 @@ children:
       template: "test-block",
     };
 
-    const result = expandBlockTemplate(blockNode, def);
+    const result = expandBlockTemplate(blockNode, def, minimalEnv);
     const rule = (result.node as SceneGroupNode).children[1] as Record<string, unknown>;
     const frame = rule.frame as Record<string, unknown>;
     const top = frame.top as { ref: string; offset: number };
@@ -227,7 +237,7 @@ children:
       template: "test-block",
     };
 
-    const result = expandBlockTemplate(blockNode, def);
+    const result = expandBlockTemplate(blockNode, def, minimalEnv);
     expect(result.presets).toHaveProperty("hero__base");
     expect(result.presets).toHaveProperty("hero__emphasized");
     expect(result.presets!["hero__emphasized"].extends).toBe("hero__base");
@@ -266,7 +276,7 @@ children:
       template: "test-block",
     };
 
-    const result = expandBlockTemplate(blockNode, def);
+    const result = expandBlockTemplate(blockNode, def, minimalEnv);
     const presetFrame = result.presets!["card__anchored"].frame as Record<string, unknown>;
     expect((presetFrame.top as { ref: string }).ref).toBe("@card__title.bottom");
     expect(presetFrame.left).toBe("@card__title.left");
@@ -296,7 +306,7 @@ children:
       template: "test-block",
     };
 
-    const result = expandBlockTemplate(blockNode, def);
+    const result = expandBlockTemplate(blockNode, def, minimalEnv);
     const divider = (result.node as SceneGroupNode).children[1] as Record<string, unknown>;
     const frame = divider.frame as Record<string, unknown>;
     // @x.content is a guide ref (content is not an anchor property) — NOT rewritten
@@ -323,7 +333,7 @@ children: []
       template: "needs-label",
     };
 
-    expect(() => expandBlockTemplate(blockNode, def)).toThrow(
+    expect(() => expandBlockTemplate(blockNode, def, minimalEnv)).toThrow(
       /requires param "label"/,
     );
   });
@@ -342,7 +352,7 @@ children: []
       template: "test-block",
     };
 
-    expect(() => expandBlockTemplate(blockNode, def)).toThrow(
+    expect(() => expandBlockTemplate(blockNode, def, minimalEnv)).toThrow(
       /must not emit mode.*scene/i,
     );
   });
@@ -374,7 +384,7 @@ children:
       params: { label: "Works" },
     };
 
-    const result = expandBlockTemplate(blockNode, def);
+    const result = expandBlockTemplate(blockNode, def, minimalEnv);
     expect(result.node.kind).toBe("group");
     expect(result.node.id).toBe("norm");
     expect((result.node as SceneGroupNode).children[0]).toMatchObject({
@@ -396,7 +406,7 @@ children:
       template: "test-block",
     };
 
-    expect(() => expandBlockTemplate(blockNode, def)).toThrow(
+    expect(() => expandBlockTemplate(blockNode, def, minimalEnv)).toThrow(
       /scope.*slide.*cannot.*block/i,
     );
   });
@@ -424,7 +434,7 @@ describe("expandBlockNodes", () => {
       ],
     };
 
-    const result = expandBlockNodes(slide, undefined, {
+    const result = expandBlockNodes(slide, makeRuntime({
       "test-stat-row": {
         name: "test-stat-row",
         params: { items: { type: "array", required: true } },
@@ -440,7 +450,7 @@ children:
   {% endfor %}
 `,
       },
-    });
+    }));
 
     expect(result.children).toHaveLength(2);
     expect(result.children[0].kind).toBe("text");
@@ -471,7 +481,7 @@ children:
       ],
     };
 
-    const result = expandBlockNodes(slide, undefined, {
+    const result = expandBlockNodes(slide, makeRuntime({
       "simple-block": {
         name: "simple-block",
         params: { text: { type: "string", required: true } },
@@ -485,7 +495,7 @@ children:
     style: { fontSize: 24, lineHeight: 1 }
 `,
       },
-    });
+    }));
 
     const container = result.children[0] as SceneGroupNode;
     expect(container.children[0].kind).toBe("group");
@@ -509,7 +519,7 @@ children:
       ],
     };
 
-    const result = expandBlockNodes(slide, undefined, {
+    const result = expandBlockNodes(slide, makeRuntime({
       "preset-block": {
         name: "preset-block",
         params: {},
@@ -529,7 +539,7 @@ children:
     style: { fill: "#222" }
 `,
       },
-    });
+    }));
 
     expect(result.presets).toHaveProperty("existing");
     expect(result.presets).toHaveProperty("card__cardBg");
@@ -561,7 +571,7 @@ children:
       },
     };
 
-    expect(() => expandBlockNodes(slide, undefined, templates)).toThrow(
+    expect(() => expandBlockNodes(slide, makeRuntime(templates))).toThrow(
       /maximum.*depth|circular/i,
     );
   });
@@ -580,8 +590,97 @@ children:
       ],
     };
 
-    const result = expandBlockNodes(slide);
+    const result = expandBlockNodes(slide, makeRuntime({}));
     expect(result).toEqual(slide);
+  });
+
+  it("works with minimal env and body-only rawBody (no header)", () => {
+    const slide: SceneSlideData = {
+      mode: "scene",
+      children: [
+        {
+          kind: "block",
+          id: "card-0",
+          template: "info-card",
+          frame: { x: 100, y: 200, w: 160, h: 100 },
+          params: { icon: "🔥", label: "TEST" },
+          style: { labelColor: "#d4603a", cardBg: "#1e2540" },
+        } as SceneBlockNode,
+        {
+          kind: "block",
+          id: "card-1",
+          template: "info-card",
+          frame: { x: 280, y: 200, w: 160, h: 100 },
+          params: { icon: "🛡️", label: "OTHER" },
+          style: { labelColor: "#c44040", cardBg: "#1e2540" },
+        } as SceneBlockNode,
+      ],
+    };
+
+    const result = expandBlockNodes(slide, makeRuntime({
+      "info-card": {
+        name: "info-card",
+        scope: "block",
+        params: {
+          icon: { type: "string" },
+          label: { type: "string" },
+        },
+        style: {
+          labelColor: { type: "string", default: "#ffffff" },
+          cardBg: { type: "string", default: "#222" },
+        },
+        // Body-only rawBody — no name/scope/params/style header
+        rawBody: `children:
+  - kind: shape
+    id: bg
+    frame: { x: 0, y: 0, w: 160, h: 100 }
+    shape: rect
+    style:
+      fill: "{{ style.cardBg }}"
+  - kind: text
+    id: icon
+    frame: { centerX: 80, top: 10, w: 140 }
+    text: "{{ icon | yaml_string }}"
+    style: { fontSize: 18, textAlign: center }
+  - kind: text
+    id: label
+    frame: { centerX: 80, top: { ref: "@icon.bottom", offset: 8 }, w: 140 }
+    text: "{{ label | yaml_string }}"
+    style:
+      fontSize: 10
+      fontWeight: 700
+      color: "{{ style.labelColor }}"
+      textAlign: center
+`,
+      },
+    }));
+
+    // Both blocks expanded to groups
+    expect(result.children).toHaveLength(2);
+    expect(result.children[0].kind).toBe("group");
+    expect(result.children[1].kind).toBe("group");
+
+    // ID prefixing works
+    const card0 = result.children[0] as SceneGroupNode;
+    expect(card0.id).toBe("card-0");
+    expect(card0.children).toHaveLength(3);
+    expect(card0.children[0].id).toBe("card-0__bg");
+    expect(card0.children[1].id).toBe("card-0__icon");
+    expect(card0.children[2].id).toBe("card-0__label");
+
+    // No ID collision between card-0 and card-1
+    const card1 = result.children[1] as SceneGroupNode;
+    expect(card1.children[0].id).toBe("card-1__bg");
+
+    // Anchor rewriting works
+    const labelFrame = card0.children[2].frame as Record<string, unknown>;
+    const topRef = labelFrame.top as { ref: string; offset: number };
+    expect(topRef.ref).toBe("@card-0__icon.bottom");
+    expect(topRef.offset).toBe(8);
+
+    // Style defaults merged with overrides
+    const bgShape = card0.children[0] as { style: { fill: string } };
+    expect(bgShape.style.fill).toBe("#1e2540");
   });
 });
 
@@ -755,7 +854,7 @@ describe("block template end-to-end", () => {
     };
 
     // Expand block nodes with inline template override
-    const expanded = expandBlockNodes(slide, undefined, {
+    const expanded = expandBlockNodes(slide, makeRuntime({
       "metric-row": {
         name: "metric-row",
         params: { items: { type: "array", required: true } },
@@ -781,7 +880,7 @@ children:
   {% endfor %}
 `,
       },
-    });
+    }));
 
     // Block nodes should be gone
     expect(expanded.children[1].kind).toBe("group");

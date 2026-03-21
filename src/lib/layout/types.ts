@@ -266,8 +266,8 @@ export type LayoutElement =
 // --- Slide and Presentation ---
 
 export interface LayoutSlide {
-  width: 1920;
-  height: 1080;
+  width: number;
+  height: number;
   background: string;
   backgroundImage?: string;
   overlay?: string;

@@ -1,6 +1,7 @@
 import { parse } from "yaml";
+import type nunjucks from "nunjucks";
 import type { DslTemplateDef } from "./types";
-import { createTemplateEnvironment, smartify } from "./nunjucks-env";
+import { smartify } from "./nunjucks-filters";
 import {
   SCENE_ANCHOR_PROPERTIES,
   type SceneBlockNode,
@@ -138,6 +139,7 @@ const NODE_BASE_KEYS: (keyof SceneNodeBase)[] = [
 export function expandBlockTemplate(
   blockNode: SceneBlockNode,
   templateDef: DslTemplateDef,
+  env: nunjucks.Environment,
 ): ExpandBlockResult {
   const blockId = blockNode.id;
 
@@ -183,7 +185,6 @@ export function expandBlockTemplate(
   // 4. Render through Nunjucks
   let rendered: string;
   try {
-    const env = createTemplateEnvironment(templateDef);
     rendered = env.renderString(templateDef.rawBody, context);
   } catch (e) {
     throw new Error(

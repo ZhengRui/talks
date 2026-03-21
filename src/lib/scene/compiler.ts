@@ -70,13 +70,15 @@ function computeSceneViewport(
   sourceSize: SceneSize | undefined,
   fit: SceneFitMode | undefined,
   align: SceneAlign | undefined,
+  canvasW: number = CANVAS_W,
+  canvasH: number = CANVAS_H,
 ): SceneViewport {
   if (!sourceSize || sourceSize.w <= 0 || sourceSize.h <= 0) {
     return {
       x: 0,
       y: 0,
-      w: CANVAS_W,
-      h: CANVAS_H,
+      w: canvasW,
+      h: canvasH,
       scaleX: 1,
       scaleY: 1,
       visualScale: 1,
@@ -90,14 +92,14 @@ function computeSceneViewport(
   let h = sourceSize.h;
 
   if (mode === "stretch") {
-    scaleX = CANVAS_W / sourceSize.w;
-    scaleY = CANVAS_H / sourceSize.h;
-    w = CANVAS_W;
-    h = CANVAS_H;
+    scaleX = canvasW / sourceSize.w;
+    scaleY = canvasH / sourceSize.h;
+    w = canvasW;
+    h = canvasH;
   } else if (mode === "contain" || mode === "cover") {
     const scale = mode === "cover"
-      ? Math.max(CANVAS_W / sourceSize.w, CANVAS_H / sourceSize.h)
-      : Math.min(CANVAS_W / sourceSize.w, CANVAS_H / sourceSize.h);
+      ? Math.max(canvasW / sourceSize.w, canvasH / sourceSize.h)
+      : Math.min(canvasW / sourceSize.w, canvasH / sourceSize.h);
     scaleX = scale;
     scaleY = scale;
     w = sourceSize.w * scale;
@@ -108,13 +110,13 @@ function computeSceneViewport(
   const x = anchor.x === "left"
     ? 0
     : anchor.x === "right"
-      ? CANVAS_W - w
-      : (CANVAS_W - w) / 2;
+      ? canvasW - w
+      : (canvasW - w) / 2;
   const y = anchor.y === "top"
     ? 0
     : anchor.y === "bottom"
-      ? CANVAS_H - h
-      : (CANVAS_H - h) / 2;
+      ? canvasH - h
+      : (canvasH - h) / 2;
 
   return {
     x,
@@ -487,20 +489,29 @@ function validateSceneNodeIds(children: SceneNode[]): void {
   children.forEach(visit);
 }
 
+export interface CompileSceneOptions {
+  canvasW?: number;
+  canvasH?: number;
+}
+
 export function compileSceneSlide(
   slide: SceneSlideData,
   theme: ResolvedTheme,
   imageBase: string,
+  options?: CompileSceneOptions,
 ): LayoutSlide {
+  const canvasW = options?.canvasW ?? CANVAS_W;
+  const canvasH = options?.canvasH ?? CANVAS_H;
+
   validateSceneNodeIds(slide.children);
   const normalized = normalizeSceneSlide(slide, theme, imageBase);
-  const viewport = computeSceneViewport(normalized.sourceSize, normalized.fit, normalized.align);
+  const viewport = computeSceneViewport(normalized.sourceSize, normalized.fit, normalized.align, canvasW, canvasH);
   const children = normalized.children.map((child) => scaleSceneNode(child, viewport));
   const guides = scaleGuides(normalized.guides, viewport);
 
   return {
-    width: CANVAS_W,
-    height: CANVAS_H,
+    width: canvasW,
+    height: canvasH,
     background: normalized.background,
     ...(normalized.backgroundImage ? { backgroundImage: normalized.backgroundImage } : {}),
     ...(normalized.overlay ? { overlay: resolveBackgroundOverlay(normalized.overlay) } : {}),

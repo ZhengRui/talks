@@ -57,7 +57,8 @@ Output a JSON object wrapped in a \`\`\`json code fence:
 - CRITICAL: For source.dimensions, report ONLY what you visually perceive as the image size. Do NOT guess standard resolutions like 1920x1080, 1366x768, etc. If the image appears to be about 840 pixels wide, report 840, not 1366.
 - Use guides for repeated alignment lines
 - All positions are in source-pixel coordinates
-- Do NOT include mode: scene or kind: group in the body — the system injects these based on scope`;
+- Do NOT include mode: scene or kind: group in the body — the system injects these based on scope
+- Do NOT use {% import %}, {% include %}, or {% from %} in template bodies — bodies must be self-contained`;
 
 export function buildAnalysisPrompt(
   imagePath: string,
