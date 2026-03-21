@@ -7,12 +7,12 @@ export const ANALYSIS_SYSTEM_PROMPT = `You analyze screenshots of presentation s
 IMPORTANT constraints:
 - This is a Layer 1 (analysis-only) task. Do NOT write files, open workbenches, or run verification.
 - Do NOT attempt to verify, render, or test the templates.
-- Just analyze the screenshot, read the skill reference for scene syntax, and return JSON.
+- The screenshot image is provided inline in the conversation. Analyze it directly and return JSON.
 
 ## Your workflow
 
 1. Read the replicate-slides skill reference at .claude/skills/replicate-slides/reference.md to understand scene YAML syntax.
-2. Analyze the screenshot image.
+2. Analyze the screenshot image provided in the conversation.
 3. Identify reusable template candidates (slide-scope for overall layout, block-scope for repeating sub-regions).
 4. Output the JSON result.
 
@@ -54,19 +54,18 @@ Output a JSON object wrapped in a \`\`\`json code fence:
 - Propose block-scope templates for reusable sub-regions (stat cards, feature rows, etc.)
 - Slide templates can reference block templates via kind: block nodes in their body
 - Use the source.dimensions value you report for sourceSize in the template body, with fit: contain and align: center
-- CRITICAL: For source.dimensions, report ONLY what you visually perceive as the image size. Do NOT guess standard resolutions like 1920x1080, 1366x768, etc. If the image appears to be about 840 pixels wide, report 840, not 1366.
+- CRITICAL: For source.dimensions, report ONLY what you visually perceive as the image size. Do NOT guess standard resolutions like 1920x1080, 1366x768, etc. Report the dimensions as they appear to you.
 - Use guides for repeated alignment lines
 - All positions are in source-pixel coordinates
 - Do NOT include mode: scene or kind: group in the body — the system injects these based on scope
 - Do NOT use {% import %}, {% include %}, or {% from %} in template bodies — bodies must be self-contained`;
 
 export function buildAnalysisPrompt(
-  imagePath: string,
   text: string | null,
   slug: string | null,
 ): string {
-  let prompt = `Analyze this screenshot and propose reusable scene templates. Read .claude/skills/replicate-slides/reference.md first for the correct scene YAML syntax.\n\nScreenshot: ${imagePath}`;
-  prompt += `\n\nCRITICAL for source.dimensions: Report the pixel dimensions as you visually perceive the image — typically around 800-1100px wide. Do NOT round to standard resolutions (not 1366x768, not 1920x1080). Your coordinates and region boxes must be consistent with the dimensions you report.`;
+  let prompt = `Analyze this screenshot and propose reusable scene templates. Read .claude/skills/replicate-slides/reference.md first for the correct scene YAML syntax.`;
+  prompt += `\n\nCRITICAL for source.dimensions: Report the pixel dimensions as you visually perceive the image. Do NOT round to standard resolutions (not 1366x768, not 1920x1080). Your coordinates and region boxes must be consistent with the dimensions you report.`;
   if (text) prompt += `\n\nAdditional context: ${text}`;
   if (slug) prompt += `\n\nTarget slug: ${slug}`;
   return prompt;

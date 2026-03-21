@@ -27,7 +27,7 @@ export default function SlideCard({ cardId }: SlideCardProps) {
 
   const isAnalyzed = card.status === "analyzed" && card.analysis;
   const isReplica = card.viewMode === "replica";
-  const imgSrc = isAnalyzed ? card.analysis!.source.imagePath : card.previewUrl;
+  const imgSrc = card.previewUrl;
 
   const srcW = card.analysis?.source.dimensions.w ?? 0;
   const srcH = card.analysis?.source.dimensions.h ?? 0;

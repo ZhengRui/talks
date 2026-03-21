@@ -1,10 +1,15 @@
 import { NextRequest } from "next/server";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { writeFileSync, mkdirSync } from "fs";
-import { join } from "path";
-import { randomUUID } from "crypto";
 import { ANALYSIS_SYSTEM_PROMPT, buildAnalysisPrompt } from "@/lib/extract/prompts";
 import { normalizeAnalysisRegions } from "@/lib/extract/normalize-analysis";
+
+/** Infer media type from file extension. */
+function inferMediaType(fileName: string): string {
+  const ext = fileName.split(".").pop()?.toLowerCase();
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (ext === "webp") return "image/webp";
+  return "image/png";
+}
 
 /** Read actual image dimensions from a PNG/JPEG/WebP buffer. */
 function readImageSize(buffer: Buffer): { w: number; h: number } | null {
@@ -53,19 +58,32 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Save image to temp location
-  const tmpDir = join(process.cwd(), ".tmp", "extract");
-  mkdirSync(tmpDir, { recursive: true });
-  const ext = image.name.split(".").pop() || "png";
-  const imageName = `screenshot-${randomUUID().slice(0, 8)}.${ext}`;
-  const imagePath = join(tmpDir, imageName);
   const imageBuffer = Buffer.from(await image.arrayBuffer());
-  writeFileSync(imagePath, imageBuffer);
-
   const actualSize = readImageSize(imageBuffer);
-  // Don't tell Claude the actual dimensions — let it report what it perceives.
-  // The normalization step will rescale from Claude's perceived space to actual pixels.
-  const analysisPrompt = buildAnalysisPrompt(imagePath, text, slug);
+  const mediaType = image.type || inferMediaType(image.name);
+  const analysisPrompt = buildAnalysisPrompt(text, slug);
+
+  async function* makePrompt() {
+    yield {
+      type: "user" as const,
+      session_id: "",
+      message: {
+        role: "user" as const,
+        content: [
+          {
+            type: "image" as const,
+            source: {
+              type: "base64" as const,
+              media_type: mediaType,
+              data: imageBuffer.toString("base64"),
+            },
+          },
+          { type: "text" as const, text: analysisPrompt },
+        ],
+      },
+      parent_tool_use_id: null,
+    };
+  }
 
   // Stream SSE events to the client
   const encoder = new TextEncoder();
@@ -95,7 +113,7 @@ export async function POST(request: NextRequest) {
         };
 
         for await (const message of query({
-          prompt: analysisPrompt,
+          prompt: makePrompt(),
           options: queryOptions,
         })) {
           const msg = message as Record<string, unknown>;
@@ -194,10 +212,6 @@ export async function POST(request: NextRequest) {
 
         const parsedAnalysis = JSON.parse(jsonMatch[1]);
         const analysis = normalizeAnalysisRegions(parsedAnalysis, actualSize);
-        analysis.source = {
-          ...analysis.source,
-          imagePath: `/api/extract/image?path=${encodeURIComponent(imagePath)}`,
-        };
 
         send("result", analysis);
         controller.close();

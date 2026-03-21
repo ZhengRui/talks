@@ -121,7 +121,6 @@ describe("InspectorPanel", () => {
         source: {
           image: "base64",
           dimensions: { w: 1920, h: 1080 },
-          imagePath: "/img.png",
         },
         proposals: [
           {

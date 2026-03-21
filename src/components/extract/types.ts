@@ -27,7 +27,6 @@ export interface AnalysisResult {
   source: {
     image: string;
     dimensions: { w: number; h: number };
-    imagePath: string;
   };
   proposals: Proposal[];
 }

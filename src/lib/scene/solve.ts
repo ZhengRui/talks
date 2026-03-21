@@ -473,12 +473,25 @@ function compileGridChildren(children: SceneNode[], parent: Rect, ctx: CompileCo
       cellW: number;
     }> = [];
 
+    // Pre-compute row height from explicit child frame.h values (Option C).
+    // When all children in a row declare frame.h, use the max as the compile
+    // height so that bottom/centerY constraints resolve against the cell, not
+    // the full grid container.
+    let precomputedRowH: number | undefined;
+    if (layout.rowHeight == null) {
+      const explicitHeights = rowChildren.map(c => resolveValue(c.frame?.h, ctx));
+      if (explicitHeights.every((h): h is number => h !== undefined)) {
+        precomputedRowH = Math.max(...explicitHeights);
+      }
+    }
+    const compileH = layout.rowHeight ?? precomputedRowH ?? inner.h;
+
     let cursorX = inner.x;
     for (const [index, child] of rowChildren.entries()) {
       const cellW = trackWidths[index] ?? 0;
       const compiled = compileSceneNode(
         child,
-        { x: 0, y: 0, w: cellW, h: layout.rowHeight ?? inner.h },
+        { x: 0, y: 0, w: cellW, h: compileH },
         ctx,
       );
       rowItems.push({
@@ -492,6 +505,7 @@ function compileGridChildren(children: SceneNode[], parent: Rect, ctx: CompileCo
     }
 
     const rowHeight = layout.rowHeight
+      ?? precomputedRowH
       ?? rowItems.reduce((max, item) => Math.max(max, item.rect.y + item.rect.h), 0);
 
     for (const item of rowItems) {

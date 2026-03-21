@@ -22,7 +22,6 @@ function seedCard() {
     source: {
       image: "data:image/png;base64,abc",
       dimensions: { w: 1920, h: 1080 },
-      imagePath: "/images/slide.png",
     },
     proposals: [
       {

@@ -314,6 +314,110 @@ describe("compileSceneSlide", () => {
     );
   });
 
+  it("resolves bottom constraints against precomputed row height when grid children have explicit frame.h", () => {
+    const slide: SceneSlideData = {
+      mode: "scene",
+      children: [
+        {
+          kind: "group",
+          id: "grid",
+          frame: { x: 0, y: 0, w: 400, h: 300 },
+          layout: { type: "grid", columns: 2, columnGap: 10, rowGap: 10 },
+          children: [
+            {
+              kind: "group",
+              id: "card-0",
+              frame: { h: 100 },
+              children: [
+                { kind: "text", id: "val-0", frame: { left: 0, top: 10, w: 100 }, text: "500", style: { fontSize: 40, fontWeight: 700, color: "#fff" } },
+                { kind: "text", id: "lbl-0", frame: { left: 0, bottom: 10, w: 100 }, text: "LABEL", style: { fontSize: 12, fontWeight: 400, color: "#888" } },
+              ],
+            },
+            {
+              kind: "group",
+              id: "card-1",
+              frame: { h: 100 },
+              children: [
+                { kind: "text", id: "val-1", frame: { left: 0, top: 10, w: 100 }, text: "2000", style: { fontSize: 40, fontWeight: 700, color: "#fff" } },
+                { kind: "text", id: "lbl-1", frame: { left: 0, bottom: 10, w: 100 }, text: "LABEL", style: { fontSize: 12, fontWeight: 400, color: "#888" } },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = compileSceneSlide(slide, resolveTheme("modern"), "/scene");
+    const grid = result.elements[0];
+    expect(grid.kind).toBe("group");
+    if (grid.kind !== "group") return;
+
+    // Card groups should be 100px tall (from explicit frame.h), not 300px
+    const card0 = grid.children[0];
+    expect(card0.kind).toBe("group");
+    if (card0.kind !== "group") return;
+    expect(card0.rect.h).toBe(100);
+
+    // The label with bottom: 10 should resolve against h=100, not h=300.
+    // label y = 100 - 10 - labelHeight. Must be well under 100.
+    const label0 = card0.children[1];
+    expect(label0.rect.y).toBeLessThan(100);
+    // Without the fix, label y would be ~300 - 10 - labelHeight ≈ 276
+    expect(label0.rect.y).toBeLessThan(90);
+  });
+
+  it("falls back to inner.h for grid children without explicit frame.h (known limitation)", () => {
+    // When grid children lack explicit frame.h, bottom constraints still
+    // resolve against the full container height. This is a documented
+    // limitation — see reference.md pitfalls section.
+    const slide: SceneSlideData = {
+      mode: "scene",
+      children: [
+        {
+          kind: "group",
+          id: "grid",
+          frame: { x: 0, y: 0, w: 400, h: 300 },
+          layout: { type: "grid", columns: 2, columnGap: 10, rowGap: 10 },
+          children: [
+            {
+              kind: "group",
+              id: "card-0",
+              // No explicit frame.h
+              children: [
+                { kind: "text", id: "val-0", frame: { left: 0, top: 10, w: 100 }, text: "500", style: { fontSize: 40, fontWeight: 700, color: "#fff" } },
+                { kind: "text", id: "lbl-0", frame: { left: 0, bottom: 10, w: 100 }, text: "LABEL", style: { fontSize: 12, fontWeight: 400, color: "#888" } },
+              ],
+            },
+            {
+              kind: "group",
+              id: "card-1",
+              // No explicit frame.h
+              children: [
+                { kind: "text", id: "val-1", frame: { left: 0, top: 10, w: 100 }, text: "2000", style: { fontSize: 40, fontWeight: 700, color: "#fff" } },
+                { kind: "text", id: "lbl-1", frame: { left: 0, bottom: 10, w: 100 }, text: "LABEL", style: { fontSize: 12, fontWeight: 400, color: "#888" } },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = compileSceneSlide(slide, resolveTheme("modern"), "/scene");
+    const grid = result.elements[0];
+    expect(grid.kind).toBe("group");
+    if (grid.kind !== "group") return;
+
+    const card0 = grid.children[0];
+    expect(card0.kind).toBe("group");
+    if (card0.kind !== "group") return;
+
+    // Known limitation: without explicit frame.h, the label's bottom: 10
+    // resolves against inner.h (300), producing a large gap.
+    // This documents the current behavior, not the desired behavior.
+    const label0 = card0.children[1];
+    expect(label0.rect.y).toBeGreaterThan(200);
+  });
+
   it("applies scene presets before normalization and keeps explicit node overrides", () => {
     const theme = resolveTheme("dark-tech");
     const slide: SceneSlideData = {

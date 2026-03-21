@@ -665,6 +665,8 @@ layout:
   padding: 24
 ```
 
+**Important:** When grid children use `bottom` or `centerY` constraints, set `rowHeight` or give each child an explicit `frame.h`. Without these, `bottom` resolves against the full grid container height, not the cell height.
+
 ### `block`
 
 Use `kind: block` to reference a block-scope template from within a slide or slide template.
@@ -924,3 +926,5 @@ Outputs:
 - Do not present an ad hoc Playwright screenshot loop as the verification workflow.
 - Do not include `mode: scene` or `kind: group` in template bodies — the system injects them based on `scope`.
 - Do not use flat params on slide template references — use nested `params:`.
+- Do not use `bottom`, `centerY`, or height-relative constraints inside grid children unless `rowHeight` is set on the grid layout or the grid children have explicit `frame.h`. Without these, children compile against the full grid container height, not the computed cell height, producing large gaps. Use `top` positioning, anchor references, or explicit `frame.h` on grid children instead.
+- Always wrap `{{ param | yaml_string }}` in quotes in template bodies: `text: "{{ title | yaml_string }}"`. Without quotes, text containing colons (e.g. `"warned: if attacked"`) breaks YAML parsing as a nested mapping.
