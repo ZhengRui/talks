@@ -928,3 +928,4 @@ Outputs:
 - Do not use flat params on slide template references — use nested `params:`.
 - Do not use `bottom`, `centerY`, or height-relative constraints inside grid children unless `rowHeight` is set on the grid layout or the grid children have explicit `frame.h`. Without these, children compile against the full grid container height, not the computed cell height, producing large gaps. Use `top` positioning, anchor references, or explicit `frame.h` on grid children instead.
 - Always wrap `{{ param | yaml_string }}` in quotes in template bodies: `text: "{{ title | yaml_string }}"`. Without quotes, text containing colons (e.g. `"warned: if attacked"`) breaks YAML parsing as a nested mapping.
+- Always include `{{ loop.index0 }}` in ids inside `{% for %}` loops: `id: value-{{ loop.index0 }}`. Block expansion prefixes child ids with the block node's id (e.g. `stat-rail.value-0`), so different blocks won't collide, but repeated ids within the same block will.
