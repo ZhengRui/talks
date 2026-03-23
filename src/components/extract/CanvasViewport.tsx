@@ -10,6 +10,10 @@ type LiveTransform = {
   zoom: number;
 };
 
+type WheelGestureMode = "pan" | "zoom";
+
+const WHEEL_GESTURE_IDLE_MS = 140;
+
 // ---------------------------------------------------------------------------
 // Direct-DOM transform helpers — bypass React for smooth 120fps gestures
 // ---------------------------------------------------------------------------
@@ -64,7 +68,11 @@ function isLikelyTrackpadWheel(e: WheelEvent) {
     return true;
   }
 
-  return Math.abs(e.deltaY) < 16;
+  const absDeltaY = Math.abs(e.deltaY);
+  const looksLikeClassicWheelStep =
+    absDeltaY > 0 && (absDeltaY % 100 === 0 || absDeltaY % 120 === 0);
+
+  return !looksLikeClassicWheelStep;
 }
 
 export default function CanvasViewport() {
@@ -90,6 +98,13 @@ export default function CanvasViewport() {
   // Writes directly to the DOM for instant feedback, then syncs React
   // state once per frame via rAF.
   const syncRaf = useRef(0);
+  const wheelGestureRef = useRef<{
+    mode: WheelGestureMode | null;
+    resetTimer: ReturnType<typeof setTimeout> | null;
+  }>({
+    mode: null,
+    resetTimer: null,
+  });
 
   useEffect(() => {
     const el = viewportRef.current;
@@ -114,25 +129,34 @@ export default function CanvasViewport() {
       }
     }
 
+    function scheduleWheelGestureReset() {
+      const gesture = wheelGestureRef.current;
+      if (gesture.resetTimer) {
+        clearTimeout(gesture.resetTimer);
+      }
+      gesture.resetTimer = setTimeout(() => {
+        gesture.mode = null;
+        gesture.resetTimer = null;
+      }, WHEEL_GESTURE_IDLE_MS);
+    }
+
     function onWheel(e: WheelEvent) {
       e.preventDefault();
       const live = liveRef.current;
+      const gesture = wheelGestureRef.current;
 
       if (e.ctrlKey) {
-        // Pinch gesture → zoom toward cursor
-        zoomTowardPoint(
-          live,
-          e.clientX,
-          e.clientY,
-          e.deltaY,
-          el.getBoundingClientRect(),
-        );
-      } else if (isLikelyTrackpadWheel(e)) {
+        gesture.mode = "zoom";
+      } else if (!gesture.mode) {
+        gesture.mode = isLikelyTrackpadWheel(e) ? "pan" : "zoom";
+      }
+
+      if (gesture.mode === "pan") {
         // Two-finger trackpad scroll → pan
         live.x -= e.deltaX;
         live.y -= e.deltaY;
       } else {
-        // Mouse wheel and coarse wheel devices keep the original zoom behavior
+        // Pinch and mouse wheel gestures zoom toward the cursor
         zoomTowardPoint(
           live,
           e.clientX,
@@ -144,6 +168,7 @@ export default function CanvasViewport() {
 
       // Instant DOM update — no React in the loop
       applyTransform(viewportRef.current, transformRef.current, live.x, live.y, live.zoom);
+      scheduleWheelGestureReset();
       scheduleSyncState();
     }
 
@@ -151,6 +176,9 @@ export default function CanvasViewport() {
     return () => {
       el.removeEventListener("wheel", onWheel);
       if (syncRaf.current) cancelAnimationFrame(syncRaf.current);
+      if (wheelGestureRef.current.resetTimer) {
+        clearTimeout(wheelGestureRef.current.resetTimer);
+      }
     };
   }, []);
 

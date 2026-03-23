@@ -64,7 +64,7 @@ beforeEach(() => {
     "requestAnimationFrame",
     vi.fn((callback: FrameRequestCallback) => {
       callback(0);
-      return 1;
+      return 0;
     }),
   );
   vi.stubGlobal("cancelAnimationFrame", vi.fn());
@@ -180,6 +180,27 @@ describe("CanvasViewport", () => {
     expect(transform.style.transform).toBe("translate(-12.5px, -8.25px) scale(1)");
   });
 
+  it("keeps a trackpad gesture latched to pan as deltas accelerate", () => {
+    const { getByTestId } = render(<CanvasViewport />);
+
+    const viewport = getByTestId("canvas-viewport");
+    const transform = getByTestId("canvas-transform");
+
+    fireEvent.wheel(viewport, {
+      deltaMode: DOM_DELTA_PIXEL,
+      deltaY: 8,
+    });
+    fireEvent.wheel(viewport, {
+      deltaMode: DOM_DELTA_PIXEL,
+      deltaY: 48,
+    });
+
+    expect(mockSetPan).toHaveBeenNthCalledWith(1, { x: 0, y: -8 });
+    expect(mockSetPan).toHaveBeenNthCalledWith(2, { x: 0, y: -56 });
+    expect(mockSetZoom).not.toHaveBeenCalled();
+    expect(transform.style.transform).toBe("translate(0px, -56px) scale(1)");
+  });
+
   it("treats ctrl+wheel as pinch zoom toward the cursor", () => {
     const { getByTestId } = render(<CanvasViewport />);
 
@@ -213,6 +234,30 @@ describe("CanvasViewport", () => {
 
     fireEvent.wheel(viewport, {
       deltaMode: DOM_DELTA_LINE,
+      deltaY: -120,
+      clientX: 210,
+      clientY: 140,
+    });
+
+    expect(mockSetPan).toHaveBeenCalledTimes(1);
+    expect(mockSetZoom).toHaveBeenCalledTimes(1);
+
+    const panArg = mockSetPan.mock.calls[0][0] as { x: number; y: number };
+    const zoomArg = mockSetZoom.mock.calls[0][0] as number;
+
+    expect(panArg.x).toBeCloseTo(-12, 5);
+    expect(panArg.y).toBeCloseTo(-7.2, 5);
+    expect(zoomArg).toBeCloseTo(1.06, 5);
+  });
+
+  it("keeps coarse pixel-mode mouse wheel input as zoom", () => {
+    const { getByTestId } = render(<CanvasViewport />);
+
+    const viewport = getByTestId("canvas-viewport");
+    mockViewportRect(viewport);
+
+    fireEvent.wheel(viewport, {
+      deltaMode: DOM_DELTA_PIXEL,
       deltaY: -120,
       clientX: 210,
       clientY: 140,
