@@ -86,10 +86,21 @@ function generateId(): string {
   return `card-${++nextId}-${Date.now()}`;
 }
 
+/** Derive column count from a layout key. */
+function colsFromLayoutKey(key: string, cardCount: number): number {
+  if (key === "row") return Math.max(1, cardCount);
+  if (key.startsWith("custom-")) {
+    const n = parseInt(key.slice(7), 10);
+    return n > 0 ? n : COLS;
+  }
+  const n = parseInt(key, 10);
+  return n > 0 ? n : COLS;
+}
+
 /** Compute grid position for the nth card using square cells. */
-function gridPosition(index: number): { x: number; y: number } {
-  const col = index % COLS;
-  const row = Math.floor(index / COLS);
+function gridPosition(index: number, cols: number = COLS): { x: number; y: number } {
+  const col = index % cols;
+  const row = Math.floor(index / cols);
   return {
     x: GAP + col * (CELL_SIZE + GAP),
     y: GAP + row * (CELL_SIZE + GAP),
@@ -134,8 +145,11 @@ export function createExtractStore(): StoreApi<ExtractState> {
     addCard(file: File): string {
       const id = generateId();
       const previewUrl = URL.createObjectURL(file);
-      const index = get().cardOrder.length;
-      const position = gridPosition(index);
+      const { cardOrder, layoutKey } = get();
+      const index = cardOrder.length;
+      // +1 because this card is about to be added
+      const cols = colsFromLayoutKey(layoutKey, index + 1);
+      const position = gridPosition(index, cols);
       const label = `Slide #${Math.random().toString(36).slice(2, 5)}`;
       const card: SlideCard = {
         id,
@@ -166,11 +180,18 @@ export function createExtractStore(): StoreApi<ExtractState> {
       set((state) => {
         const card = state.cards.get(id);
         if (card) URL.revokeObjectURL(card.previewUrl);
+        const newOrder = state.cardOrder.filter((cid) => cid !== id);
+        const cols = colsFromLayoutKey(state.layoutKey, newOrder.length);
         const next = new Map(state.cards);
         next.delete(id);
+        // Re-position remaining cards to close the gap
+        for (let i = 0; i < newOrder.length; i++) {
+          const c = next.get(newOrder[i]);
+          if (c) next.set(newOrder[i], { ...c, position: gridPosition(i, cols) });
+        }
         return {
           cards: next,
-          cardOrder: state.cardOrder.filter((cid) => cid !== id),
+          cardOrder: newOrder,
           selectedCardId:
             state.selectedCardId === id ? null : state.selectedCardId,
         };
@@ -343,15 +364,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
       cardOrder.forEach((id, i) => {
         const card = newCards.get(id);
         if (!card) return;
-        const col = i % cols;
-        const row = Math.floor(i / cols);
-        newCards.set(id, {
-          ...card,
-          position: {
-            x: GAP + col * (CELL_SIZE + GAP),
-            y: GAP + row * (CELL_SIZE + GAP),
-          },
-        });
+        newCards.set(id, { ...card, position: gridPosition(i, cols) });
       });
       set({ cards: newCards, layoutKey: key });
     },
