@@ -17,13 +17,35 @@ const mockSetZoom = vi.fn();
 let mockStoreState: Record<string, unknown> = {};
 
 vi.mock("./store", () => ({
-  useExtractStore: (selector?: (state: Record<string, unknown>) => unknown) => {
-    const state = mockStoreState;
-    return selector ? selector(state) : state;
-  },
+  useExtractStore: Object.assign(
+    (selector?: (state: Record<string, unknown>) => unknown) => {
+      const state = mockStoreState;
+      return selector ? selector(state) : state;
+    },
+    {
+      getState: () => mockStoreState,
+    },
+  ),
 }));
 
 import CanvasViewport from "./CanvasViewport";
+
+const DOM_DELTA_PIXEL = 0;
+const DOM_DELTA_LINE = 1;
+
+function mockViewportRect(el: HTMLElement) {
+  vi.spyOn(el, "getBoundingClientRect").mockReturnValue({
+    x: 10,
+    y: 20,
+    top: 20,
+    left: 10,
+    right: 410,
+    bottom: 320,
+    width: 400,
+    height: 300,
+    toJSON: () => ({}),
+  } as DOMRect);
+}
 
 beforeEach(() => {
   mockStoreState = {
@@ -37,11 +59,21 @@ beforeEach(() => {
     setPan: mockSetPan,
     setZoom: mockSetZoom,
   };
+
+  vi.stubGlobal(
+    "requestAnimationFrame",
+    vi.fn((callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    }),
+  );
+  vi.stubGlobal("cancelAnimationFrame", vi.fn());
 });
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("CanvasViewport", () => {
@@ -128,5 +160,72 @@ describe("CanvasViewport", () => {
     const { getByTestId } = render(<CanvasViewport />);
     expect(getByTestId("slide-card-card-1")).toBeDefined();
     expect(getByTestId("slide-card-card-2")).toBeDefined();
+  });
+
+  it("treats likely trackpad wheel gestures as panning", () => {
+    const { getByTestId } = render(<CanvasViewport />);
+
+    const viewport = getByTestId("canvas-viewport");
+    const transform = getByTestId("canvas-transform");
+
+    fireEvent.wheel(viewport, {
+      deltaMode: DOM_DELTA_PIXEL,
+      deltaX: 12.5,
+      deltaY: 8.25,
+    });
+
+    expect(mockSetPan).toHaveBeenCalledTimes(1);
+    expect(mockSetPan).toHaveBeenCalledWith({ x: -12.5, y: -8.25 });
+    expect(mockSetZoom).not.toHaveBeenCalled();
+    expect(transform.style.transform).toBe("translate(-12.5px, -8.25px) scale(1)");
+  });
+
+  it("treats ctrl+wheel as pinch zoom toward the cursor", () => {
+    const { getByTestId } = render(<CanvasViewport />);
+
+    const viewport = getByTestId("canvas-viewport");
+    mockViewportRect(viewport);
+
+    fireEvent.wheel(viewport, {
+      ctrlKey: true,
+      deltaMode: DOM_DELTA_PIXEL,
+      deltaY: -90,
+      clientX: 110,
+      clientY: 70,
+    });
+
+    expect(mockSetPan).toHaveBeenCalledTimes(1);
+    expect(mockSetZoom).toHaveBeenCalledTimes(1);
+
+    const panArg = mockSetPan.mock.calls[0][0] as { x: number; y: number };
+    const zoomArg = mockSetZoom.mock.calls[0][0] as number;
+
+    expect(panArg.x).toBeCloseTo(-6, 5);
+    expect(panArg.y).toBeCloseTo(-3, 5);
+    expect(zoomArg).toBeCloseTo(1.06, 5);
+  });
+
+  it("keeps plain mouse-wheel zoom behavior unchanged", () => {
+    const { getByTestId } = render(<CanvasViewport />);
+
+    const viewport = getByTestId("canvas-viewport");
+    mockViewportRect(viewport);
+
+    fireEvent.wheel(viewport, {
+      deltaMode: DOM_DELTA_LINE,
+      deltaY: -120,
+      clientX: 210,
+      clientY: 140,
+    });
+
+    expect(mockSetPan).toHaveBeenCalledTimes(1);
+    expect(mockSetZoom).toHaveBeenCalledTimes(1);
+
+    const panArg = mockSetPan.mock.calls[0][0] as { x: number; y: number };
+    const zoomArg = mockSetZoom.mock.calls[0][0] as number;
+
+    expect(panArg.x).toBeCloseTo(-12, 5);
+    expect(panArg.y).toBeCloseTo(-7.2, 5);
+    expect(zoomArg).toBeCloseTo(1.06, 5);
   });
 });

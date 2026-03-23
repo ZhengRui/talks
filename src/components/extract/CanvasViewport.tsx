@@ -4,6 +4,69 @@ import { useCallback, useEffect, useRef } from "react";
 import { useExtractStore } from "./store";
 import SlideCard from "./SlideCard";
 
+type LiveTransform = {
+  x: number;
+  y: number;
+  zoom: number;
+};
+
+// ---------------------------------------------------------------------------
+// Direct-DOM transform helpers — bypass React for smooth 120fps gestures
+// ---------------------------------------------------------------------------
+
+function applyTransform(
+  viewport: HTMLElement | null,
+  transform: HTMLElement | null,
+  panX: number,
+  panY: number,
+  zoom: number,
+) {
+  if (transform) {
+    transform.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  }
+  if (viewport) {
+    const size = 20 * zoom;
+    viewport.style.backgroundSize = `${size}px ${size}px`;
+    viewport.style.backgroundPosition = `${panX % size}px ${panY % size}px`;
+  }
+}
+
+function zoomTowardPoint(
+  live: LiveTransform,
+  clientX: number,
+  clientY: number,
+  deltaY: number,
+  rect: DOMRect,
+) {
+  const cx = clientX - rect.left;
+  const cy = clientY - rect.top;
+  const oldZoom = live.zoom;
+  const delta = Math.abs(deltaY);
+  const step = Math.min(delta / 300, 0.06);
+  const factor = deltaY > 0 ? 1 - step : 1 + step;
+  const newZoom = Math.min(2.5, Math.max(0.25, oldZoom * factor));
+
+  live.x = cx - (cx - live.x) * (newZoom / oldZoom);
+  live.y = cy - (cy - live.y) * (newZoom / oldZoom);
+  live.zoom = newZoom;
+}
+
+function isLikelyTrackpadWheel(e: WheelEvent) {
+  if (e.deltaMode !== WheelEvent.DOM_DELTA_PIXEL) {
+    return false;
+  }
+
+  if (Math.abs(e.deltaX) > 0) {
+    return true;
+  }
+
+  if (!Number.isInteger(e.deltaY)) {
+    return true;
+  }
+
+  return Math.abs(e.deltaY) < 16;
+}
+
 export default function CanvasViewport() {
   const pan = useExtractStore((s) => s.pan);
   const zoom = useExtractStore((s) => s.zoom);
@@ -12,47 +75,88 @@ export default function CanvasViewport() {
   const selectCard = useExtractStore((s) => s.selectCard);
 
   const viewportRef = useRef<HTMLDivElement>(null);
+  const transformRef = useRef<HTMLDivElement>(null);
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, y: 0 });
   const panOrigin = useRef({ x: 0, y: 0 });
   const didDrag = useRef(false);
 
-  // ---- Wheel → zoom toward cursor ----
+  // Keep a mutable copy of pan/zoom so gesture handlers can read the
+  // latest values without depending on React state.
+  const liveRef = useRef({ x: pan.x, y: pan.y, zoom });
+  liveRef.current = { x: pan.x, y: pan.y, zoom };
+
+  // ---- Wheel: two-finger scroll → pan, pinch → zoom toward cursor ----
+  // Writes directly to the DOM for instant feedback, then syncs React
+  // state once per frame via rAF.
+  const syncRaf = useRef(0);
+
   useEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
 
+    function syncState() {
+      syncRaf.current = 0;
+      const live = liveRef.current;
+      const state = useExtractStore.getState();
+      // Only update if values actually changed (avoids no-op re-renders)
+      if (state.pan.x !== live.x || state.pan.y !== live.y) {
+        state.setPan({ x: live.x, y: live.y });
+      }
+      if (state.zoom !== live.zoom) {
+        state.setZoom(live.zoom);
+      }
+    }
+
+    function scheduleSyncState() {
+      if (!syncRaf.current) {
+        syncRaf.current = requestAnimationFrame(syncState);
+      }
+    }
+
     function onWheel(e: WheelEvent) {
       e.preventDefault();
-      const rect = el!.getBoundingClientRect();
-      const cursorX = e.clientX - rect.left;
-      const cursorY = e.clientY - rect.top;
+      const live = liveRef.current;
 
-      const state = useExtractStore.getState();
-      const oldZoom = state.zoom;
-      // Smooth zoom: scale factor based on scroll delta magnitude
-      const delta = Math.abs(e.deltaY);
-      const step = Math.min(delta / 300, 0.06);
-      const factor = e.deltaY > 0 ? 1 - step : 1 + step;
-      const newZoom = Math.min(2.5, Math.max(0.25, oldZoom * factor));
+      if (e.ctrlKey) {
+        // Pinch gesture → zoom toward cursor
+        zoomTowardPoint(
+          live,
+          e.clientX,
+          e.clientY,
+          e.deltaY,
+          el.getBoundingClientRect(),
+        );
+      } else if (isLikelyTrackpadWheel(e)) {
+        // Two-finger trackpad scroll → pan
+        live.x -= e.deltaX;
+        live.y -= e.deltaY;
+      } else {
+        // Mouse wheel and coarse wheel devices keep the original zoom behavior
+        zoomTowardPoint(
+          live,
+          e.clientX,
+          e.clientY,
+          e.deltaY,
+          el.getBoundingClientRect(),
+        );
+      }
 
-      const newPanX =
-        cursorX - (cursorX - state.pan.x) * (newZoom / oldZoom);
-      const newPanY =
-        cursorY - (cursorY - state.pan.y) * (newZoom / oldZoom);
-
-      state.setZoom(newZoom);
-      state.setPan({ x: newPanX, y: newPanY });
+      // Instant DOM update — no React in the loop
+      applyTransform(viewportRef.current, transformRef.current, live.x, live.y, live.zoom);
+      scheduleSyncState();
     }
 
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      if (syncRaf.current) cancelAnimationFrame(syncRaf.current);
+    };
   }, []);
 
   // ---- Mouse drag on empty canvas → pan ----
   const onMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      // Only start panning if the mousedown target is the viewport or transform div itself
       if (
         e.target !== viewportRef.current &&
         e.target !== viewportRef.current?.firstElementChild
@@ -62,9 +166,9 @@ export default function CanvasViewport() {
       isPanning.current = true;
       didDrag.current = false;
       panStart.current = { x: e.clientX, y: e.clientY };
-      panOrigin.current = { ...pan };
+      panOrigin.current = { ...liveRef.current };
     },
-    [pan],
+    [],
   );
 
   const onMouseMove = useCallback(
@@ -135,10 +239,12 @@ export default function CanvasViewport() {
       onMouseLeave={onMouseUp}
     >
       <div
+        ref={transformRef}
         data-testid="canvas-transform"
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
           transformOrigin: "0 0",
+          willChange: "transform",
           position: "relative",
           width: "100%",
           height: "100%",
