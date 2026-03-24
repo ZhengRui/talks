@@ -272,7 +272,6 @@ export default function CanvasViewport() {
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
           transformOrigin: "0 0",
-          willChange: "transform",
           position: "relative",
           width: "100%",
           height: "100%",

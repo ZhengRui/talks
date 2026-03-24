@@ -87,6 +87,13 @@ describe("CanvasViewport", () => {
     expect(transform.style.transform).toBe("translate(100px, -50px) scale(1.5)");
   });
 
+  it("does not force compositor promotion on the zoomed canvas layer", () => {
+    const { getByTestId } = render(<CanvasViewport />);
+
+    const transform = getByTestId("canvas-transform");
+    expect(transform.style.willChange).toBe("");
+  });
+
   it("renders outer viewport with data-testid", () => {
     const { getByTestId } = render(<CanvasViewport />);
     expect(getByTestId("canvas-viewport")).toBeDefined();
