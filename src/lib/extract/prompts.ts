@@ -51,10 +51,12 @@ Output a JSON object wrapped in a \`\`\`json code fence:
 ## Rules
 
 - Always propose at least one slide-scope template for the whole slide
-- Propose block-scope templates for reusable sub-regions (stat cards, feature rows, etc.)
+- Propose block-scope templates for reusable sub-regions that contain lists or grids of items. Extract the ENTIRE list/grid group as a block template (with an items array param and a for-loop inside), NOT individual items. For example, a grid of 4 stat cards should be one block template with a stats array, not 4 separate block instances of a single-card template.
 - Slide templates can reference block templates via kind: block nodes in their body
 - Use the source.dimensions value you report for sourceSize in the template body. Do NOT include fit or align in the template body — those are set on the slide instance, not in templates.
 - CRITICAL: For source.dimensions, report ONLY what you visually perceive as the image size. Do NOT guess standard resolutions like 1920x1080, 1366x768, etc. Report the dimensions as they appear to you.
+- Pay close attention to colors, font families, font sizes, and font colors — match them as closely as possible to the source. Use explicit hex colors and specific font-family strings, not generic placeholders.
+- If the source contains emoji icons, use the actual emoji characters directly in the template text (e.g., "🔥", "💰"), NOT image references or placeholder paths that cannot be displayed.
 - Use guides for repeated alignment lines
 - All positions are in source-pixel coordinates
 - Do NOT include mode: scene or kind: group in the body — the system injects these based on scope
