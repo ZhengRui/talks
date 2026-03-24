@@ -108,7 +108,7 @@ Capture: source dimensions, alignment lines, z-order, typography, palette, spaci
 ### 5. Verify
 
 - Layer 1: return a verification plan. Do not run verification.
-- Layer 2: use `/workbench/replicate` or `bun run slide:diff`.
+- Layer 2: use `/workbench/extract` or `bun run slide:diff`.
 - Iterate until layout, spacing, typography, and visual weight are close.
 
 ## Replication Heuristics

@@ -26,7 +26,7 @@ This is the repo-specific wrapper around Layer 1.
 - Output: files written under `content/<slug>/...`, plus repo verification artifacts
 - Minimal allowed reads: target `slides.yaml`, target template file if updating, target deck assets
 - Minimal allowed writes: target templates (slide + block), target slide entry, optional overlay refs
-- Verification surfaces: `/workbench/replicate` and `bun run slide:diff`
+- Verification surfaces: `/workbench/extract` and `bun run slide:diff`
 
 Do not enter Layer 2 just because the repo is available. Enter it only when the user asks for repo changes or provides a concrete target deck.
 
@@ -44,7 +44,7 @@ Do not enter Layer 2 just because the repo is available. Enter it only when the 
 
 - In Layer 1, return a verification plan and recommended commands or URLs.
 - In Layer 2, use the repo's named verification surfaces:
-  - interactive review: `/workbench/replicate`
+  - interactive review: `/workbench/extract`
   - overlay viewer:
     - `/<slug>?slide=12&chrome=0&overlay=refs/slide-12.png&overlayOpacity=0.5`
     - `/<slug>?slide=12&chrome=0&overlayDir=refs&overlayPattern=slide-{n}.png&overlayOpacity=0.5`
@@ -126,7 +126,7 @@ When Layer 2 is active:
 3. write or update the slide template file
 4. write or update the slide instance
 5. set up overlay refs only if needed
-6. verify with `/workbench/replicate` or `bun run slide:diff`
+6. verify with `/workbench/extract` or `bun run slide:diff`
 
 ---
 
@@ -154,18 +154,7 @@ This section applies to Layer 2 only. In Layer 1, return the same material as pa
 
 ### Workbench
 
-Use `/workbench/replicate` for:
-
-- slide selection
-- reference upload
-- render / reference / overlay / diff / split modes
-- viewer URL generation
-
-Reference path conventions:
-
-- per-slide refs in `public/<slug>/refs/slide-12.png` can be entered as `refs/slide-12.png`
-- absolute `/shared/...` style paths also work
-- uploaded screenshots work without creating a public file
+Use `/workbench/extract` for interactive analysis, template extraction, and side-by-side preview of source vs replica.
 
 ### CLI Diff
 
