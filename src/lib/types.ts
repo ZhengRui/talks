@@ -34,6 +34,7 @@ export type AnimationOverride = "stagger" | "fade" | "counter" | "none";
 export interface SlideBaseFields {
   animation?: AnimationOverride;
   theme?: ThemeName;
+  canvasSize?: SceneSize;
 }
 
 // --- Top-level YAML shape ---
@@ -48,6 +49,9 @@ export interface PresentationData {
   title: string;
   author?: string;
   theme?: ThemeName;
+  canvasSize?: SceneSize;
+  fit?: SceneFitMode;
+  align?: SceneAlign;
   slides: SlideData[];
 }
 

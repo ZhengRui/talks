@@ -324,3 +324,85 @@ describe("scene slide", () => {
     expect(result.slides[0].background).toBe("#111111");
   });
 });
+
+// --- Presentation-level canvasSize / fit / align cascade ---
+
+describe("presentation-level canvasSize/fit/align", () => {
+  it("uses presentation canvasSize when slide does not override", () => {
+    const slide: SlideData = {
+      mode: "scene",
+      children: [
+        { kind: "shape", id: "bg", frame: { x: 0, y: 0, w: 800, h: 600 }, shape: "rect", style: { fill: "#222" } },
+      ],
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img", undefined, {
+      canvasSize: { w: 800, h: 600 },
+    });
+    expect(result.slides[0].width).toBe(800);
+    expect(result.slides[0].height).toBe(600);
+  });
+
+  it("slide canvasSize overrides presentation canvasSize", () => {
+    const slide: SlideData = {
+      mode: "scene",
+      canvasSize: { w: 1080, h: 1080 },
+      children: [],
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img", undefined, {
+      canvasSize: { w: 1920, h: 1080 },
+    });
+    expect(result.slides[0].width).toBe(1080);
+    expect(result.slides[0].height).toBe(1080);
+  });
+
+  it("cascades presentation fit/align to slides without overrides", () => {
+    // sourceSize 800x600 into 1920x1080 with stretch → scale X=2.4, Y=1.8
+    // Shape at {0,0,800,600} → {0,0,1920,1080}
+    const slide: SlideData = {
+      mode: "scene",
+      sourceSize: { w: 800, h: 600 },
+      children: [
+        { kind: "shape", id: "bg", frame: { x: 0, y: 0, w: 800, h: 600 }, shape: "rect", style: { fill: "#222" } },
+      ],
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img", undefined, {
+      fit: "stretch",
+      align: "top-left",
+    });
+    const bg = result.slides[0].elements.find((e) => e.id === "bg");
+    expect(bg).toBeDefined();
+    // stretch: fills entire 1920x1080
+    expect(bg!.rect.x).toBeCloseTo(0, 0);
+    expect(bg!.rect.w).toBeCloseTo(1920, 0);
+  });
+
+  it("slide fit/align overrides presentation fit/align", () => {
+    // Presentation says stretch, slide says contain
+    // sourceSize 800x600 into 1920x1080 with contain → scale=1.8, x offset=240
+    const slide: SlideData = {
+      mode: "scene",
+      sourceSize: { w: 800, h: 600 },
+      fit: "contain",
+      align: "center",
+      children: [
+        { kind: "shape", id: "bg", frame: { x: 0, y: 0, w: 800, h: 600 }, shape: "rect", style: { fill: "#222" } },
+      ],
+    };
+    const result = layoutPresentation("Test", [slide], "modern", "/img", undefined, {
+      fit: "stretch",
+      align: "top-left",
+    });
+    const bg = result.slides[0].elements.find((e) => e.id === "bg");
+    expect(bg).toBeDefined();
+    // contain/center: x offset = 240
+    expect(bg!.rect.x).toBeCloseTo(240, 0);
+    expect(bg!.rect.w).toBeCloseTo(1440, 0);
+  });
+
+  it("defaults to 1920x1080 when neither presentation nor slide sets canvasSize", () => {
+    const slide: SlideData = { mode: "scene", children: [] };
+    const result = layoutPresentation("Test", [slide], "modern", "/img");
+    expect(result.slides[0].width).toBe(1920);
+    expect(result.slides[0].height).toBe(1080);
+  });
+});

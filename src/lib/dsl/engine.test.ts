@@ -425,9 +425,10 @@ children:
     expect(result).toMatchObject({
       mode: "scene",
       sourceSize: { w: 640, h: 360 },
-      fit: "contain",
-      align: "center",
     });
+    // fit/align from template body must NOT propagate
+    expect(result).not.toHaveProperty("fit");
+    expect(result).not.toHaveProperty("align");
     expect((result as unknown as { children: Record<string, unknown>[] }).children[0]).toMatchObject({
       kind: "text",
       id: "title",
@@ -600,6 +601,47 @@ children: []
       fit: "cover",
       align: "center",
     });
+  });
+
+  it("ignores fit/align from template body, honors instance-level fit/align", () => {
+    const def = makeDef({
+      rawBody: `
+mode: scene
+sourceSize: { w: 640, h: 360 }
+fit: stretch
+align: top-left
+children: []
+`,
+    });
+
+    // No instance-level fit/align — template values should NOT appear
+    const withoutOverride = expandDslTemplate({ template: "test" }, def);
+    expect(withoutOverride).not.toHaveProperty("fit");
+    expect(withoutOverride).not.toHaveProperty("align");
+    expect(withoutOverride).toMatchObject({ sourceSize: { w: 640, h: 360 } });
+
+    // With instance-level fit/align — those should appear
+    const withOverride = expandDslTemplate(
+      { template: "test", fit: "cover", align: "bottom-right" },
+      def,
+    );
+    expect(withOverride).toMatchObject({ fit: "cover", align: "bottom-right" });
+    expect(withOverride).toMatchObject({ sourceSize: { w: 640, h: 360 } });
+  });
+
+  it("passes through canvasSize from slide instance", () => {
+    const def = makeDef({
+      rawBody: `
+mode: scene
+children: []
+`,
+    });
+
+    const result = expandDslTemplate(
+      { template: "test", canvasSize: { w: 1080, h: 1080 } },
+      def,
+    );
+    expect(result).toMatchObject({ canvasSize: { w: 1080, h: 1080 } });
   });
 
   describe("scope-based mode injection", () => {

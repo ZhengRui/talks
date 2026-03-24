@@ -41,7 +41,7 @@ export default async function PresentationPage({
   }
 
   const imageBase = `/${slug}`;
-  const layout = layoutPresentation(data.title, data.slides, data.theme, imageBase, data.author);
+  const layout = layoutPresentation(data.title, data.slides, data.theme, imageBase, data.author, data);
   const overlay = resolveOverlayConfig(slug, resolvedSearchParams);
   const initialSlide = parseInitialSlide(resolvedSearchParams.slide);
   const showChrome = shouldShowChrome(resolvedSearchParams.chrome);

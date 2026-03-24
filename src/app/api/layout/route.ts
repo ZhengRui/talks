@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
       data.theme,
       imageBase,
       data.author,
+      data,
     );
     return NextResponse.json({
       ...layout,

@@ -53,7 +53,7 @@ Output a JSON object wrapped in a \`\`\`json code fence:
 - Always propose at least one slide-scope template for the whole slide
 - Propose block-scope templates for reusable sub-regions (stat cards, feature rows, etc.)
 - Slide templates can reference block templates via kind: block nodes in their body
-- Use the source.dimensions value you report for sourceSize in the template body, with fit: contain and align: center
+- Use the source.dimensions value you report for sourceSize in the template body. Do NOT include fit or align in the template body — those are set on the slide instance, not in templates.
 - CRITICAL: For source.dimensions, report ONLY what you visually perceive as the image size. Do NOT guess standard resolutions like 1920x1080, 1366x768, etc. Report the dimensions as they appear to you.
 - Use guides for repeated alignment lines
 - All positions are in source-pixel coordinates

@@ -83,11 +83,15 @@ export function compileProposalPreview(
   // Render slide template body
   const renderedBody = minimalEnv.renderString(proposal.body, context);
 
-  // Parse as SceneSlideData
+  // Parse as SceneSlideData — strip fit/align (consumer concerns, not template concerns)
   const parsed = yamlParse(renderedBody) as Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { fit, align, ...rest } = parsed;
   let sceneSlide: SceneSlideData = {
     mode: "scene",
-    ...parsed,
+    ...rest,
+    fit: "contain",
+    align: "center",
     children: (parsed.children as SceneSlideData["children"]) ?? [],
   };
 

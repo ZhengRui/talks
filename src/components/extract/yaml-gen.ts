@@ -43,7 +43,19 @@ export function generateTemplateYaml(proposal: Proposal): string {
 
 export function generateInstanceYaml(proposal: Proposal): string {
   const lines: string[] = [];
-  lines.push(`- template: ${proposal.name}`);
+
+  if (proposal.scope === "block") {
+    // Block templates are referenced as kind: block nodes inside slide children
+    lines.push(`- kind: block`);
+    lines.push(`  id: ${proposal.name}-1`);
+    lines.push(`  template: ${proposal.name}`);
+    lines.push(`  frame: { x: 0, y: 0, w: ${proposal.region.w}, h: ${proposal.region.h} }`);
+  } else {
+    // Slide templates are top-level slide instances with explicit fit/align
+    lines.push(`- template: ${proposal.name}`);
+    lines.push("  fit: contain");
+    lines.push("  align: center");
+  }
 
   const params = Object.entries(proposal.params);
   if (params.length > 0) {

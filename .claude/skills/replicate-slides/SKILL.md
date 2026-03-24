@@ -7,11 +7,11 @@ description: Use when replicating an existing slide from a screenshot, HTML/CSS 
 
 Replicate slides from visual sources into the repo's v9 scene system.
 
-This repo is scene-only. Do not use the removed component tree (`box`, `raw`, `heading`, `stat`, etc.). Built-in templates still exist, but for screenshot replication they are only for exact structural matches.
+This repo is scene-only. Do not use the removed component tree (`box`, `raw`, `heading`, `stat`, etc.). Built-in templates exist for slide generation but are not used for extraction. Always extract fresh templates with explicit styles.
 
 Primary goal: do not just reproduce one slide. Learn reusable templates from the source — at **slide level and block level** — then instantiate the replicated slide from those templates.
 
-See [reference.md](reference.md) for template system, layer model, scene syntax, file rules, verification tooling, and pitfalls.
+See [reference.md](reference.md) for scene authoring, template syntax, and node types. See [integration.md](integration.md) for repo integration, file paths, and verification tooling.
 
 ## Inputs
 
@@ -36,7 +36,8 @@ If slug or output path is missing, stay in Layer 1 and return the template plus 
 - In Layer 2, write deck-local templates in `content/<slug>/templates/<template-name>.template.yaml`
 - In Layer 2, instantiate the replicated slide from those templates in `content/<slug>/slides.yaml`
 - Prefer explicit `frame` geometry, guides, and anchors in the template output
-- For screenshot replication, use `sourceSize` from the reference image by default
+- Set `sourceSize` in templates from the reference image dimensions
+- Set `fit`/`align` on slide instances, not in templates
 - Use `kind: ir` only when native scene nodes are not enough
 - Use `kind: block` to reference block-scope templates from within a slide template
 - Fall back to an inline scene slide only when the composition is clearly one-off and not worth templating
@@ -77,15 +78,14 @@ Capture: source dimensions, alignment lines, z-order, typography, palette, spaci
 
 ### 2. Choose The Authoring Path
 
-- Use an exact built-in template only if the source already matches it closely.
-- Otherwise create reusable templates by default:
+- Always create fresh reusable templates:
   - One slide-scope template for the overall layout
   - Block-scope templates for repeating sub-regions
 - Use an inline scene slide only if the composition is too idiosyncratic to template.
 
 ### 3. Build The Scene
 
-- Set `sourceSize` to the reference image size. Use `fit: contain` and `align: center`.
+- Set `sourceSize` to the reference image size in the template. Set `fit: contain` and `align: center` on the slide instance.
 - Add biggest regions first: background, panels, major images.
 - Add guides for repeated edges, splits, and baselines.
 - Add text, shapes, images, and groups in back-to-front order.
@@ -114,7 +114,7 @@ Capture: source dimensions, alignment lines, z-order, typography, palette, spaci
 ## Replication Heuristics
 
 - Prefer reusable templates (slide + block) over one-off inline scenes.
-- Prefer scene over built-in templates unless there is a close structural match.
+- Always extract fresh templates. Do not use built-in templates for extraction.
 - Prefer screenshot-space authoring over manual rescaling.
 - Use guides for repeated alignment lines.
 - Use multiple text nodes or rich text runs for mixed emphasis.
@@ -128,7 +128,7 @@ Capture: source dimensions, alignment lines, z-order, typography, palette, spaci
 Return:
 
 1. a concise analysis block (including block template candidates)
-2. a short build note: layer, built-in vs reusable vs one-off, `sourceSize` decision
+2. a short build note: layer, reusable vs one-off, `sourceSize` decision
 3. block-scope template YAML files (if any)
 4. the slide-scope template YAML file
 5. the final slide instance YAML

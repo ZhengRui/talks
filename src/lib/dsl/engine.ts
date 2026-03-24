@@ -131,6 +131,7 @@ export function expandDslTemplate(
   const base: SlideBaseFields = {};
   if (slideData.animation) base.animation = slideData.animation as SlideBaseFields["animation"];
   if (slideData.theme) base.theme = slideData.theme as SlideBaseFields["theme"];
+  if (slideData.canvasSize) base.canvasSize = slideData.canvasSize as SlideBaseFields["canvasSize"];
 
   if (parsed.mode !== "scene") {
     if (parsed.mode !== undefined) {
@@ -151,8 +152,6 @@ export function expandDslTemplate(
     ...(parsed.guides !== undefined ? { guides: parsed.guides as SceneSlideData["guides"] } : {}),
     ...(presets ? { presets } : {}),
     ...(parsed.sourceSize !== undefined ? { sourceSize: parsed.sourceSize as SceneSlideData["sourceSize"] } : {}),
-    ...(parsed.fit !== undefined ? { fit: parsed.fit as SceneSlideData["fit"] } : {}),
-    ...(parsed.align !== undefined ? { align: parsed.align as SceneSlideData["align"] } : {}),
     ...(slideData.background !== undefined ? { background: slideData.background as SceneSlideData["background"] } : {}),
     ...(slideData.guides !== undefined ? { guides: slideData.guides as SceneSlideData["guides"] } : {}),
     ...(slideData.fit !== undefined ? { fit: slideData.fit as SceneSlideData["fit"] } : {}),

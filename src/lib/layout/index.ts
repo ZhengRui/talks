@@ -1,6 +1,7 @@
 import { resolve } from "path";
 import { existsSync, readFileSync, writeFileSync } from "fs";
-import type { SlideData, ThemeName } from "@/lib/types";
+import type { PresentationData, SlideData, ThemeName } from "@/lib/types";
+import type { SceneAlign, SceneFitMode, SceneSize } from "@/lib/scene/types";
 import type { LayoutPresentation, LayoutSlide } from "./types";
 import { resolveTheme } from "./theme";
 import { resolveColor } from "./theme-tokens";
@@ -8,17 +9,34 @@ import { applyDecorators } from "./decorators";
 import { backgroundImageElements } from "./helpers";
 import { compileSceneSlide } from "@/lib/scene/compiler";
 
+export interface PresentationDefaults {
+  canvasSize?: SceneSize;
+  fit?: SceneFitMode;
+  align?: SceneAlign;
+}
+
 export function layoutSlide(
   slide: SlideData,
   theme: ThemeName | undefined,
   imageBase: string,
   slideIndex = 0,
+  defaults?: PresentationDefaults,
 ): LayoutSlide {
   const resolved = resolveTheme(slide.theme ?? theme);
   const backgroundOverride = typeof slide.background === "string"
     ? resolveColor(slide.background, resolved, resolved.bg)
     : undefined;
-  const result = compileSceneSlide(slide, resolved, imageBase);
+
+  // Cascade: slide values ?? presentation defaults
+  const effectiveSlide = {
+    ...slide,
+    ...(slide.fit === undefined && defaults?.fit ? { fit: defaults.fit } : {}),
+    ...(slide.align === undefined && defaults?.align ? { align: defaults.align } : {}),
+  };
+  const canvas = slide.canvasSize ?? defaults?.canvasSize;
+  const result = compileSceneSlide(effectiveSlide, resolved, imageBase,
+    canvas ? { canvasW: canvas.w, canvasH: canvas.h } : undefined,
+  );
   if (backgroundOverride) {
     result.background = backgroundOverride;
   }
@@ -45,11 +63,17 @@ export function layoutPresentation(
   theme: ThemeName | undefined,
   imageBase: string,
   author?: string,
+  presentation?: Pick<PresentationData, "canvasSize" | "fit" | "align">,
 ): LayoutPresentation {
+  const defaults: PresentationDefaults = {
+    canvasSize: presentation?.canvasSize,
+    fit: presentation?.fit,
+    align: presentation?.align,
+  };
   const layout: LayoutPresentation = {
     title,
     author,
-    slides: slides.map((slide, i) => layoutSlide(slide, theme, imageBase, i)),
+    slides: slides.map((slide, i) => layoutSlide(slide, theme, imageBase, i, defaults)),
   };
 
   // Persist layout JSON for debugging/inspection (dev only)
