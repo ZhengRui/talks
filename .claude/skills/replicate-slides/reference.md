@@ -459,6 +459,7 @@ children:
 - No `mode: scene` or `kind: group` in template bodies -- the system injects them based on `scope`.
 - Use nested `params:` on slide template references, not flat keys.
 - Grid: use `rowHeight` or explicit `frame.h` for `bottom`/`centerY` constraints in grid children.
+- Stack/row inside bounded containers: give each child an explicit `frame.h`. Without it, items may overflow or get clipped. Ensure container height >= (item_h * count) + (gap * (count - 1)).
 - Quote Nunjucks expressions: `text: "{{ title | yaml_string }}"`. Unquoted text with colons breaks YAML.
 - Include `{{ loop.index0 }}` in ids inside `{% for %}` loops: `id: value-{{ loop.index0 }}`.
 - `fit`/`align` go on the slide instance, not in the template body.

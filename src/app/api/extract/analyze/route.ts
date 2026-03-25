@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { ANALYSIS_SYSTEM_PROMPT, buildAnalysisPrompt } from "@/lib/extract/prompts";
+import {
+  ANALYSIS_SYSTEM_PROMPT,
+  buildAnalysisPrompt,
+} from "@/lib/extract/prompts";
 import { normalizeAnalysisRegions } from "@/lib/extract/normalize-analysis";
 
 /** Infer media type from file extension. */
@@ -24,16 +27,25 @@ function readImageSize(buffer: Buffer): { w: number; h: number } | null {
       if (buffer[offset] !== 0xff) break;
       const marker = buffer[offset + 1];
       if (marker === 0xc0 || marker === 0xc2) {
-        return { w: buffer.readUInt16BE(offset + 7), h: buffer.readUInt16BE(offset + 5) };
+        return {
+          w: buffer.readUInt16BE(offset + 7),
+          h: buffer.readUInt16BE(offset + 5),
+        };
       }
       offset += 2 + buffer.readUInt16BE(offset + 2);
     }
   }
   // WebP RIFF: VP8 chunk at offset 12
-  if (buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP") {
+  if (
+    buffer.toString("ascii", 0, 4) === "RIFF" &&
+    buffer.toString("ascii", 8, 12) === "WEBP"
+  ) {
     const chunk = buffer.toString("ascii", 12, 16);
     if (chunk === "VP8 ") {
-      return { w: buffer.readUInt16LE(26) & 0x3fff, h: buffer.readUInt16LE(28) & 0x3fff };
+      return {
+        w: buffer.readUInt16LE(26) & 0x3fff,
+        h: buffer.readUInt16LE(28) & 0x3fff,
+      };
     }
     if (chunk === "VP8L") {
       const bits = buffer.readUInt32LE(21);
@@ -90,7 +102,9 @@ export async function POST(request: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       function send(event: string, data: unknown) {
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        controller.enqueue(
+          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+        );
       }
 
       try {
@@ -104,7 +118,7 @@ export async function POST(request: NextRequest) {
           maxTurns: 5,
           model: "claude-opus-4-6",
           thinking: { type: "adaptive" },
-          effort: "high",
+          effort: "low",
           systemPrompt: ANALYSIS_SYSTEM_PROMPT,
           includePartialMessages: true,
           // Use Claude Code subscription auth, not API key
@@ -132,10 +146,16 @@ export async function POST(request: NextRequest) {
             const event = msg.event as Record<string, unknown> | undefined;
             if (event?.type === "content_block_delta") {
               const delta = event.delta as Record<string, unknown> | undefined;
-              if (delta?.type === "text_delta" && typeof delta.text === "string") {
+              if (
+                delta?.type === "text_delta" &&
+                typeof delta.text === "string"
+              ) {
                 resultText += delta.text;
                 send("text", { text: delta.text });
-              } else if (delta?.type === "thinking_delta" && typeof delta.thinking === "string") {
+              } else if (
+                delta?.type === "thinking_delta" &&
+                typeof delta.thinking === "string"
+              ) {
                 send("thinking", { text: delta.thinking });
               }
             }
@@ -150,7 +170,10 @@ export async function POST(request: NextRequest) {
                 const b = block as Record<string, unknown>;
                 if (b.type === "tool_use") {
                   send("tool", { name: b.name, input: b.input });
-                } else if (b.type === "thinking" && typeof b.thinking === "string") {
+                } else if (
+                  b.type === "thinking" &&
+                  typeof b.thinking === "string"
+                ) {
                   // Fallback: complete thinking block if not streamed
                   send("thinking", { text: b.thinking });
                 }
@@ -165,7 +188,10 @@ export async function POST(request: NextRequest) {
               for (const block of userMsg.content) {
                 const b = block as Record<string, unknown>;
                 if (b.type === "tool_result") {
-                  const content = b.content as string | Array<Record<string, unknown>> | undefined;
+                  const content = b.content as
+                    | string
+                    | Array<Record<string, unknown>>
+                    | undefined;
                   let preview = "";
                   if (typeof content === "string") {
                     preview = content.slice(0, 200);
@@ -205,7 +231,10 @@ export async function POST(request: NextRequest) {
           resultText.match(/(\{[\s\S]*\})/);
 
         if (!jsonMatch) {
-          send("error", { error: "Failed to parse analysis response", raw: resultText || "(empty)" });
+          send("error", {
+            error: "Failed to parse analysis response",
+            raw: resultText || "(empty)",
+          });
           controller.close();
           return;
         }
