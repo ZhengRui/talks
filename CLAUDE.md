@@ -27,7 +27,7 @@ Follow TDD: write failing test → implement → green. Enforced by Superpowers 
 
 ## Architecture
 
-YAML + scene-compiler-driven presentation hub. See `docs/design-v9.md` for current architecture, `docs/discussion-v9.md` for design history.
+YAML + scene-compiler-driven presentation hub. See `docs/2026-03-12-design-v9.md` for current architecture, `docs/2026-03-12-discussion-v9.md` for design history.
 
 **Data flow:** `content/[slug]/slides.yaml` → `loadPresentation()` (DSL/template expansion) → `layoutPresentation()` → `compileSceneSlide()` (scene compiler) → `LayoutPresentation` JSON → `LayoutRenderer` (web) or `exportPptx()` (PPTX)
 

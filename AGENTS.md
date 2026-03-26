@@ -8,7 +8,7 @@
 - `src/lib/` also contains YAML loading and shared types (`loadPresentation.ts`, `types.ts`).
 - `src/styles/` includes engine/layout CSS, animation utilities, shared component styles, and theme files.
 - `content/[slug]/slides.yaml` defines a presentation; images go in `content/[slug]/images/` and are copied into `public/` via the sync script.
-- Tests live in `src/**/*.test.ts(x)` (Vitest) and `e2e/*.spec.ts` (Playwright). Design notes are in `docs/` (see `docs/design-v3.md` for the current architecture).
+- Tests live in `src/**/*.test.ts(x)` (Vitest) and `e2e/*.spec.ts` (Playwright). Design notes are in `docs/` (see `docs/2026-02-08-design-v3.md` for the current architecture).
 
 ## Build, Test, and Development Commands
 - `bun install`: install dependencies.

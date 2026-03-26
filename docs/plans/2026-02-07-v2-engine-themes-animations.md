@@ -1,6 +1,6 @@
 # Implementation Plan: v2 Custom Engine, Themes & Animations
 
-**Design doc:** `docs/design-v2.md`
+**Design doc:** `docs/2026-02-07-design-v2.md`
 **Date:** 2026-02-07
 **Scope:** Remove Reveal.js, build custom slide engine, add 4 themes, add CSS animations, polish all 35 templates.
 

@@ -1,6 +1,6 @@
 # v9 Discussion: What The Prototype Proved, What Changed, What Comes Next
 
-This note complements `design-v9.md`. It focuses on conclusions from the working prototype in this branch rather than the original proposal state.
+This note complements `2026-03-12-design-v9.md`. It focuses on conclusions from the working prototype in this branch rather than the original proposal state.
 
 ## What The Prototype Already Proved
 

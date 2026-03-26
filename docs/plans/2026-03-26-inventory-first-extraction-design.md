@@ -2,7 +2,7 @@
 
 Date: 2026-03-26
 Status: Draft
-Context: [docs/discussion-v11.md](../discussion-v11.md)
+Context: [docs/2026-03-26-discussion-v11.md](../2026-03-26-discussion-v11.md)
 
 ## Problem
 

@@ -1,6 +1,6 @@
 # v6: Composable Component Layer — Implementation Plan
 
-See `docs/design-v6.md` for architecture.
+See `docs/2026-02-09-design-v6.md` for architecture.
 
 ## Phase 1: Freeform Passthrough (validate Claude's IR generation) — DONE
 
