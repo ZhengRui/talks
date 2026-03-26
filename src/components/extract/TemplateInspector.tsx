@@ -7,9 +7,84 @@ import type { SlideCard } from "./store";
 import TemplateTabs from "./TemplateTabs";
 import ParamsStyleView from "./ParamsStyleView";
 import InlineYaml from "./InlineYaml";
+import type { Inventory } from "./types";
 
 interface TemplateInspectorProps {
   card: SlideCard;
+}
+
+function InventorySection({ inventory }: { inventory: Inventory }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="border-b border-gray-200">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
+      >
+        <span>Inventory</span>
+        <span className="text-[10px] text-gray-400">{open ? "Hide" : "Show"}</span>
+      </button>
+
+      {open && (
+        <div className="space-y-3 px-3 pb-3 text-xs text-gray-600">
+          <div>
+            <div className="mb-1 font-medium text-gray-700">Must Preserve</div>
+            <ul className="space-y-1">
+              {inventory.mustPreserve.map((item, index) => (
+                <li key={`${item.text}-${index}`} className="flex items-start gap-2">
+                  <span className="mt-[3px] inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  <span>
+                    {item.text}
+                    {item.ref ? (
+                      <span className="ml-1 text-[10px] text-gray-400">({item.ref})</span>
+                    ) : null}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {inventory.uncertainties.length > 0 && (
+            <div>
+              <div className="mb-1 font-medium text-gray-700">Uncertainties</div>
+              <ul className="space-y-1">
+                {inventory.uncertainties.map((item, index) => (
+                  <li key={`${item}-${index}`} className="text-amber-700">
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {inventory.blockCandidates.length > 0 && (
+            <div>
+              <div className="mb-1 font-medium text-gray-700">Block Candidates</div>
+              <div className="flex flex-wrap gap-1.5">
+                {inventory.blockCandidates.map((item) => (
+                  <span
+                    key={item.name}
+                    className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] text-violet-700"
+                  >
+                    {item.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <details>
+            <summary className="cursor-pointer font-medium text-gray-700">Raw JSON</summary>
+            <pre className="mt-2 overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-2 text-[10px] leading-4 text-gray-600">
+              {JSON.stringify(inventory, null, 2)}
+            </pre>
+          </details>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function TemplateInspector({ card }: TemplateInspectorProps) {
@@ -82,6 +157,13 @@ export default function TemplateInspector({ card }: TemplateInspectorProps) {
             </>
           )}
         </div>
+        {card.usedModel && (
+          <span className="ml-auto text-[10px] text-gray-400 whitespace-nowrap">
+            {card.usedModel.replace("claude-", "").replace("-20251001", "")}
+            {card.usedEffort ? ` / ${card.usedEffort}` : ""}
+            {card.elapsed > 0 ? ` / ${card.elapsed}s` : ""}
+          </span>
+        )}
       </div>
 
       {/* Fixed: template tabs */}
@@ -93,6 +175,8 @@ export default function TemplateInspector({ card }: TemplateInspectorProps) {
 
       {/* Scrollable: params + style + YAML */}
       <div className="flex-1 overflow-y-auto min-h-0" style={{ scrollbarWidth: "none" }}>
+        {card.analysis?.inventory ? <InventorySection inventory={card.analysis.inventory} /> : null}
+
         <ParamsStyleView proposal={selectedProposal} />
 
         <InlineYaml proposal={selectedProposal} />

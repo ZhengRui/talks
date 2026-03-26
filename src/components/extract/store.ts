@@ -25,6 +25,8 @@ export interface SlideCard {
   analysis: AnalysisResult | null;
   log: LogEntry[];
   elapsed: number;
+  usedModel: string | null;
+  usedEffort: string | null;
   error: string | null;
   selectedTemplateIndex: number;
   viewMode: "original" | "replica";
@@ -41,6 +43,8 @@ export interface ExtractState {
   logModal: { open: boolean; cardId: string };
   panelWidth: number; // 0 when collapsed
   layoutKey: string; // "row" | "1" | "2" | "3" | "custom-N"
+  model: string;
+  effort: string;
 
   // Actions
   addCard: (file: File) => string;
@@ -65,6 +69,8 @@ export interface ExtractState {
   closeYamlModal: () => void;
   openLogModal: (cardId: string) => void;
   closeLogModal: () => void;
+  setModel: (model: string) => void;
+  setEffort: (effort: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -139,6 +145,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
     logModal: { open: false, cardId: "" },
     panelWidth: 380,
     layoutKey: "3", // default: 3-column grid
+    model: "claude-opus-4-6",
+    effort: "low",
 
     // Actions
 
@@ -164,6 +172,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
         analysis: null,
         log: [],
         elapsed: 0,
+        usedModel: null,
+        usedEffort: null,
         error: null,
         selectedTemplateIndex: 0,
         viewMode: "original",
@@ -207,12 +217,15 @@ export function createExtractStore(): StoreApi<ExtractState> {
     },
 
     startAnalysis(id: string) {
+      const { model, effort } = get();
       set((state) =>
         updateCard(state, id, () => ({
           status: "analyzing" as const,
           log: [],
           error: null,
           elapsed: 0,
+          usedModel: model,
+          usedEffort: effort,
         })),
       );
     },
@@ -296,6 +309,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
           analysis: null,
           log: [],
           elapsed: 0,
+          usedModel: null,
+          usedEffort: null,
           error: null,
           selectedTemplateIndex: 0,
           viewMode: "original" as const,
@@ -391,6 +406,14 @@ export function createExtractStore(): StoreApi<ExtractState> {
       set((state) => ({
         logModal: { ...state.logModal, open: false },
       }));
+    },
+
+    setModel(model: string) {
+      set({ model });
+    },
+
+    setEffort(effort: string) {
+      set({ effort });
     },
   }));
 }

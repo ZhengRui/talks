@@ -14,10 +14,53 @@ export interface ExtractProposalLike {
   region: ExtractRegion;
 }
 
+export interface ExtractInventoryBackgroundLayerLike {
+  bbox?: ExtractRegion;
+}
+
+export interface ExtractInventoryTypographyStyleLike {
+  fontSize?: number;
+  letterSpacing?: number;
+  lineHeight?: number;
+}
+
+export interface ExtractInventoryTypographyLike {
+  bbox: ExtractRegion;
+  style?: ExtractInventoryTypographyStyleLike;
+}
+
+export interface ExtractInventoryRegionLike {
+  bbox: ExtractRegion;
+}
+
+export interface ExtractInventoryRepeatGroupLike {
+  bbox: ExtractRegion;
+  orientation?: "row" | "column" | "grid";
+  itemSize?: { w: number; h: number };
+  gap?: number;
+  gapX?: number;
+  gapY?: number;
+}
+
+export interface ExtractInventoryLike {
+  slideBounds?: ExtractRegion;
+  background?: {
+    layers?: ExtractInventoryBackgroundLayerLike[];
+  };
+  typography?: ExtractInventoryTypographyLike[];
+  regions?: ExtractInventoryRegionLike[];
+  repeatGroups?: ExtractInventoryRepeatGroupLike[];
+}
+
+// Keep these loose structural types in sync with the extract inventory
+// schema in src/components/extract/types.ts. This layer accepts partially
+// parsed model output and should remain tolerant of missing fields.
 export interface ExtractAnalysisLike {
   source?: {
     dimensions?: ExtractDimensions;
+    reportedDimensions?: ExtractDimensions;
   } & Record<string, unknown>;
+  inventory?: ExtractInventoryLike;
   proposals?: ExtractProposalLike[];
 }
 
@@ -45,6 +88,96 @@ function normalizeRegion(
     y: top,
     w: Math.max(0, right - left),
     h: Math.max(0, bottom - top),
+  };
+}
+
+function scaleSize(
+  size: { w: number; h: number },
+  ratioX: number,
+  ratioY: number,
+): { w: number; h: number } {
+  return {
+    w: Math.max(0, size.w * ratioX),
+    h: Math.max(0, size.h * ratioY),
+  };
+}
+
+function normalizeInventory(
+  inventory: ExtractInventoryLike | undefined,
+  ratioX: number,
+  ratioY: number,
+  bounds: ExtractDimensions,
+): ExtractInventoryLike | undefined {
+  if (!inventory) return inventory;
+
+  return {
+    ...inventory,
+    ...(inventory.slideBounds
+      ? { slideBounds: normalizeRegion(inventory.slideBounds, ratioX, ratioY, bounds) }
+      : {}),
+    ...(inventory.background
+      ? {
+          background: {
+            ...inventory.background,
+            ...(Array.isArray(inventory.background.layers)
+              ? {
+                  layers: inventory.background.layers.map((layer) => ({
+                    ...layer,
+                    ...(layer.bbox
+                      ? { bbox: normalizeRegion(layer.bbox, ratioX, ratioY, bounds) }
+                      : {}),
+                  })),
+                }
+              : {}),
+          },
+        }
+      : {}),
+    ...(Array.isArray(inventory.typography)
+      ? {
+          typography: inventory.typography.map((item) => ({
+            ...item,
+            bbox: normalizeRegion(item.bbox, ratioX, ratioY, bounds),
+            ...(item.style
+              ? {
+                  style: {
+                    ...item.style,
+                    ...(typeof item.style.fontSize === "number"
+                      ? { fontSize: item.style.fontSize * ratioY }
+                      : {}),
+                    ...(typeof item.style.letterSpacing === "number"
+                      ? { letterSpacing: item.style.letterSpacing * ratioX }
+                      : {}),
+                  },
+                }
+              : {}),
+          })),
+        }
+      : {}),
+    ...(Array.isArray(inventory.regions)
+      ? {
+          regions: inventory.regions.map((item) => ({
+            ...item,
+            bbox: normalizeRegion(item.bbox, ratioX, ratioY, bounds),
+          })),
+        }
+      : {}),
+    ...(Array.isArray(inventory.repeatGroups)
+      ? {
+          repeatGroups: inventory.repeatGroups.map((group) => ({
+            ...group,
+            bbox: normalizeRegion(group.bbox, ratioX, ratioY, bounds),
+            ...(group.itemSize ? { itemSize: scaleSize(group.itemSize, ratioX, ratioY) } : {}),
+            ...(typeof group.gap === "number" && group.orientation === "row"
+              ? { gap: group.gap * ratioX }
+              : {}),
+            ...(typeof group.gap === "number" && group.orientation === "column"
+              ? { gap: group.gap * ratioY }
+              : {}),
+            ...(typeof group.gapX === "number" ? { gapX: group.gapX * ratioX } : {}),
+            ...(typeof group.gapY === "number" ? { gapY: group.gapY * ratioY } : {}),
+          })),
+        }
+      : {}),
   };
 }
 
@@ -78,7 +211,15 @@ export function normalizeAnalysisRegions<T extends ExtractAnalysisLike>(
     source: {
       ...(analysis.source ?? {}),
       dimensions: actualSize,
+      reportedDimensions: reported,
     },
+    ...(analysis.inventory
+      ? {
+          inventory: needsRescale
+            ? normalizeInventory(analysis.inventory, ratioX, ratioY, actualSize)
+            : analysis.inventory,
+        }
+      : {}),
     proposals: needsRescale
       ? proposals.map((proposal) => ({
           ...proposal,

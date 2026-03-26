@@ -41,17 +41,22 @@ vi.mock("./store", () => ({
 function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
   return {
     id: "card-1",
+    label: "Slide #abc",
     file: new File([""], "slide.png", { type: "image/png" }),
     previewUrl: "blob:preview-1",
     position: { x: 40, y: 40 },
     size: { w: 480, h: 270 },
+    naturalSize: null,
     status: "idle",
     description: "",
     analysis: null,
     log: [],
     elapsed: 0,
+    usedModel: null,
+    usedEffort: null,
     error: null,
     selectedTemplateIndex: 0,
+    viewMode: "original",
     ...overrides,
   };
 }

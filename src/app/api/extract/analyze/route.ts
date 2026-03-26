@@ -62,6 +62,8 @@ export async function POST(request: NextRequest) {
   const image = formData.get("image") as File | null;
   const text = formData.get("text") as string | null;
   const slug = formData.get("slug") as string | null;
+  const model = (formData.get("model") as string) || "claude-opus-4-6";
+  const effort = (formData.get("effort") as string) || "low";
 
   if (!image) {
     return new Response(JSON.stringify({ error: "No image provided" }), {
@@ -109,16 +111,27 @@ export async function POST(request: NextRequest) {
 
       try {
         let resultText = "";
+        let sawThinkingDeltaForAssistant = false;
         send("status", { message: "Starting analysis..." });
+
+        // Opus 4.6 & Sonnet 4.6: adaptive thinking with effort levels
+        // Haiku 4.5 and older: manual thinking with budget_tokens
+        const isAdaptive = model === "claude-opus-4-6" || model === "claude-sonnet-4-6";
+        const thinkingConfig = isAdaptive
+          ? { type: "adaptive" as const }
+          : { type: "enabled" as const, budget_tokens: parseInt(effort, 10) || 10000 };
+        const effortConfig = isAdaptive
+          ? (effort as "low" | "medium" | "high" | "max")
+          : undefined;
 
         const queryOptions: import("@anthropic-ai/claude-agent-sdk").Options = {
           cwd: process.cwd(),
           settingSources: ["project"],
           allowedTools: ["Read", "Glob"],
           maxTurns: 5,
-          model: "claude-opus-4-6",
-          thinking: { type: "adaptive" },
-          effort: "low",
+          model,
+          thinking: thinkingConfig,
+          ...(effortConfig ? { effort: effortConfig } : {}),
           systemPrompt: ANALYSIS_SYSTEM_PROMPT,
           includePartialMessages: true,
           // Use Claude Code subscription auth, not API key
@@ -156,6 +169,7 @@ export async function POST(request: NextRequest) {
                 delta?.type === "thinking_delta" &&
                 typeof delta.thinking === "string"
               ) {
+                sawThinkingDeltaForAssistant = true;
                 send("thinking", { text: delta.thinking });
               }
             }
@@ -174,11 +188,15 @@ export async function POST(request: NextRequest) {
                   b.type === "thinking" &&
                   typeof b.thinking === "string"
                 ) {
-                  // Fallback: complete thinking block if not streamed
-                  send("thinking", { text: b.thinking });
+                  // Fallback: only emit the full thinking block when no
+                  // thinking_delta was streamed for this assistant turn.
+                  if (!sawThinkingDeltaForAssistant) {
+                    send("thinking", { text: b.thinking });
+                  }
                 }
               }
             }
+            sawThinkingDeltaForAssistant = false;
           }
 
           // Tool results — extract the actual content

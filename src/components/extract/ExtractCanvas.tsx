@@ -44,11 +44,14 @@ export default function ExtractCanvas() {
       const timer = setInterval(() => tickElapsed(cardId), 1000);
       timersRef.current.set(cardId, timer);
 
+      const { model, effort } = useExtractStore.getState();
       const formData = new FormData();
       formData.append("image", card.file);
       if (card.description.trim()) {
         formData.append("text", card.description.trim());
       }
+      formData.append("model", model);
+      formData.append("effort", effort);
 
       try {
         const response = await fetch("/api/extract/analyze", {

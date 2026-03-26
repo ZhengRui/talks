@@ -126,7 +126,19 @@ Style fields: `fontFamily` (heading | body | mono | CSS string), `fontSize`, `fo
 
 Shapes: `rect`, `circle`, `line`, `pill`, `arrow`, `triangle`, `chevron`, `diamond`, `star`, `callout`.
 
-Style fields: `fill`, `stroke`, `strokeWidth`, `strokeDash` (solid | dash | dot | dashDot), `gradient` (`{ type: linear, angle, stops: [{ color, position }] }`), `patternFill` (`{ preset, fgColor, fgOpacity?, bgColor?, bgOpacity? }`).
+Style fields: `fill`, `stroke`, `strokeWidth`, `strokeDash` (solid | dash | dot | dashDot), `gradient`, `patternFill` (`{ preset, fgColor, fgOpacity?, bgColor?, bgOpacity? }`).
+
+Gradient example — **positions are 0–1 normalized, NOT 0–100**:
+
+```yaml
+style:
+  gradient:
+    type: linear
+    angle: 90
+    stops:
+      - { color: "#ff6b35", position: 0 }
+      - { color: "#00d4ff", position: 1 }
+```
 
 ### image
 
@@ -349,15 +361,19 @@ Grid pitfall: `bottom`/`centerY` constraints without `rowHeight` resolve against
 
 ## Backgrounds
 
-Use the v9 background spec. Three forms:
+Use the v9 background spec. The string form accepts any valid CSS `background` value — including gradients:
 
 ```yaml
-background: "theme.bg"                                          # string shorthand
-background: { type: solid, color: "#0b1020" }                   # solid color
+background: "theme.bg"                                          # theme token
+background: "#0b1020"                                           # hex color
+background: { type: solid, color: "#0b1020" }                   # solid object
 background: { type: image, src: "hero.jpg", overlay: "dark" }   # image with overlay
+# CSS gradients — use the string form:
+background: "radial-gradient(at 50% 50%, rgba(255,140,0,0.15) 0%, transparent 50%), #080808"
+background: "linear-gradient(180deg, #0a0e18, #1a2030 50%, #0a0e18)"
 ```
 
-`overlay` supports: `dark`, `light`, `none`, or a custom color string (e.g., `"rgba(0,0,0,0.45)"`).
+`overlay` (on image backgrounds) supports: `dark`, `light`, `none`, or a custom color string (e.g., `"rgba(0,0,0,0.45)"`).
 
 ---
 
@@ -436,6 +452,72 @@ children:
 
 ---
 
+## Visual Features
+
+These properties are available on all scene nodes (via `SceneNodeBase`) and should be used when the source has them — do not flatten rich visuals into plain shapes with solid fills.
+
+**Rich text**: Use markdown (`"The **Fall** of *Tang*"`) or `TextRun[]` for mixed inline styles (different colors, sizes, bold/italic within one text node):
+
+```yaml
+text:
+  - { text: "Total: ", color: "#888888", fontSize: 24 }
+  - { text: "$8.5M", color: "#ff5a1e", fontSize: 48, fontWeight: 800 }
+```
+
+**Shadows**: `shadow: { offsetX: 0, offsetY: 4, blur: 24, spread: 0, color: "rgba(0,0,0,0.3)" }`
+
+**Effects**: `effects: { glow: { color: "#00ffc8", radius: 20, opacity: 0.6 }, softEdge: 8, blur: 4 }`
+
+**Transforms**: `transform: { rotate: 15, scaleX: 1, scaleY: 1, flipH: false, flipV: false }`
+
+**Opacity**: `opacity: 0.5` (0–1, applies to entire node)
+
+**Borders**: `border: { width: 2, color: "#ffffff", sides: ["bottom"], dash: "dash" }`
+
+**Clip path**: `clipPath: "polygon(50% 0%, 100% 100%, 0% 100%)"` (CSS clip-path value)
+
+**Multicolor text bands** (flag/stripe effect on text): Stack identical text nodes at the same frame, each with a different `color` and a `clipPath` that reveals only a horizontal stripe. The base layer shows through where the clipped layers don't cover. Do NOT use CSS `background-clip: text` hacks — use this layered clipPath approach instead.
+
+```yaml
+# Base layer — shows through in the middle
+- kind: text
+  id: title-base
+  frame: { centerX: 480, y: 100, w: 800, h: 80 }
+  text: "HELLO WORLD"
+  style: { fontFamily: heading, fontSize: 72, fontWeight: 900, color: "#ffffff", textAlign: center }
+# Top stripe
+- kind: text
+  id: title-top
+  frame: { centerX: 480, y: 100, w: 800, h: 80 }
+  clipPath: "polygon(0 0, 100% 0, 100% 33%, 0 33%)"
+  text: "HELLO WORLD"
+  style: { fontFamily: heading, fontSize: 72, fontWeight: 900, color: "#0055a4", textAlign: center }
+# Bottom stripe
+- kind: text
+  id: title-bottom
+  frame: { centerX: 480, y: 100, w: 800, h: 80 }
+  clipPath: "polygon(0 67%, 100% 67%, 100% 100%, 0 100%)"
+  text: "HELLO WORLD"
+  style: { fontFamily: heading, fontSize: 72, fontWeight: 900, color: "#ef4135", textAlign: center }
+```
+
+This works for any number of bands — adjust the `clipPath` percentages and add more layers as needed.
+
+**Entrance animations**: `entrance: { type: "fade-up", delay: 200, duration: 500 }` (types: fade-up, fade-in, slide-left, slide-right, scale-up, count-up, none)
+
+**Shape variety**: Don't default to `rect` for everything. Available shapes: `rect`, `circle`, `line`, `pill`, `arrow`, `triangle`, `chevron`, `diamond`, `star`, `callout`.
+
+**Gradients on shapes**:
+
+```yaml
+style:
+  gradient: { type: linear, angle: 135, stops: [{ color: "#ff6b35", position: 0 }, { color: "#00d4ff", position: 1 }] }
+```
+
+**Pattern fills**: `style: { patternFill: { preset: "diagCross", fgColor: "#ffffff", fgOpacity: 0.1 } }`
+
+---
+
 ## Common Patterns
 
 - **Asymmetric split**: `split` guide + shape panel + separate groups for each region.
@@ -450,6 +532,7 @@ children:
 
 ## Pitfalls
 
+- Gradient stop `position` is 0–1 normalized (NOT 0–100). `position: 1` means 100%.
 - No legacy node types (`box`, `raw`, `heading`, `stat`).
 - No legacy `backgroundImage` -- use the `background` spec.
 - No `flex` layout in scene groups -- use `stack`, `row`, or `grid`.
