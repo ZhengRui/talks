@@ -2,7 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useExtractStore } from "./store";
-import { RowLayoutIcon, ColLayoutIcon, Grid2x2Icon, Grid3x3Icon, CustomGridIcon } from "./icons";
+import {
+  RowLayoutIcon,
+  ColLayoutIcon,
+  Grid2x2Icon,
+  Grid3x3Icon,
+  CustomGridIcon,
+  TextFrameDebugIcon,
+} from "./icons";
 
 const layouts = [
   {
@@ -39,6 +46,8 @@ export default function CanvasToolbar() {
   const cardOrder = useExtractStore((s) => s.cardOrder);
   const arrangeCards = useExtractStore((s) => s.arrangeCards);
   const layoutKey = useExtractStore((s) => s.layoutKey);
+  const previewDebugTextBoxes = useExtractStore((s) => s.previewDebugTextBoxes);
+  const setPreviewDebugTextBoxes = useExtractStore((s) => s.setPreviewDebugTextBoxes);
   const [showCustom, setShowCustom] = useState(false);
   const [customCols, setCustomCols] = useState("4");
   const popupRef = useRef<HTMLDivElement>(null);
@@ -131,6 +140,24 @@ export default function CanvasToolbar() {
           </div>
         )}
       </div>
+
+      {/* Divider */}
+      <div className="mx-0.5 h-4 w-px bg-gray-200" />
+
+      {/* Preview text-box debug toggle */}
+      <button
+        type="button"
+        onClick={() => setPreviewDebugTextBoxes(!previewDebugTextBoxes)}
+        className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${
+          previewDebugTextBoxes
+            ? "bg-blue-50 text-blue-600"
+            : "text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+        }`}
+        title="Toggle preview text box guides"
+        aria-label="Toggle preview text box guides"
+      >
+        <TextFrameDebugIcon />
+      </button>
     </div>
   );
 }

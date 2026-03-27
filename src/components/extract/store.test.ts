@@ -24,10 +24,23 @@ describe("ExtractStore", () => {
       expect(card!.status).toBe("idle");
       expect(card!.description).toBe("");
       expect(card!.analysis).toBeNull();
+      expect(card!.pass1Analysis).toBeNull();
       expect(card!.log).toEqual([]);
       expect(card!.elapsed).toBe(0);
+      expect(card!.usedCritique).toBe(false);
+      expect(card!.pass1).toBeNull();
+      expect(card!.pass2).toBeNull();
+      expect(card!.pass1Elapsed).toBe(0);
+      expect(card!.pass2Elapsed).toBe(0);
+      expect(card!.pass1Cost).toBeNull();
+      expect(card!.pass2Cost).toBeNull();
       expect(card!.error).toBeNull();
-      expect(card!.selectedTemplateIndex).toBe(0);
+      expect(card!.activeStage).toBe("extract");
+      expect(card!.selectedTemplateIndex).toEqual({
+        extract: 0,
+        critique: 0,
+      });
+      expect(card!.viewMode).toBe("original");
     });
 
     it("positions first card at (40, 40)", () => {
@@ -148,20 +161,103 @@ describe("ExtractStore", () => {
       expect(card.elapsed).toBe(0);
     });
 
-    it("completeAnalysis sets status to analyzed and stores result", () => {
+    it("startAnalysis captures pass1 provenance and critique toggle", () => {
+      store.getState().setModel("claude-sonnet-4-6");
+      store.getState().setEffort("max");
+      store.getState().setCritique(true);
+
       store.getState().startAnalysis(id);
+
+      const card = store.getState().cards.get(id)!;
+      expect(card.usedCritique).toBe(true);
+      expect(card.pass1).toEqual({
+        model: "claude-sonnet-4-6",
+        effort: "max",
+      });
+      expect(card.pass2).toBeNull();
+      expect(card.activeStage).toBe("extract");
+      expect(card.viewMode).toBe("original");
+    });
+
+    it("completeAnalysis stores pass1 and final stage data separately", () => {
+      store.getState().startAnalysis(id);
+      const pass1Analysis = {
+        source: {
+          image: "base64...",
+          dimensions: { w: 1920, h: 1080 },
+        },
+        proposals: [
+          {
+            scope: "slide" as const,
+            name: "extract-slide",
+            description: "extract",
+            region: { x: 0, y: 0, w: 1920, h: 1080 },
+            params: {},
+            style: {},
+            body: "children: []",
+          },
+        ],
+      };
       const result = {
         source: {
           image: "base64...",
           dimensions: { w: 1920, h: 1080 },
         },
-        proposals: [],
+        pass1Analysis,
+        provenance: {
+          usedCritique: true,
+          pass1: {
+            model: "claude-opus-4-6",
+            effort: "low",
+            elapsed: 5,
+            cost: 0.12,
+          },
+          pass2: {
+            model: "claude-opus-4-6",
+            effort: "low",
+            elapsed: 7,
+            cost: 0.34,
+          },
+        },
+        proposals: [
+          {
+            scope: "slide" as const,
+            name: "critique-slide",
+            description: "critique",
+            region: { x: 0, y: 0, w: 1920, h: 1080 },
+            params: {},
+            style: {},
+            body: "children: []",
+          },
+        ],
       };
       store.getState().completeAnalysis(id, result);
       const card = store.getState().cards.get(id)!;
       expect(card.status).toBe("analyzed");
-      expect(card.analysis).toEqual(result);
-      expect(card.selectedTemplateIndex).toBe(0);
+      expect(card.analysis).toEqual({
+        source: result.source,
+        provenance: result.provenance,
+        proposals: result.proposals,
+      });
+      expect(card.pass1Analysis).toEqual(pass1Analysis);
+      expect(card.usedCritique).toBe(true);
+      expect(card.pass1).toEqual({
+        model: "claude-opus-4-6",
+        effort: "low",
+        elapsed: 5,
+        cost: 0.12,
+      });
+      expect(card.pass2).toEqual({
+        model: "claude-opus-4-6",
+        effort: "low",
+        elapsed: 7,
+        cost: 0.34,
+      });
+      expect(card.pass1Elapsed).toBe(5);
+      expect(card.pass2Elapsed).toBe(7);
+      expect(card.pass1Cost).toBe(0.12);
+      expect(card.pass2Cost).toBe(0.34);
+      expect(card.selectedTemplateIndex).toEqual({ extract: 0, critique: 0 });
     });
 
     it("failAnalysis sets status to error and stores error message", () => {
@@ -170,6 +266,51 @@ describe("ExtractStore", () => {
       const card = store.getState().cards.get(id)!;
       expect(card.status).toBe("error");
       expect(card.error).toBe("API timeout");
+    });
+
+    it("resetAnalysis clears critique provenance fields", () => {
+      store.getState().setCritique(true);
+      store.getState().startAnalysis(id);
+      store.getState().completeAnalysis(id, {
+        source: {
+          image: "base64...",
+          dimensions: { w: 1920, h: 1080 },
+        },
+        pass1Analysis: {
+          source: {
+            image: "base64...",
+            dimensions: { w: 1920, h: 1080 },
+          },
+          proposals: [],
+        },
+        provenance: {
+          usedCritique: true,
+          pass1: {
+            model: "claude-opus-4-6",
+            effort: "low",
+            elapsed: 3,
+            cost: 0.1,
+          },
+          pass2: null,
+        },
+        proposals: [],
+      });
+
+      store.getState().resetAnalysis(id);
+
+      const card = store.getState().cards.get(id)!;
+      expect(card.usedCritique).toBe(false);
+      expect(card.pass1).toBeNull();
+      expect(card.pass2).toBeNull();
+      expect(card.pass1Analysis).toBeNull();
+      expect(card.analysis).toBeNull();
+      expect(card.pass1Elapsed).toBe(0);
+      expect(card.pass2Elapsed).toBe(0);
+      expect(card.pass1Cost).toBeNull();
+      expect(card.pass2Cost).toBeNull();
+      expect(card.activeStage).toBe("extract");
+      expect(card.selectedTemplateIndex).toEqual({ extract: 0, critique: 0 });
+      expect(card.status).toBe("idle");
     });
   });
 
@@ -187,10 +328,12 @@ describe("ExtractStore", () => {
         type: "status",
         content: "Starting analysis...",
         timestamp: 100,
+        stage: "extract",
       });
       const card = store.getState().cards.get(id)!;
       expect(card.log).toHaveLength(1);
       expect(card.log[0].content).toBe("Starting analysis...");
+      expect(card.log[0].stage).toBe("extract");
     });
 
     it("merges streaming text entries by appending content", () => {
@@ -198,11 +341,13 @@ describe("ExtractStore", () => {
         type: "text",
         content: "Hello ",
         timestamp: 100,
+        stage: "extract",
       });
       store.getState().appendLog(id, {
         type: "text",
         content: "world",
         timestamp: 101,
+        stage: "extract",
       });
       const card = store.getState().cards.get(id)!;
       expect(card.log).toHaveLength(1);
@@ -214,11 +359,13 @@ describe("ExtractStore", () => {
         type: "thinking",
         content: "Let me ",
         timestamp: 100,
+        stage: "extract",
       });
       store.getState().appendLog(id, {
         type: "thinking",
         content: "think...",
         timestamp: 101,
+        stage: "extract",
       });
       const card = store.getState().cards.get(id)!;
       expect(card.log).toHaveLength(1);
@@ -230,11 +377,13 @@ describe("ExtractStore", () => {
         type: "text",
         content: "Hello",
         timestamp: 100,
+        stage: "extract",
       });
       store.getState().appendLog(id, {
         type: "thinking",
         content: "hmm",
         timestamp: 101,
+        stage: "critique",
       });
       const card = store.getState().cards.get(id)!;
       expect(card.log).toHaveLength(2);
@@ -245,11 +394,30 @@ describe("ExtractStore", () => {
         type: "status",
         content: "Step 1",
         timestamp: 100,
+        stage: "extract",
       });
       store.getState().appendLog(id, {
         type: "status",
         content: "Step 2",
         timestamp: 101,
+        stage: "extract",
+      });
+      const card = store.getState().cards.get(id)!;
+      expect(card.log).toHaveLength(2);
+    });
+
+    it("does not merge streaming entries across stages", () => {
+      store.getState().appendLog(id, {
+        type: "text",
+        content: "Extract",
+        timestamp: 100,
+        stage: "extract",
+      });
+      store.getState().appendLog(id, {
+        type: "text",
+        content: "Critique",
+        timestamp: 101,
+        stage: "critique",
       });
       const card = store.getState().cards.get(id)!;
       expect(card.log).toHaveLength(2);
@@ -259,10 +427,43 @@ describe("ExtractStore", () => {
   // --- selectTemplate ---
 
   describe("selectTemplate", () => {
-    it("updates selectedTemplateIndex", () => {
+    it("updates selectedTemplateIndex for the active stage", () => {
       const id = store.getState().addCard(makeFile());
       store.getState().selectTemplate(id, 2);
-      expect(store.getState().cards.get(id)!.selectedTemplateIndex).toBe(2);
+      expect(store.getState().cards.get(id)!.selectedTemplateIndex).toEqual({
+        extract: 2,
+        critique: 0,
+      });
+
+      store.getState().setActiveStage(id, "critique");
+      store.getState().selectTemplate(id, 1);
+      expect(store.getState().cards.get(id)!.selectedTemplateIndex).toEqual({
+        extract: 2,
+        critique: 1,
+      });
+    });
+  });
+
+  describe("stage state", () => {
+    it("setViewMode syncs activeStage for extract and critique", () => {
+      const id = store.getState().addCard(makeFile());
+      store.getState().setViewMode(id, "extract");
+      expect(store.getState().cards.get(id)!.activeStage).toBe("extract");
+
+      store.getState().setViewMode(id, "critique");
+      expect(store.getState().cards.get(id)!.activeStage).toBe("critique");
+    });
+
+    it("startAnalysis resets activeStage to extract", () => {
+      const id = store.getState().addCard(makeFile());
+      store.getState().setActiveStage(id, "critique");
+      store.getState().setViewMode(id, "critique");
+
+      store.getState().startAnalysis(id);
+
+      const card = store.getState().cards.get(id)!;
+      expect(card.activeStage).toBe("extract");
+      expect(card.viewMode).toBe("original");
     });
   });
 
@@ -306,6 +507,16 @@ describe("ExtractStore", () => {
     it("setZoom clamps to maximum 2.5", () => {
       store.getState().setZoom(5.0);
       expect(store.getState().zoom).toBe(2.5);
+    });
+
+    it("preview text box guides are off by default and can be toggled", () => {
+      expect(store.getState().previewDebugTextBoxes).toBe(false);
+
+      store.getState().setPreviewDebugTextBoxes(true);
+      expect(store.getState().previewDebugTextBoxes).toBe(true);
+
+      store.getState().setPreviewDebugTextBoxes(false);
+      expect(store.getState().previewDebugTextBoxes).toBe(false);
     });
   });
 

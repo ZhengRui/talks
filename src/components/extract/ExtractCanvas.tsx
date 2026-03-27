@@ -6,7 +6,55 @@ import CanvasToolbar from "./CanvasToolbar";
 import InspectorPanel from "./InspectorPanel";
 import LogModal from "./LogModal";
 import { useExtractStore, type LogEntry } from "./store";
-import type { AnalysisResult } from "./types";
+import type { AnalysisResultPayload, AnalysisStage } from "./types";
+
+const MAX_IMAGE_DIMENSION = 2000;
+
+/**
+ * Downscale an image File so its longest side is at most MAX_IMAGE_DIMENSION.
+ * This prevents Claude Code's image dimension metadata from injecting
+ * "original vs displayed" coordinate discrepancies that cause the model
+ * to spiral on coordinate-space reconciliation.
+ *
+ * Returns the original file if already small enough.
+ */
+async function downscaleImage(file: File): Promise<File> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const { naturalWidth: w, naturalHeight: h } = img;
+      if (w <= MAX_IMAGE_DIMENSION && h <= MAX_IMAGE_DIMENSION) {
+        URL.revokeObjectURL(img.src);
+        resolve(file);
+        return;
+      }
+      const scale = MAX_IMAGE_DIMENSION / Math.max(w, h);
+      const newW = Math.round(w * scale);
+      const newH = Math.round(h * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = newW;
+      canvas.height = newH;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, newW, newH);
+      URL.revokeObjectURL(img.src);
+      canvas.toBlob(
+        (blob) => {
+          resolve(
+            blob
+              ? new File([blob], file.name, { type: "image/png" })
+              : file,
+          );
+        },
+        "image/png",
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(img.src);
+      resolve(file);
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
 
 export default function ExtractCanvas() {
   const startAnalysis = useExtractStore((s) => s.startAnalysis);
@@ -44,14 +92,20 @@ export default function ExtractCanvas() {
       const timer = setInterval(() => tickElapsed(cardId), 1000);
       timersRef.current.set(cardId, timer);
 
-      const { model, effort } = useExtractStore.getState();
+      const { model, effort, critique, critiqueModel, critiqueEffort } = useExtractStore.getState();
+      const scaledImage = await downscaleImage(card.file);
       const formData = new FormData();
-      formData.append("image", card.file);
+      formData.append("image", scaledImage);
       if (card.description.trim()) {
         formData.append("text", card.description.trim());
       }
       formData.append("model", model);
       formData.append("effort", effort);
+      if (critique) {
+        formData.append("critique", "true");
+        formData.append("critiqueModel", critiqueModel);
+        formData.append("critiqueEffort", critiqueEffort);
+      }
 
       try {
         const response = await fetch("/api/extract/analyze", {
@@ -70,6 +124,9 @@ export default function ExtractCanvas() {
         const decoder = new TextDecoder();
         let buffer = "";
 
+        const getStage = (value: unknown): AnalysisStage | undefined =>
+          value === "extract" || value === "critique" ? value : undefined;
+
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -85,6 +142,7 @@ export default function ExtractCanvas() {
               currentEvent = line.slice(7);
             } else if (line.startsWith("data: ")) {
               const data = JSON.parse(line.slice(6));
+              const stage = getStage(data.stage);
 
               switch (currentEvent) {
                 case "status": {
@@ -99,6 +157,7 @@ export default function ExtractCanvas() {
                     type: "status",
                     content: msg,
                     timestamp: Date.now(),
+                    stage,
                   };
                   appendLog(cardId, statusEntry);
                   break;
@@ -108,6 +167,7 @@ export default function ExtractCanvas() {
                     type: "thinking",
                     content: data.text,
                     timestamp: Date.now(),
+                    stage,
                   };
                   appendLog(cardId, thinkingEntry);
                   break;
@@ -117,6 +177,7 @@ export default function ExtractCanvas() {
                     type: "text",
                     content: data.text,
                     timestamp: Date.now(),
+                    stage,
                   };
                   appendLog(cardId, textEntry);
                   break;
@@ -126,6 +187,7 @@ export default function ExtractCanvas() {
                     type: "tool",
                     content: `${data.name}(${typeof data.input === "string" ? data.input : JSON.stringify(data.input).slice(0, 200)})`,
                     timestamp: Date.now(),
+                    stage,
                   };
                   appendLog(cardId, toolEntry);
                   break;
@@ -135,6 +197,7 @@ export default function ExtractCanvas() {
                     type: "tool_result",
                     content: data.preview,
                     timestamp: Date.now(),
+                    stage,
                   };
                   appendLog(cardId, toolResultEntry);
                   break;
@@ -142,6 +205,12 @@ export default function ExtractCanvas() {
                 case "error": {
                   const errorMsg =
                     data.error + (data.raw ? `\nRaw: ${data.raw}` : "");
+                  appendLog(cardId, {
+                    type: "error",
+                    content: errorMsg,
+                    timestamp: Date.now(),
+                    stage,
+                  });
                   failAnalysis(cardId, errorMsg);
                   // Clear timer on error
                   const errorTimer = timersRef.current.get(cardId);
@@ -152,11 +221,12 @@ export default function ExtractCanvas() {
                   return;
                 }
                 case "result": {
-                  completeAnalysis(cardId, data as AnalysisResult);
+                  completeAnalysis(cardId, data as AnalysisResultPayload);
                   const resultEntry: LogEntry = {
                     type: "status",
-                    content: `Analysis complete — ${(data as AnalysisResult).proposals?.length ?? 0} proposals`,
+                    content: `Analysis complete — ${(data as AnalysisResultPayload).proposals?.length ?? 0} proposals`,
                     timestamp: Date.now(),
+                    stage,
                   };
                   appendLog(cardId, resultEntry);
                   break;

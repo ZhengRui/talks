@@ -76,6 +76,14 @@ describe("estimateTextHeight", () => {
     // Both lines are short enough to fit in 1600px, so height = 2 lines
     expect(h).toBeCloseTo(2 * 26 * 1.6, 0);
   });
+
+  it("accounts for letter spacing on wide uppercase headings", () => {
+    const text = "The Axis of Resistance";
+    const base = estimateTextHeight(text, 62, 1.1, 800, 900);
+    const spaced = estimateTextHeight(text, 62, 1.1, 800, 900, 3, "uppercase");
+
+    expect(spaced).toBeGreaterThan(base);
+  });
 });
 
 describe("titleBlock", () => {

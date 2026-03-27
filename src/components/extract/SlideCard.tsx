@@ -4,12 +4,17 @@ import { useMemo } from "react";
 import { X } from "lucide-react";
 import { regionColor, type Proposal } from "./types";
 import { useExtractStore } from "./store";
+import { getStageAnalysis } from "./stage-utils";
 import { ZoomToFitIcon } from "./icons";
 import { LayoutSlideRenderer } from "@/components/LayoutRenderer";
 import { compileProposalPreview } from "@/lib/extract/compile-preview";
 
 interface SlideCardProps {
   cardId: string;
+}
+
+function getSlideProposal(proposals: Proposal[] | undefined): Proposal | null {
+  return proposals?.find((proposal) => proposal.scope === "slide") ?? null;
 }
 
 export default function SlideCard({ cardId }: SlideCardProps) {
@@ -22,22 +27,52 @@ export default function SlideCard({ cardId }: SlideCardProps) {
   const panelWidth = useExtractStore((s) => s.panelWidth);
   const setNaturalSize = useExtractStore((s) => s.setNaturalSize);
   const setViewMode = useExtractStore((s) => s.setViewMode);
+  const previewDebugTextBoxes = useExtractStore((s) => s.previewDebugTextBoxes);
 
   if (!card) return null;
 
   const isAnalyzed = card.status === "analyzed" && card.analysis;
-  const isReplica = card.viewMode === "replica";
   const imgSrc = card.previewUrl;
-
-  const srcW = card.analysis?.source.dimensions.w ?? 0;
-  const srcH = card.analysis?.source.dimensions.h ?? 0;
+  const activeAnalysis = getStageAnalysis(card, card.activeStage);
+  const activeProposals = activeAnalysis?.proposals ?? [];
+  const activeSource = activeAnalysis?.source ?? card.analysis?.source;
+  const srcW = activeSource?.dimensions.w ?? 0;
+  const srcH = activeSource?.dimensions.h ?? 0;
   const scaleX = srcW > 0 ? card.size.w / srcW : 1;
   const scaleY = srcH > 0 ? card.size.h / srcH : 1;
+  const selectedTemplateIndex =
+    activeProposals[card.selectedTemplateIndex[card.activeStage]]
+      ? card.selectedTemplateIndex[card.activeStage]
+      : 0;
 
-  // Find the slide-scope proposal for replica rendering
-  const slideProposal = isAnalyzed
-    ? card.analysis!.proposals.find((p) => p.scope === "slide") ?? null
-    : null;
+  const extractAnalysis = getStageAnalysis(card, "extract");
+  const critiqueAnalysis = getStageAnalysis(card, "critique");
+  const extractSlideProposal = getSlideProposal(extractAnalysis?.proposals);
+  const critiqueSlideProposal = getSlideProposal(critiqueAnalysis?.proposals);
+  const previewOptions = [
+    { value: "original" as const, label: "Original" },
+    { value: "extract" as const, label: "Extract" },
+    ...(critiqueSlideProposal
+      ? [{ value: "critique" as const, label: "Critique" }]
+      : []),
+  ];
+  const activeViewMode = previewOptions.some((option) => option.value === card.viewMode)
+    ? card.viewMode
+    : "original";
+  const activePreview =
+    activeViewMode === "extract"
+      ? {
+          proposal: extractSlideProposal,
+          allProposals: extractAnalysis?.proposals ?? [],
+          source: extractAnalysis?.source,
+        }
+      : activeViewMode === "critique"
+        ? {
+            proposal: critiqueSlideProposal,
+            allProposals: critiqueAnalysis?.proposals ?? [],
+            source: critiqueAnalysis?.source,
+          }
+        : null;
 
   return (
     <div
@@ -73,39 +108,41 @@ export default function SlideCard({ cardId }: SlideCardProps) {
         {/* Right-side buttons */}
         <div className="ml-auto flex items-center gap-1">
           {/* View mode toggle — pill style */}
-          {isAnalyzed && slideProposal && (
-            <div className="relative flex items-center rounded-full bg-gray-200 p-0.5">
+          {isAnalyzed && extractSlideProposal && (
+            <div
+              className="relative grid rounded-full bg-gray-200 p-0.5"
+              style={{
+                gridTemplateColumns: `repeat(${previewOptions.length}, minmax(0, 1fr))`,
+              }}
+            >
               <div
                 className="absolute top-0.5 bottom-0.5 rounded-full bg-white shadow-sm transition-all duration-200"
                 style={{
-                  width: "calc(50% - 2px)",
-                  left: isReplica ? "calc(50% + 1px)" : "2px",
+                  left: 2,
+                  width: `calc((100% - 4px) / ${previewOptions.length})`,
+                  transform: `translateX(${
+                    previewOptions.findIndex((option) => option.value === activeViewMode) * 100
+                  }%)`,
                 }}
               />
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setViewMode(cardId, "original");
-                }}
-                className={`relative z-10 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                  !isReplica ? "text-gray-700" : "text-gray-400"
-                }`}
-              >
-                Original
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setViewMode(cardId, "replica");
-                }}
-                className={`relative z-10 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                  isReplica ? "text-gray-700" : "text-gray-400"
-                }`}
-              >
-                Replica
-              </button>
+              {previewOptions.map((option) => {
+                const isActive = activeViewMode === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setViewMode(cardId, option.value);
+                    }}
+                    className={`relative z-10 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                      isActive ? "text-gray-700" : "text-gray-400"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
             </div>
           )}
           {/* Zoom to fit */}
@@ -147,7 +184,6 @@ export default function SlideCard({ cardId }: SlideCardProps) {
         onClick={(e) => {
           e.stopPropagation();
           selectCard(cardId);
-          if (isAnalyzed) selectTemplate(cardId, 0);
         }}
         className="group relative cursor-pointer overflow-hidden rounded-lg"
         style={{
@@ -162,14 +198,15 @@ export default function SlideCard({ cardId }: SlideCardProps) {
             : "0 2px 12px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04)",
         }}
       >
-        {isReplica && slideProposal ? (
+        {activeViewMode !== "original" && activePreview?.proposal && activePreview.source ? (
           <ReplicaPreview
-            proposal={slideProposal}
-            allProposals={card.analysis!.proposals}
-            canvasW={srcW}
-            canvasH={srcH}
+            proposal={activePreview.proposal}
+            allProposals={activePreview.allProposals}
+            canvasW={activePreview.source.dimensions.w}
+            canvasH={activePreview.source.dimensions.h}
             displayW={card.size.w}
             displayH={card.size.h}
+            debugTextOverflow={previewDebugTextBoxes}
           />
         ) : (
           <>
@@ -186,9 +223,9 @@ export default function SlideCard({ cardId }: SlideCardProps) {
             />
 
             {/* Region overlays — only when selected AND analyzed AND in original view */}
-            {isSelected && isAnalyzed && (
+            {isSelected && isAnalyzed && activeViewMode === "original" && activeProposals.length > 0 && (
               <div className="absolute inset-0 overflow-hidden rounded-lg">
-                {card.analysis!.proposals.map((proposal, i) => {
+                {activeProposals.map((proposal, i) => {
                   if (
                     proposal.region.w > srcW * 0.9 &&
                     proposal.region.h > srcH * 0.9
@@ -197,7 +234,7 @@ export default function SlideCard({ cardId }: SlideCardProps) {
                   }
 
                   const color = regionColor(i);
-                  const isActive = i === card.selectedTemplateIndex;
+                  const isActive = i === selectedTemplateIndex;
 
                   return (
                     <div
@@ -247,6 +284,7 @@ function ReplicaPreview({
   canvasH,
   displayW,
   displayH,
+  debugTextOverflow = false,
 }: {
   proposal: Proposal;
   allProposals: Proposal[];
@@ -254,6 +292,7 @@ function ReplicaPreview({
   canvasH: number;
   displayW: number;
   displayH: number;
+  debugTextOverflow?: boolean;
 }) {
   const layoutSlide = useMemo(() => {
     try {
@@ -283,7 +322,11 @@ function ReplicaPreview({
         transform: `scale(${scale})`,
       }}
     >
-      <LayoutSlideRenderer slide={layoutSlide} animationNone />
+      <LayoutSlideRenderer
+        slide={layoutSlide}
+        animationNone
+        debugTextOverflow={debugTextOverflow}
+      />
     </div>
   );
 }

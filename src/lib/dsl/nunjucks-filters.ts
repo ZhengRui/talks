@@ -68,6 +68,8 @@ export function configureEnvironment(
     lineHeight: number,
     containerWidth: number,
     fontWeight?: number,
+    letterSpacing?: number,
+    textTransform?: "uppercase" | "lowercase" | "none",
   ) => {
     const text = typeof val === "string" ? val : String(val ?? "");
     return estimateTextHeight(
@@ -76,6 +78,8 @@ export function configureEnvironment(
       Number(lineHeight),
       Number(containerWidth),
       fontWeight != null ? Number(fontWeight) : undefined,
+      letterSpacing != null ? Number(letterSpacing) : undefined,
+      textTransform,
     );
   });
 
@@ -87,6 +91,8 @@ export function configureEnvironment(
     itemSpacing = 10,
     ordered = false,
     fontWeight?: number,
+    letterSpacing?: number,
+    textTransform?: "uppercase" | "lowercase" | "none",
   ) => {
     if (!Array.isArray(val)) return 0;
     const bulletIndent = ordered ? 42 : 30;
@@ -98,6 +104,8 @@ export function configureEnvironment(
         Number(lineHeight),
         textWidth,
         fontWeight != null ? Number(fontWeight) : undefined,
+        letterSpacing != null ? Number(letterSpacing) : undefined,
+        textTransform,
       );
       return sum + itemHeight + (index < val.length - 1 ? Number(itemSpacing) : 0);
     }, 0);

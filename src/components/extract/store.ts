@@ -1,6 +1,11 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { useStore } from "zustand";
-import type { AnalysisResult } from "./types";
+import type {
+  AnalysisResult,
+  AnalysisResultPayload,
+  AnalysisStage,
+  StageAnalysisProvenance,
+} from "./types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -10,6 +15,7 @@ export interface LogEntry {
   type: "status" | "thinking" | "text" | "tool" | "tool_result" | "error";
   content: string;
   timestamp: number;
+  stage?: AnalysisStage;
 }
 
 export interface SlideCard {
@@ -23,13 +29,20 @@ export interface SlideCard {
   status: "idle" | "analyzing" | "analyzed" | "error";
   description: string;
   analysis: AnalysisResult | null;
+  pass1Analysis: AnalysisResult | null;
   log: LogEntry[];
   elapsed: number;
-  usedModel: string | null;
-  usedEffort: string | null;
+  usedCritique: boolean;
+  pass1: StageAnalysisProvenance | null;
+  pass2: StageAnalysisProvenance | null;
+  pass1Elapsed: number;
+  pass2Elapsed: number;
+  pass1Cost: number | null;
+  pass2Cost: number | null;
   error: string | null;
-  selectedTemplateIndex: number;
-  viewMode: "original" | "replica";
+  activeStage: AnalysisStage;
+  selectedTemplateIndex: Record<AnalysisStage, number>;
+  viewMode: "original" | "extract" | "critique";
 }
 
 export interface ExtractState {
@@ -45,6 +58,10 @@ export interface ExtractState {
   layoutKey: string; // "row" | "1" | "2" | "3" | "custom-N"
   model: string;
   effort: string;
+  critique: boolean;
+  critiqueModel: string;
+  critiqueEffort: string;
+  previewDebugTextBoxes: boolean;
 
   // Actions
   addCard: (file: File) => string;
@@ -53,11 +70,12 @@ export interface ExtractState {
   updateDescription: (id: string, text: string) => void;
   startAnalysis: (id: string) => void;
   appendLog: (id: string, entry: LogEntry) => void;
-  completeAnalysis: (id: string, result: AnalysisResult) => void;
+  completeAnalysis: (id: string, result: AnalysisResultPayload) => void;
   failAnalysis: (id: string, error: string) => void;
   setNaturalSize: (id: string, w: number, h: number) => void;
   resetAnalysis: (id: string) => void;
-  setViewMode: (id: string, mode: "original" | "replica") => void;
+  setViewMode: (id: string, mode: "original" | "extract" | "critique") => void;
+  setActiveStage: (id: string, stage: AnalysisStage) => void;
   selectTemplate: (id: string, index: number) => void;
   tickElapsed: (id: string) => void;
   setPan: (pan: { x: number; y: number }) => void;
@@ -71,6 +89,10 @@ export interface ExtractState {
   closeLogModal: () => void;
   setModel: (model: string) => void;
   setEffort: (effort: string) => void;
+  setCritique: (critique: boolean) => void;
+  setCritiqueModel: (model: string) => void;
+  setCritiqueEffort: (effort: string) => void;
+  setPreviewDebugTextBoxes: (enabled: boolean) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -129,6 +151,20 @@ function updateCard(
 /** Types that should merge by appending content to the last entry. */
 const STREAMING_TYPES = new Set<LogEntry["type"]>(["text", "thinking"]);
 
+function createSelectedTemplateIndex(): Record<AnalysisStage, number> {
+  return { extract: 0, critique: 0 };
+}
+
+function sortAnalysisResult(analysis: AnalysisResult | null | undefined): AnalysisResult | null {
+  if (!analysis) return null;
+  const proposals = [...analysis.proposals].sort((a, b) => {
+    if (a.scope === "slide" && b.scope !== "slide") return -1;
+    if (a.scope !== "slide" && b.scope === "slide") return 1;
+    return 0;
+  });
+  return { ...analysis, proposals };
+}
+
 // ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
@@ -146,7 +182,11 @@ export function createExtractStore(): StoreApi<ExtractState> {
     panelWidth: 380,
     layoutKey: "3", // default: 3-column grid
     model: "claude-opus-4-6",
-    effort: "low",
+    effort: "medium",
+    critique: false,
+    critiqueModel: "claude-opus-4-6",
+    critiqueEffort: "low",
+    previewDebugTextBoxes: false,
 
     // Actions
 
@@ -170,12 +210,19 @@ export function createExtractStore(): StoreApi<ExtractState> {
         status: "idle",
         description: "",
         analysis: null,
+        pass1Analysis: null,
         log: [],
         elapsed: 0,
-        usedModel: null,
-        usedEffort: null,
+        usedCritique: false,
+        pass1: null,
+        pass2: null,
+        pass1Elapsed: 0,
+        pass2Elapsed: 0,
+        pass1Cost: null,
+        pass2Cost: null,
         error: null,
-        selectedTemplateIndex: 0,
+        activeStage: "extract",
+        selectedTemplateIndex: createSelectedTemplateIndex(),
         viewMode: "original",
       };
       set((state) => {
@@ -217,15 +264,22 @@ export function createExtractStore(): StoreApi<ExtractState> {
     },
 
     startAnalysis(id: string) {
-      const { model, effort } = get();
+      const { model, effort, critique } = get();
       set((state) =>
         updateCard(state, id, () => ({
           status: "analyzing" as const,
           log: [],
           error: null,
           elapsed: 0,
-          usedModel: model,
-          usedEffort: effort,
+          usedCritique: critique,
+          pass1: { model, effort },
+          pass2: null,
+          pass1Elapsed: 0,
+          pass2Elapsed: 0,
+          pass1Cost: null,
+          pass2Cost: null,
+          activeStage: "extract" as const,
+          viewMode: "original" as const,
         })),
       );
     },
@@ -238,7 +292,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
           if (
             last &&
             STREAMING_TYPES.has(entry.type) &&
-            last.type === entry.type
+            last.type === entry.type &&
+            last.stage === entry.stage
           ) {
             // Merge: append content to last entry of same streaming type
             log[log.length - 1] = {
@@ -254,18 +309,25 @@ export function createExtractStore(): StoreApi<ExtractState> {
       );
     },
 
-    completeAnalysis(id: string, result: AnalysisResult) {
-      // Sort proposals: slide-scope first, then blocks
-      const sorted = [...result.proposals].sort((a, b) => {
-        if (a.scope === "slide" && b.scope !== "slide") return -1;
-        if (a.scope !== "slide" && b.scope === "slide") return 1;
-        return 0;
-      });
+    completeAnalysis(id: string, result: AnalysisResultPayload) {
+      const provenance = result.provenance;
+      const { pass1Analysis: rawPass1Analysis = null, ...finalResult } = result;
+      const analysis = sortAnalysisResult(finalResult);
+      const pass1Analysis = sortAnalysisResult(rawPass1Analysis);
       set((state) =>
         updateCard(state, id, () => ({
           status: "analyzed" as const,
-          analysis: { ...result, proposals: sorted },
-          selectedTemplateIndex: 0,
+          analysis,
+          pass1Analysis,
+          usedCritique: provenance?.usedCritique ?? false,
+          pass1: provenance?.pass1 ?? null,
+          pass2: provenance?.pass2 ?? null,
+          pass1Elapsed: provenance?.pass1?.elapsed ?? 0,
+          pass2Elapsed: provenance?.pass2?.elapsed ?? 0,
+          pass1Cost: provenance?.pass1?.cost ?? null,
+          pass2Cost: provenance?.pass2?.cost ?? null,
+          activeStage: "extract" as const,
+          selectedTemplateIndex: createSelectedTemplateIndex(),
           viewMode: "original" as const,
         })),
       );
@@ -307,24 +369,46 @@ export function createExtractStore(): StoreApi<ExtractState> {
         updateCard(state, id, () => ({
           status: "idle" as const,
           analysis: null,
+          pass1Analysis: null,
           log: [],
           elapsed: 0,
-          usedModel: null,
-          usedEffort: null,
+          usedCritique: false,
+          pass1: null,
+          pass2: null,
+          pass1Elapsed: 0,
+          pass2Elapsed: 0,
+          pass1Cost: null,
+          pass2Cost: null,
           error: null,
-          selectedTemplateIndex: 0,
+          activeStage: "extract" as const,
+          selectedTemplateIndex: createSelectedTemplateIndex(),
           viewMode: "original" as const,
         })),
       );
     },
 
-    setViewMode(id: string, mode: "original" | "replica") {
-      set((state) => updateCard(state, id, () => ({ viewMode: mode })));
+    setViewMode(id: string, mode: "original" | "extract" | "critique") {
+      set((state) =>
+        updateCard(state, id, () => ({
+          viewMode: mode,
+          ...(mode === "extract" ? { activeStage: "extract" as const } : {}),
+          ...(mode === "critique" ? { activeStage: "critique" as const } : {}),
+        })),
+      );
+    },
+
+    setActiveStage(id: string, stage: AnalysisStage) {
+      set((state) => updateCard(state, id, () => ({ activeStage: stage })));
     },
 
     selectTemplate(id: string, index: number) {
       set((state) =>
-        updateCard(state, id, () => ({ selectedTemplateIndex: index })),
+        updateCard(state, id, (card) => ({
+          selectedTemplateIndex: {
+            ...card.selectedTemplateIndex,
+            [card.activeStage]: index,
+          },
+        })),
       );
     },
 
@@ -414,6 +498,22 @@ export function createExtractStore(): StoreApi<ExtractState> {
 
     setEffort(effort: string) {
       set({ effort });
+    },
+
+    setCritique(critique: boolean) {
+      set({ critique });
+    },
+
+    setCritiqueModel(critiqueModel: string) {
+      set({ critiqueModel });
+    },
+
+    setCritiqueEffort(critiqueEffort: string) {
+      set({ critiqueEffort });
+    },
+
+    setPreviewDebugTextBoxes(previewDebugTextBoxes: boolean) {
+      set({ previewDebugTextBoxes });
     },
   }));
 }

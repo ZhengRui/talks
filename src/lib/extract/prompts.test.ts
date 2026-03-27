@@ -1,10 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { ANALYSIS_SYSTEM_PROMPT, buildAnalysisPrompt } from "./prompts";
+import {
+  ANALYSIS_SYSTEM_PROMPT,
+  CRITIQUE_ADDENDUM,
+  buildAnalysisPrompt,
+  buildCritiquePrompt,
+} from "./prompts";
 
 describe("ANALYSIS_SYSTEM_PROMPT", () => {
   it("includes inventory as a required output field", () => {
     expect(ANALYSIS_SYSTEM_PROMPT).toContain('"inventory"');
     expect(ANALYSIS_SYSTEM_PROMPT).toContain("The inventory must contain:");
+  });
+
+  it("requires signatureVisuals in the inventory schema", () => {
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain('"signatureVisuals"');
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("`signatureVisuals` rules:");
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("background/atmosphere");
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("dominant title/hero treatment");
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain('Do not use `low`');
   });
 
   it("contains the two-phase contract", () => {
@@ -17,18 +30,36 @@ describe("ANALYSIS_SYSTEM_PROMPT", () => {
     expect(ANALYSIS_SYSTEM_PROMPT).toContain("Do NOT output block-scope proposals in v1");
   });
 
-  it("biases toward explicit repeated nodes over loops", () => {
-    expect(ANALYSIS_SYSTEM_PROMPT).toContain("Write repeated elements as literal explicit nodes");
-    expect(ANALYSIS_SYSTEM_PROMPT).toContain("A 4-card hero row should be 4 explicit card groups");
+  it("allows loops for 3+ repeating items", () => {
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("use a `{% for %}` loop over an items array when there are 3+ items");
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("Do NOT create separate block-scope templates");
   });
 
   it("requires every mustPreserve item to appear in the proposal body", () => {
-    expect(ANALYSIS_SYSTEM_PROMPT).toContain("Every item in `inventory.mustPreserve` must be represented in the proposal body");
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("Every item in `inventory.signatureVisuals` and `inventory.mustPreserve` must be faithfully represented in the proposal body");
+  });
+
+  it("distinguishes content preservation from visual identity", () => {
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("`mustPreserve` is for content");
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("`signatureVisuals` is for the visual identity");
   });
 
   it("preserves the common mistakes section", () => {
     expect(ANALYSIS_SYSTEM_PROMPT).toContain("## Common mistakes to avoid");
     expect(ANALYSIS_SYSTEM_PROMPT).toContain("Text nodes and shape nodes MUST have a `style:` object");
+  });
+
+  it("includes the scene authoring reference inline", () => {
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("<reference>");
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("# Scene Authoring Reference");
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("</reference>");
+  });
+
+  it("includes speed and decisiveness rules", () => {
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("Pick dimensions, positions, and colors on first impression and commit");
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("Do NOT reverse-engineer viewport scaling");
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("The system normalizes coordinates automatically");
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("Do NOT debate template-authoring mechanics");
   });
 });
 
@@ -38,5 +69,29 @@ describe("buildAnalysisPrompt", () => {
     expect(prompt).toContain("inventory-first reusable scene templates");
     expect(prompt).toContain("Additional context: Focus on background atmosphere");
     expect(prompt).toContain("Target slug: my-deck");
+  });
+});
+
+describe("CRITIQUE_ADDENDUM", () => {
+  it("enforces surgical patch mode", () => {
+    expect(CRITIQUE_ADDENDUM).toContain("SURGICAL PATCH ONLY");
+    expect(CRITIQUE_ADDENDUM).toContain("Do NOT re-describe the slide");
+    expect(CRITIQUE_ADDENDUM).toContain("Do NOT rewrite the proposal from scratch");
+    expect(CRITIQUE_ADDENDUM).toContain("Patch only the specific values that are wrong");
+  });
+
+  it("contains the critique checklist", () => {
+    expect(CRITIQUE_ADDENDUM).toContain("signatureVisuals");
+    expect(CRITIQUE_ADDENDUM).toContain("uncertainty");
+  });
+});
+
+describe("buildCritiquePrompt", () => {
+  it("includes the first-pass JSON payload", () => {
+    const payload = JSON.stringify({ source: { image: "slide.png" } }, null, 2);
+    const prompt = buildCritiquePrompt(payload);
+    expect(prompt).toContain("First-pass analysis:");
+    expect(prompt).toContain("```json");
+    expect(prompt).toContain('"image": "slide.png"');
   });
 });

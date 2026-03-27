@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Copy, Check, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useExtractStore, type LogEntry } from "./store";
+import type { AnalysisStage } from "./types";
 
 // ---------------------------------------------------------------------------
 // Markdown styles for log entries (light theme)
@@ -101,6 +102,16 @@ function ToolResultBlock({ content }: { content: string }) {
   );
 }
 
+export function filterLogEntries(
+  log: LogEntry[],
+  stage: AnalysisStage,
+): LogEntry[] {
+  if (!log.some((entry) => entry.stage)) {
+    return log;
+  }
+  return log.filter((entry) => entry.stage === stage);
+}
+
 // ---------------------------------------------------------------------------
 // Log entry rendering
 // ---------------------------------------------------------------------------
@@ -123,7 +134,7 @@ const LOG_COLORS: Record<string, string> = {
   error: "text-red-500",
 };
 
-function LogEntryRow({ entry }: { entry: LogEntry }) {
+export function LogEntryRow({ entry }: { entry: LogEntry }) {
   const icon = LOG_ICONS[entry.type] ?? "?";
   const color = LOG_COLORS[entry.type] ?? "text-gray-400";
 
@@ -194,9 +205,21 @@ export default function LogModal() {
   const cards = useExtractStore((s) => s.cards);
   const closeLogModal = useExtractStore((s) => s.closeLogModal);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [logStage, setLogStage] = useState<AnalysisStage | "all">("all");
 
   const card = open && cardId ? cards.get(cardId) : undefined;
-  const log = card?.log ?? [];
+  const isLiveAnalysis = card?.status === "analyzing";
+  const hasCritiqueLogs = (card?.log ?? []).some((e) => e.stage === "critique");
+
+  // Sync stage filter before paint to avoid flash when switching stages then opening
+  useLayoutEffect(() => {
+    if (open && card) setLogStage(card.activeStage);
+  }, [open, cardId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const allLog = card?.log ?? [];
+  const log = isLiveAnalysis || logStage === "all"
+    ? allLog
+    : filterLogEntries(allLog, logStage);
 
   const wasAtBottom = useRef(true);
   useEffect(() => {
@@ -237,7 +260,32 @@ export default function LogModal() {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
-          <h2 className="text-sm font-semibold text-gray-800">Analysis Log</h2>
+          <h2 className="text-sm font-semibold text-gray-800 shrink-0">Analysis Log</h2>
+          <div className="flex flex-1 justify-center">
+            {!isLiveAnalysis && (
+              <div className="flex items-center gap-0.5 rounded-lg bg-gray-100 p-0.5">
+                {(["all", "extract", ...(hasCritiqueLogs ? ["critique"] : [])] as const).map(
+                  (stage) => (
+                    <button
+                      key={stage}
+                      type="button"
+                      onClick={() => setLogStage(stage)}
+                      className={`w-[72px] rounded-md py-0.5 text-center text-[10px] font-medium capitalize transition-colors ${
+                        logStage === stage
+                          ? "bg-white text-gray-800 shadow-sm"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      {stage}
+                    </button>
+                  ),
+                )}
+              </div>
+            )}
+            {isLiveAnalysis && (
+              <span className="text-[10px] font-medium uppercase tracking-wider text-gray-400">live</span>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             {log.length > 0 && <CopyLogButton log={log} />}
             <button

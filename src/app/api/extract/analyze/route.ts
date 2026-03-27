@@ -2,9 +2,12 @@ import { NextRequest } from "next/server";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import {
   ANALYSIS_SYSTEM_PROMPT,
+  CRITIQUE_ADDENDUM,
   buildAnalysisPrompt,
+  buildCritiquePrompt,
 } from "@/lib/extract/prompts";
 import { normalizeAnalysisRegions } from "@/lib/extract/normalize-analysis";
+import type { AnalysisStage } from "@/components/extract/types";
 
 /** Infer media type from file extension. */
 function inferMediaType(fileName: string): string {
@@ -57,6 +60,13 @@ function readImageSize(buffer: Buffer): { w: number; h: number } | null {
 
 export const maxDuration = 120;
 
+function extractJsonPayload(resultText: string): string | null {
+  const jsonMatch =
+    resultText.match(/```json\s*([\s\S]*?)\s*```/) ??
+    resultText.match(/(\{[\s\S]*\})/);
+  return jsonMatch?.[1] ?? null;
+}
+
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
   const image = formData.get("image") as File | null;
@@ -64,6 +74,9 @@ export async function POST(request: NextRequest) {
   const slug = formData.get("slug") as string | null;
   const model = (formData.get("model") as string) || "claude-opus-4-6";
   const effort = (formData.get("effort") as string) || "low";
+  const critique = formData.get("critique") === "true";
+  const critiqueModel = (formData.get("critiqueModel") as string) || model;
+  const critiqueEffort = (formData.get("critiqueEffort") as string) || "low";
 
   if (!image) {
     return new Response(JSON.stringify({ error: "No image provided" }), {
@@ -77,7 +90,7 @@ export async function POST(request: NextRequest) {
   const mediaType = image.type || inferMediaType(image.name);
   const analysisPrompt = buildAnalysisPrompt(text, slug);
 
-  async function* makePrompt() {
+  async function* makePrompt(promptText: string) {
     yield {
       type: "user" as const,
       session_id: "",
@@ -92,7 +105,7 @@ export async function POST(request: NextRequest) {
               data: imageBuffer.toString("base64"),
             },
           },
-          { type: "text" as const, text: analysisPrompt },
+          { type: "text" as const, text: promptText },
         ],
       },
       parent_tool_use_id: null,
@@ -103,169 +116,252 @@ export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
-      function send(event: string, data: unknown) {
+      let currentStage: AnalysisStage = "extract";
+
+      function send(event: string, data: Record<string, unknown>, stage?: AnalysisStage | null) {
+        // stage: AnalysisStage tags the event to that stage.
+        // stage: null explicitly omits stage (transition events — only visible in "All").
+        // stage: undefined also omits (legacy/untagged).
+        const payload = stage ? { ...data, stage } : data;
         controller.enqueue(
-          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+          encoder.encode(
+            `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`,
+          ),
         );
       }
 
       try {
-        let resultText = "";
-        let sawThinkingDeltaForAssistant = false;
-        send("status", { message: "Starting analysis..." });
-
-        // Opus 4.6 & Sonnet 4.6: adaptive thinking with effort levels
-        // Haiku 4.5 and older: manual thinking with budget_tokens
-        const isAdaptive = model === "claude-opus-4-6" || model === "claude-sonnet-4-6";
-        const thinkingConfig = isAdaptive
-          ? { type: "adaptive" as const }
-          : { type: "enabled" as const, budget_tokens: parseInt(effort, 10) || 10000 };
-        const effortConfig = isAdaptive
-          ? (effort as "low" | "medium" | "high" | "max")
-          : undefined;
-
-        const queryOptions: import("@anthropic-ai/claude-agent-sdk").Options = {
-          cwd: process.cwd(),
-          settingSources: ["project"],
-          allowedTools: ["Read", "Glob"],
-          maxTurns: 5,
-          model,
-          thinking: thinkingConfig,
-          ...(effortConfig ? { effort: effortConfig } : {}),
-          systemPrompt: ANALYSIS_SYSTEM_PROMPT,
-          includePartialMessages: true,
-          // Use Claude Code subscription auth, not API key
-          pathToClaudeCodeExecutable: "/Users/zerry/.local/bin/claude",
-          env: { ...process.env, ANTHROPIC_API_KEY: "" },
-        };
-
-        for await (const message of query({
-          prompt: makePrompt(),
-          options: queryOptions,
-        })) {
-          const msg = message as Record<string, unknown>;
-
-          // Surface init message to show which model is being used
-          if (msg.type === "system" && msg.subtype === "init") {
-            const model = msg.model as string | undefined;
-            send("status", {
-              message: `Session started — model: ${model ?? "unknown"}, thinking: ${queryOptions.thinking?.type ?? "default"}, effort: ${queryOptions.effort}`,
-            });
-            continue;
-          }
-
-          // Token-by-token streaming deltas
-          if (msg.type === "stream_event") {
-            const event = msg.event as Record<string, unknown> | undefined;
-            if (event?.type === "content_block_delta") {
-              const delta = event.delta as Record<string, unknown> | undefined;
-              if (
-                delta?.type === "text_delta" &&
-                typeof delta.text === "string"
-              ) {
-                resultText += delta.text;
-                send("text", { text: delta.text });
-              } else if (
-                delta?.type === "thinking_delta" &&
-                typeof delta.thinking === "string"
-              ) {
-                sawThinkingDeltaForAssistant = true;
-                send("thinking", { text: delta.thinking });
-              }
-            }
-            continue;
-          }
-
-          // Complete assistant messages (tool calls + thinking blocks)
-          if (msg.type === "assistant" && msg.message) {
-            const assistantMsg = msg.message as Record<string, unknown>;
-            if (Array.isArray(assistantMsg.content)) {
-              for (const block of assistantMsg.content) {
-                const b = block as Record<string, unknown>;
-                if (b.type === "tool_use") {
-                  send("tool", { name: b.name, input: b.input });
-                } else if (
-                  b.type === "thinking" &&
-                  typeof b.thinking === "string"
-                ) {
-                  // Fallback: only emit the full thinking block when no
-                  // thinking_delta was streamed for this assistant turn.
-                  if (!sawThinkingDeltaForAssistant) {
-                    send("thinking", { text: b.thinking });
-                  }
-                }
-              }
-            }
-            sawThinkingDeltaForAssistant = false;
-          }
-
-          // Tool results — extract the actual content
-          if (msg.type === "user") {
-            const userMsg = msg.message as Record<string, unknown> | undefined;
-            if (Array.isArray(userMsg?.content)) {
-              for (const block of userMsg.content) {
-                const b = block as Record<string, unknown>;
-                if (b.type === "tool_result") {
-                  const content = b.content as
-                    | string
-                    | Array<Record<string, unknown>>
-                    | undefined;
-                  let preview = "";
-                  if (typeof content === "string") {
-                    preview = content.slice(0, 200);
-                  } else if (Array.isArray(content)) {
-                    for (const c of content) {
-                      if (c.type === "text" && typeof c.text === "string") {
-                        preview = c.text.slice(0, 200);
-                        break;
-                      }
-                    }
-                  }
-                  send("tool_result", { preview: preview || "(empty)" });
-                }
-              }
-            }
-          }
-
-          // Final result
-          if (msg.type === "result") {
-            if (typeof msg.result === "string") {
-              resultText = msg.result;
-            }
-            const usage = msg.usage as Record<string, number> | undefined;
-            send("status", {
-              message: `Done (${msg.subtype})`,
-              turns: msg.num_turns,
-              cost: msg.total_cost_usd,
-              inputTokens: usage?.input_tokens,
-              outputTokens: usage?.output_tokens,
-            });
-          }
+        function buildQueryOptions(
+          systemPrompt: string,
+          passModel: string = model,
+          passEffort: string = effort,
+        ): import("@anthropic-ai/claude-agent-sdk").Options {
+          const isAdaptive = passModel === "claude-opus-4-6" || passModel === "claude-sonnet-4-6";
+          const thinkingConfig = isAdaptive
+            ? { type: "adaptive" as const }
+            : { type: "enabled" as const, budget_tokens: parseInt(passEffort, 10) || 10000 };
+          const effortConfig = isAdaptive
+            ? (passEffort as "low" | "medium" | "high" | "max")
+            : undefined;
+          return {
+            cwd: process.cwd(),
+            settingSources: ["project"],
+            allowedTools: [],
+            maxTurns: 1,
+            model: passModel,
+            thinking: thinkingConfig,
+            ...(effortConfig ? { effort: effortConfig } : {}),
+            systemPrompt,
+            includePartialMessages: true,
+            persistSession: false,
+            // Use Claude Code subscription auth, not API key
+            pathToClaudeCodeExecutable: "/Users/zerry/.local/bin/claude",
+            env: { ...process.env, ANTHROPIC_API_KEY: "" },
+          };
         }
 
-        // Parse JSON from collected text
-        const jsonMatch =
-          resultText.match(/```json\s*([\s\S]*?)\s*```/) ??
-          resultText.match(/(\{[\s\S]*\})/);
+        async function runPass(
+          passLabel: string,
+          promptText: string,
+          systemPrompt: string,
+          stage: AnalysisStage,
+          passModel: string = model,
+          passEffort: string = effort,
+        ): Promise<{ text: string; elapsed: number; cost: number | null }> {
+          let resultText = "";
+          let totalCost: number | null = null;
+          let sawThinkingDeltaForAssistant = false;
+          const startedAt = Date.now();
+          const queryOptions = buildQueryOptions(systemPrompt, passModel, passEffort);
 
-        if (!jsonMatch) {
+          for await (const message of query({
+            prompt: makePrompt(promptText),
+            options: queryOptions,
+          })) {
+            const msg = message as Record<string, unknown>;
+
+            if (msg.type === "system" && msg.subtype === "init") {
+              const sessionModel = msg.model as string | undefined;
+              send("status", {
+                message: `Session started (${passLabel}) — model: ${sessionModel ?? "unknown"}, thinking: ${queryOptions.thinking?.type ?? "default"}, effort: ${queryOptions.effort ?? effort}`,
+              }, stage);
+              continue;
+            }
+
+            if (msg.type === "stream_event") {
+              const event = msg.event as Record<string, unknown> | undefined;
+              if (event?.type === "content_block_delta") {
+                const delta = event.delta as Record<string, unknown> | undefined;
+                if (
+                  delta?.type === "text_delta" &&
+                  typeof delta.text === "string"
+                ) {
+                  resultText += delta.text;
+                  send("text", { text: delta.text }, stage);
+                } else if (
+                  delta?.type === "thinking_delta" &&
+                  typeof delta.thinking === "string"
+                ) {
+                  sawThinkingDeltaForAssistant = true;
+                  send("thinking", { text: delta.thinking }, stage);
+                }
+              }
+              continue;
+            }
+
+            if (msg.type === "assistant" && msg.message) {
+              const assistantMsg = msg.message as Record<string, unknown>;
+              if (Array.isArray(assistantMsg.content)) {
+                for (const block of assistantMsg.content) {
+                  const b = block as Record<string, unknown>;
+                  if (b.type === "tool_use") {
+                    send("tool", { name: b.name, input: b.input }, stage);
+                  } else if (
+                    b.type === "thinking" &&
+                    typeof b.thinking === "string"
+                  ) {
+                    if (!sawThinkingDeltaForAssistant) {
+                      send("thinking", { text: b.thinking }, stage);
+                    }
+                  }
+                }
+              }
+              sawThinkingDeltaForAssistant = false;
+            }
+
+            if (msg.type === "user") {
+              const userMsg = msg.message as Record<string, unknown> | undefined;
+              if (Array.isArray(userMsg?.content)) {
+                for (const block of userMsg.content) {
+                  const b = block as Record<string, unknown>;
+                  if (b.type === "tool_result") {
+                    const content = b.content as
+                      | string
+                      | Array<Record<string, unknown>>
+                      | undefined;
+                    let preview = "";
+                    if (typeof content === "string") {
+                      preview = content.slice(0, 200);
+                    } else if (Array.isArray(content)) {
+                      for (const c of content) {
+                        if (c.type === "text" && typeof c.text === "string") {
+                          preview = c.text.slice(0, 200);
+                          break;
+                        }
+                      }
+                    }
+                    send("tool_result", { preview: preview || "(empty)" }, stage);
+                  }
+                }
+              }
+            }
+
+            if (msg.type === "result") {
+              if (typeof msg.result === "string") {
+                resultText = msg.result;
+              }
+              const usage = msg.usage as Record<string, number> | undefined;
+              totalCost =
+                typeof msg.total_cost_usd === "number" ? msg.total_cost_usd : null;
+              send("status", {
+                message: `Done (${passLabel} / ${msg.subtype})`,
+                turns: msg.num_turns,
+                cost: msg.total_cost_usd,
+                inputTokens: usage?.input_tokens,
+                outputTokens: usage?.output_tokens,
+              }, stage);
+            }
+          }
+
+          return {
+            text: resultText,
+            elapsed: Math.round((Date.now() - startedAt) / 1000),
+            cost: totalCost,
+          };
+        }
+
+        send("status", {
+          message: critique ? "Starting analysis (pass 1)..." : "Starting analysis...",
+        }, "extract");
+        const pass1Result = await runPass(
+          "pass 1",
+          analysisPrompt,
+          ANALYSIS_SYSTEM_PROMPT,
+          "extract",
+        );
+        const pass1Text = pass1Result.text;
+        const pass1Json = extractJsonPayload(pass1Text);
+        if (!pass1Json) {
           send("error", {
             error: "Failed to parse analysis response",
-            raw: resultText || "(empty)",
-          });
+            raw: pass1Text || "(empty)",
+          }, "extract");
           controller.close();
           return;
         }
 
-        const parsedAnalysis = JSON.parse(jsonMatch[1]);
-        const analysis = normalizeAnalysisRegions(parsedAnalysis, actualSize);
+        const pass1Parsed = JSON.parse(pass1Json) as Record<string, unknown>;
+        const pass1Normalized = normalizeAnalysisRegions(pass1Parsed, actualSize);
+        let finalParsed = pass1Parsed;
+        let critiqueSucceeded = false;
+        let pass2Elapsed = 0;
+        let pass2Cost: number | null = null;
 
-        send("result", analysis);
+        if (critique) {
+          currentStage = "critique";
+          send("status", {
+            message: "Pass 1 complete. Starting critique (pass 2)...",
+          }, null);  // transition event — visible in "All" only, not in stage-filtered views
+
+          try {
+            const pass2Result = await runPass(
+              "pass 2",
+              buildCritiquePrompt(JSON.stringify(pass1Parsed, null, 2)),
+              `${ANALYSIS_SYSTEM_PROMPT}\n${CRITIQUE_ADDENDUM}`,
+              "critique",
+              critiqueModel,
+              critiqueEffort,
+            );
+            const pass2Text = pass2Result.text;
+            pass2Elapsed = pass2Result.elapsed;
+            pass2Cost = pass2Result.cost;
+            const pass2Json = extractJsonPayload(pass2Text);
+            if (!pass2Json) {
+              throw new Error("Failed to parse critique response");
+            }
+            finalParsed = JSON.parse(pass2Json) as Record<string, unknown>;
+            critiqueSucceeded = true;
+          } catch (error) {
+            send("status", {
+              message: `Critique failed, returning pass 1 result: ${error instanceof Error ? error.message : String(error)}`,
+            }, "critique");
+          }
+        }
+
+        const analysis = critiqueSucceeded
+          ? normalizeAnalysisRegions(finalParsed, actualSize)
+          : pass1Normalized;
+        send("result", {
+          ...analysis,
+          pass1Analysis: critique ? pass1Normalized : null,
+          provenance: {
+            usedCritique: critique,
+            pass1: {
+              model,
+              effort,
+              elapsed: pass1Result.elapsed,
+              cost: pass1Result.cost,
+            },
+            pass2: critiqueSucceeded
+              ? { model: critiqueModel, effort: critiqueEffort, elapsed: pass2Elapsed, cost: pass2Cost }
+              : null,
+          },
+        }, critique ? "critique" : "extract");
         controller.close();
       } catch (error) {
         send("error", {
           error: `Analysis failed: ${error instanceof Error ? error.message : String(error)}`,
-        });
+        }, currentStage);
         controller.close();
       }
     },

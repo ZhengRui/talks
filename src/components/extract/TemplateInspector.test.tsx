@@ -2,10 +2,21 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import TemplateInspector from "./TemplateInspector";
 import type { SlideCard } from "./store";
+import type { AnalysisProvenance } from "./types";
 
 const mockSelectTemplate = vi.fn();
 const mockOpenLogModal = vi.fn();
 const mockResetAnalysis = vi.fn();
+const mockSetActiveStage = vi.fn();
+const defaultPass: AnalysisProvenance = {
+  model: "claude-opus-4-6",
+  effort: "high",
+};
+
+vi.mock("react-markdown", () => ({
+  default: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
+}));
+vi.mock("remark-gfm", () => ({ default: () => {} }));
 
 vi.mock("./store", async () => {
   const actual = await vi.importActual<typeof import("./store")>("./store");
@@ -16,6 +27,7 @@ vi.mock("./store", async () => {
         selectTemplate: mockSelectTemplate,
         openLogModal: mockOpenLogModal,
         resetAnalysis: mockResetAnalysis,
+        setActiveStage: mockSetActiveStage,
       };
       return selector ? selector(state) : state;
     },
@@ -32,6 +44,11 @@ vi.mock("./ParamsStyleView", () => ({
 
 vi.mock("./InlineYaml", () => ({
   default: () => <div data-testid="inline-yaml">yaml</div>,
+}));
+
+vi.mock("./LogModal", () => ({
+  LogEntryRow: ({ entry }: { entry: { content: string } }) => <div>{entry.content}</div>,
+  filterLogEntries: (log: Array<{ content?: string }>) => log,
 }));
 
 function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
@@ -62,12 +79,19 @@ function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
         },
       ],
     },
+    pass1Analysis: null,
     log: [],
     elapsed: 0,
-    usedModel: "claude-opus-4-6",
-    usedEffort: "high",
+    usedCritique: false,
+    pass1: defaultPass,
+    pass2: null,
+    pass1Elapsed: 12,
+    pass2Elapsed: 0,
+    pass1Cost: 0.82,
+    pass2Cost: null,
     error: null,
-    selectedTemplateIndex: 0,
+    activeStage: "extract",
+    selectedTemplateIndex: { extract: 0, critique: 0 },
     viewMode: "original",
     ...overrides,
   };
@@ -97,6 +121,9 @@ describe("TemplateInspector", () => {
           typography: [],
           regions: [],
           repeatGroups: [],
+          signatureVisuals: [
+            { text: "warm glow", ref: null, importance: "high" },
+          ],
           mustPreserve: [{ text: "warm glow", ref: null }],
           uncertainties: ["font unclear"],
           blockCandidates: [
@@ -129,8 +156,9 @@ describe("TemplateInspector", () => {
 
     fireEvent.click(screen.getByText("Inventory"));
 
+    expect(screen.getByText("Signature Visuals")).toBeTruthy();
+    expect(screen.getAllByText("warm glow").length).toBeGreaterThan(0);
     expect(screen.getByText("Must Preserve")).toBeTruthy();
-    expect(screen.getByText("warm glow")).toBeTruthy();
     expect(screen.getByText("Uncertainties")).toBeTruthy();
     expect(screen.getByText("font unclear")).toBeTruthy();
     expect(screen.getByText("Block Candidates")).toBeTruthy();
@@ -161,6 +189,7 @@ describe("TemplateInspector", () => {
           typography: [],
           regions: [],
           repeatGroups: [],
+          signatureVisuals: [{ text: "glow", ref: null, importance: "high" }],
           mustPreserve: [{ text: "glow", ref: null }],
           uncertainties: [],
           blockCandidates: [],
@@ -182,5 +211,58 @@ describe("TemplateInspector", () => {
     render(<TemplateInspector card={card} />);
     expect(screen.queryByText("Must Preserve")).toBeNull();
     expect(screen.getByText("Show")).toBeTruthy();
+  });
+
+  it("shows stage tabs and extract-stage meta", () => {
+    const card = makeCard({
+      usedCritique: true,
+      pass2: { model: "claude-opus-4-6", effort: "max" },
+      pass2Elapsed: 14,
+      pass2Cost: 1.24,
+    });
+
+    render(<TemplateInspector card={card} />);
+
+    expect(screen.getByText("Extract")).toBeTruthy();
+    expect(screen.getByText("Critique")).toBeTruthy();
+    expect(screen.getByText(/opus-4-6 · high · 12s · \$0.82/)).toBeTruthy();
+  });
+
+  it("switches stage when critique tab is clicked", () => {
+    const card = makeCard({
+      usedCritique: true,
+      pass2: { model: "claude-opus-4-6", effort: "max" },
+      pass2Elapsed: 14,
+      pass2Cost: 1.24,
+    });
+
+    render(<TemplateInspector card={card} />);
+
+    fireEvent.click(screen.getByText("Critique"));
+
+    expect(mockSetActiveStage).toHaveBeenCalledWith("card-1", "critique");
+  });
+
+  it("renders failed critique diagnostic view", () => {
+    const card = makeCard({
+      usedCritique: true,
+      activeStage: "critique",
+      pass2: null,
+      log: [
+        {
+          type: "status",
+          content: "Critique failed, returning pass 1 result",
+          timestamp: 1,
+          stage: "critique",
+        },
+      ],
+    });
+
+    render(<TemplateInspector card={card} />);
+
+    expect(screen.getAllByText("Critique failed").length).toBeGreaterThan(0);
+    expect(screen.getByText(/Critique pass failed/)).toBeTruthy();
+    expect(screen.getByText(/returning pass 1 result/)).toBeTruthy();
+    expect(screen.queryByTestId("template-tabs")).toBeNull();
   });
 });

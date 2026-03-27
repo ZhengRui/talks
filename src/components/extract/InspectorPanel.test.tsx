@@ -3,6 +3,15 @@ import { render, cleanup } from "@testing-library/react";
 import InspectorPanel from "./InspectorPanel";
 import type { SlideCard } from "./store";
 
+vi.mock("react-markdown", () => ({
+  default: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
+}));
+vi.mock("remark-gfm", () => ({ default: () => {} }));
+vi.mock("./LogModal", () => ({
+  LogEntryRow: ({ entry }: { entry: { content: string } }) => <div>{entry.content}</div>,
+  filterLogEntries: (log: Array<{ content?: string }>) => log,
+}));
+
 // ---------------------------------------------------------------------------
 // Mock store
 // ---------------------------------------------------------------------------
@@ -12,6 +21,11 @@ const mockUpdateDescription = vi.fn();
 const mockSelectTemplate = vi.fn();
 const mockOpenYamlModal = vi.fn();
 const mockOpenLogModal = vi.fn();
+const mockResetAnalysis = vi.fn();
+const mockSetActiveStage = vi.fn();
+const mockSetModel = vi.fn();
+const mockSetEffort = vi.fn();
+const mockSetCritique = vi.fn();
 
 let mockCards = new Map<string, SlideCard>();
 let mockCardOrder: string[] = [];
@@ -28,6 +42,14 @@ vi.mock("./store", () => ({
       selectTemplate: mockSelectTemplate,
       openYamlModal: mockOpenYamlModal,
       openLogModal: mockOpenLogModal,
+      resetAnalysis: mockResetAnalysis,
+      setActiveStage: mockSetActiveStage,
+      model: "claude-opus-4-6",
+      effort: "low",
+      critique: false,
+      setModel: mockSetModel,
+      setEffort: mockSetEffort,
+      setCritique: mockSetCritique,
       setPanelWidth: vi.fn(),
     };
     return selector ? selector(state) : state;
@@ -50,12 +72,19 @@ function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
     status: "idle",
     description: "",
     analysis: null,
+    pass1Analysis: null,
     log: [],
     elapsed: 0,
-    usedModel: null,
-    usedEffort: null,
+    usedCritique: false,
+    pass1: null,
+    pass2: null,
+    pass1Elapsed: 0,
+    pass2Elapsed: 0,
+    pass1Cost: null,
+    pass2Cost: null,
     error: null,
-    selectedTemplateIndex: 0,
+    activeStage: "extract",
+    selectedTemplateIndex: { extract: 0, critique: 0 },
     viewMode: "original",
     ...overrides,
   };
@@ -146,8 +175,8 @@ describe("InspectorPanel", () => {
 
     const { container } = render(<InspectorPanel onAnalyze={onAnalyze} />);
 
-    // Should show the template name
-    expect(container.textContent).toContain("hero_title");
+    expect(container.textContent).toContain("Extract");
+    expect(container.textContent).toContain("Log");
   });
 
   it("shows error card with analyze form", () => {

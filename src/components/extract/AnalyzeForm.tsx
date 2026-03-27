@@ -41,21 +41,96 @@ function isAdaptiveModel(model: string): boolean {
   return model === "claude-opus-4-6" || model === "claude-sonnet-4-6";
 }
 
+function PassRow({
+  label,
+  toggled,
+  onToggle,
+  model,
+  onModelChange,
+  effort,
+  onEffortChange,
+  disabled,
+}: {
+  label: string;
+  toggled: boolean;
+  onToggle?: (v: boolean) => void;
+  model: string;
+  onModelChange: (v: string) => void;
+  effort: string;
+  onEffortChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const effortOptions = EFFORT_OPTIONS[model] ?? EFFORT_OPTIONS["claude-opus-4-6"];
+  return (
+    <div className="flex items-center gap-2">
+      {onToggle ? (
+        <label className="flex shrink-0 items-center gap-1 text-xs font-medium text-gray-600 w-[72px] cursor-pointer">
+          <input
+            type="checkbox"
+            checked={toggled}
+            onChange={(e) => onToggle(e.target.checked)}
+            className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-1 focus:ring-blue-400/40"
+          />
+          <span>{label}</span>
+        </label>
+      ) : (
+        <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-gray-600 w-[72px]">
+          <span className="inline-block h-3.5 w-3.5 rounded bg-blue-600" />
+          <span>{label}</span>
+        </span>
+      )}
+      <select
+        value={model}
+        onChange={(e) => onModelChange(e.target.value)}
+        disabled={disabled}
+        className={`flex-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 focus:outline-none ${disabled ? "opacity-40 pointer-events-none" : ""}`}
+      >
+        {MODELS.map((m) => (
+          <option key={m.value} value={m.value}>{m.label}</option>
+        ))}
+      </select>
+      <select
+        value={effort}
+        onChange={(e) => onEffortChange(e.target.value)}
+        disabled={disabled}
+        className={`flex-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 focus:outline-none ${disabled ? "opacity-40 pointer-events-none" : ""}`}
+      >
+        {effortOptions.map((e) => (
+          <option key={e.value} value={e.value}>
+            {isAdaptiveModel(model) ? `Effort: ${e.label}` : `Think: ${e.label}`}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
   const updateDescription = useExtractStore((s) => s.updateDescription);
   const model = useExtractStore((s) => s.model);
   const effort = useExtractStore((s) => s.effort);
+  const critique = useExtractStore((s) => s.critique);
+  const critiqueModel = useExtractStore((s) => s.critiqueModel);
+  const critiqueEffort = useExtractStore((s) => s.critiqueEffort);
   const setModel = useExtractStore((s) => s.setModel);
   const setEffort = useExtractStore((s) => s.setEffort);
-
-  const effortOptions = EFFORT_OPTIONS[model] ?? EFFORT_OPTIONS["claude-opus-4-6"];
+  const setCritique = useExtractStore((s) => s.setCritique);
+  const setCritiqueModel = useExtractStore((s) => s.setCritiqueModel);
+  const setCritiqueEffort = useExtractStore((s) => s.setCritiqueEffort);
 
   const handleModelChange = (newModel: string) => {
     setModel(newModel);
-    // Reset effort to first option of new model
     const opts = EFFORT_OPTIONS[newModel];
     if (opts && !opts.some((o) => o.value === effort)) {
       setEffort(opts[0].value);
+    }
+  };
+
+  const handleCritiqueModelChange = (newModel: string) => {
+    setCritiqueModel(newModel);
+    const opts = EFFORT_OPTIONS[newModel];
+    if (opts && !opts.some((o) => o.value === critiqueEffort)) {
+      setCritiqueEffort(opts[0].value);
     }
   };
 
@@ -69,27 +144,25 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
         className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 focus:outline-none"
       />
 
-      <div className="flex gap-2">
-        <select
-          value={model}
-          onChange={(e) => handleModelChange(e.target.value)}
-          className="flex-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 focus:outline-none"
-        >
-          {MODELS.map((m) => (
-            <option key={m.value} value={m.value}>{m.label}</option>
-          ))}
-        </select>
-        <select
-          value={effort}
-          onChange={(e) => setEffort(e.target.value)}
-          className="flex-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 focus:outline-none"
-        >
-          {effortOptions.map((e) => (
-            <option key={e.value} value={e.value}>
-              {isAdaptiveModel(model) ? `Effort: ${e.label}` : `Think: ${e.label}`}
-            </option>
-          ))}
-        </select>
+      <div className="flex flex-col gap-1.5">
+        <PassRow
+          label="Extract"
+          toggled={true}
+          model={model}
+          onModelChange={handleModelChange}
+          effort={effort}
+          onEffortChange={setEffort}
+        />
+        <PassRow
+          label="Critique"
+          toggled={critique}
+          onToggle={setCritique}
+          model={critiqueModel}
+          onModelChange={handleCritiqueModelChange}
+          effort={critiqueEffort}
+          onEffortChange={setCritiqueEffort}
+          disabled={!critique}
+        />
       </div>
 
       {card.error && (

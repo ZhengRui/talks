@@ -71,6 +71,13 @@ describe("normalizeAnalysisRegions", () => {
         description: "grid",
       },
     ],
+    signatureVisuals: [
+      {
+        text: "warm glow in background",
+        ref: "cards-row",
+        importance: "high" as const,
+      },
+    ],
     mustPreserve: [{ text: "glow", ref: null }],
     uncertainties: [],
     blockCandidates: [],
@@ -204,6 +211,7 @@ describe("normalizeAnalysisRegions", () => {
     expect(inventory.repeatGroups[0].count).toBe(4);
     expect(inventory.repeatGroups[0].orientation).toBe("row");
     expect(inventory.background.palette).toEqual(["#111820", "#ffffff"]);
+    expect(inventory.signatureVisuals).toEqual(inventoryFixture.signatureVisuals);
   });
 
   it("supports the full v11 response shape and remains backwards-compatible without inventory", () => {

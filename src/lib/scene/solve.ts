@@ -218,6 +218,8 @@ function compileTextNode(node: SceneTextNode, parent: Rect, ctx: CompileContext)
     node.style.lineHeight ?? 1.2,
     widthHint,
     node.style.fontWeight,
+    node.style.letterSpacing,
+    node.style.textTransform,
   );
   const rect = resolveFrame(node.frame, parent, ctx, { w: widthHint, h: heightHint });
 

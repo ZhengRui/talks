@@ -272,7 +272,11 @@ function renderRichText(text: RichText, highlightColor?: string): React.ReactNod
 
 // --- Element renderers ---
 
-function renderText(el: TextElement): React.ReactNode {
+interface RenderOptions {
+  debugTextOverflow?: boolean;
+}
+
+function renderText(el: TextElement, options: RenderOptions = {}): React.ReactNode {
   const anim = animProps(el.entrance, el.animation, el.clipPath, el.transform);
   const vAlign = el.style.verticalAlign;
   const hc = el.style.highlightColor;
@@ -293,13 +297,17 @@ function renderText(el: TextElement): React.ReactNode {
     letterSpacing: el.style.letterSpacing,
     textTransform: el.style.textTransform,
     whiteSpace: "pre-line",
-    overflow: "hidden",
+    overflow: options.debugTextOverflow ? "visible" : "hidden",
     ...(vAlign ? {
       display: "flex",
       alignItems: vAlign === "middle" ? "center" : vAlign === "bottom" ? "flex-end" : "flex-start",
       justifyContent: el.style.textAlign === "center" ? "center" : el.style.textAlign === "right" ? "flex-end" : "flex-start",
     } : {}),
   };
+  if (options.debugTextOverflow) {
+    style.outline = "1px dashed rgba(255, 120, 120, 0.35)";
+    style.outlineOffset = "-1px";
+  }
   if (el.opacity != null) style.opacity = el.opacity;
   if (el.borderRadius != null) style.borderRadius = el.borderRadius;
   if (el.shadow) style.boxShadow = shadowToCSS(el.shadow);
@@ -455,7 +463,8 @@ function renderShape(el: ShapeElement): React.ReactNode {
     style.borderRadius = el.borderRadius;
   }
 
-  // Fill
+  // Fill — guard against missing style (can happen with invalid compiled geometry)
+  if (!el.style) return <div key={el.id} style={style} />;
   if (el.style.gradient) {
     style.background = gradientToCSS(el.style.gradient);
   } else if (el.style.patternFill) {
@@ -494,7 +503,7 @@ function renderShape(el: ShapeElement): React.ReactNode {
   return <div key={el.id} className={anim.className} style={style} />;
 }
 
-function renderGroup(el: GroupElement): React.ReactNode {
+function renderGroup(el: GroupElement, options: RenderOptions = {}): React.ReactNode {
   const anim = animProps(el.entrance, el.animation, el.clipPath, el.transform);
   const style: React.CSSProperties = {
     position: "absolute",
@@ -524,7 +533,7 @@ function renderGroup(el: GroupElement): React.ReactNode {
 
   return (
     <div key={el.id} className={anim.className} style={style}>
-      {el.children.map(renderElement)}
+      {el.children.map((child) => renderElement(child, options))}
     </div>
   );
 }
@@ -820,16 +829,16 @@ function renderIframe(el: IframeElement): React.ReactNode {
 
 // --- Dispatcher ---
 
-function renderElement(el: LayoutElement): React.ReactNode {
+function renderElement(el: LayoutElement, options: RenderOptions = {}): React.ReactNode {
   switch (el.kind) {
     case "text":
-      return renderText(el);
+      return renderText(el, options);
     case "image":
       return renderImage(el);
     case "shape":
       return renderShape(el);
     case "group":
-      return renderGroup(el);
+      return renderGroup(el, options);
     case "code":
       return renderCode(el);
     case "table":
@@ -848,11 +857,13 @@ function renderElement(el: LayoutElement): React.ReactNode {
 interface LayoutSlideRendererProps {
   slide: LayoutSlide;
   animationNone?: boolean;
+  debugTextOverflow?: boolean;
 }
 
 export function LayoutSlideRenderer({
   slide,
   animationNone,
+  debugTextOverflow,
 }: LayoutSlideRendererProps) {
   const sectionStyle: React.CSSProperties = {
     position: "relative",
@@ -893,7 +904,7 @@ export function LayoutSlideRenderer({
           }}
         />
       )}
-      {slide.elements.map(renderElement)}
+      {slide.elements.map((el) => renderElement(el, { debugTextOverflow }))}
     </section>
   );
 }

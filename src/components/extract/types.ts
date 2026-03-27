@@ -8,6 +8,8 @@ export function regionColor(index: number): string {
   return REGION_COLORS[index % REGION_COLORS.length];
 }
 
+export type AnalysisStage = "extract" | "critique";
+
 export interface ProposalField {
   type: string;
   value: unknown;
@@ -92,15 +94,32 @@ export interface InventoryBlockCandidate {
   defer: boolean;
 }
 
+export interface SignatureVisual {
+  text: string;
+  ref?: string | null;
+  importance: "high" | "medium";
+}
+
 export interface Inventory {
   slideBounds: InventoryBbox;
   background: InventoryBackground;
   typography: InventoryTypography[];
   regions: InventoryRegion[];
   repeatGroups: InventoryRepeatGroup[];
+  signatureVisuals: SignatureVisual[];
   mustPreserve: Array<{ text: string; ref?: string | null }>;
   uncertainties: string[];
   blockCandidates: InventoryBlockCandidate[];
+}
+
+export interface AnalysisProvenance {
+  model: string;
+  effort: string;
+}
+
+export interface StageAnalysisProvenance extends AnalysisProvenance {
+  elapsed?: number;
+  cost?: number | null;
 }
 
 export interface AnalysisResult {
@@ -110,5 +129,19 @@ export interface AnalysisResult {
     reportedDimensions?: { w: number; h: number };
   };
   inventory?: Inventory;
+  provenance?: {
+    usedCritique: boolean;
+    pass1: AnalysisProvenance | null;
+    pass2: AnalysisProvenance | null;
+  };
   proposals: Proposal[];
+}
+
+export interface AnalysisResultPayload extends Omit<AnalysisResult, "provenance"> {
+  pass1Analysis?: AnalysisResult | null;
+  provenance?: {
+    usedCritique: boolean;
+    pass1: StageAnalysisProvenance | null;
+    pass2: StageAnalysisProvenance | null;
+  };
 }

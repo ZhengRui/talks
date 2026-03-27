@@ -223,6 +223,50 @@ children:
     expect((children[2] as Record<string, unknown>).kind).toBe("shape");
   });
 
+  it("supports nested loops when the outer index is captured with set", () => {
+    const def = makeDef({
+      params: { tiers: { type: "array", required: true } },
+      rawBody: `
+mode: scene
+children:
+  {% for tier in tiers %}
+  {% set tierIdx = loop.index0 %}
+  {% for label in tier.leftLabels %}
+  - kind: text
+    id: "pyramid-label-{{ tierIdx }}-{{ loop.index0 }}"
+    frame: { x: 0, y: {{ tierIdx * 100 + loop.index0 * 40 }}, w: 200 }
+    text: "{{ label }}"
+    style:
+      fontFamily: "body"
+      fontSize: 18
+      color: "#ffffff"
+      lineHeight: 1.2
+  {% endfor %}
+  {% endfor %}
+`,
+    });
+
+    const result = expandDslTemplate(
+      {
+        template: "test",
+        params: {
+          tiers: [
+            { leftLabels: ["Lead", "Coach"] },
+            { leftLabels: ["Enable"] },
+          ],
+        },
+      },
+      def,
+    );
+
+    const children = (result as unknown as { children: Array<Record<string, unknown>> }).children;
+    expect(children.map((child) => child.id)).toEqual([
+      "pyramid-label-0-0",
+      "pyramid-label-0-1",
+      "pyramid-label-1-0",
+    ]);
+  });
+
   it("applies style defaults", () => {
     const def = makeDef({
       params: { title: { type: "string", required: true } },

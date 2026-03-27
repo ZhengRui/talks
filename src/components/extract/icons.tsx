@@ -94,3 +94,12 @@ export function CodeBracketsIcon({ className = "h-3.5 w-3.5" }: { className?: st
     </svg>
   );
 }
+
+export function TextFrameDebugIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill="none" stroke={S} strokeWidth={W}>
+      <rect x="2" y="2" width="16" height="16" rx="2" strokeDasharray="2 2" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.25 6h7.5M10 6v8" />
+    </svg>
+  );
+}

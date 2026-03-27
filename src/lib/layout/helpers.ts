@@ -36,9 +36,11 @@ export function resolveBackgroundOverlay(overlay?: string): string | undefined {
 
 const AVG_CHAR_WIDTH_RATIO = 0.52; // average character width as fraction of fontSize
 const BOLD_CHAR_WIDTH_RATIO = 0.57; // bold text is ~10% wider
+const BOLD_UPPERCASE_CHAR_WIDTH_RATIO = 0.6; // wide all-caps headings tend to render larger
 const CJK_CHAR_WIDTH_RATIO = 1.0; // CJK characters are full-width
 // CJK Unified Ideographs, Radicals, Symbols/Punctuation, Hiragana, Katakana, Fullwidth Forms
 const CJK_RE = /[\u2E80-\u9FFF\uF900-\uFAFF\uFE30-\uFE4F\uFF01-\uFF60\uFFE0-\uFFEF]/;
+const ASCII_LETTER_RE = /[A-Za-z]/;
 
 export function estimateTextHeight(
   text: string,
@@ -46,8 +48,16 @@ export function estimateTextHeight(
   lineHeight: number,
   containerWidth: number,
   fontWeight?: number,
+  letterSpacing = 0,
+  textTransform?: TextStyle["textTransform"],
 ): number {
-  const charRatio = fontWeight && fontWeight >= 700 ? BOLD_CHAR_WIDTH_RATIO : AVG_CHAR_WIDTH_RATIO;
+  const letters = Array.from(text).filter((ch) => ASCII_LETTER_RE.test(ch));
+  const uppercaseLike =
+    textTransform === "uppercase" ||
+    (letters.length > 0 && letters.every((ch) => ch === ch.toUpperCase()));
+  const charRatio = fontWeight && fontWeight >= 700
+    ? (uppercaseLike ? BOLD_UPPERCASE_CHAR_WIDTH_RATIO : BOLD_CHAR_WIDTH_RATIO)
+    : AVG_CHAR_WIDTH_RATIO;
   // Split on explicit newlines — each paragraph wraps independently
   const paragraphs = text.split("\n");
   let totalLines = 0;
@@ -55,6 +65,9 @@ export function estimateTextHeight(
     let paraWidth = 0;
     for (const ch of para) {
       paraWidth += fontSize * (CJK_RE.test(ch) ? CJK_CHAR_WIDTH_RATIO : charRatio);
+    }
+    if (para.length > 1 && letterSpacing !== 0) {
+      paraWidth += Math.max(0, para.length - 1) * letterSpacing;
     }
     totalLines += containerWidth > 0 ? Math.max(1, Math.ceil(paraWidth / containerWidth)) : 1;
   }
