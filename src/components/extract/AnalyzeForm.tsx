@@ -112,6 +112,11 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
   const critique = useExtractStore((s) => s.critique);
   const critiqueModel = useExtractStore((s) => s.critiqueModel);
   const critiqueEffort = useExtractStore((s) => s.critiqueEffort);
+  const setAutoRefine = useExtractStore((s) => s.setAutoRefine);
+  const refineModel = useExtractStore((s) => s.refineModel);
+  const refineEffort = useExtractStore((s) => s.refineEffort);
+  const setRefineModel = useExtractStore((s) => s.setRefineModel);
+  const setRefineEffort = useExtractStore((s) => s.setRefineEffort);
   const setModel = useExtractStore((s) => s.setModel);
   const setEffort = useExtractStore((s) => s.setEffort);
   const setCritique = useExtractStore((s) => s.setCritique);
@@ -131,6 +136,14 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
     const opts = EFFORT_OPTIONS[newModel];
     if (opts && !opts.some((o) => o.value === critiqueEffort)) {
       setCritiqueEffort(opts[0].value);
+    }
+  };
+
+  const handleRefineModelChange = (newModel: string) => {
+    setRefineModel(newModel);
+    const opts = EFFORT_OPTIONS[newModel];
+    if (opts && !opts.some((o) => o.value === refineEffort)) {
+      setRefineEffort(opts[0].value);
     }
   };
 
@@ -162,6 +175,16 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
           effort={critiqueEffort}
           onEffortChange={setCritiqueEffort}
           disabled={!critique}
+        />
+        <PassRow
+          label="Refine"
+          toggled={card.autoRefine}
+          onToggle={(v) => setAutoRefine(card.id, v)}
+          model={refineModel}
+          onModelChange={handleRefineModelChange}
+          effort={refineEffort}
+          onEffortChange={setRefineEffort}
+          disabled={!card.autoRefine}
         />
       </div>
 

@@ -46,8 +46,19 @@ function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
     pass2Cost: null,
     error: null,
     activeStage: "extract",
-    selectedTemplateIndex: { extract: 0, critique: 0 },
+    selectedTemplateIndex: { extract: 0, critique: 0, refine: 0 },
     viewMode: "original",
+    refineAnalysis: null,
+    refineStatus: "idle",
+    refineIteration: 0,
+    refineMaxIterations: 10,
+    refineMismatchThreshold: 0.05,
+    refineResult: null,
+    refineHistory: [],
+    refineError: null,
+    autoRefine: true,
+    normalizedImage: null,
+    diffObjectUrl: null,
     ...overrides,
   };
 }
@@ -113,6 +124,24 @@ describe("LogModal", () => {
     expect(screen.getByText("all")).toBeTruthy();
     expect(screen.getByText("extract")).toBeTruthy();
     expect(screen.getByText("critique")).toBeTruthy();
+  });
+
+  it("shows refine stage tab when refine logs exist", () => {
+    const card = makeCard({
+      status: "analyzed",
+      activeStage: "refine",
+      log: [
+        makeEntry("Done (pass 1 / success)", "extract"),
+        makeEntry("Iter 1 diff — 23% mismatch", "refine"),
+      ],
+      refineStatus: "done",
+    });
+    mockStoreState.cards = new Map([["card-1", card]]);
+
+    render(<LogModal />);
+
+    expect(screen.getByText("refine")).toBeTruthy();
+    expect(screen.getByText("Iter 1 diff — 23% mismatch")).toBeTruthy();
   });
 });
 

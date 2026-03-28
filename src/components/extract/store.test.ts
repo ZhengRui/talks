@@ -39,8 +39,18 @@ describe("ExtractStore", () => {
       expect(card!.selectedTemplateIndex).toEqual({
         extract: 0,
         critique: 0,
+        refine: 0,
       });
       expect(card!.viewMode).toBe("original");
+      expect(card!.refineAnalysis).toBeNull();
+      expect(card!.refineStatus).toBe("idle");
+      expect(card!.refineIteration).toBe(0);
+      expect(card!.refineResult).toBeNull();
+      expect(card!.refineHistory).toEqual([]);
+      expect(card!.refineError).toBeNull();
+      expect(card!.autoRefine).toBe(true);
+      expect(card!.normalizedImage).toBeNull();
+      expect(card!.diffObjectUrl).toBeNull();
     });
 
     it("positions first card at (40, 40)", () => {
@@ -257,7 +267,11 @@ describe("ExtractStore", () => {
       expect(card.pass2Elapsed).toBe(7);
       expect(card.pass1Cost).toBe(0.12);
       expect(card.pass2Cost).toBe(0.34);
-      expect(card.selectedTemplateIndex).toEqual({ extract: 0, critique: 0 });
+      expect(card.selectedTemplateIndex).toEqual({
+        extract: 0,
+        critique: 0,
+        refine: 0,
+      });
     });
 
     it("failAnalysis sets status to error and stores error message", () => {
@@ -309,7 +323,11 @@ describe("ExtractStore", () => {
       expect(card.pass1Cost).toBeNull();
       expect(card.pass2Cost).toBeNull();
       expect(card.activeStage).toBe("extract");
-      expect(card.selectedTemplateIndex).toEqual({ extract: 0, critique: 0 });
+      expect(card.selectedTemplateIndex).toEqual({
+        extract: 0,
+        critique: 0,
+        refine: 0,
+      });
       expect(card.status).toBe("idle");
     });
   });
@@ -433,6 +451,7 @@ describe("ExtractStore", () => {
       expect(store.getState().cards.get(id)!.selectedTemplateIndex).toEqual({
         extract: 2,
         critique: 0,
+        refine: 0,
       });
 
       store.getState().setActiveStage(id, "critique");
@@ -440,18 +459,33 @@ describe("ExtractStore", () => {
       expect(store.getState().cards.get(id)!.selectedTemplateIndex).toEqual({
         extract: 2,
         critique: 1,
+        refine: 0,
+      });
+
+      store.getState().setActiveStage(id, "refine");
+      store.getState().selectTemplate(id, 3);
+      expect(store.getState().cards.get(id)!.selectedTemplateIndex).toEqual({
+        extract: 2,
+        critique: 1,
+        refine: 3,
       });
     });
   });
 
   describe("stage state", () => {
-    it("setViewMode syncs activeStage for extract and critique", () => {
+    it("setViewMode syncs activeStage for extract, critique, iter, and diff", () => {
       const id = store.getState().addCard(makeFile());
       store.getState().setViewMode(id, "extract");
       expect(store.getState().cards.get(id)!.activeStage).toBe("extract");
 
       store.getState().setViewMode(id, "critique");
       expect(store.getState().cards.get(id)!.activeStage).toBe("critique");
+
+      store.getState().setViewMode(id, "iter");
+      expect(store.getState().cards.get(id)!.activeStage).toBe("refine");
+
+      store.getState().setViewMode(id, "diff");
+      expect(store.getState().cards.get(id)!.activeStage).toBe("refine");
     });
 
     it("startAnalysis resets activeStage to extract", () => {
@@ -464,6 +498,102 @@ describe("ExtractStore", () => {
       const card = store.getState().cards.get(id)!;
       expect(card.activeStage).toBe("extract");
       expect(card.viewMode).toBe("original");
+    });
+  });
+
+  describe("refinement lifecycle", () => {
+    let id: string;
+
+    beforeEach(() => {
+      id = store.getState().addCard(makeFile());
+      store.getState().completeAnalysis(id, {
+        source: {
+          image: "base64...",
+          dimensions: { w: 1920, h: 1080 },
+          contentBounds: { x: 10, y: 20, w: 1800, h: 1000 },
+        },
+        provenance: {
+          usedCritique: false,
+          pass1: { model: "claude-opus-4-6", effort: "low" },
+          pass2: null,
+        },
+        proposals: [
+          {
+            scope: "slide" as const,
+            name: "extract-preview",
+            description: "extract",
+            region: { x: 0, y: 0, w: 1920, h: 1080 },
+            params: {},
+            style: {},
+            body: "children: []",
+          },
+        ],
+      });
+    });
+
+    it("startRefinement resets refine state and activates the refine stage", () => {
+      store.getState().startRefinement(id);
+
+      const card = store.getState().cards.get(id)!;
+      expect(card.refineStatus).toBe("running");
+      expect(card.activeStage).toBe("refine");
+      expect(card.refineIteration).toBe(0);
+      expect(card.refineResult).toBeNull();
+      expect(card.refineHistory).toEqual([]);
+      expect(card.diffObjectUrl).toBeNull();
+    });
+
+    it("updateRefinement stores refineAnalysis and history", () => {
+      store.getState().startRefinement(id);
+      store.getState().updateRefinement(id, {
+        iteration: 1,
+        mismatchRatio: 0.23,
+        diffArtifactUrl: "/api/extract/refine/artifacts/a1",
+        regions: [{ x: 10, y: 20, w: 100, h: 50, mismatchRatio: 0.47 }],
+        proposals: [
+          {
+            scope: "slide",
+            name: "refined-preview",
+            description: "refined",
+            region: { x: 0, y: 0, w: 1920, h: 1080 },
+            params: {},
+            style: {},
+            body: "children: []",
+          },
+        ],
+      });
+
+      const card = store.getState().cards.get(id)!;
+      expect(card.refineIteration).toBe(1);
+      expect(card.refineResult?.mismatchRatio).toBe(0.23);
+      expect(card.refineHistory).toHaveLength(1);
+      expect(card.refineAnalysis?.proposals[0]?.name).toBe("refined-preview");
+      expect(card.refineAnalysis?.source.contentBounds).toEqual({
+        x: 10,
+        y: 20,
+        w: 1800,
+        h: 1000,
+      });
+    });
+
+    it("completeRefinement marks refineStatus done", () => {
+      store.getState().startRefinement(id);
+      store.getState().completeRefinement(id);
+      expect(store.getState().cards.get(id)!.refineStatus).toBe("done");
+    });
+
+    it("failRefinement stores the error message", () => {
+      store.getState().startRefinement(id);
+      store.getState().failRefinement(id, "Refine failed");
+      const card = store.getState().cards.get(id)!;
+      expect(card.refineStatus).toBe("error");
+      expect(card.refineError).toBe("Refine failed");
+    });
+
+    it("setNormalizedImage stores the processed upload for reuse", () => {
+      const normalized = makeFile("normalized.png");
+      store.getState().setNormalizedImage(id, normalized);
+      expect(store.getState().cards.get(id)!.normalizedImage).toBe(normalized);
     });
   });
 

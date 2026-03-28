@@ -47,13 +47,28 @@ export default function SlideCard({ cardId }: SlideCardProps) {
 
   const extractAnalysis = getStageAnalysis(card, "extract");
   const critiqueAnalysis = getStageAnalysis(card, "critique");
+  const refineAnalysis = getStageAnalysis(card, "refine");
   const extractSlideProposal = getSlideProposal(extractAnalysis?.proposals);
   const critiqueSlideProposal = getSlideProposal(critiqueAnalysis?.proposals);
+  const refineSlideProposal = getSlideProposal(refineAnalysis?.proposals);
   const previewOptions = [
     { value: "original" as const, label: "Original" },
     { value: "extract" as const, label: "Extract" },
     ...(critiqueSlideProposal
       ? [{ value: "critique" as const, label: "Critique" }]
+      : []),
+    ...(card.refineIteration > 0
+      ? [
+          {
+            value: "iter" as const,
+            label: `Iter ${card.refineIteration}/${card.refineMaxIterations}${
+              card.refineResult
+                ? ` · ${Math.round(card.refineResult.mismatchRatio * 100)}%`
+                : ""
+            }`,
+          },
+          { value: "diff" as const, label: "Diff" },
+        ]
       : []),
   ];
   const activeViewMode = previewOptions.some((option) => option.value === card.viewMode)
@@ -72,6 +87,12 @@ export default function SlideCard({ cardId }: SlideCardProps) {
             allProposals: critiqueAnalysis?.proposals ?? [],
             source: critiqueAnalysis?.source,
           }
+        : activeViewMode === "iter"
+          ? {
+              proposal: refineSlideProposal,
+              allProposals: refineAnalysis?.proposals ?? [],
+              source: refineAnalysis?.source,
+            }
         : null;
 
   return (
@@ -198,7 +219,9 @@ export default function SlideCard({ cardId }: SlideCardProps) {
             : "0 2px 12px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04)",
         }}
       >
-        {activeViewMode !== "original" && activePreview?.proposal && activePreview.source ? (
+        {activeViewMode === "diff" ? (
+          <DiffImageView diffObjectUrl={card.diffObjectUrl} />
+        ) : activeViewMode !== "original" && activePreview?.proposal && activePreview.source ? (
           <ReplicaPreview
             proposal={activePreview.proposal}
             allProposals={activePreview.allProposals}
@@ -270,6 +293,24 @@ export default function SlideCard({ cardId }: SlideCardProps) {
         )}
       </div>
     </div>
+  );
+}
+
+function DiffImageView({ diffObjectUrl }: { diffObjectUrl: string | null }) {
+  if (!diffObjectUrl) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs text-gray-400">
+        Diff pending
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={diffObjectUrl}
+      alt=""
+      className="pointer-events-none h-full w-full object-contain select-none"
+    />
   );
 }
 

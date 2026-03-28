@@ -6,7 +6,12 @@ import CanvasToolbar from "./CanvasToolbar";
 import InspectorPanel from "./InspectorPanel";
 import LogModal from "./LogModal";
 import { useExtractStore, type LogEntry } from "./store";
-import type { AnalysisResultPayload, AnalysisStage } from "./types";
+import type {
+  AnalysisResultPayload,
+  AnalysisStage,
+  Proposal,
+  RefineIterationResult,
+} from "./types";
 
 const MAX_IMAGE_DIMENSION = 2000;
 
@@ -62,22 +67,345 @@ export default function ExtractCanvas() {
   const completeAnalysis = useExtractStore((s) => s.completeAnalysis);
   const failAnalysis = useExtractStore((s) => s.failAnalysis);
   const tickElapsed = useExtractStore((s) => s.tickElapsed);
+  const setNormalizedImage = useExtractStore((s) => s.setNormalizedImage);
+  const startRefinement = useExtractStore((s) => s.startRefinement);
+  const updateRefinement = useExtractStore((s) => s.updateRefinement);
+  const setDiffObjectUrl = useExtractStore((s) => s.setDiffObjectUrl);
+  const completeRefinement = useExtractStore((s) => s.completeRefinement);
+  const failRefinement = useExtractStore((s) => s.failRefinement);
+  const abortRefinement = useExtractStore((s) => s.abortRefinement);
 
   // Per-card elapsed timers
   const timersRef = useRef<Map<string, ReturnType<typeof setInterval>>>(
+    new Map(),
+  );
+  const refineAbortControllersRef = useRef<Map<string, AbortController>>(
     new Map(),
   );
 
   // Clean up all timers on unmount
   useEffect(() => {
     const timers = timersRef.current;
+    const abortControllers = refineAbortControllersRef.current;
     return () => {
       for (const timer of timers.values()) {
         clearInterval(timer);
       }
       timers.clear();
+      for (const controller of abortControllers.values()) {
+        controller.abort();
+      }
+      abortControllers.clear();
     };
   }, []);
+
+  const handleRefine = useCallback(
+    async (cardId: string) => {
+      const { cards, refineModel, refineEffort } = useExtractStore.getState();
+      const card = cards.get(cardId);
+      if (!card?.analysis) return;
+
+      refineAbortControllersRef.current.get(cardId)?.abort();
+
+      startRefinement(cardId);
+
+      const formData = new FormData();
+      formData.append("image", card.normalizedImage ?? card.file);
+      formData.append(
+        "proposals",
+        JSON.stringify(card.refineAnalysis?.proposals ?? card.analysis.proposals),
+      );
+      formData.append("baseAnalysis", JSON.stringify(card.analysis));
+      if (card.analysis.source.contentBounds) {
+        formData.append(
+          "contentBounds",
+          JSON.stringify(card.analysis.source.contentBounds),
+        );
+      }
+      formData.append("model", refineModel);
+      formData.append("effort", refineEffort);
+      formData.append("maxIterations", String(card.refineMaxIterations));
+      formData.append(
+        "mismatchThreshold",
+        String(card.refineMismatchThreshold),
+      );
+
+      const abortController = new AbortController();
+      refineAbortControllersRef.current.set(cardId, abortController);
+
+      try {
+        const response = await fetch("/api/extract/refine", {
+          method: "POST",
+          body: formData,
+          signal: abortController.signal,
+        });
+
+        if (!response.ok || !response.body) {
+          const body = await response.json().catch(() => null);
+          throw new Error(body?.error ?? `Refine failed (${response.status})`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let currentEvent = "";
+        const pendingDiffs = new Map<
+          number,
+          Omit<RefineIterationResult, "iteration" | "proposals">
+        >();
+        const recordedIterations = new Set<number>();
+
+        const recordIteration = (
+          iteration: number,
+          proposals: Proposal[],
+        ) => {
+          const pending = pendingDiffs.get(iteration);
+          if (!pending || recordedIterations.has(iteration)) return;
+          updateRefinement(cardId, {
+            iteration,
+            proposals,
+            mismatchRatio: pending.mismatchRatio,
+            regions: pending.regions,
+            diffArtifactUrl: pending.diffArtifactUrl,
+          });
+          recordedIterations.add(iteration);
+        };
+
+        const fetchDiffArtifact = async (diffArtifactUrl: string) => {
+          const artifactResponse = await fetch(diffArtifactUrl, {
+            signal: abortController.signal,
+          });
+          if (!artifactResponse.ok) {
+            throw new Error(
+              `Failed to fetch diff artifact (${artifactResponse.status})`,
+            );
+          }
+          const blob = await artifactResponse.blob();
+          if (abortController.signal.aborted) return;
+          const objectUrl = URL.createObjectURL(blob);
+          setDiffObjectUrl(cardId, objectUrl);
+        };
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            if (line.startsWith("event: ")) {
+              currentEvent = line.slice(7);
+              continue;
+            }
+            if (!line.startsWith("data: ")) continue;
+
+            let data: Record<string, unknown>;
+            try {
+              data = JSON.parse(line.slice(6)) as Record<string, unknown>;
+            } catch {
+              currentEvent = "";
+              continue;
+            }
+
+            switch (currentEvent) {
+              case "refine:start": {
+                appendLog(cardId, {
+                  type: "status",
+                  content: `Refinement started — up to ${data.maxIterations ?? "?"} iterations`,
+                  timestamp: Date.now(),
+                  stage: "refine",
+                });
+                break;
+              }
+              case "refine:thinking": {
+                appendLog(cardId, {
+                  type: "thinking",
+                  content: typeof data.text === "string" ? data.text : "",
+                  timestamp: Date.now(),
+                  stage: "refine",
+                });
+                break;
+              }
+              case "refine:text": {
+                appendLog(cardId, {
+                  type: "text",
+                  content: typeof data.text === "string" ? data.text : "",
+                  timestamp: Date.now(),
+                  stage: "refine",
+                });
+                break;
+              }
+              case "refine:diff": {
+                const iteration =
+                  typeof data.iteration === "number" ? data.iteration : 0;
+                const mismatchRatio =
+                  typeof data.mismatchRatio === "number"
+                    ? data.mismatchRatio
+                    : 0;
+                const diffArtifactUrl =
+                  typeof data.diffArtifactUrl === "string"
+                    ? data.diffArtifactUrl
+                    : "";
+                const regions = Array.isArray(data.regions)
+                  ? (data.regions as RefineIterationResult["regions"])
+                  : [];
+
+                pendingDiffs.set(iteration, {
+                  mismatchRatio,
+                  regions,
+                  diffArtifactUrl,
+                });
+                appendLog(cardId, {
+                  type: "status",
+                  content: `Iter ${iteration} diff — ${Math.round(mismatchRatio * 100)}% mismatch`,
+                  timestamp: Date.now(),
+                  stage: "refine",
+                });
+
+                if (diffArtifactUrl) {
+                  try {
+                    await fetchDiffArtifact(diffArtifactUrl);
+                  } catch (error) {
+                    if (!abortController.signal.aborted) {
+                      appendLog(cardId, {
+                        type: "error",
+                        content:
+                          error instanceof Error
+                            ? error.message
+                            : String(error),
+                        timestamp: Date.now(),
+                        stage: "refine",
+                      });
+                    }
+                  }
+                }
+                break;
+              }
+              case "refine:patch": {
+                const iteration =
+                  typeof data.iteration === "number" ? data.iteration : 0;
+                const proposals = Array.isArray(data.proposals)
+                  ? (data.proposals as Proposal[])
+                  : [];
+                recordIteration(iteration, proposals);
+                appendLog(cardId, {
+                  type: "status",
+                  content: `Iter ${iteration} patch applied`,
+                  timestamp: Date.now(),
+                  stage: "refine",
+                });
+                break;
+              }
+              case "refine:complete": {
+                const iteration =
+                  typeof data.iteration === "number" ? data.iteration : 0;
+                const mismatchRatio =
+                  typeof data.mismatchRatio === "number"
+                    ? data.mismatchRatio
+                    : 0;
+                appendLog(cardId, {
+                  type: "status",
+                  content: `Iter ${iteration} complete — ${Math.round(mismatchRatio * 100)}% mismatch`,
+                  timestamp: Date.now(),
+                  stage: "refine",
+                });
+                break;
+              }
+              case "refine:done": {
+                const finalIteration =
+                  typeof data.finalIteration === "number"
+                    ? data.finalIteration
+                    : 0;
+                const mismatchRatio =
+                  typeof data.mismatchRatio === "number"
+                    ? data.mismatchRatio
+                    : 0;
+                const converged = data.converged === true;
+                const proposals = Array.isArray(data.proposals)
+                  ? (data.proposals as Proposal[])
+                  : [];
+                recordIteration(finalIteration, proposals);
+                completeRefinement(cardId);
+                appendLog(cardId, {
+                  type: "status",
+                  content: converged
+                    ? `Refinement converged — ${Math.round(mismatchRatio * 100)}% mismatch after ${finalIteration} iteration${finalIteration === 1 ? "" : "s"}`
+                    : `Refinement stopped — ${Math.round(mismatchRatio * 100)}% mismatch after ${finalIteration} iteration${finalIteration === 1 ? "" : "s"}`,
+                  timestamp: Date.now(),
+                  stage: "refine",
+                });
+                return;
+              }
+              case "refine:error": {
+                const error =
+                  typeof data.error === "string"
+                    ? data.error
+                    : "Refinement failed";
+                appendLog(cardId, {
+                  type: "error",
+                  content: error,
+                  timestamp: Date.now(),
+                  stage: "refine",
+                });
+                failRefinement(cardId, error);
+                return;
+              }
+              case "refine:aborted": {
+                appendLog(cardId, {
+                  type: "status",
+                  content: "Refinement cancelled",
+                  timestamp: Date.now(),
+                  stage: "refine",
+                });
+                abortRefinement(cardId);
+                return;
+              }
+            }
+
+            currentEvent = "";
+          }
+        }
+      } catch (err) {
+        if (abortController.signal.aborted) {
+          abortRefinement(cardId);
+          return;
+        }
+        const message = err instanceof Error ? err.message : String(err);
+        appendLog(cardId, {
+          type: "error",
+          content: message,
+          timestamp: Date.now(),
+          stage: "refine",
+        });
+        failRefinement(cardId, message);
+      } finally {
+        const currentController = refineAbortControllersRef.current.get(cardId);
+        if (currentController === abortController) {
+          refineAbortControllersRef.current.delete(cardId);
+        }
+      }
+    },
+    [
+      abortRefinement,
+      appendLog,
+      completeRefinement,
+      failRefinement,
+      setDiffObjectUrl,
+      startRefinement,
+      updateRefinement,
+    ],
+  );
+
+  const handleCancelRefine = useCallback(
+    (cardId: string) => {
+      const controller = refineAbortControllersRef.current.get(cardId);
+      if (!controller) return;
+      controller.abort();
+    },
+    [],
+  );
 
   const handleAnalyze = useCallback(
     async (cardId: string) => {
@@ -93,9 +421,10 @@ export default function ExtractCanvas() {
       timersRef.current.set(cardId, timer);
 
       const { model, effort, critique, critiqueModel, critiqueEffort } = useExtractStore.getState();
-      const scaledImage = await downscaleImage(card.file);
+      const normalizedImage = await downscaleImage(card.file);
+      setNormalizedImage(cardId, normalizedImage);
       const formData = new FormData();
-      formData.append("image", scaledImage);
+      formData.append("image", normalizedImage);
       if (card.description.trim()) {
         formData.append("text", card.description.trim());
       }
@@ -123,6 +452,7 @@ export default function ExtractCanvas() {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
+        let analysisCompleted = false;
 
         const getStage = (value: unknown): AnalysisStage | undefined =>
           value === "extract" || value === "critique" ? value : undefined;
@@ -222,6 +552,7 @@ export default function ExtractCanvas() {
                 }
                 case "result": {
                   completeAnalysis(cardId, data as AnalysisResultPayload);
+                  analysisCompleted = true;
                   const resultEntry: LogEntry = {
                     type: "status",
                     content: `Analysis complete — ${(data as AnalysisResultPayload).proposals?.length ?? 0} proposals`,
@@ -234,6 +565,13 @@ export default function ExtractCanvas() {
               }
               currentEvent = "";
             }
+          }
+        }
+
+        if (analysisCompleted) {
+          const updatedCard = useExtractStore.getState().cards.get(cardId);
+          if (updatedCard?.autoRefine) {
+            void handleRefine(cardId);
           }
         }
       } catch (err) {
@@ -250,14 +588,26 @@ export default function ExtractCanvas() {
         }
       }
     },
-    [startAnalysis, appendLog, completeAnalysis, failAnalysis, tickElapsed],
+    [
+      startAnalysis,
+      appendLog,
+      completeAnalysis,
+      failAnalysis,
+      handleRefine,
+      setNormalizedImage,
+      tickElapsed,
+    ],
   );
 
   return (
     <div className="fixed inset-0 text-[#e6edf7]">
       <CanvasViewport />
       <CanvasToolbar />
-      <InspectorPanel onAnalyze={handleAnalyze} />
+      <InspectorPanel
+        onAnalyze={handleAnalyze}
+        onRefine={handleRefine}
+        onCancelRefine={handleCancelRefine}
+      />
       <LogModal />
     </div>
   );

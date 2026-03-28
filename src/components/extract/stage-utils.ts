@@ -8,8 +8,11 @@ export function getStageAnalysis(
   if (stage === "extract") {
     return card.pass1Analysis ?? card.analysis;
   }
-  if (!card.pass2) {
-    return null;
+  if (stage === "critique") {
+    if (!card.pass2) {
+      return null;
+    }
+    return card.analysis;
   }
-  return card.analysis;
+  return card.refineAnalysis;
 }

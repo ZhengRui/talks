@@ -7,6 +7,9 @@ const mockUpdateDescription = vi.fn();
 const mockSetModel = vi.fn();
 const mockSetEffort = vi.fn();
 const mockSetCritique = vi.fn();
+const mockSetCritiqueModel = vi.fn();
+const mockSetCritiqueEffort = vi.fn();
+const mockSetAutoRefine = vi.fn();
 
 vi.mock("./store", async () => {
   const actual = await vi.importActual<typeof import("./store")>("./store");
@@ -18,9 +21,14 @@ vi.mock("./store", async () => {
         model: "claude-opus-4-6",
         effort: "low",
         critique: true,
+        critiqueModel: "claude-opus-4-6",
+        critiqueEffort: "medium",
         setModel: mockSetModel,
         setEffort: mockSetEffort,
         setCritique: mockSetCritique,
+        setCritiqueModel: mockSetCritiqueModel,
+        setCritiqueEffort: mockSetCritiqueEffort,
+        setAutoRefine: mockSetAutoRefine,
       };
       return selector ? selector(state) : state;
     },
@@ -51,8 +59,19 @@ function makeCard(): SlideCard {
     pass2Cost: null,
     error: null,
     activeStage: "extract",
-    selectedTemplateIndex: { extract: 0, critique: 0 },
+    selectedTemplateIndex: { extract: 0, critique: 0, refine: 0 },
     viewMode: "original",
+    refineAnalysis: null,
+    refineStatus: "idle",
+    refineIteration: 0,
+    refineMaxIterations: 10,
+    refineMismatchThreshold: 0.05,
+    refineResult: null,
+    refineHistory: [],
+    refineError: null,
+    autoRefine: true,
+    normalizedImage: null,
+    diffObjectUrl: null,
   };
 }
 

@@ -58,7 +58,8 @@ If you discover a contradiction while writing proposals, update the inventory ex
 {
   "source": {
     "image": "<filename>",
-    "dimensions": { "w": <number>, "h": <number> }
+    "dimensions": { "w": <number>, "h": <number> },
+    "contentBounds": { "x": <number>, "y": <number>, "w": <number>, "h": <number> }
   },
   "inventory": {
     "slideBounds": { "x": <number>, "y": <number>, "w": <number>, "h": <number> },
@@ -198,6 +199,12 @@ Keep the inventory lean:
 
 \`mustPreserve\` is for content that varies between slides: text values, data items, and element presence/absence.
 \`signatureVisuals\` is for the visual identity that makes this slide look like itself: the things a human would notice first and that are hardest to get right in replication.
+
+\`source.contentBounds\` rules:
+- This is the actual visible slide-content rectangle inside the screenshot.
+- Exclude presentation chrome such as nav dots, control bars, counters, and export buttons.
+- If the full image is slide content with no chrome, set \`contentBounds\` to \`{ x: 0, y: 0, w: source.dimensions.w, h: source.dimensions.h }\`.
+- Keep \`contentBounds\` in the same full-image coordinate space as \`source.dimensions\`.
 
 ## Proposal requirements
 

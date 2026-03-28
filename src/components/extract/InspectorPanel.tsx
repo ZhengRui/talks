@@ -14,9 +14,15 @@ const DEFAULT_WIDTH = 380;
 
 interface InspectorPanelProps {
   onAnalyze: (cardId: string) => void;
+  onRefine: (cardId: string) => void;
+  onCancelRefine: (cardId: string) => void;
 }
 
-export default function InspectorPanel({ onAnalyze }: InspectorPanelProps) {
+export default function InspectorPanel({
+  onAnalyze,
+  onRefine,
+  onCancelRefine,
+}: InspectorPanelProps) {
   const selectedCardId = useExtractStore((s) => s.selectedCardId);
   const cards = useExtractStore((s) => s.cards);
 
@@ -124,7 +130,11 @@ export default function InspectorPanel({ onAnalyze }: InspectorPanelProps) {
           )}
 
           {card && card.status === "analyzed" && (
-            <TemplateInspector card={card} />
+            <TemplateInspector
+              card={card}
+              onRefine={onRefine}
+              onCancelRefine={onCancelRefine}
+            />
           )}
         </div>
       </div>

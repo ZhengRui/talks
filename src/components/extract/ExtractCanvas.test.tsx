@@ -11,7 +11,13 @@ vi.mock("./CanvasToolbar", () => ({
 }));
 
 vi.mock("./InspectorPanel", () => ({
-  default: ({ onAnalyze }: { onAnalyze: (id: string) => void }) => (
+  default: ({
+    onAnalyze,
+  }: {
+    onAnalyze: (id: string) => void;
+    onRefine: (id: string) => void;
+    onCancelRefine: (id: string) => void;
+  }) => (
     <div data-testid="inspector-panel">
       <button onClick={() => onAnalyze("test-card")}>Analyze</button>
     </div>
@@ -32,6 +38,13 @@ const mockAppendLog = vi.fn();
 const mockCompleteAnalysis = vi.fn();
 const mockFailAnalysis = vi.fn();
 const mockTickElapsed = vi.fn();
+const mockSetNormalizedImage = vi.fn();
+const mockStartRefinement = vi.fn();
+const mockUpdateRefinement = vi.fn();
+const mockSetDiffObjectUrl = vi.fn();
+const mockCompleteRefinement = vi.fn();
+const mockFailRefinement = vi.fn();
+const mockAbortRefinement = vi.fn();
 
 let mockStoreState: Record<string, unknown> = {};
 
@@ -54,6 +67,13 @@ beforeEach(() => {
     completeAnalysis: mockCompleteAnalysis,
     failAnalysis: mockFailAnalysis,
     tickElapsed: mockTickElapsed,
+    setNormalizedImage: mockSetNormalizedImage,
+    startRefinement: mockStartRefinement,
+    updateRefinement: mockUpdateRefinement,
+    setDiffObjectUrl: mockSetDiffObjectUrl,
+    completeRefinement: mockCompleteRefinement,
+    failRefinement: mockFailRefinement,
+    abortRefinement: mockAbortRefinement,
   };
 });
 

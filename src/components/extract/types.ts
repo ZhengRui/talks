@@ -1,3 +1,5 @@
+import type { DiffRegion } from "@/lib/render/compare";
+
 // Shared types and utilities for extract workbench components.
 
 const REGION_COLORS = [
@@ -8,7 +10,7 @@ export function regionColor(index: number): string {
   return REGION_COLORS[index % REGION_COLORS.length];
 }
 
-export type AnalysisStage = "extract" | "critique";
+export type AnalysisStage = "extract" | "critique" | "refine";
 
 export interface ProposalField {
   type: string;
@@ -127,6 +129,7 @@ export interface AnalysisResult {
     image: string;
     dimensions: { w: number; h: number };
     reportedDimensions?: { w: number; h: number };
+    contentBounds?: { x: number; y: number; w: number; h: number };
   };
   inventory?: Inventory;
   provenance?: {
@@ -144,4 +147,12 @@ export interface AnalysisResultPayload extends Omit<AnalysisResult, "provenance"
     pass1: StageAnalysisProvenance | null;
     pass2: StageAnalysisProvenance | null;
   };
+}
+
+export interface RefineIterationResult {
+  iteration: number;
+  mismatchRatio: number;
+  proposals: Proposal[];
+  regions: DiffRegion[];
+  diffArtifactUrl: string;
 }

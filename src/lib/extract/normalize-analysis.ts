@@ -59,6 +59,7 @@ export interface ExtractAnalysisLike {
   source?: {
     dimensions?: ExtractDimensions;
     reportedDimensions?: ExtractDimensions;
+    contentBounds?: ExtractRegion;
   } & Record<string, unknown>;
   inventory?: ExtractInventoryLike;
   proposals?: ExtractProposalLike[];
@@ -198,6 +199,12 @@ export function normalizeAnalysisRegions<T extends ExtractAnalysisLike>(
       source: {
         ...(analysis.source ?? {}),
         dimensions: actualSize,
+        contentBounds: normalizeRegion(
+          analysis.source?.contentBounds ?? { x: 0, y: 0, w: actualSize.w, h: actualSize.h },
+          1,
+          1,
+          actualSize,
+        ),
       },
     };
   }
@@ -205,6 +212,19 @@ export function normalizeAnalysisRegions<T extends ExtractAnalysisLike>(
   const ratioX = actualSize.w / reported.w;
   const ratioY = actualSize.h / reported.h;
   const needsRescale = Math.abs(ratioX - 1) > 0.001 || Math.abs(ratioY - 1) > 0.001;
+  const rawContentBounds = analysis.source?.contentBounds ?? {
+    x: 0,
+    y: 0,
+    w: reported.w,
+    h: reported.h,
+  };
+  const scaledContentBounds = needsRescale
+    ? normalizeRegion(rawContentBounds, ratioX, ratioY, actualSize)
+    : normalizeRegion(rawContentBounds, 1, 1, actualSize);
+  const normalizedContentBounds =
+    scaledContentBounds.w > 0 && scaledContentBounds.h > 0
+      ? scaledContentBounds
+      : { x: 0, y: 0, w: actualSize.w, h: actualSize.h };
 
   return {
     ...analysis,
@@ -212,6 +232,7 @@ export function normalizeAnalysisRegions<T extends ExtractAnalysisLike>(
       ...(analysis.source ?? {}),
       dimensions: actualSize,
       reportedDimensions: reported,
+      contentBounds: normalizedContentBounds,
     },
     ...(analysis.inventory
       ? {

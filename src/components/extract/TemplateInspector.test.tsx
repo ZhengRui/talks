@@ -91,8 +91,19 @@ function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
     pass2Cost: null,
     error: null,
     activeStage: "extract",
-    selectedTemplateIndex: { extract: 0, critique: 0 },
+    selectedTemplateIndex: { extract: 0, critique: 0, refine: 0 },
     viewMode: "original",
+    refineAnalysis: null,
+    refineStatus: "idle",
+    refineIteration: 0,
+    refineMaxIterations: 10,
+    refineMismatchThreshold: 0.05,
+    refineResult: null,
+    refineHistory: [],
+    refineError: null,
+    autoRefine: true,
+    normalizedImage: null,
+    diffObjectUrl: null,
     ...overrides,
   };
 }
@@ -149,7 +160,13 @@ describe("TemplateInspector", () => {
       },
     });
 
-    render(<TemplateInspector card={card} />);
+    render(
+      <TemplateInspector
+        card={card}
+        onRefine={vi.fn()}
+        onCancelRefine={vi.fn()}
+      />,
+    );
 
     expect(screen.getByText("Inventory")).toBeTruthy();
     expect(screen.queryByText("warm glow")).toBeNull();
@@ -167,7 +184,13 @@ describe("TemplateInspector", () => {
 
   it("does not render inventory panel when analysis has no inventory", () => {
     const card = makeCard();
-    render(<TemplateInspector card={card} />);
+    render(
+      <TemplateInspector
+        card={card}
+        onRefine={vi.fn()}
+        onCancelRefine={vi.fn()}
+      />,
+    );
     expect(screen.queryByText("Inventory")).toBeNull();
   });
 
@@ -208,7 +231,13 @@ describe("TemplateInspector", () => {
       },
     });
 
-    render(<TemplateInspector card={card} />);
+    render(
+      <TemplateInspector
+        card={card}
+        onRefine={vi.fn()}
+        onCancelRefine={vi.fn()}
+      />,
+    );
     expect(screen.queryByText("Must Preserve")).toBeNull();
     expect(screen.getByText("Show")).toBeTruthy();
   });
@@ -221,7 +250,13 @@ describe("TemplateInspector", () => {
       pass2Cost: 1.24,
     });
 
-    render(<TemplateInspector card={card} />);
+    render(
+      <TemplateInspector
+        card={card}
+        onRefine={vi.fn()}
+        onCancelRefine={vi.fn()}
+      />,
+    );
 
     expect(screen.getByText("Extract")).toBeTruthy();
     expect(screen.getByText("Critique")).toBeTruthy();
@@ -236,7 +271,13 @@ describe("TemplateInspector", () => {
       pass2Cost: 1.24,
     });
 
-    render(<TemplateInspector card={card} />);
+    render(
+      <TemplateInspector
+        card={card}
+        onRefine={vi.fn()}
+        onCancelRefine={vi.fn()}
+      />,
+    );
 
     fireEvent.click(screen.getByText("Critique"));
 
@@ -258,7 +299,13 @@ describe("TemplateInspector", () => {
       ],
     });
 
-    render(<TemplateInspector card={card} />);
+    render(
+      <TemplateInspector
+        card={card}
+        onRefine={vi.fn()}
+        onCancelRefine={vi.fn()}
+      />,
+    );
 
     expect(screen.getAllByText("Critique failed").length).toBeGreaterThan(0);
     expect(screen.getByText(/Critique pass failed/)).toBeTruthy();

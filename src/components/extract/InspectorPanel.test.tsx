@@ -26,6 +26,9 @@ const mockSetActiveStage = vi.fn();
 const mockSetModel = vi.fn();
 const mockSetEffort = vi.fn();
 const mockSetCritique = vi.fn();
+const mockSetCritiqueModel = vi.fn();
+const mockSetCritiqueEffort = vi.fn();
+const mockSetAutoRefine = vi.fn();
 
 let mockCards = new Map<string, SlideCard>();
 let mockCardOrder: string[] = [];
@@ -47,9 +50,14 @@ vi.mock("./store", () => ({
       model: "claude-opus-4-6",
       effort: "low",
       critique: false,
+      critiqueModel: "claude-opus-4-6",
+      critiqueEffort: "medium",
       setModel: mockSetModel,
       setEffort: mockSetEffort,
       setCritique: mockSetCritique,
+      setCritiqueModel: mockSetCritiqueModel,
+      setCritiqueEffort: mockSetCritiqueEffort,
+      setAutoRefine: mockSetAutoRefine,
       setPanelWidth: vi.fn(),
     };
     return selector ? selector(state) : state;
@@ -84,8 +92,19 @@ function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
     pass2Cost: null,
     error: null,
     activeStage: "extract",
-    selectedTemplateIndex: { extract: 0, critique: 0 },
+    selectedTemplateIndex: { extract: 0, critique: 0, refine: 0 },
     viewMode: "original",
+    refineAnalysis: null,
+    refineStatus: "idle",
+    refineIteration: 0,
+    refineMaxIterations: 10,
+    refineMismatchThreshold: 0.05,
+    refineResult: null,
+    refineHistory: [],
+    refineError: null,
+    autoRefine: true,
+    normalizedImage: null,
+    diffObjectUrl: null,
     ...overrides,
   };
 }
@@ -104,9 +123,17 @@ afterEach(() => {
 
 describe("InspectorPanel", () => {
   const onAnalyze = vi.fn();
+  const onRefine = vi.fn();
+  const onCancelRefine = vi.fn();
 
   it("shows empty state when no card is selected", () => {
-    const { container } = render(<InspectorPanel onAnalyze={onAnalyze} />);
+    const { container } = render(
+      <InspectorPanel
+        onAnalyze={onAnalyze}
+        onRefine={onRefine}
+        onCancelRefine={onCancelRefine}
+      />,
+    );
     expect(container.textContent).toContain("Select a slide");
   });
 
@@ -116,7 +143,13 @@ describe("InspectorPanel", () => {
     mockCardOrder = ["card-1"];
     mockSelectedCardId = "card-1";
 
-    const { container } = render(<InspectorPanel onAnalyze={onAnalyze} />);
+    const { container } = render(
+      <InspectorPanel
+        onAnalyze={onAnalyze}
+        onRefine={onRefine}
+        onCancelRefine={onCancelRefine}
+      />,
+    );
 
     // Should show the description textarea
     const textarea = container.querySelector("textarea");
@@ -136,7 +169,13 @@ describe("InspectorPanel", () => {
     mockCardOrder = ["card-2"];
     mockSelectedCardId = "card-2";
 
-    const { container } = render(<InspectorPanel onAnalyze={onAnalyze} />);
+    const { container } = render(
+      <InspectorPanel
+        onAnalyze={onAnalyze}
+        onRefine={onRefine}
+        onCancelRefine={onCancelRefine}
+      />,
+    );
 
     // Should show elapsed time
     expect(container.textContent).toContain("5s");
@@ -173,7 +212,13 @@ describe("InspectorPanel", () => {
     mockCardOrder = ["card-3"];
     mockSelectedCardId = "card-3";
 
-    const { container } = render(<InspectorPanel onAnalyze={onAnalyze} />);
+    const { container } = render(
+      <InspectorPanel
+        onAnalyze={onAnalyze}
+        onRefine={onRefine}
+        onCancelRefine={onCancelRefine}
+      />,
+    );
 
     expect(container.textContent).toContain("Extract");
     expect(container.textContent).toContain("Log");
@@ -189,7 +234,13 @@ describe("InspectorPanel", () => {
     mockCardOrder = ["card-4"];
     mockSelectedCardId = "card-4";
 
-    const { container } = render(<InspectorPanel onAnalyze={onAnalyze} />);
+    const { container } = render(
+      <InspectorPanel
+        onAnalyze={onAnalyze}
+        onRefine={onRefine}
+        onCancelRefine={onCancelRefine}
+      />,
+    );
 
     // Should show the error message
     expect(container.textContent).toContain("API timeout");
@@ -210,7 +261,13 @@ describe("InspectorPanel", () => {
     mockCardOrder = ["card-1", "card-2"];
     mockSelectedCardId = "card-1";
 
-    const { container } = render(<InspectorPanel onAnalyze={onAnalyze} />);
+    const { container } = render(
+      <InspectorPanel
+        onAnalyze={onAnalyze}
+        onRefine={onRefine}
+        onCancelRefine={onCancelRefine}
+      />,
+    );
 
     // Should render thumbnail images
     const images = container.querySelectorAll("img");

@@ -92,6 +92,7 @@ describe("normalizeAnalysisRegions", () => {
     image?: string;
     dimensions?: { w: number; h: number };
     reportedDimensions?: { w: number; h: number };
+    contentBounds?: { x: number; y: number; w: number; h: number };
   };
 
   type TestAnalysis = {
@@ -281,5 +282,64 @@ describe("normalizeAnalysisRegions", () => {
 
     const result = normalizeAnalysisRegions(analysis, { w: 960, h: 540 });
     expect(result.inventory).toEqual(inventoryFixture);
+  });
+
+  it("rescales source.contentBounds with the same ratio as other regions", () => {
+    const analysis: TestAnalysis = {
+      source: {
+        image: "slide.png",
+        dimensions: { w: 960, h: 540 },
+        contentBounds: { x: 10, y: 20, w: 900, h: 480 },
+      },
+      proposals: [],
+    };
+
+    const result = normalizeAnalysisRegions(analysis, { w: 1920, h: 1080 });
+
+    expect(result.source.contentBounds).toEqual({
+      x: 20,
+      y: 40,
+      w: 1800,
+      h: 960,
+    });
+  });
+
+  it("defaults contentBounds to full image bounds when absent", () => {
+    const analysis: TestAnalysis = {
+      source: {
+        image: "slide.png",
+        dimensions: { w: 960, h: 540 },
+      },
+      proposals: [],
+    };
+
+    const result = normalizeAnalysisRegions(analysis, { w: 1440, h: 810 });
+
+    expect(result.source.contentBounds).toEqual({
+      x: 0,
+      y: 0,
+      w: 1440,
+      h: 810,
+    });
+  });
+
+  it("falls back to full image bounds when contentBounds is zero-area", () => {
+    const analysis: TestAnalysis = {
+      source: {
+        image: "slide.png",
+        dimensions: { w: 960, h: 540 },
+        contentBounds: { x: 100, y: 100, w: 0, h: 0 },
+      },
+      proposals: [],
+    };
+
+    const result = normalizeAnalysisRegions(analysis, { w: 1440, h: 810 });
+
+    expect(result.source.contentBounds).toEqual({
+      x: 0,
+      y: 0,
+      w: 1440,
+      h: 810,
+    });
   });
 });

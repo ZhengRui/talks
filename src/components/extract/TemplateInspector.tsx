@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { AlertTriangle, FileText, RotateCcw } from "lucide-react";
 import { useExtractStore } from "./store";
 import type { SlideCard } from "./store";
@@ -13,6 +13,8 @@ import type { Inventory } from "./types";
 
 interface TemplateInspectorProps {
   card: SlideCard;
+  onRefine: (cardId: string) => void;
+  onCancelRefine: (cardId: string) => void;
 }
 
 function formatModel(model: string): string {
@@ -162,7 +164,54 @@ function InventoryContent({ inventory }: { inventory: Inventory }) {
   );
 }
 
-export default function TemplateInspector({ card }: TemplateInspectorProps) {
+/** Popover that left-aligns by default but flips to right-align when it would overflow the viewport. */
+function ResetConfirmPopover({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [alignRight, setAlignRight] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.right > window.innerWidth) {
+      setAlignRight(true);
+    }
+  }, []);
+
+  return (
+    <>
+      <div className="fixed inset-0 z-10" onClick={onCancel} />
+      <div
+        ref={ref}
+        className={`absolute top-[calc(100%+7px)] z-20 w-56 rounded-lg border border-gray-200 bg-white p-3 shadow-lg ${alignRight ? "right-0" : "left-0"}`}
+      >
+        <p className="text-xs text-gray-600 mb-2.5">Clear all extracted templates?</p>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-md bg-red-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-600 transition-colors"
+          >
+            Reset
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md px-2.5 py-1 text-xs text-gray-500 hover:bg-gray-100 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default function TemplateInspector({
+  card,
+  onRefine,
+  onCancelRefine,
+}: TemplateInspectorProps) {
   const selectTemplate = useExtractStore((s) => s.selectTemplate);
   const openLogModal = useExtractStore((s) => s.openLogModal);
   const resetAnalysis = useExtractStore((s) => s.resetAnalysis);
@@ -180,6 +229,7 @@ export default function TemplateInspector({ card }: TemplateInspectorProps) {
     : 0;
   const selectedProposal = proposals[selectedIndex] ?? proposals[0] ?? null;
   const critiqueFailed = card.usedCritique && !card.pass2;
+  const hasRefineStage = card.refineStatus !== "idle" || card.refineAnalysis !== null;
   const isCritiqueFailureView =
     card.activeStage === "critique" && critiqueFailed;
   const critiqueLogs = filterLogEntries(card.log, "critique");
@@ -201,6 +251,11 @@ export default function TemplateInspector({ card }: TemplateInspectorProps) {
     extractAnalysis &&
     JSON.stringify(critiqueAnalysis.proposals) ===
       JSON.stringify(extractAnalysis.proposals);
+  const refineSummary = card.refineResult
+    ? `${card.refineIteration}/${card.refineMaxIterations} · ${Math.round(card.refineResult.mismatchRatio * 100)}%`
+    : card.refineStatus === "running"
+      ? `${card.refineIteration}/${card.refineMaxIterations}`
+      : null;
 
   return (
     <div className="flex flex-col min-h-0 flex-1">
@@ -234,6 +289,24 @@ export default function TemplateInspector({ card }: TemplateInspectorProps) {
             Critique
           </button>
         )}
+        {hasRefineStage && (
+          <button
+            type="button"
+            onClick={() => setActiveStage(card.id, "refine")}
+            className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+              card.activeStage === "refine"
+                ? "bg-gray-900 text-white"
+                : "border border-gray-200 bg-white text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Refine
+            {refineSummary ? (
+              <span className={card.activeStage === "refine" ? "text-white/80" : "text-gray-400"}>
+                {refineSummary}
+              </span>
+            ) : null}
+          </button>
+        )}
         <div className="relative">
           <button
             type="button"
@@ -245,31 +318,10 @@ export default function TemplateInspector({ card }: TemplateInspectorProps) {
             Reset
           </button>
           {showResetConfirm && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowResetConfirm(false)} />
-              <div className="absolute left-0 top-[calc(100%+7px)] z-20 w-56 rounded-lg border border-gray-200 bg-white p-3 shadow-lg">
-                <p className="text-xs text-gray-600 mb-2.5">Clear all extracted templates?</p>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      resetAnalysis(card.id);
-                      setShowResetConfirm(false);
-                    }}
-                    className="rounded-md bg-red-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-600 transition-colors"
-                  >
-                    Reset
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowResetConfirm(false)}
-                    className="rounded-md px-2.5 py-1 text-xs text-gray-500 hover:bg-gray-100 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </>
+            <ResetConfirmPopover
+              onConfirm={() => { resetAnalysis(card.id); setShowResetConfirm(false); }}
+              onCancel={() => setShowResetConfirm(false)}
+            />
           )}
         </div>
       </div>
@@ -284,8 +336,38 @@ export default function TemplateInspector({ card }: TemplateInspectorProps) {
           <FileText className="h-3.5 w-3.5" />
           Log
         </button>
+        {!card.autoRefine && card.refineStatus === "idle" && (
+          <button
+            type="button"
+            onClick={() => onRefine(card.id)}
+            className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50"
+          >
+            Refine
+          </button>
+        )}
+        {card.refineStatus === "running" && (
+          <button
+            type="button"
+            onClick={() => onCancelRefine(card.id)}
+            className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700 transition-colors hover:bg-amber-100"
+          >
+            Cancel
+          </button>
+        )}
         {isCritiqueFailureView ? (
           <span className="truncate text-amber-700">Critique failed</span>
+        ) : card.activeStage === "refine" ? (
+          <span className="truncate text-[10px] text-gray-400">
+            {formatStageMeta([
+              card.refineStatus,
+              card.refineIteration > 0
+                ? `${card.refineIteration}/${card.refineMaxIterations}`
+                : null,
+              card.refineResult
+                ? `${Math.round(card.refineResult.mismatchRatio * 100)}% mismatch`
+                : null,
+            ])}
+          </span>
         ) : activeMeta.pass ? (
           <span className="truncate text-[10px] text-gray-400">
             {formatStageMeta([
@@ -344,6 +426,15 @@ export default function TemplateInspector({ card }: TemplateInspectorProps) {
             {critiqueMatchesExtract && (
               <div className="border-b border-gray-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                 No changes from extract pass.
+              </div>
+            )}
+            {card.activeStage === "refine" && card.refineHistory.length > 0 && (
+              <div className="border-b border-gray-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+                {card.refineHistory.map((item) => (
+                  <div key={item.iteration}>
+                    Iter {item.iteration}: {Math.round(item.mismatchRatio * 100)}%
+                  </div>
+                ))}
               </div>
             )}
 

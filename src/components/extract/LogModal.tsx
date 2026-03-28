@@ -208,8 +208,10 @@ export default function LogModal() {
   const [logStage, setLogStage] = useState<AnalysisStage | "all">("all");
 
   const card = open && cardId ? cards.get(cardId) : undefined;
-  const isLiveAnalysis = card?.status === "analyzing";
+  const isLiveAnalysis =
+    card?.status === "analyzing" || card?.refineStatus === "running";
   const hasCritiqueLogs = (card?.log ?? []).some((e) => e.stage === "critique");
+  const hasRefineLogs = (card?.log ?? []).some((e) => e.stage === "refine");
 
   // Sync stage filter before paint to avoid flash when switching stages then opening
   useLayoutEffect(() => {
@@ -220,6 +222,9 @@ export default function LogModal() {
   const log = isLiveAnalysis || logStage === "all"
     ? allLog
     : filterLogEntries(allLog, logStage);
+  const stageTabs: Array<AnalysisStage | "all"> = ["all", "extract"];
+  if (hasCritiqueLogs) stageTabs.push("critique");
+  if (hasRefineLogs) stageTabs.push("refine");
 
   const wasAtBottom = useRef(true);
   useEffect(() => {
@@ -264,22 +269,20 @@ export default function LogModal() {
           <div className="flex flex-1 justify-center">
             {!isLiveAnalysis && (
               <div className="flex items-center gap-0.5 rounded-lg bg-gray-100 p-0.5">
-                {(["all", "extract", ...(hasCritiqueLogs ? ["critique"] : [])] as const).map(
-                  (stage) => (
-                    <button
-                      key={stage}
-                      type="button"
-                      onClick={() => setLogStage(stage)}
-                      className={`w-[72px] rounded-md py-0.5 text-center text-[10px] font-medium capitalize transition-colors ${
-                        logStage === stage
-                          ? "bg-white text-gray-800 shadow-sm"
-                          : "text-gray-500 hover:text-gray-700"
-                      }`}
-                    >
-                      {stage}
-                    </button>
-                  ),
-                )}
+                {stageTabs.map((stage) => (
+                  <button
+                    key={stage}
+                    type="button"
+                    onClick={() => setLogStage(stage)}
+                    className={`w-[72px] rounded-md py-0.5 text-center text-[10px] font-medium capitalize transition-colors ${
+                      logStage === stage
+                        ? "bg-white text-gray-800 shadow-sm"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    {stage}
+                  </button>
+                ))}
               </div>
             )}
             {isLiveAnalysis && (
