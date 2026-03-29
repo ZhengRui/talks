@@ -69,7 +69,9 @@ export default function ExtractCanvas() {
   const tickElapsed = useExtractStore((s) => s.tickElapsed);
   const setNormalizedImage = useExtractStore((s) => s.setNormalizedImage);
   const startRefinement = useExtractStore((s) => s.startRefinement);
+  const updateRefineDiff = useExtractStore((s) => s.updateRefineDiff);
   const updateRefinement = useExtractStore((s) => s.updateRefinement);
+  const completeRefineIteration = useExtractStore((s) => s.completeRefineIteration);
   const setDiffObjectUrl = useExtractStore((s) => s.setDiffObjectUrl);
   const completeRefinement = useExtractStore((s) => s.completeRefinement);
   const failRefinement = useExtractStore((s) => s.failRefinement);
@@ -149,41 +151,20 @@ export default function ExtractCanvas() {
         const decoder = new TextDecoder();
         let buffer = "";
         let currentEvent = "";
-        const pendingDiffs = new Map<
-          number,
-          Omit<RefineIterationResult, "iteration" | "proposals">
-        >();
-        const recordedIterations = new Set<number>();
 
-        const recordIteration = (
-          iteration: number,
-          proposals: Proposal[],
-        ) => {
-          const pending = pendingDiffs.get(iteration);
-          if (!pending || recordedIterations.has(iteration)) return;
-          updateRefinement(cardId, {
-            iteration,
-            proposals,
-            mismatchRatio: pending.mismatchRatio,
-            regions: pending.regions,
-            diffArtifactUrl: pending.diffArtifactUrl,
-          });
-          recordedIterations.add(iteration);
-        };
+        // Latest diff metrics — used by refine:patch to fill updateRefinement
+        let latestDiff: {
+          mismatchRatio: number;
+          regions: RefineIterationResult["regions"];
+          diffArtifactUrl: string;
+        } | null = null;
 
-        const fetchDiffArtifact = async (diffArtifactUrl: string) => {
-          const artifactResponse = await fetch(diffArtifactUrl, {
-            signal: abortController.signal,
-          });
-          if (!artifactResponse.ok) {
-            throw new Error(
-              `Failed to fetch diff artifact (${artifactResponse.status})`,
-            );
-          }
-          const blob = await artifactResponse.blob();
+        const fetchDiffArtifact = async (url: string) => {
+          const res = await fetch(url, { signal: abortController.signal });
+          if (!res.ok) throw new Error(`Failed to fetch diff artifact (${res.status})`);
+          const blob = await res.blob();
           if (abortController.signal.aborted) return;
-          const objectUrl = URL.createObjectURL(blob);
-          setDiffObjectUrl(cardId, objectUrl);
+          setDiffObjectUrl(cardId, URL.createObjectURL(blob));
         };
 
         while (true) {
@@ -237,32 +218,25 @@ export default function ExtractCanvas() {
                 });
                 break;
               }
-              case "refine:diff": {
-                const iteration =
-                  typeof data.iteration === "number" ? data.iteration : 0;
-                const mismatchRatio =
-                  typeof data.mismatchRatio === "number"
-                    ? data.mismatchRatio
-                    : 0;
-                const diffArtifactUrl =
-                  typeof data.diffArtifactUrl === "string"
-                    ? data.diffArtifactUrl
-                    : "";
-                const regions = Array.isArray(data.regions)
-                  ? (data.regions as RefineIterationResult["regions"])
-                  : [];
 
-                pendingDiffs.set(iteration, {
-                  mismatchRatio,
-                  regions,
-                  diffArtifactUrl,
-                });
-                appendLog(cardId, {
-                  type: "status",
-                  content: `Iter ${iteration} diff — ${Math.round(mismatchRatio * 100)}% mismatch`,
-                  timestamp: Date.now(),
-                  stage: "refine",
-                });
+              // --- Diff: update store metrics + fetch artifact. Log only for initial (iter 0). ---
+              case "refine:diff": {
+                const iteration = typeof data.iteration === "number" ? data.iteration : 0;
+                const mismatchRatio = typeof data.mismatchRatio === "number" ? data.mismatchRatio : 0;
+                const diffArtifactUrl = typeof data.diffArtifactUrl === "string" ? data.diffArtifactUrl : "";
+                const regions = Array.isArray(data.regions) ? (data.regions as RefineIterationResult["regions"]) : [];
+
+                latestDiff = { mismatchRatio, regions, diffArtifactUrl };
+                updateRefineDiff(cardId, iteration, mismatchRatio, diffArtifactUrl);
+
+                if (iteration === 0) {
+                  appendLog(cardId, {
+                    type: "status",
+                    content: `Starting — ${Math.round(mismatchRatio * 100)}% mismatch`,
+                    timestamp: Date.now(),
+                    stage: "refine",
+                  });
+                }
 
                 if (diffArtifactUrl) {
                   try {
@@ -271,10 +245,7 @@ export default function ExtractCanvas() {
                     if (!abortController.signal.aborted) {
                       appendLog(cardId, {
                         type: "error",
-                        content:
-                          error instanceof Error
-                            ? error.message
-                            : String(error),
+                        content: error instanceof Error ? error.message : String(error),
                         timestamp: Date.now(),
                         stage: "refine",
                       });
@@ -283,82 +254,60 @@ export default function ExtractCanvas() {
                 }
                 break;
               }
+
+              // --- Patch: update proposals in store. No log (complete logs the result). ---
               case "refine:patch": {
-                const iteration =
-                  typeof data.iteration === "number" ? data.iteration : 0;
-                const proposals = Array.isArray(data.proposals)
-                  ? (data.proposals as Proposal[])
-                  : [];
-                recordIteration(iteration, proposals);
-                appendLog(cardId, {
-                  type: "status",
-                  content: `Iter ${iteration} patch applied`,
-                  timestamp: Date.now(),
-                  stage: "refine",
+                const iteration = typeof data.iteration === "number" ? data.iteration : 0;
+                const proposals = Array.isArray(data.proposals) ? (data.proposals as Proposal[]) : [];
+                updateRefinement(cardId, {
+                  iteration,
+                  proposals,
+                  mismatchRatio: latestDiff?.mismatchRatio ?? 0,
+                  regions: latestDiff?.regions ?? [],
+                  diffArtifactUrl: latestDiff?.diffArtifactUrl ?? "",
                 });
                 break;
               }
+
+              // --- Complete: push to history + single log line per iteration. ---
               case "refine:complete": {
-                const iteration =
-                  typeof data.iteration === "number" ? data.iteration : 0;
-                const mismatchRatio =
-                  typeof data.mismatchRatio === "number"
-                    ? data.mismatchRatio
-                    : 0;
+                const iteration = typeof data.iteration === "number" ? data.iteration : 0;
+                const mismatchRatio = typeof data.mismatchRatio === "number" ? data.mismatchRatio : 0;
+                completeRefineIteration(cardId, mismatchRatio);
                 appendLog(cardId, {
                   type: "status",
-                  content: `Iter ${iteration} complete — ${Math.round(mismatchRatio * 100)}% mismatch`,
+                  content: `Iter ${iteration} — ${Math.round(mismatchRatio * 100)}% mismatch`,
                   timestamp: Date.now(),
                   stage: "refine",
                 });
                 break;
               }
+
+              // --- Done: finalize. No duplicate store update. ---
               case "refine:done": {
-                const finalIteration =
-                  typeof data.finalIteration === "number"
-                    ? data.finalIteration
-                    : 0;
-                const mismatchRatio =
-                  typeof data.mismatchRatio === "number"
-                    ? data.mismatchRatio
-                    : 0;
+                const finalIteration = typeof data.finalIteration === "number" ? data.finalIteration : 0;
+                const mismatchRatio = typeof data.mismatchRatio === "number" ? data.mismatchRatio : 0;
                 const converged = data.converged === true;
-                const proposals = Array.isArray(data.proposals)
-                  ? (data.proposals as Proposal[])
-                  : [];
-                recordIteration(finalIteration, proposals);
                 completeRefinement(cardId);
                 appendLog(cardId, {
                   type: "status",
                   content: converged
-                    ? `Refinement converged — ${Math.round(mismatchRatio * 100)}% mismatch after ${finalIteration} iteration${finalIteration === 1 ? "" : "s"}`
-                    : `Refinement stopped — ${Math.round(mismatchRatio * 100)}% mismatch after ${finalIteration} iteration${finalIteration === 1 ? "" : "s"}`,
+                    ? `Converged — ${Math.round(mismatchRatio * 100)}% after ${finalIteration} iteration${finalIteration === 1 ? "" : "s"}`
+                    : `Stopped — ${Math.round(mismatchRatio * 100)}% after ${finalIteration} iteration${finalIteration === 1 ? "" : "s"}`,
                   timestamp: Date.now(),
                   stage: "refine",
                 });
                 return;
               }
+
               case "refine:error": {
-                const error =
-                  typeof data.error === "string"
-                    ? data.error
-                    : "Refinement failed";
-                appendLog(cardId, {
-                  type: "error",
-                  content: error,
-                  timestamp: Date.now(),
-                  stage: "refine",
-                });
+                const error = typeof data.error === "string" ? data.error : "Refinement failed";
+                appendLog(cardId, { type: "error", content: error, timestamp: Date.now(), stage: "refine" });
                 failRefinement(cardId, error);
                 return;
               }
               case "refine:aborted": {
-                appendLog(cardId, {
-                  type: "status",
-                  content: "Refinement cancelled",
-                  timestamp: Date.now(),
-                  stage: "refine",
-                });
+                appendLog(cardId, { type: "status", content: "Refinement cancelled", timestamp: Date.now(), stage: "refine" });
                 abortRefinement(cardId);
                 return;
               }
@@ -391,9 +340,11 @@ export default function ExtractCanvas() {
       abortRefinement,
       appendLog,
       completeRefinement,
+      completeRefineIteration,
       failRefinement,
       setDiffObjectUrl,
       startRefinement,
+      updateRefineDiff,
       updateRefinement,
     ],
   );

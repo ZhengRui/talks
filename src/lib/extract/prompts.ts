@@ -38,7 +38,7 @@ Specifically:
 - Choose one perceived image size immediately. Do NOT refine it. Small dimensional error is acceptable if internal geometry is self-consistent.
 - Obvious presentation UI chrome (nav dots, counters, export buttons, control bars) is NOT slide content. Use the full image as \`source.dimensions\` and simply ignore chrome in the inventory and proposals.
 - Do NOT debate template-authoring mechanics (loops vs explicit nodes, row layout vs manual positioning, border layering, z-order, quoting, preset organization). Pick the simplest valid encoding that preserves appearance and move on.
-- Do NOT reverse-engineer viewport scaling, device pixel ratios, CSS layout, or rendering pipeline internals. The system normalizes coordinates automatically.
+- Do NOT reverse-engineer viewport scaling, device pixel ratios, CSS layout, or rendering pipeline internals. The system normalizes overlay metadata and preview canvas sizing automatically, but your proposal body must still keep \`sourceSize\`, guides, and all frame values in one self-consistent source-pixel coordinate space.
 - For background gradients and atmospheric effects, use visually faithful approximations. Do NOT reconstruct exact canvas-vs-viewport coordinate mappings.
 
 ## Produce two outputs in order

@@ -113,6 +113,8 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
   const critiqueModel = useExtractStore((s) => s.critiqueModel);
   const critiqueEffort = useExtractStore((s) => s.critiqueEffort);
   const setAutoRefine = useExtractStore((s) => s.setAutoRefine);
+  const setRefineMaxIterations = useExtractStore((s) => s.setRefineMaxIterations);
+  const setRefineMismatchThreshold = useExtractStore((s) => s.setRefineMismatchThreshold);
   const refineModel = useExtractStore((s) => s.refineModel);
   const refineEffort = useExtractStore((s) => s.refineEffort);
   const setRefineModel = useExtractStore((s) => s.setRefineModel);
@@ -186,6 +188,42 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
           onEffortChange={setRefineEffort}
           disabled={!card.autoRefine}
         />
+        <div className={`flex items-center gap-2${!card.autoRefine ? " opacity-40 pointer-events-none" : ""}`}>
+          <span className="shrink-0 w-[72px]" />
+          <div className="flex flex-1 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400/30">
+            <span className="text-gray-500 whitespace-nowrap">Iters:</span>
+            <input
+              type="number"
+              min={1}
+              max={30}
+              step={1}
+              value={card.refineMaxIterations}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10);
+                if (Number.isFinite(v) && v >= 1 && v <= 30) setRefineMaxIterations(card.id, v);
+              }}
+              disabled={!card.autoRefine}
+              className="flex-1 min-w-0 bg-transparent text-xs text-gray-700 focus:outline-none"
+            />
+          </div>
+          <div className="flex flex-1 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400/30">
+            <span className="text-gray-500 whitespace-nowrap">Target:</span>
+            <input
+              type="number"
+              min={1}
+              max={99}
+              step={1}
+              value={Math.round(card.refineMismatchThreshold * 100)}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10);
+                if (Number.isFinite(v) && v >= 1 && v <= 99) setRefineMismatchThreshold(card.id, v / 100);
+              }}
+              disabled={!card.autoRefine}
+              className="flex-1 min-w-0 bg-transparent text-xs text-gray-700 focus:outline-none"
+            />
+            <span className="text-gray-500">%</span>
+          </div>
+        </div>
       </div>
 
       {card.error && (

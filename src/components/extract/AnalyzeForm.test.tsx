@@ -64,7 +64,7 @@ function makeCard(): SlideCard {
     refineAnalysis: null,
     refineStatus: "idle",
     refineIteration: 0,
-    refineMaxIterations: 10,
+    refineMaxIterations: 4,
     refineMismatchThreshold: 0.05,
     refineResult: null,
     refineHistory: [],

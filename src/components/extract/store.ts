@@ -52,6 +52,7 @@ export interface SlideCard {
   refineResult: RefineIterationResult | null;
   refineHistory: RefineIterationResult[];
   refineError: string | null;
+  refineStartMismatch: number | null;
   autoRefine: boolean;
   normalizedImage: File | null;
   diffObjectUrl: string | null;
@@ -93,8 +94,12 @@ export interface ExtractState {
   setActiveStage: (id: string, stage: AnalysisStage) => void;
   selectTemplate: (id: string, index: number) => void;
   setAutoRefine: (id: string, enabled: boolean) => void;
+  setRefineMaxIterations: (id: string, max: number) => void;
+  setRefineMismatchThreshold: (id: string, threshold: number) => void;
   startRefinement: (id: string) => void;
+  updateRefineDiff: (id: string, iteration: number, mismatchRatio: number, diffArtifactUrl: string) => void;
   updateRefinement: (id: string, result: RefineIterationResult) => void;
+  completeRefineIteration: (id: string, mismatchRatio: number) => void;
   setDiffObjectUrl: (id: string, url: string | null) => void;
   completeRefinement: (id: string) => void;
   failRefinement: (id: string, error: string) => void;
@@ -258,11 +263,12 @@ export function createExtractStore(): StoreApi<ExtractState> {
         refineAnalysis: null,
         refineStatus: "idle",
         refineIteration: 0,
-        refineMaxIterations: 10,
+        refineMaxIterations: 4,
         refineMismatchThreshold: 0.05,
         refineResult: null,
         refineHistory: [],
         refineError: null,
+        refineStartMismatch: null,
         autoRefine: true,
         normalizedImage: null,
         diffObjectUrl: null,
@@ -333,6 +339,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineResult: null,
           refineHistory: [],
           refineError: null,
+          refineStartMismatch: null,
           diffObjectUrl: null,
         }));
       });
@@ -391,6 +398,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineResult: null,
           refineHistory: [],
           refineError: null,
+          refineStartMismatch: null,
           diffObjectUrl: null,
         }));
       });
@@ -494,6 +502,14 @@ export function createExtractStore(): StoreApi<ExtractState> {
       set((state) => updateCard(state, id, () => ({ autoRefine: enabled })));
     },
 
+    setRefineMaxIterations(id: string, max: number) {
+      set((state) => updateCard(state, id, () => ({ refineMaxIterations: max })));
+    },
+
+    setRefineMismatchThreshold(id: string, threshold: number) {
+      set((state) => updateCard(state, id, () => ({ refineMismatchThreshold: threshold })));
+    },
+
     startRefinement(id: string) {
       set((state) => {
         const card = state.cards.get(id);
@@ -505,10 +521,35 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineResult: null,
           refineHistory: [],
           refineError: null,
+          refineStartMismatch: null,
           diffObjectUrl: null,
           activeStage: "refine" as const,
         }));
       });
+    },
+
+    updateRefineDiff(id: string, iteration: number, mismatchRatio: number, diffArtifactUrl: string) {
+      set((state) => {
+        const card = state.cards.get(id);
+        return updateCard(state, id, () => ({
+          refineIteration: iteration,
+          // Capture the initial (pre-refine) mismatch on the first diff
+          ...(card?.refineStartMismatch == null ? { refineStartMismatch: mismatchRatio } : {}),
+          refineResult: {
+            ...(card?.refineResult ?? {
+              proposals: [],
+              regions: [],
+              diffArtifactUrl: "",
+              mismatchRatio: 0,
+              iteration: 0,
+            }),
+            iteration,
+            mismatchRatio,
+            diffArtifactUrl,
+          },
+        }));
+      },
+      );
     },
 
     updateRefinement(id: string, result: RefineIterationResult) {
@@ -522,11 +563,27 @@ export function createExtractStore(): StoreApi<ExtractState> {
               })
             : null;
 
+          // Update current result and proposals but do NOT push to history here.
+          // History is pushed by completeRefineIteration once the post-patch
+          // diff score is known, avoiding duplicate or stale entries.
           return {
             refineAnalysis,
             refineIteration: result.iteration,
             refineResult: result,
-            refineHistory: [...card.refineHistory, result],
+          };
+        }),
+      );
+    },
+
+    /** Push the current refineResult to history with the final post-patch score. */
+    completeRefineIteration(id: string, mismatchRatio: number) {
+      set((state) =>
+        updateCard(state, id, (card) => {
+          if (!card.refineResult) return {};
+          const entry = { ...card.refineResult, mismatchRatio };
+          return {
+            refineResult: entry,
+            refineHistory: [...card.refineHistory, entry],
           };
         }),
       );

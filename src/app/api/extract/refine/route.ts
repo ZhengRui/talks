@@ -24,7 +24,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   const contentBoundsJson = formData.get("contentBounds") as string | null;
   const model = (formData.get("model") as string) || "claude-opus-4-6";
   const effort = (formData.get("effort") as string) || "medium";
-  const maxIterations = parseInt((formData.get("maxIterations") as string) || "10", 10) || 10;
+  const maxIterations = parseInt((formData.get("maxIterations") as string) || "4", 10) || 4;
   const mismatchThreshold =
     parseFloat((formData.get("mismatchThreshold") as string) || "0.05") || 0.05;
 

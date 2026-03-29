@@ -58,7 +58,8 @@ describe("ANALYSIS_SYSTEM_PROMPT", () => {
   it("includes speed and decisiveness rules", () => {
     expect(ANALYSIS_SYSTEM_PROMPT).toContain("Pick dimensions, positions, and colors on first impression and commit");
     expect(ANALYSIS_SYSTEM_PROMPT).toContain("Do NOT reverse-engineer viewport scaling");
-    expect(ANALYSIS_SYSTEM_PROMPT).toContain("The system normalizes coordinates automatically");
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("The system normalizes overlay metadata and preview canvas sizing automatically");
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("one self-consistent source-pixel coordinate space");
     expect(ANALYSIS_SYSTEM_PROMPT).toContain("Do NOT debate template-authoring mechanics");
   });
 });

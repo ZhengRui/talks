@@ -428,11 +428,20 @@ export default function TemplateInspector({
                 No changes from extract pass.
               </div>
             )}
-            {card.activeStage === "refine" && card.refineHistory.length > 0 && (
-              <div className="border-b border-gray-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+            {card.activeStage === "refine" && (card.refineStartMismatch != null || card.refineHistory.length > 0) && (
+              <div className="border-b border-gray-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 font-mono tabular-nums">
+                {card.refineStartMismatch != null && (
+                  <div className="flex">
+                    <span className="w-12 text-right">Start</span>
+                    <span className="px-0.5">:</span>
+                    <span>{Math.round(card.refineStartMismatch * 100)}%</span>
+                  </div>
+                )}
                 {card.refineHistory.map((item) => (
-                  <div key={item.iteration}>
-                    Iter {item.iteration}: {Math.round(item.mismatchRatio * 100)}%
+                  <div key={item.iteration} className="flex">
+                    <span className="w-12 text-right">Iter {item.iteration}</span>
+                    <span className="px-0.5">:</span>
+                    <span>{Math.round(item.mismatchRatio * 100)}%</span>
                   </div>
                 ))}
               </div>

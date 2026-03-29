@@ -563,10 +563,14 @@ describe("ExtractStore", () => {
         ],
       });
 
+      // completeRefineIteration pushes to history with post-patch score
+      store.getState().completeRefineIteration(id, 0.19);
+
       const card = store.getState().cards.get(id)!;
       expect(card.refineIteration).toBe(1);
-      expect(card.refineResult?.mismatchRatio).toBe(0.23);
+      expect(card.refineResult?.mismatchRatio).toBe(0.19);
       expect(card.refineHistory).toHaveLength(1);
+      expect(card.refineHistory[0].mismatchRatio).toBe(0.19);
       expect(card.refineAnalysis?.proposals[0]?.name).toBe("refined-preview");
       expect(card.refineAnalysis?.source.contentBounds).toEqual({
         x: 10,

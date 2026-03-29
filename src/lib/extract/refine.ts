@@ -1,5 +1,6 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { compileProposalPreview } from "@/lib/extract/compile-preview";
+import { buildRefineDiffArtifactImage } from "@/lib/extract/refine-display";
 import {
   buildRefineSystemPrompt,
   buildRefineUserPrompt,
@@ -53,6 +54,15 @@ export interface RefineLoopResult {
   proposals: Proposal[];
 }
 
+interface RenderAndDiffResult {
+  diff: Awaited<ReturnType<typeof compareImages>>;
+  referenceCropped: Buffer;
+  replicaCropped: Buffer;
+  annotated: Buffer;
+  referenceMediaType: string;
+  diffArtifactUrl: string;
+}
+
 interface ClaudeRefineOptions {
   referenceImage: Buffer;
   referenceMediaType: string;
@@ -60,12 +70,25 @@ interface ClaudeRefineOptions {
   annotatedDiffImage: Buffer;
   mismatchRatio: number;
   regions: DiffRegion[];
+  fullImageSize: { w: number; h: number };
+  croppedImageSize: { w: number; h: number };
   contentBounds?: CropBounds | null;
   proposals: Proposal[];
   model: string;
   effort: string;
   signal?: AbortSignal;
   onEvent?: (event: RefineEvent) => Promise<void> | void;
+}
+
+type ClaudeRefineParseStatus =
+  | "ok"
+  | "no_json"
+  | "invalid_json"
+  | "not_array";
+
+interface ClaudeRefineResult {
+  proposals: Proposal[] | null;
+  status: ClaudeRefineParseStatus;
 }
 
 function checkAborted(signal?: AbortSignal): void {
@@ -81,6 +104,22 @@ async function emit(
   if (onEvent) {
     await onEvent(event);
   }
+}
+
+async function emitDiffEvent(
+  onEvent: RefineLoopOptions["onEvent"] | ClaudeRefineOptions["onEvent"],
+  iteration: number,
+  cycle: RenderAndDiffResult,
+): Promise<void> {
+  await emit(onEvent, {
+    event: "refine:diff",
+    data: {
+      iteration,
+      mismatchRatio: cycle.diff.mismatchRatio,
+      diffArtifactUrl: cycle.diffArtifactUrl,
+      regions: cycle.diff.regions,
+    },
+  });
 }
 
 function extractJsonPayload(resultText: string): string | null {
@@ -168,7 +207,7 @@ async function* makePrompt(
 
 async function callClaudeRefine(
   options: ClaudeRefineOptions,
-): Promise<Proposal[] | null> {
+): Promise<ClaudeRefineResult> {
   const {
     referenceImage,
     referenceMediaType,
@@ -176,6 +215,8 @@ async function callClaudeRefine(
     annotatedDiffImage,
     mismatchRatio,
     regions,
+    fullImageSize,
+    croppedImageSize,
     contentBounds,
     proposals,
     model,
@@ -187,6 +228,8 @@ async function callClaudeRefine(
     mismatchRatio,
     regions,
     proposalsJson: JSON.stringify(proposals, null, 2),
+    fullImageSize,
+    croppedImageSize,
     contentBounds,
   });
 
@@ -253,20 +296,20 @@ async function callClaudeRefine(
 
   const jsonPayload = extractJsonPayload(resultText);
   if (!jsonPayload) {
-    return null;
+    return { proposals: null, status: "no_json" };
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(jsonPayload) as unknown;
   } catch {
-    return null;
+    return { proposals: null, status: "invalid_json" };
   }
   if (!Array.isArray(parsed)) {
-    return null;
+    return { proposals: null, status: "not_array" };
   }
 
-  return parsed as Proposal[];
+  return { proposals: parsed as Proposal[], status: "ok" };
 }
 
 export async function runRefinementLoop(
@@ -288,132 +331,127 @@ export async function runRefinementLoop(
   const dimensions = baseAnalysis.source.dimensions;
   let currentProposals = initialProposals;
   let lastMismatchRatio = 1;
+  let lastCycle: RenderAndDiffResult | undefined;
 
   await emit(onEvent, {
     event: "refine:start",
     data: { iteration: 1, maxIterations },
   });
 
-  for (let iteration = 1; iteration <= maxIterations; iteration++) {
+  // Helper: render current proposals, diff, annotate, emit, return diff result
+  async function renderAndDiff(proposals: Proposal[]): Promise<RenderAndDiffResult> {
     checkAborted(signal);
-    const slideProposal = currentProposals.find((proposal) => proposal.scope === "slide");
-    if (!slideProposal) {
-      throw new Error("No slide-scope proposal found");
-    }
+    const slideProposal = proposals.find((proposal) => proposal.scope === "slide");
+    if (!slideProposal) throw new Error("No slide-scope proposal found");
 
     const layoutSlide = compileProposalPreview(
-      slideProposal,
-      currentProposals,
-      dimensions.w,
-      dimensions.h,
+      slideProposal, proposals, dimensions.w, dimensions.h,
     );
     const replicaFull = await renderSlideToImage(layoutSlide, {
-      width: dimensions.w,
-      height: dimensions.h,
+      width: dimensions.w, height: dimensions.h,
     });
     checkAborted(signal);
 
     const referenceCropped = await cropToContentBounds(image, contentBounds);
     const replicaCropped = await cropToContentBounds(replicaFull, contentBounds);
-    const referenceMediaType = contentBounds ? "image/png" : imageMediaType;
     const diff = await compareImages(referenceCropped, replicaCropped);
-    lastMismatchRatio = diff.mismatchRatio;
 
     const annotated = await annotateDiffImage(diff.diffImage, diff.regions);
+    const displayDiff = await buildRefineDiffArtifactImage(
+      image,
+      annotated,
+      dimensions,
+      contentBounds,
+    );
     const artifactId = putRefineArtifact({
-      buffer: annotated,
-      contentType: "image/png",
-      createdAt: Date.now(),
+      buffer: displayDiff, contentType: "image/png", createdAt: Date.now(),
     });
     const diffArtifactUrl = `/api/extract/refine/artifacts/${artifactId}`;
 
+    return {
+      diff, referenceCropped, replicaCropped, annotated,
+      referenceMediaType: contentBounds ? "image/png" : imageMediaType,
+      diffArtifactUrl,
+    };
+  }
+
+  // Initial render-diff before any Claude call
+  const initial = await renderAndDiff(currentProposals);
+  lastCycle = initial;
+  lastMismatchRatio = initial.diff.mismatchRatio;
+  await emitDiffEvent(onEvent, 0, initial);
+  if (initial.diff.mismatchRatio < mismatchThreshold) {
     await emit(onEvent, {
-      event: "refine:diff",
-      data: {
-        iteration,
-        mismatchRatio: diff.mismatchRatio,
-        diffArtifactUrl,
-        regions: diff.regions,
-      },
+      event: "refine:done",
+      data: { finalIteration: 0, mismatchRatio: initial.diff.mismatchRatio, converged: true, proposals: currentProposals },
     });
+    return { finalIteration: 0, mismatchRatio: initial.diff.mismatchRatio, converged: true, proposals: currentProposals };
+  }
 
-    if (diff.mismatchRatio < mismatchThreshold) {
-      await emit(onEvent, {
-        event: "refine:done",
-        data: {
-          finalIteration: iteration,
-          mismatchRatio: diff.mismatchRatio,
-          converged: true,
-          proposals: currentProposals,
-        },
-      });
-      return {
-        finalIteration: iteration,
-        mismatchRatio: diff.mismatchRatio,
-        converged: true,
-        proposals: currentProposals,
-      };
-    }
-
-    if (iteration === maxIterations) {
-      await emit(onEvent, {
-        event: "refine:done",
-        data: {
-          finalIteration: iteration,
-          mismatchRatio: diff.mismatchRatio,
-          converged: false,
-          proposals: currentProposals,
-        },
-      });
-      return {
-        finalIteration: iteration,
-        mismatchRatio: diff.mismatchRatio,
-        converged: false,
-        proposals: currentProposals,
-      };
-    }
-
+  // Each iteration: Claude call → accept parsed patch → render-diff
+  for (let iteration = 1; iteration <= maxIterations; iteration++) {
     checkAborted(signal);
-    const patchedProposals = await callClaudeRefine({
-      // Keep all three vision inputs in the same cropped coordinate space so
-      // the model can reason directly from the scored artifact, not from a
-      // larger screenshot that includes pixels excluded from diffing.
-      referenceImage: referenceCropped,
-      referenceMediaType,
-      replicaImage: replicaCropped,
-      annotatedDiffImage: annotated,
-      mismatchRatio: diff.mismatchRatio,
-      regions: diff.regions,
+    const prevDiff = lastCycle ?? initial;
+
+    const refineResult = await callClaudeRefine({
+      referenceImage: prevDiff.referenceCropped,
+      referenceMediaType: prevDiff.referenceMediaType,
+      replicaImage: prevDiff.replicaCropped,
+      annotatedDiffImage: prevDiff.annotated,
+      mismatchRatio: prevDiff.diff.mismatchRatio,
+      regions: prevDiff.diff.regions,
+      fullImageSize: dimensions,
+      croppedImageSize: { w: prevDiff.diff.width, h: prevDiff.diff.height },
       contentBounds,
       proposals: currentProposals,
       model,
       effort,
       signal,
       onEvent: async (event) => {
-        await emit(onEvent, {
-          event: event.event,
-          data: { iteration, ...event.data },
-        });
+        await emit(onEvent, { event: event.event, data: { iteration, ...event.data } });
       },
     });
 
-    if (patchedProposals) {
-      currentProposals = patchedProposals;
+    if (refineResult.status === "ok" && refineResult.proposals) {
+      currentProposals = refineResult.proposals;
     }
+
+    const candidateCycle = await renderAndDiff(currentProposals);
+    lastCycle = candidateCycle;
+    lastMismatchRatio = candidateCycle.diff.mismatchRatio;
+    await emitDiffEvent(onEvent, iteration, candidateCycle);
+
     await emit(onEvent, {
       event: "refine:patch",
       data: { iteration, proposals: currentProposals },
     });
     await emit(onEvent, {
       event: "refine:complete",
-      data: { iteration, mismatchRatio: diff.mismatchRatio },
+      data: { iteration, mismatchRatio: candidateCycle.diff.mismatchRatio },
     });
+
+    if (candidateCycle.diff.mismatchRatio < mismatchThreshold) {
+      await emit(onEvent, {
+        event: "refine:done",
+        data: {
+          finalIteration: iteration,
+          mismatchRatio: candidateCycle.diff.mismatchRatio,
+          converged: true,
+          proposals: currentProposals,
+        },
+      });
+      return {
+        finalIteration: iteration,
+        mismatchRatio: candidateCycle.diff.mismatchRatio,
+        converged: true,
+        proposals: currentProposals,
+      };
+    }
   }
 
-  return {
-    finalIteration: maxIterations,
-    mismatchRatio: lastMismatchRatio,
-    converged: false,
-    proposals: currentProposals,
-  };
+  await emit(onEvent, {
+    event: "refine:done",
+    data: { finalIteration: maxIterations, mismatchRatio: lastMismatchRatio, converged: false, proposals: currentProposals },
+  });
+  return { finalIteration: maxIterations, mismatchRatio: lastMismatchRatio, converged: false, proposals: currentProposals };
 }

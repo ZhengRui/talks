@@ -4,6 +4,7 @@ import type { Proposal } from "@/components/extract/types";
 const {
   mockQuery,
   mockCompileProposalPreview,
+  mockBuildRefineDiffArtifactImage,
   mockAnnotateDiffImage,
   mockCompareImages,
   mockCropToContentBounds,
@@ -12,6 +13,7 @@ const {
 } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
   mockCompileProposalPreview: vi.fn(() => ({ width: 1920, height: 1080 })),
+  mockBuildRefineDiffArtifactImage: vi.fn(async (_reference: Buffer, buffer: Buffer) => buffer),
   mockAnnotateDiffImage: vi.fn(async (buffer: Buffer) => buffer),
   mockCompareImages: vi.fn(async () => ({
     mismatchRatio: 0.2,
@@ -33,6 +35,10 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
 
 vi.mock("@/lib/extract/compile-preview", () => ({
   compileProposalPreview: mockCompileProposalPreview,
+}));
+
+vi.mock("@/lib/extract/refine-display", () => ({
+  buildRefineDiffArtifactImage: mockBuildRefineDiffArtifactImage,
 }));
 
 vi.mock("@/lib/render/annotate", () => ({
@@ -67,6 +73,15 @@ function makeProposals(): Proposal[] {
       params: {},
       style: {},
       body: "children: []",
+    },
+  ];
+}
+
+function makePatchedProposals(): Proposal[] {
+  return [
+    {
+      ...makeProposals()[0],
+      body: "children:\n  - kind: text\n    text: changed",
     },
   ];
 }
@@ -110,9 +125,154 @@ describe("runRefinementLoop", () => {
     expect(result.converged).toBe(false);
     expect(result.finalIteration).toBe(2);
     expect(result.proposals).toEqual(proposals);
-    expect(mockCompareImages).toHaveBeenCalledTimes(2);
+    // Initial diff plus one post-patch render per iteration.
+    expect(mockCompareImages).toHaveBeenCalledTimes(3);
+    expect(mockQuery).toHaveBeenCalledTimes(2);
     expect(
       events.find((event) => event.event === "refine:patch")?.data.proposals,
     ).toEqual(proposals);
+    expect(
+      events.find((event) => event.event === "refine:complete")?.data,
+    ).toMatchObject({
+      iteration: 1,
+      mismatchRatio: 0.2,
+    });
+  });
+
+  it("keeps a patch even when it increases mismatch", async () => {
+    const proposals = makeProposals();
+    const patchedProposals = makePatchedProposals();
+    const events: Array<{ event: string; data: Record<string, unknown> }> = [];
+
+    mockQuery.mockImplementation(async function* () {
+      yield {
+        type: "result",
+        result: `\`\`\`json
+${JSON.stringify(patchedProposals, null, 2)}
+\`\`\``,
+      };
+    });
+
+    mockCompareImages
+      .mockResolvedValueOnce({
+        mismatchRatio: 0.2,
+        mismatchPixels: 20,
+        totalPixels: 100,
+        diffImage: Buffer.from("diff-initial"),
+        regions: [],
+        width: 100,
+        height: 100,
+      })
+      .mockResolvedValueOnce({
+        mismatchRatio: 0.3,
+        mismatchPixels: 30,
+        totalPixels: 100,
+        diffImage: Buffer.from("diff-regressed"),
+        regions: [],
+        width: 100,
+        height: 100,
+      });
+
+    const result = await runRefinementLoop({
+      image: Buffer.from("reference"),
+      imageMediaType: "image/png",
+      proposals,
+      baseAnalysis: {
+        source: {
+          image: "reference.png",
+          dimensions: { w: 1920, h: 1080 },
+          contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
+        },
+        proposals,
+      },
+      maxIterations: 1,
+      mismatchThreshold: 0.05,
+      model: "claude-opus-4-6",
+      effort: "medium",
+      onEvent: (event) => {
+        events.push(event);
+      },
+    });
+
+    expect(result.converged).toBe(false);
+    expect(result.finalIteration).toBe(1);
+    expect(result.mismatchRatio).toBe(0.3);
+    expect(result.proposals).toEqual(patchedProposals);
+    expect(
+      events.find((event) => event.event === "refine:patch")?.data,
+    ).toMatchObject({
+      iteration: 1,
+      proposals: patchedProposals,
+    });
+    expect(
+      events.find((event) => event.event === "refine:complete")?.data,
+    ).toMatchObject({
+      iteration: 1,
+      mismatchRatio: 0.3,
+    });
+  });
+
+  it("keeps a patch when the mismatch stays flat", async () => {
+    const proposals = makeProposals();
+    const patchedProposals = makePatchedProposals();
+    const events: Array<{ event: string; data: Record<string, unknown> }> = [];
+
+    mockQuery.mockImplementation(async function* () {
+      yield {
+        type: "result",
+        result: `\`\`\`json
+${JSON.stringify(patchedProposals, null, 2)}
+\`\`\``,
+      };
+    });
+
+    mockCompareImages
+      .mockResolvedValueOnce({
+        mismatchRatio: 0.2,
+        mismatchPixels: 20,
+        totalPixels: 100,
+        diffImage: Buffer.from("diff-initial"),
+        regions: [],
+        width: 100,
+        height: 100,
+      })
+      .mockResolvedValueOnce({
+        mismatchRatio: 0.2,
+        mismatchPixels: 20,
+        totalPixels: 100,
+        diffImage: Buffer.from("diff-flat"),
+        regions: [],
+        width: 100,
+        height: 100,
+      });
+
+    const result = await runRefinementLoop({
+      image: Buffer.from("reference"),
+      imageMediaType: "image/png",
+      proposals,
+      baseAnalysis: {
+        source: {
+          image: "reference.png",
+          dimensions: { w: 1920, h: 1080 },
+          contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
+        },
+        proposals,
+      },
+      maxIterations: 1,
+      mismatchThreshold: 0.05,
+      model: "claude-opus-4-6",
+      effort: "medium",
+      onEvent: (event) => {
+        events.push(event);
+      },
+    });
+
+    expect(result.proposals).toEqual(patchedProposals);
+    expect(
+      events.find((event) => event.event === "refine:complete")?.data,
+    ).toMatchObject({
+      iteration: 1,
+      mismatchRatio: 0.2,
+    });
   });
 });
