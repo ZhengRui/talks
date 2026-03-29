@@ -4,16 +4,13 @@ import type { Proposal } from "@/components/extract/types";
 const {
   mockQuery,
   mockCompileProposalPreview,
-  mockBuildRefineDiffArtifactImage,
   mockAnnotateDiffImage,
   mockCompareImages,
-  mockCropToContentBounds,
   mockPutRefineArtifact,
   mockRenderSlideToImage,
 } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
   mockCompileProposalPreview: vi.fn(() => ({ width: 1920, height: 1080 })),
-  mockBuildRefineDiffArtifactImage: vi.fn(async (_reference: Buffer, buffer: Buffer) => buffer),
   mockAnnotateDiffImage: vi.fn(async (buffer: Buffer) => buffer),
   mockCompareImages: vi.fn(async () => ({
     mismatchRatio: 0.2,
@@ -24,7 +21,6 @@ const {
     width: 100,
     height: 100,
   })),
-  mockCropToContentBounds: vi.fn(async (buffer: Buffer) => buffer),
   mockPutRefineArtifact: vi.fn(() => "artifact-1"),
   mockRenderSlideToImage: vi.fn(async () => Buffer.from("replica")),
 }));
@@ -37,20 +33,12 @@ vi.mock("@/lib/extract/compile-preview", () => ({
   compileProposalPreview: mockCompileProposalPreview,
 }));
 
-vi.mock("@/lib/extract/refine-display", () => ({
-  buildRefineDiffArtifactImage: mockBuildRefineDiffArtifactImage,
-}));
-
 vi.mock("@/lib/render/annotate", () => ({
   annotateDiffImage: mockAnnotateDiffImage,
 }));
 
 vi.mock("@/lib/render/compare", () => ({
   compareImages: mockCompareImages,
-}));
-
-vi.mock("@/lib/render/crop", () => ({
-  cropToContentBounds: mockCropToContentBounds,
 }));
 
 vi.mock("@/lib/extract/refine-artifacts", () => ({
@@ -127,6 +115,12 @@ describe("runRefinementLoop", () => {
     expect(result.proposals).toEqual(proposals);
     // Initial diff plus one post-patch render per iteration.
     expect(mockCompareImages).toHaveBeenCalledTimes(3);
+    expect(mockCompareImages).toHaveBeenNthCalledWith(
+      1,
+      Buffer.from("reference"),
+      Buffer.from("replica"),
+      { maskBounds: { x: 0, y: 0, w: 1920, h: 1080 } },
+    );
     expect(mockQuery).toHaveBeenCalledTimes(2);
     expect(
       events.find((event) => event.event === "refine:patch")?.data.proposals,

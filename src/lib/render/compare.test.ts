@@ -116,6 +116,68 @@ describe("compareImages", () => {
 
     expect(result.mismatchRatio).toBe(0);
   });
+
+  it("ignores mismatch outside maskBounds while keeping full-size diff dimensions", async () => {
+    const red = await solidPng(100, 100, { r: 255, g: 0, b: 0 });
+    const blueSquare = await sharp({
+      create: {
+        width: 20,
+        height: 20,
+        channels: 4,
+        background: { r: 0, g: 0, b: 255, alpha: 1 },
+      },
+    })
+      .png()
+      .toBuffer();
+    const modified = await sharp(red)
+      .composite([{ input: blueSquare, left: 0, top: 0 }])
+      .png()
+      .toBuffer();
+
+    const result = await compareImages(red, modified, {
+      maskBounds: { x: 40, y: 40, w: 40, h: 40 },
+    });
+    const meta = await sharp(result.diffImage).metadata();
+
+    expect(result.mismatchRatio).toBe(0);
+    expect(result.mismatchPixels).toBe(0);
+    expect(result.totalPixels).toBe(1600);
+    expect(result.regions).toEqual([]);
+    expect(meta.width).toBe(100);
+    expect(meta.height).toBe(100);
+  });
+
+  it("scores only pixels inside maskBounds", async () => {
+    const red = await solidPng(100, 100, { r: 255, g: 0, b: 0 });
+    const blueSquare = await sharp({
+      create: {
+        width: 20,
+        height: 20,
+        channels: 4,
+        background: { r: 0, g: 0, b: 255, alpha: 1 },
+      },
+    })
+      .png()
+      .toBuffer();
+    const modified = await sharp(red)
+      .composite([
+        { input: blueSquare, left: 0, top: 0 },
+        { input: blueSquare, left: 50, top: 50 },
+      ])
+      .png()
+      .toBuffer();
+
+    const result = await compareImages(red, modified, {
+      maskBounds: { x: 40, y: 40, w: 40, h: 40 },
+    });
+
+    expect(result.mismatchPixels).toBe(400);
+    expect(result.totalPixels).toBe(1600);
+    expect(result.mismatchRatio).toBe(0.25);
+    expect(result.regions.length).toBeGreaterThan(0);
+    expect(result.regions[0].x).toBeGreaterThanOrEqual(32);
+    expect(result.regions[0].y).toBeGreaterThanOrEqual(32);
+  });
 });
 
 describe("compareImages mismatch regions", () => {

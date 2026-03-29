@@ -1,6 +1,5 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { compileProposalPreview } from "@/lib/extract/compile-preview";
-import { buildRefineDiffArtifactImage } from "@/lib/extract/refine-display";
 import {
   buildRefineSystemPrompt,
   buildRefineUserPrompt,
@@ -14,7 +13,7 @@ import type {
 } from "@/components/extract/types";
 import { annotateDiffImage } from "@/lib/render/annotate";
 import { compareImages, type DiffRegion } from "@/lib/render/compare";
-import { cropToContentBounds, type CropBounds } from "@/lib/render/crop";
+import type { CropBounds } from "@/lib/render/crop";
 import { renderSlideToImage } from "@/lib/render/screenshot";
 
 export type RefineEventType =
@@ -56,8 +55,8 @@ export interface RefineLoopResult {
 
 interface RenderAndDiffResult {
   diff: Awaited<ReturnType<typeof compareImages>>;
-  referenceCropped: Buffer;
-  replicaCropped: Buffer;
+  referenceImage: Buffer;
+  replicaImage: Buffer;
   annotated: Buffer;
   referenceMediaType: string;
   diffArtifactUrl: string;
@@ -70,8 +69,7 @@ interface ClaudeRefineOptions {
   annotatedDiffImage: Buffer;
   mismatchRatio: number;
   regions: DiffRegion[];
-  fullImageSize: { w: number; h: number };
-  croppedImageSize: { w: number; h: number };
+  imageSize: { w: number; h: number };
   contentBounds?: CropBounds | null;
   proposals: Proposal[];
   model: string;
@@ -215,8 +213,7 @@ async function callClaudeRefine(
     annotatedDiffImage,
     mismatchRatio,
     regions,
-    fullImageSize,
-    croppedImageSize,
+    imageSize,
     contentBounds,
     proposals,
     model,
@@ -228,8 +225,7 @@ async function callClaudeRefine(
     mismatchRatio,
     regions,
     proposalsJson: JSON.stringify(proposals, null, 2),
-    fullImageSize,
-    croppedImageSize,
+    imageSize,
     contentBounds,
   });
 
@@ -352,25 +348,22 @@ export async function runRefinementLoop(
     });
     checkAborted(signal);
 
-    const referenceCropped = await cropToContentBounds(image, contentBounds);
-    const replicaCropped = await cropToContentBounds(replicaFull, contentBounds);
-    const diff = await compareImages(referenceCropped, replicaCropped);
+    const diff = await compareImages(image, replicaFull, {
+      ...(contentBounds ? { maskBounds: contentBounds } : {}),
+    });
 
     const annotated = await annotateDiffImage(diff.diffImage, diff.regions);
-    const displayDiff = await buildRefineDiffArtifactImage(
-      image,
-      annotated,
-      dimensions,
-      contentBounds,
-    );
     const artifactId = putRefineArtifact({
-      buffer: displayDiff, contentType: "image/png", createdAt: Date.now(),
+      buffer: annotated, contentType: "image/png", createdAt: Date.now(),
     });
     const diffArtifactUrl = `/api/extract/refine/artifacts/${artifactId}`;
 
     return {
-      diff, referenceCropped, replicaCropped, annotated,
-      referenceMediaType: contentBounds ? "image/png" : imageMediaType,
+      diff,
+      referenceImage: image,
+      replicaImage: replicaFull,
+      annotated,
+      referenceMediaType: imageMediaType,
       diffArtifactUrl,
     };
   }
@@ -394,14 +387,13 @@ export async function runRefinementLoop(
     const prevDiff = lastCycle ?? initial;
 
     const refineResult = await callClaudeRefine({
-      referenceImage: prevDiff.referenceCropped,
+      referenceImage: prevDiff.referenceImage,
       referenceMediaType: prevDiff.referenceMediaType,
-      replicaImage: prevDiff.replicaCropped,
+      replicaImage: prevDiff.replicaImage,
       annotatedDiffImage: prevDiff.annotated,
       mismatchRatio: prevDiff.diff.mismatchRatio,
       regions: prevDiff.diff.regions,
-      fullImageSize: dimensions,
-      croppedImageSize: { w: prevDiff.diff.width, h: prevDiff.diff.height },
+      imageSize: { w: prevDiff.diff.width, h: prevDiff.diff.height },
       contentBounds,
       proposals: currentProposals,
       model,

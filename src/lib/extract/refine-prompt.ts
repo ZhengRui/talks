@@ -4,8 +4,7 @@ export interface RefinePromptContext {
   mismatchRatio: number;
   regions: DiffRegion[];
   proposalsJson: string;
-  fullImageSize: { w: number; h: number };
-  croppedImageSize: { w: number; h: number };
+  imageSize: { w: number; h: number };
   contentBounds?: { x: number; y: number; w: number; h: number } | null;
 }
 
@@ -24,8 +23,9 @@ Rules:
 - Use the annotated diff and region data to prioritize the largest mismatches.
 - All three attached images share the same pixel coordinate space.
 - The image origin is the top-left corner. x increases to the right. y increases downward.
-- Mismatch region coordinates refer to the attached images, not to the uncropped screenshot.
-- If the images were cropped to contentBounds, map a crop-space coordinate back to full-image space by adding contentBounds.x/contentBounds.y first. If the proposal body's sourceSize differs from the full-image size, then scale from full-image space into sourceSize proportionally.
+- Mismatch region coordinates refer directly to the attached full-size images.
+- Only the slide content inside contentBounds matters for scoring.
+- Ignore pixels outside contentBounds. Those surrounding pixels are presentation chrome, page margin, or non-slide UI and should not influence your edits.
 - Patch the proposals JSON surgically. Fix only the specific values causing visible mismatches.
 - Do NOT rewrite proposals from scratch. Do NOT restructure, rename, or reorganize.
 - Do NOT change template mechanics unless they directly cause a visible mismatch.
@@ -48,16 +48,15 @@ export function buildRefineUserPrompt(context: RefinePromptContext): string {
   const contentBounds = context.contentBounds
     ? `(${context.contentBounds.x}, ${context.contentBounds.y}, ${context.contentBounds.w}x${context.contentBounds.h})`
     : "full image";
-  const cropMode = context.contentBounds
-    ? "The attached images are already cropped to contentBounds, so mismatch-region coordinates are in cropped-image space."
-    : "The attached images use the full-image coordinate space.";
+  const boundsMode = context.contentBounds
+    ? "Only pixels inside contentBounds are scored. Treat everything outside that rectangle as non-slide chrome and ignore it."
+    : "The full image is slide content.";
 
   return `Overall mismatch: ${mismatchPct}%
 
-Full image size: ${context.fullImageSize.w}x${context.fullImageSize.h}
-Attached image size: ${context.croppedImageSize.w}x${context.croppedImageSize.h}
+Image size: ${context.imageSize.w}x${context.imageSize.h}
 Visible slide area (contentBounds): ${contentBounds}
-${cropMode}
+${boundsMode}
 
 Mismatch regions (largest first):
 ${regionList || "No significant mismatch regions detected."}

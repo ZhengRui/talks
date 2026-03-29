@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import type { CropBounds } from "./crop";
 
 export interface DiffRegion {
   x: number;
@@ -21,6 +22,7 @@ export interface DiffResult {
 export interface DiffOptions {
   threshold?: number;
   maxRegions?: number;
+  maskBounds?: CropBounds | null;
 }
 
 interface DecodedImage {
@@ -33,11 +35,23 @@ interface RankedRegion extends DiffRegion {
   mismatchPixels: number;
 }
 
+interface NormalizedMaskBounds {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  totalPixels: number;
+}
+
 const DEFAULT_THRESHOLD = 24;
 const DEFAULT_MAX_REGIONS = 5;
 const TILE_SIZE = 32;
 const TILE_DENSITY_THRESHOLD = 0.08;
 const TILE_PIXEL_THRESHOLD = 64;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
 
 async function decodeImage(buffer: Buffer): Promise<DecodedImage> {
   const { data, info } = await sharp(buffer)
@@ -65,12 +79,47 @@ function computePixelDelta(
   return Math.max(dr, dg, db, da);
 }
 
+function normalizeMaskBounds(
+  bounds: CropBounds | null | undefined,
+  width: number,
+  height: number,
+): NormalizedMaskBounds | null {
+  if (!bounds) return null;
+
+  const left = clamp(Math.round(bounds.x), 0, width);
+  const top = clamp(Math.round(bounds.y), 0, height);
+  const right = clamp(Math.round(bounds.x + bounds.w), left, width);
+  const bottom = clamp(Math.round(bounds.y + bounds.h), top, height);
+  const totalPixels = Math.max(0, right - left) * Math.max(0, bottom - top);
+
+  if (totalPixels <= 0) {
+    return null;
+  }
+
+  return { left, top, right, bottom, totalPixels };
+}
+
+function isPixelInMask(
+  x: number,
+  y: number,
+  maskBounds: NormalizedMaskBounds | null,
+): boolean {
+  return (
+    !maskBounds ||
+    (x >= maskBounds.left &&
+      x < maskBounds.right &&
+      y >= maskBounds.top &&
+      y < maskBounds.bottom)
+  );
+}
+
 function buildDiffData(
   original: Buffer,
   replica: Buffer,
   width: number,
   height: number,
   threshold: number,
+  maskBounds: NormalizedMaskBounds | null,
 ): { diffData: Buffer; mismatchPixels: number } {
   const totalPixels = width * height;
   const diffData = Buffer.alloc(totalPixels * 4);
@@ -78,6 +127,20 @@ function buildDiffData(
 
   for (let i = 0; i < totalPixels; i++) {
     const offset = i * 4;
+    const x = i % width;
+    const y = Math.floor(i / width);
+    const tone = Math.round(
+      (original[offset] + original[offset + 1] + original[offset + 2]) / 3,
+    );
+
+    if (!isPixelInMask(x, y, maskBounds)) {
+      diffData[offset] = tone;
+      diffData[offset + 1] = tone;
+      diffData[offset + 2] = tone;
+      diffData[offset + 3] = 40;
+      continue;
+    }
+
     const delta = computePixelDelta(original, replica, offset);
 
     if (delta > threshold) {
@@ -89,9 +152,6 @@ function buildDiffData(
       continue;
     }
 
-    const tone = Math.round(
-      (original[offset] + original[offset + 1] + original[offset + 2]) / 3,
-    );
     diffData[offset] = tone;
     diffData[offset + 1] = tone;
     diffData[offset + 2] = tone;
@@ -108,6 +168,7 @@ function extractMismatchRegions(
   height: number,
   threshold: number,
   maxRegions: number,
+  maskBounds: NormalizedMaskBounds | null,
 ): DiffRegion[] {
   const cols = Math.ceil(width / TILE_SIZE);
   const rows = Math.ceil(height / TILE_SIZE);
@@ -123,11 +184,15 @@ function extractMismatchRegions(
       const y0 = ty * TILE_SIZE;
       const x1 = Math.min(x0 + TILE_SIZE, width);
       const y1 = Math.min(y0 + TILE_SIZE, height);
-      const tilePixels = (x1 - x0) * (y1 - y0);
+      let tilePixels = 0;
       let mismatch = 0;
 
       for (let py = y0; py < y1; py++) {
         for (let px = x0; px < x1; px++) {
+          if (!isPixelInMask(px, py, maskBounds)) {
+            continue;
+          }
+          tilePixels += 1;
           const offset = (py * width + px) * 4;
           if (computePixelDelta(original, replica, offset) > threshold) {
             mismatch += 1;
@@ -232,7 +297,11 @@ export async function compareImages(
   replica: Buffer,
   options: DiffOptions = {},
 ): Promise<DiffResult> {
-  const { threshold = DEFAULT_THRESHOLD, maxRegions = DEFAULT_MAX_REGIONS } = options;
+  const {
+    threshold = DEFAULT_THRESHOLD,
+    maxRegions = DEFAULT_MAX_REGIONS,
+    maskBounds = null,
+  } = options;
 
   const [orig, repl] = await Promise.all([
     decodeImage(original),
@@ -246,13 +315,15 @@ export async function compareImages(
   }
 
   const { width, height } = orig;
-  const totalPixels = width * height;
+  const normalizedMaskBounds = normalizeMaskBounds(maskBounds, width, height);
+  const totalPixels = normalizedMaskBounds?.totalPixels ?? width * height;
   const { diffData, mismatchPixels } = buildDiffData(
     orig.data,
     repl.data,
     width,
     height,
     threshold,
+    normalizedMaskBounds,
   );
   const diffImage = await sharp(diffData, {
     raw: { width, height, channels: 4 },
@@ -266,6 +337,7 @@ export async function compareImages(
     height,
     threshold,
     maxRegions,
+    normalizedMaskBounds,
   );
 
   return {
