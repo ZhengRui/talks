@@ -103,7 +103,7 @@ export default function InspectorPanel({
       >
         {/* Resize handle — hover animates the vertical line */}
         <div
-          className="group absolute left-0 top-0 bottom-0 flex w-3 cursor-col-resize items-center justify-center rounded-l-xl"
+          className="group absolute left-0 top-0 bottom-0 z-30 flex w-3 cursor-col-resize items-center justify-center rounded-l-xl"
           onMouseDown={handleResizeStart}
         >
           <div className="h-8 w-1 rounded-full bg-gray-300 transition-all duration-300 group-hover:h-16 group-hover:bg-gray-500" />

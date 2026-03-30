@@ -7,9 +7,10 @@ vi.mock("react-markdown", () => ({
   default: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
 }));
 vi.mock("remark-gfm", () => ({ default: () => {} }));
-vi.mock("./LogModal", () => ({
+vi.mock("./log-utils", () => ({
   LogEntryRow: ({ entry }: { entry: { content: string } }) => <div>{entry.content}</div>,
   filterLogEntries: (log: Array<{ content?: string }>) => log,
+  LOG_ICONS: {},
 }));
 
 // ---------------------------------------------------------------------------
@@ -20,7 +21,6 @@ const mockSelectCard = vi.fn();
 const mockUpdateDescription = vi.fn();
 const mockSelectTemplate = vi.fn();
 const mockOpenYamlModal = vi.fn();
-const mockOpenLogModal = vi.fn();
 const mockResetAnalysis = vi.fn();
 const mockSetActiveStage = vi.fn();
 const mockSetModel = vi.fn();
@@ -41,7 +41,6 @@ vi.mock("./store", () => ({
       updateDescription: mockUpdateDescription,
       selectTemplate: mockSelectTemplate,
       openYamlModal: mockOpenYamlModal,
-      openLogModal: mockOpenLogModal,
       resetAnalysis: mockResetAnalysis,
       setActiveStage: mockSetActiveStage,
       model: "claude-opus-4-6",

@@ -1,15 +1,35 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback } from "react";
-import { FileText, RotateCcw, Sparkles } from "lucide-react";
+import { Check, Copy, FileText, RotateCcw, Sparkles } from "lucide-react";
 import { useExtractStore } from "./store";
 import type { SlideCard } from "./store";
 import { getStageAnalysis } from "./stage-utils";
 import TemplateTabs from "./TemplateTabs";
 import ParamsStyleView from "./ParamsStyleView";
 import InlineYaml from "./InlineYaml";
-import { LogEntryRow, filterLogEntries } from "./LogModal";
+import { LogEntryRow, filterLogEntries, LOG_ICONS } from "./log-utils";
 import type { Inventory } from "./types";
+import type { LogEntry } from "./store";
+
+function CopyLogButton({ log }: { log: LogEntry[] }) {
+  const [copied, setCopied] = useState(false);
+  const text = log.map((e) => `${LOG_ICONS[e.type] ?? ""} ${e.content}`).join("\n\n");
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+      className="sticky top-0 float-right z-10 flex h-6 w-6 items-center justify-center rounded bg-white/80 text-gray-400 shadow-sm backdrop-blur transition-colors hover:bg-white hover:text-gray-600"
+      title={copied ? "Copied!" : "Copy log"}
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
 
 interface TemplateInspectorProps {
   card: SlideCard;
@@ -384,9 +404,12 @@ export default function TemplateInspector({
       {viewTab === "log" ? (
         /* Log view — inline, filtered to active stage */
         <div
-          className="flex-1 overflow-y-auto min-h-0 px-3 py-3"
+          className="relative flex-1 overflow-y-auto min-h-0 px-3 py-3"
           style={{ scrollbarWidth: "none" }}
         >
+          {activeLogEntries.length > 0 && (
+            <CopyLogButton log={activeLogEntries} />
+          )}
           {activeLogEntries.length === 0 ? (
             <p className="text-sm text-gray-400">No log entries for this stage.</p>
           ) : (

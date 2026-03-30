@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef } from "react";
 import CanvasViewport from "./CanvasViewport";
 import CanvasToolbar from "./CanvasToolbar";
 import InspectorPanel from "./InspectorPanel";
-import LogModal from "./LogModal";
 import { useExtractStore, type LogEntry } from "./store";
 import type {
   AnalysisResultPayload,
@@ -603,7 +602,6 @@ export default function ExtractCanvas() {
         onRefine={handleRefine}
         onCancelRefine={handleCancelRefine}
       />
-      <LogModal />
     </div>
   );
 }

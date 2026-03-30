@@ -37,9 +37,6 @@ vi.mock("./YamlModal", () => ({
   default: () => <div data-testid="yaml-modal" />,
 }));
 
-vi.mock("./LogModal", () => ({
-  default: () => <div data-testid="log-modal" />,
-}));
 
 vi.mock("./store", async () => {
   const actual =
@@ -205,12 +202,6 @@ describe("ExtractCanvas", () => {
 
     expect(getByTestId("canvas-viewport")).toBeDefined();
     expect(getByTestId("inspector-panel")).toBeDefined();
-  });
-
-  it("renders log modal", () => {
-    const { getByTestId } = render(<ExtractCanvas />);
-
-    expect(getByTestId("log-modal")).toBeDefined();
   });
 
   it("has the correct root layout class", () => {

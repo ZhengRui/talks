@@ -727,18 +727,5 @@ describe("ExtractStore", () => {
       expect(store.getState().yamlModal.open).toBe(false);
     });
 
-    it("openLogModal sets modal state", () => {
-      store.getState().openLogModal("card-1");
-      expect(store.getState().logModal).toEqual({
-        open: true,
-        cardId: "card-1",
-      });
-    });
-
-    it("closeLogModal resets modal state", () => {
-      store.getState().openLogModal("card-1");
-      store.getState().closeLogModal();
-      expect(store.getState().logModal.open).toBe(false);
-    });
   });
 });

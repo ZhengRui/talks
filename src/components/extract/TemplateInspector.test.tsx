@@ -5,7 +5,6 @@ import type { SlideCard } from "./store";
 import type { AnalysisProvenance } from "./types";
 
 const mockSelectTemplate = vi.fn();
-const mockOpenLogModal = vi.fn();
 const mockResetAnalysis = vi.fn();
 const mockSetActiveStage = vi.fn();
 let mockAutoRefine = true;
@@ -28,7 +27,6 @@ vi.mock("./store", async () => {
     useExtractStore: (selector?: (state: unknown) => unknown) => {
       const state = {
         selectTemplate: mockSelectTemplate,
-        openLogModal: mockOpenLogModal,
         resetAnalysis: mockResetAnalysis,
         setActiveStage: mockSetActiveStage,
         autoRefine: mockAutoRefine,
@@ -52,9 +50,10 @@ vi.mock("./InlineYaml", () => ({
   default: () => <div data-testid="inline-yaml">yaml</div>,
 }));
 
-vi.mock("./LogModal", () => ({
+vi.mock("./log-utils", () => ({
   LogEntryRow: ({ entry }: { entry: { content: string } }) => <div>{entry.content}</div>,
   filterLogEntries: (log: Array<{ content?: string }>) => log,
+  LOG_ICONS: {},
 }));
 
 function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {

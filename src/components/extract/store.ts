@@ -66,7 +66,6 @@ export interface ExtractState {
   zoom: number;
   selectedCardId: string | null;
   yamlModal: { open: boolean; cardId: string; templateIndex: number };
-  logModal: { open: boolean; cardId: string };
   panelWidth: number; // 0 when collapsed
   layoutKey: string; // "row" | "1" | "2" | "3" | "custom-N"
   model: string;
@@ -114,8 +113,6 @@ export interface ExtractState {
   setPanelWidth: (width: number) => void;
   openYamlModal: (cardId: string, templateIndex: number) => void;
   closeYamlModal: () => void;
-  openLogModal: (cardId: string) => void;
-  closeLogModal: () => void;
   setModel: (model: string) => void;
   setEffort: (effort: string) => void;
   setRefineModel: (model: string) => void;
@@ -233,7 +230,6 @@ export function createExtractStore(): StoreApi<ExtractState> {
     zoom: 1,
     selectedCardId: null,
     yamlModal: { open: false, cardId: "", templateIndex: 0 },
-    logModal: { open: false, cardId: "" },
     panelWidth: 380,
     layoutKey: "3", // default: 3-column grid
     model: "claude-opus-4-6",
@@ -773,16 +769,6 @@ export function createExtractStore(): StoreApi<ExtractState> {
     closeYamlModal() {
       set((state) => ({
         yamlModal: { ...state.yamlModal, open: false },
-      }));
-    },
-
-    openLogModal(cardId: string) {
-      set({ logModal: { open: true, cardId } });
-    },
-
-    closeLogModal() {
-      set((state) => ({
-        logModal: { ...state.logModal, open: false },
       }));
     },
 

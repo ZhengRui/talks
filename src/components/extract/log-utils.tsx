@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Copy, Check, X } from "lucide-react";
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useExtractStore, type LogEntry } from "./store";
+import type { LogEntry } from "./store";
 import type { AnalysisStage } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -116,7 +115,7 @@ export function filterLogEntries(
 // Log entry rendering
 // ---------------------------------------------------------------------------
 
-const LOG_ICONS: Record<string, string> = {
+export const LOG_ICONS: Record<string, string> = {
   status: "\u25CF",
   thinking: "\uD83D\uDCAD",
   text: "\u2502",
@@ -164,148 +163,6 @@ export function LogEntryRow({ entry }: { entry: LogEntry }) {
         {entry.type === "error" && (
           <span className="text-red-600">{entry.content}</span>
         )}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Copy button
-// ---------------------------------------------------------------------------
-
-function CopyLogButton({ log }: { log: LogEntry[] }) {
-  const [copied, setCopied] = useState(false);
-  const text = log.map((e) => `${LOG_ICONS[e.type] ?? ""} ${e.content}`).join("\n\n");
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      }}
-      className="flex h-6 w-6 items-center justify-center rounded text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-      title={copied ? "Copied!" : "Copy log"}
-    >
-      {copied ? (
-        <Check className="h-3.5 w-3.5 text-emerald-500" />
-      ) : (
-        <Copy className="h-3.5 w-3.5" />
-      )}
-    </button>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// LogModal
-// ---------------------------------------------------------------------------
-
-export default function LogModal() {
-  const { open, cardId } = useExtractStore((s) => s.logModal);
-  const cards = useExtractStore((s) => s.cards);
-  const closeLogModal = useExtractStore((s) => s.closeLogModal);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [logStage, setLogStage] = useState<AnalysisStage | "all">("all");
-
-  const card = open && cardId ? cards.get(cardId) : undefined;
-  const isLiveAnalysis =
-    card?.status === "analyzing" || card?.refineStatus === "running";
-  const hasRefineLogs = (card?.log ?? []).some((e) => e.stage === "refine");
-
-  // Sync stage filter before paint to avoid flash when switching stages then opening
-  useLayoutEffect(() => {
-    if (open && card) setLogStage(card.activeStage);
-  }, [open, cardId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const allLog = card?.log ?? [];
-  const log = isLiveAnalysis || logStage === "all"
-    ? allLog
-    : filterLogEntries(allLog, logStage);
-  const stageTabs: Array<AnalysisStage | "all"> = ["all", "extract"];
-  if (hasRefineLogs) stageTabs.push("refine");
-
-  const wasAtBottom = useRef(true);
-  useEffect(() => {
-    wasAtBottom.current = true;
-  }, [open]);
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    if (wasAtBottom.current) {
-      el.scrollTop = el.scrollHeight;
-    }
-  }, [log.length, log[log.length - 1]?.timestamp]);
-  const handleScroll = () => {
-    const el = scrollRef.current;
-    if (!el) return;
-    wasAtBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-  };
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeLogModal();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [open, closeLogModal]);
-
-  if (!open || !cardId) return null;
-
-  return (
-    <div
-      data-testid="log-modal-backdrop"
-      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center"
-      onClick={closeLogModal}
-    >
-      <div
-        className="w-[1100px] max-w-[90vw] max-h-[80vh] rounded-xl border border-gray-200 bg-white shadow-2xl flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
-          <h2 className="text-sm font-semibold text-gray-800 shrink-0">Analysis Log</h2>
-          <div className="flex flex-1 justify-center">
-            {!isLiveAnalysis && (
-              <div className="flex items-center gap-0.5 rounded-lg bg-gray-100 p-0.5">
-                {stageTabs.map((stage) => (
-                  <button
-                    key={stage}
-                    type="button"
-                    onClick={() => setLogStage(stage)}
-                    className={`w-[72px] rounded-md py-0.5 text-center text-[10px] font-medium capitalize transition-colors ${
-                      logStage === stage
-                        ? "bg-white text-gray-800 shadow-sm"
-                        : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    {stage}
-                  </button>
-                ))}
-              </div>
-            )}
-            {isLiveAnalysis && (
-              <span className="text-[10px] font-medium uppercase tracking-wider text-gray-400">live</span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {log.length > 0 && <CopyLogButton log={log} />}
-            <button
-              type="button"
-              onClick={closeLogModal}
-              className="flex h-6 w-6 items-center justify-center rounded text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
-        <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 min-h-0">
-          {log.length === 0 ? (
-            <p className="text-[13px] text-gray-400">No log entries yet.</p>
-          ) : (
-            log.map((entry, i) => <LogEntryRow key={i} entry={entry} />)
-          )}
-        </div>
       </div>
     </div>
   );
