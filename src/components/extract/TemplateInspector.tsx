@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback } from "react";
-import { AlertTriangle, FileText, RotateCcw } from "lucide-react";
+import { FileText, RotateCcw } from "lucide-react";
 import { useExtractStore } from "./store";
 import type { SlideCard } from "./store";
 import { getStageAnalysis } from "./stage-utils";
@@ -219,19 +219,14 @@ export default function TemplateInspector({
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const extractAnalysis = getStageAnalysis(card, "extract");
-  const critiqueAnalysis = getStageAnalysis(card, "critique");
+  const autoRefine = useExtractStore((s) => s.autoRefine);
   const activeAnalysis = getStageAnalysis(card, card.activeStage);
   const proposals = activeAnalysis?.proposals ?? [];
   const selectedIndex = proposals[card.selectedTemplateIndex[card.activeStage]]
     ? card.selectedTemplateIndex[card.activeStage]
     : 0;
   const selectedProposal = proposals[selectedIndex] ?? proposals[0] ?? null;
-  const critiqueFailed = card.usedCritique && !card.pass2 && card.status === "analyzed";
-  const hasRefineStage = card.autoRefine || card.refineStatus !== "idle" || card.refineAnalysis !== null;
-  const isCritiqueFailureView =
-    card.activeStage === "critique" && critiqueFailed;
-  const critiqueLogs = filterLogEntries(card.log, "critique");
+  const hasRefineStage = autoRefine || card.refineStatus !== "idle" || card.refineAnalysis !== null;
   const activeMeta =
     card.activeStage === "extract"
       ? {
@@ -239,17 +234,7 @@ export default function TemplateInspector({
           elapsed: card.pass1Elapsed,
           cost: card.pass1Cost,
         }
-      : {
-          pass: card.pass2,
-          elapsed: card.pass2Elapsed,
-          cost: card.pass2Cost,
-        };
-  const critiqueMatchesExtract =
-    card.activeStage === "critique" &&
-    critiqueAnalysis &&
-    extractAnalysis &&
-    JSON.stringify(critiqueAnalysis.proposals) ===
-      JSON.stringify(extractAnalysis.proposals);
+      : null;
   const refineSummary = card.refineResult
     ? `${card.refineIteration}/${card.refineMaxIterations} · ${Math.round(card.refineResult.mismatchRatio * 100)}%`
     : card.refineStatus === "running"
@@ -271,7 +256,6 @@ export default function TemplateInspector({
 
   // Build stage meta string for the active stage
   const stageMetaText = (() => {
-    if (isCritiqueFailureView) return null;
     if (card.activeStage === "refine") {
       return formatStageMeta([
         formatModel(refineModel),
@@ -280,7 +264,7 @@ export default function TemplateInspector({
         card.refineCost != null ? `$${card.refineCost.toFixed(2)}` : null,
       ]);
     }
-    if (activeMeta.pass) {
+    if (activeMeta?.pass) {
       return formatStageMeta([
         formatModel(activeMeta.pass.model),
         activeMeta.pass.effort,
@@ -306,24 +290,6 @@ export default function TemplateInspector({
         >
           Extract
         </button>
-        {card.usedCritique && (
-          <button
-            type="button"
-            onClick={() => setActiveStage(card.id, "critique")}
-            className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-              card.activeStage === "critique"
-                ? critiqueFailed
-                  ? "bg-amber-100 text-amber-800"
-                  : "bg-gray-900 text-white"
-                : critiqueFailed
-                  ? "border border-amber-200 bg-amber-50 text-amber-700 hover:text-amber-800"
-                  : "border border-gray-200 bg-white text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            {critiqueFailed && <AlertTriangle className="h-3.5 w-3.5" />}
-            Critique
-          </button>
-        )}
         {hasRefineStage && (
           <button
             type="button"
@@ -342,7 +308,7 @@ export default function TemplateInspector({
             ) : null}
           </button>
         )}
-        {!card.autoRefine && card.status === "analyzed" && card.refineStatus === "idle" && (
+        {!autoRefine && card.status === "analyzed" && card.refineStatus === "idle" && (
           <button
             type="button"
             onClick={() => onRefine(card.id)}
@@ -407,9 +373,7 @@ export default function TemplateInspector({
           </button>
         </div>
         <div className="flex-1" />
-        {isCritiqueFailureView ? (
-          <span className="truncate text-amber-700 text-[10px]">Critique failed</span>
-        ) : stageMetaText ? (
+        {stageMetaText ? (
           <span className="truncate text-[10px] text-gray-400">{stageMetaText}</span>
         ) : null}
       </div>
@@ -424,22 +388,6 @@ export default function TemplateInspector({
             <p className="text-sm text-gray-400">No log entries for this stage.</p>
           ) : (
             activeLogEntries.map((entry, index) => (
-              <LogEntryRow key={`${entry.timestamp}-${index}`} entry={entry} />
-            ))
-          )}
-        </div>
-      ) : isCritiqueFailureView ? (
-        <div
-          className="flex-1 overflow-y-auto min-h-0 px-3 py-3"
-          style={{ scrollbarWidth: "none" }}
-        >
-          <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Critique pass failed. Showing critique-stage logs only; extract results remain available on the Extract tab.
-          </div>
-          {critiqueLogs.length === 0 ? (
-            <p className="text-sm text-gray-400">No critique log entries.</p>
-          ) : (
-            critiqueLogs.map((entry, index) => (
               <LogEntryRow key={`${entry.timestamp}-${index}`} entry={entry} />
             ))
           )}
@@ -472,11 +420,6 @@ export default function TemplateInspector({
             className="flex-1 overflow-y-auto min-h-0"
             style={{ scrollbarWidth: "none" }}
           >
-            {critiqueMatchesExtract && (
-              <div className="border-b border-gray-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                No changes from extract pass.
-              </div>
-            )}
             {card.activeStage === "refine" && (card.refineStartMismatch != null || card.refineHistory.length > 0) && (
               <div className="border-b border-gray-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 font-mono tabular-nums">
                 {card.refineStartMismatch != null && (

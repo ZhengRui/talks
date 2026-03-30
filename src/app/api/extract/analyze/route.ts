@@ -2,9 +2,7 @@ import { NextRequest } from "next/server";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import {
   ANALYSIS_SYSTEM_PROMPT,
-  CRITIQUE_ADDENDUM,
   buildAnalysisPrompt,
-  buildCritiquePrompt,
 } from "@/lib/extract/prompts";
 import { normalizeAnalysisRegions } from "@/lib/extract/normalize-analysis";
 import type { AnalysisStage } from "@/components/extract/types";
@@ -74,9 +72,6 @@ export async function POST(request: NextRequest) {
   const slug = formData.get("slug") as string | null;
   const model = (formData.get("model") as string) || "claude-opus-4-6";
   const effort = (formData.get("effort") as string) || "low";
-  const critique = formData.get("critique") === "true";
-  const critiqueModel = (formData.get("critiqueModel") as string) || model;
-  const critiqueEffort = (formData.get("critiqueEffort") as string) || "low";
 
   if (!image) {
     return new Response(JSON.stringify({ error: "No image provided" }), {
@@ -116,12 +111,9 @@ export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
-      let currentStage: AnalysisStage = "extract";
+      const currentStage: AnalysisStage = "extract";
 
       function send(event: string, data: Record<string, unknown>, stage?: AnalysisStage | null) {
-        // stage: AnalysisStage tags the event to that stage.
-        // stage: null explicitly omits stage (transition events — only visible in "All").
-        // stage: undefined also omits (legacy/untagged).
         const payload = stage ? { ...data, stage } : data;
         controller.enqueue(
           encoder.encode(
@@ -281,10 +273,10 @@ export async function POST(request: NextRequest) {
         }
 
         send("status", {
-          message: critique ? "Starting analysis (pass 1)..." : "Starting analysis...",
+          message: "Starting analysis...",
         }, "extract");
         const pass1Result = await runPass(
-          "pass 1",
+          "extract",
           analysisPrompt,
           ANALYSIS_SYSTEM_PROMPT,
           "extract",
@@ -301,62 +293,19 @@ export async function POST(request: NextRequest) {
         }
 
         const pass1Parsed = JSON.parse(pass1Json) as Record<string, unknown>;
-        const pass1Normalized = normalizeAnalysisRegions(pass1Parsed, actualSize);
-        let finalParsed = pass1Parsed;
-        let critiqueSucceeded = false;
-        let pass2Elapsed = 0;
-        let pass2Cost: number | null = null;
+        const analysis = normalizeAnalysisRegions(pass1Parsed, actualSize);
 
-        if (critique) {
-          currentStage = "critique";
-          send("status", {
-            message: "Pass 1 complete. Starting critique (pass 2)...",
-          }, null);  // transition event — visible in "All" only, not in stage-filtered views
-
-          try {
-            const pass2Result = await runPass(
-              "pass 2",
-              buildCritiquePrompt(JSON.stringify(pass1Parsed, null, 2)),
-              `${ANALYSIS_SYSTEM_PROMPT}\n${CRITIQUE_ADDENDUM}`,
-              "critique",
-              critiqueModel,
-              critiqueEffort,
-            );
-            const pass2Text = pass2Result.text;
-            pass2Elapsed = pass2Result.elapsed;
-            pass2Cost = pass2Result.cost;
-            const pass2Json = extractJsonPayload(pass2Text);
-            if (!pass2Json) {
-              throw new Error("Failed to parse critique response");
-            }
-            finalParsed = JSON.parse(pass2Json) as Record<string, unknown>;
-            critiqueSucceeded = true;
-          } catch (error) {
-            send("status", {
-              message: `Critique failed, returning pass 1 result: ${error instanceof Error ? error.message : String(error)}`,
-            }, "critique");
-          }
-        }
-
-        const analysis = critiqueSucceeded
-          ? normalizeAnalysisRegions(finalParsed, actualSize)
-          : pass1Normalized;
         send("result", {
           ...analysis,
-          pass1Analysis: critique ? pass1Normalized : null,
           provenance: {
-            usedCritique: critique,
             pass1: {
               model,
               effort,
               elapsed: pass1Result.elapsed,
               cost: pass1Result.cost,
             },
-            pass2: critiqueSucceeded
-              ? { model: critiqueModel, effort: critiqueEffort, elapsed: pass2Elapsed, cost: pass2Cost }
-              : null,
           },
-        }, critique ? "critique" : "extract");
+        }, "extract");
         controller.close();
       } catch (error) {
         send("error", {

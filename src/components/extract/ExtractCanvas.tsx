@@ -390,7 +390,7 @@ export default function ExtractCanvas() {
       const timer = setInterval(() => tickElapsed(cardId), 1000);
       timersRef.current.set(cardId, timer);
 
-      const { model, effort, critique, critiqueModel, critiqueEffort } = useExtractStore.getState();
+      const { model, effort } = useExtractStore.getState();
       const normalizedImage = await downscaleImage(card.file);
       setNormalizedImage(cardId, normalizedImage);
       const formData = new FormData();
@@ -400,11 +400,6 @@ export default function ExtractCanvas() {
       }
       formData.append("model", model);
       formData.append("effort", effort);
-      if (critique) {
-        formData.append("critique", "true");
-        formData.append("critiqueModel", critiqueModel);
-        formData.append("critiqueEffort", critiqueEffort);
-      }
 
       try {
         const response = await fetch("/api/extract/analyze", {
@@ -425,7 +420,7 @@ export default function ExtractCanvas() {
         let analysisCompleted = false;
 
         const getStage = (value: unknown): AnalysisStage | undefined =>
-          value === "extract" || value === "critique" ? value : undefined;
+          value === "extract" || value === "refine" ? value : undefined;
 
         while (true) {
           const { done, value } = await reader.read();

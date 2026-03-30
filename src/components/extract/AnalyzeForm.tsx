@@ -109,9 +109,7 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
   const updateDescription = useExtractStore((s) => s.updateDescription);
   const model = useExtractStore((s) => s.model);
   const effort = useExtractStore((s) => s.effort);
-  const critique = useExtractStore((s) => s.critique);
-  const critiqueModel = useExtractStore((s) => s.critiqueModel);
-  const critiqueEffort = useExtractStore((s) => s.critiqueEffort);
+  const autoRefine = useExtractStore((s) => s.autoRefine);
   const setAutoRefine = useExtractStore((s) => s.setAutoRefine);
   const setRefineMaxIterations = useExtractStore((s) => s.setRefineMaxIterations);
   const setRefineMismatchThreshold = useExtractStore((s) => s.setRefineMismatchThreshold);
@@ -121,23 +119,12 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
   const setRefineEffort = useExtractStore((s) => s.setRefineEffort);
   const setModel = useExtractStore((s) => s.setModel);
   const setEffort = useExtractStore((s) => s.setEffort);
-  const setCritique = useExtractStore((s) => s.setCritique);
-  const setCritiqueModel = useExtractStore((s) => s.setCritiqueModel);
-  const setCritiqueEffort = useExtractStore((s) => s.setCritiqueEffort);
 
   const handleModelChange = (newModel: string) => {
     setModel(newModel);
     const opts = EFFORT_OPTIONS[newModel];
     if (opts && !opts.some((o) => o.value === effort)) {
       setEffort(opts[0].value);
-    }
-  };
-
-  const handleCritiqueModelChange = (newModel: string) => {
-    setCritiqueModel(newModel);
-    const opts = EFFORT_OPTIONS[newModel];
-    if (opts && !opts.some((o) => o.value === critiqueEffort)) {
-      setCritiqueEffort(opts[0].value);
     }
   };
 
@@ -169,26 +156,16 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
           onEffortChange={setEffort}
         />
         <PassRow
-          label="Critique"
-          toggled={critique}
-          onToggle={setCritique}
-          model={critiqueModel}
-          onModelChange={handleCritiqueModelChange}
-          effort={critiqueEffort}
-          onEffortChange={setCritiqueEffort}
-          disabled={!critique}
-        />
-        <PassRow
           label="Refine"
-          toggled={card.autoRefine}
-          onToggle={(v) => setAutoRefine(card.id, v)}
+          toggled={autoRefine}
+          onToggle={(v) => setAutoRefine(v)}
           model={refineModel}
           onModelChange={handleRefineModelChange}
           effort={refineEffort}
           onEffortChange={setRefineEffort}
-          disabled={!card.autoRefine}
+          disabled={!autoRefine}
         />
-        <div className={`flex items-center gap-2${!card.autoRefine ? " opacity-40 pointer-events-none" : ""}`}>
+        <div className={`flex items-center gap-2${!autoRefine ? " opacity-40 pointer-events-none" : ""}`}>
           <span className="shrink-0 w-[72px]" />
           <div className="flex flex-1 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400/30">
             <span className="text-gray-500 whitespace-nowrap">Iters:</span>
@@ -202,7 +179,7 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
                 const v = parseInt(e.target.value, 10);
                 if (Number.isFinite(v) && v >= 1 && v <= 30) setRefineMaxIterations(card.id, v);
               }}
-              disabled={!card.autoRefine}
+              disabled={!autoRefine}
               className="flex-1 min-w-0 bg-transparent text-xs text-gray-700 focus:outline-none"
             />
           </div>
@@ -218,7 +195,7 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
                 const v = parseInt(e.target.value, 10);
                 if (Number.isFinite(v) && v >= 1 && v <= 99) setRefineMismatchThreshold(card.id, v / 100);
               }}
-              disabled={!card.autoRefine}
+              disabled={!autoRefine}
               className="flex-1 min-w-0 bg-transparent text-xs text-gray-700 focus:outline-none"
             />
             <span className="text-gray-500">%</span>

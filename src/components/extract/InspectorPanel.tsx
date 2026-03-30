@@ -5,7 +5,6 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useExtractStore } from "./store";
 import ThumbnailStrip from "./ThumbnailStrip";
 import AnalyzeForm from "./AnalyzeForm";
-import AnalyzingSpinner from "./AnalyzingSpinner";
 import TemplateInspector from "./TemplateInspector";
 
 const MIN_WIDTH = 300;

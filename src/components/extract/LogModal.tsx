@@ -210,7 +210,6 @@ export default function LogModal() {
   const card = open && cardId ? cards.get(cardId) : undefined;
   const isLiveAnalysis =
     card?.status === "analyzing" || card?.refineStatus === "running";
-  const hasCritiqueLogs = (card?.log ?? []).some((e) => e.stage === "critique");
   const hasRefineLogs = (card?.log ?? []).some((e) => e.stage === "refine");
 
   // Sync stage filter before paint to avoid flash when switching stages then opening
@@ -223,7 +222,6 @@ export default function LogModal() {
     ? allLog
     : filterLogEntries(allLog, logStage);
   const stageTabs: Array<AnalysisStage | "all"> = ["all", "extract"];
-  if (hasCritiqueLogs) stageTabs.push("critique");
   if (hasRefineLogs) stageTabs.push("refine");
 
   const wasAtBottom = useRef(true);

@@ -33,17 +33,13 @@ export interface SlideCard {
   pass1Analysis: AnalysisResult | null;
   log: LogEntry[];
   elapsed: number;
-  usedCritique: boolean;
   pass1: StageAnalysisProvenance | null;
-  pass2: StageAnalysisProvenance | null;
   pass1Elapsed: number;
-  pass2Elapsed: number;
   pass1Cost: number | null;
-  pass2Cost: number | null;
   error: string | null;
   activeStage: AnalysisStage;
   selectedTemplateIndex: Record<AnalysisStage, number>;
-  viewMode: "original" | "extract" | "critique" | "iter" | "diff";
+  viewMode: "original" | "extract" | "iter" | "diff";
   refineAnalysis: AnalysisResult | null;
   refineStatus: "idle" | "running" | "done" | "error";
   refineIteration: number;
@@ -73,9 +69,7 @@ export interface ExtractState {
   layoutKey: string; // "row" | "1" | "2" | "3" | "custom-N"
   model: string;
   effort: string;
-  critique: boolean;
-  critiqueModel: string;
-  critiqueEffort: string;
+  autoRefine: boolean;
   refineModel: string;
   refineEffort: string;
   previewDebugTextBoxes: boolean;
@@ -92,10 +86,10 @@ export interface ExtractState {
   setNormalizedImage: (id: string, file: File | null) => void;
   setNaturalSize: (id: string, w: number, h: number) => void;
   resetAnalysis: (id: string) => void;
-  setViewMode: (id: string, mode: "original" | "extract" | "critique" | "iter" | "diff") => void;
+  setViewMode: (id: string, mode: "original" | "extract" | "iter" | "diff") => void;
   setActiveStage: (id: string, stage: AnalysisStage) => void;
   selectTemplate: (id: string, index: number) => void;
-  setAutoRefine: (id: string, enabled: boolean) => void;
+  setAutoRefine: (enabled: boolean) => void;
   setRefineMaxIterations: (id: string, max: number) => void;
   setRefineMismatchThreshold: (id: string, threshold: number) => void;
   startRefinement: (id: string) => void;
@@ -118,9 +112,6 @@ export interface ExtractState {
   closeLogModal: () => void;
   setModel: (model: string) => void;
   setEffort: (effort: string) => void;
-  setCritique: (critique: boolean) => void;
-  setCritiqueModel: (model: string) => void;
-  setCritiqueEffort: (effort: string) => void;
   setRefineModel: (model: string) => void;
   setRefineEffort: (effort: string) => void;
   setPreviewDebugTextBoxes: (enabled: boolean) => void;
@@ -183,7 +174,7 @@ function updateCard(
 const STREAMING_TYPES = new Set<LogEntry["type"]>(["text", "thinking"]);
 
 function createSelectedTemplateIndex(): Record<AnalysisStage, number> {
-  return { extract: 0, critique: 0, refine: 0 };
+  return { extract: 0, refine: 0 };
 }
 
 function sortAnalysisResult(analysis: AnalysisResult | null | undefined): AnalysisResult | null {
@@ -219,9 +210,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
     layoutKey: "3", // default: 3-column grid
     model: "claude-opus-4-6",
     effort: "medium",
-    critique: false,
-    critiqueModel: "claude-opus-4-6",
-    critiqueEffort: "low",
+    autoRefine: true,
     refineModel: "claude-opus-4-6",
     refineEffort: "medium",
     previewDebugTextBoxes: false,
@@ -251,13 +240,9 @@ export function createExtractStore(): StoreApi<ExtractState> {
         pass1Analysis: null,
         log: [],
         elapsed: 0,
-        usedCritique: false,
         pass1: null,
-        pass2: null,
         pass1Elapsed: 0,
-        pass2Elapsed: 0,
         pass1Cost: null,
-        pass2Cost: null,
         error: null,
         activeStage: "extract",
         selectedTemplateIndex: createSelectedTemplateIndex(),
@@ -273,7 +258,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
         refineElapsed: 0,
         refineCost: null,
         refineStartMismatch: null,
-        autoRefine: true,
+        autoRefine: get().autoRefine,
         normalizedImage: null,
         diffObjectUrl: null,
       };
@@ -319,7 +304,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
     },
 
     startAnalysis(id: string) {
-      const { model, effort, critique } = get();
+      const { model, effort, autoRefine } = get();
       set((state) => {
         const card = state.cards.get(id);
         revokeObjectUrl(card?.diffObjectUrl);
@@ -328,15 +313,12 @@ export function createExtractStore(): StoreApi<ExtractState> {
           log: [],
           error: null,
           elapsed: 0,
-          usedCritique: critique,
           pass1: { model, effort },
-          pass2: null,
           pass1Elapsed: 0,
-          pass2Elapsed: 0,
           pass1Cost: null,
-          pass2Cost: null,
           activeStage: "extract" as const,
           viewMode: "original" as const,
+          autoRefine,
           refineAnalysis: null,
           refineStatus: "idle" as const,
           refineIteration: 0,
@@ -378,23 +360,17 @@ export function createExtractStore(): StoreApi<ExtractState> {
 
     completeAnalysis(id: string, result: AnalysisResultPayload) {
       const provenance = result.provenance;
-      const { pass1Analysis: rawPass1Analysis = null, ...finalResult } = result;
-      const analysis = sortAnalysisResult(finalResult);
-      const pass1Analysis = sortAnalysisResult(rawPass1Analysis);
+      const analysis = sortAnalysisResult(result);
       set((state) => {
         const card = state.cards.get(id);
         revokeObjectUrl(card?.diffObjectUrl);
         return updateCard(state, id, () => ({
           status: "analyzed" as const,
           analysis,
-          pass1Analysis,
-          usedCritique: provenance?.usedCritique ?? false,
+          pass1Analysis: null,
           pass1: provenance?.pass1 ?? null,
-          pass2: provenance?.pass2 ?? null,
           pass1Elapsed: provenance?.pass1?.elapsed ?? 0,
-          pass2Elapsed: provenance?.pass2?.elapsed ?? 0,
           pass1Cost: provenance?.pass1?.cost ?? null,
-          pass2Cost: provenance?.pass2?.cost ?? null,
           activeStage: "extract" as const,
           selectedTemplateIndex: createSelectedTemplateIndex(),
           viewMode: "original" as const,
@@ -457,13 +433,9 @@ export function createExtractStore(): StoreApi<ExtractState> {
           pass1Analysis: null,
           log: [],
           elapsed: 0,
-          usedCritique: false,
           pass1: null,
-          pass2: null,
           pass1Elapsed: 0,
-          pass2Elapsed: 0,
           pass1Cost: null,
-          pass2Cost: null,
           error: null,
           activeStage: "extract" as const,
           selectedTemplateIndex: createSelectedTemplateIndex(),
@@ -482,7 +454,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
       });
     },
 
-    setViewMode(id: string, mode: "original" | "extract" | "critique" | "iter" | "diff") {
+    setViewMode(id: string, mode: "original" | "extract" | "iter" | "diff") {
       set((state) => updateCard(state, id, () => ({ viewMode: mode })));
     },
 
@@ -501,8 +473,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
       );
     },
 
-    setAutoRefine(id: string, enabled: boolean) {
-      set((state) => updateCard(state, id, () => ({ autoRefine: enabled })));
+    setAutoRefine(enabled: boolean) {
+      set({ autoRefine: enabled });
     },
 
     setRefineMaxIterations(id: string, max: number) {
@@ -717,18 +689,6 @@ export function createExtractStore(): StoreApi<ExtractState> {
 
     setEffort(effort: string) {
       set({ effort });
-    },
-
-    setCritique(critique: boolean) {
-      set({ critique });
-    },
-
-    setCritiqueModel(critiqueModel: string) {
-      set({ critiqueModel });
-    },
-
-    setCritiqueEffort(critiqueEffort: string) {
-      set({ critiqueEffort });
     },
 
     setRefineModel(refineModel: string) {

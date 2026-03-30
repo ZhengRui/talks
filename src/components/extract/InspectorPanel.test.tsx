@@ -25,9 +25,6 @@ const mockResetAnalysis = vi.fn();
 const mockSetActiveStage = vi.fn();
 const mockSetModel = vi.fn();
 const mockSetEffort = vi.fn();
-const mockSetCritique = vi.fn();
-const mockSetCritiqueModel = vi.fn();
-const mockSetCritiqueEffort = vi.fn();
 const mockSetAutoRefine = vi.fn();
 
 let mockCards = new Map<string, SlideCard>();
@@ -49,14 +46,9 @@ vi.mock("./store", () => ({
       setActiveStage: mockSetActiveStage,
       model: "claude-opus-4-6",
       effort: "low",
-      critique: false,
-      critiqueModel: "claude-opus-4-6",
-      critiqueEffort: "medium",
+      autoRefine: true,
       setModel: mockSetModel,
       setEffort: mockSetEffort,
-      setCritique: mockSetCritique,
-      setCritiqueModel: mockSetCritiqueModel,
-      setCritiqueEffort: mockSetCritiqueEffort,
       setAutoRefine: mockSetAutoRefine,
       setPanelWidth: vi.fn(),
     };
@@ -83,16 +75,12 @@ function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
     pass1Analysis: null,
     log: [],
     elapsed: 0,
-    usedCritique: false,
     pass1: null,
-    pass2: null,
     pass1Elapsed: 0,
-    pass2Elapsed: 0,
     pass1Cost: null,
-    pass2Cost: null,
     error: null,
     activeStage: "extract",
-    selectedTemplateIndex: { extract: 0, critique: 0, refine: 0 },
+    selectedTemplateIndex: { extract: 0, refine: 0 },
     viewMode: "original",
     refineAnalysis: null,
     refineStatus: "idle",

@@ -27,18 +27,13 @@ describe("ExtractStore", () => {
       expect(card!.pass1Analysis).toBeNull();
       expect(card!.log).toEqual([]);
       expect(card!.elapsed).toBe(0);
-      expect(card!.usedCritique).toBe(false);
       expect(card!.pass1).toBeNull();
-      expect(card!.pass2).toBeNull();
       expect(card!.pass1Elapsed).toBe(0);
-      expect(card!.pass2Elapsed).toBe(0);
       expect(card!.pass1Cost).toBeNull();
-      expect(card!.pass2Cost).toBeNull();
       expect(card!.error).toBeNull();
       expect(card!.activeStage).toBe("extract");
       expect(card!.selectedTemplateIndex).toEqual({
         extract: 0,
-        critique: 0,
         refine: 0,
       });
       expect(card!.viewMode).toBe("original");
@@ -86,6 +81,12 @@ describe("ExtractStore", () => {
     it("adds id to cardOrder", () => {
       const id = store.getState().addCard(makeFile());
       expect(store.getState().cardOrder).toContain(id);
+    });
+
+    it("captures global autoRefine setting", () => {
+      store.getState().setAutoRefine(false);
+      const id = store.getState().addCard(makeFile());
+      expect(store.getState().cards.get(id)!.autoRefine).toBe(false);
     });
   });
 
@@ -171,69 +172,43 @@ describe("ExtractStore", () => {
       expect(card.elapsed).toBe(0);
     });
 
-    it("startAnalysis captures pass1 provenance and critique toggle", () => {
+    it("startAnalysis captures pass1 provenance and autoRefine setting", () => {
       store.getState().setModel("claude-sonnet-4-6");
       store.getState().setEffort("max");
-      store.getState().setCritique(true);
+      store.getState().setAutoRefine(false);
 
       store.getState().startAnalysis(id);
 
       const card = store.getState().cards.get(id)!;
-      expect(card.usedCritique).toBe(true);
       expect(card.pass1).toEqual({
         model: "claude-sonnet-4-6",
         effort: "max",
       });
-      expect(card.pass2).toBeNull();
       expect(card.activeStage).toBe("extract");
       expect(card.viewMode).toBe("original");
+      expect(card.autoRefine).toBe(false);
     });
 
-    it("completeAnalysis stores pass1 and final stage data separately", () => {
+    it("completeAnalysis stores analysis and provenance", () => {
       store.getState().startAnalysis(id);
-      const pass1Analysis = {
-        source: {
-          image: "base64...",
-          dimensions: { w: 1920, h: 1080 },
-        },
-        proposals: [
-          {
-            scope: "slide" as const,
-            name: "extract-slide",
-            description: "extract",
-            region: { x: 0, y: 0, w: 1920, h: 1080 },
-            params: {},
-            style: {},
-            body: "children: []",
-          },
-        ],
-      };
       const result = {
         source: {
           image: "base64...",
           dimensions: { w: 1920, h: 1080 },
         },
-        pass1Analysis,
         provenance: {
-          usedCritique: true,
           pass1: {
             model: "claude-opus-4-6",
             effort: "low",
             elapsed: 5,
             cost: 0.12,
           },
-          pass2: {
-            model: "claude-opus-4-6",
-            effort: "low",
-            elapsed: 7,
-            cost: 0.34,
-          },
         },
         proposals: [
           {
             scope: "slide" as const,
-            name: "critique-slide",
-            description: "critique",
+            name: "extract-slide",
+            description: "extract",
             region: { x: 0, y: 0, w: 1920, h: 1080 },
             params: {},
             style: {},
@@ -249,27 +224,17 @@ describe("ExtractStore", () => {
         provenance: result.provenance,
         proposals: result.proposals,
       });
-      expect(card.pass1Analysis).toEqual(pass1Analysis);
-      expect(card.usedCritique).toBe(true);
+      expect(card.pass1Analysis).toBeNull();
       expect(card.pass1).toEqual({
         model: "claude-opus-4-6",
         effort: "low",
         elapsed: 5,
         cost: 0.12,
       });
-      expect(card.pass2).toEqual({
-        model: "claude-opus-4-6",
-        effort: "low",
-        elapsed: 7,
-        cost: 0.34,
-      });
       expect(card.pass1Elapsed).toBe(5);
-      expect(card.pass2Elapsed).toBe(7);
       expect(card.pass1Cost).toBe(0.12);
-      expect(card.pass2Cost).toBe(0.34);
       expect(card.selectedTemplateIndex).toEqual({
         extract: 0,
-        critique: 0,
         refine: 0,
       });
     });
@@ -282,30 +247,20 @@ describe("ExtractStore", () => {
       expect(card.error).toBe("API timeout");
     });
 
-    it("resetAnalysis clears critique provenance fields", () => {
-      store.getState().setCritique(true);
+    it("resetAnalysis clears provenance fields", () => {
       store.getState().startAnalysis(id);
       store.getState().completeAnalysis(id, {
         source: {
           image: "base64...",
           dimensions: { w: 1920, h: 1080 },
         },
-        pass1Analysis: {
-          source: {
-            image: "base64...",
-            dimensions: { w: 1920, h: 1080 },
-          },
-          proposals: [],
-        },
         provenance: {
-          usedCritique: true,
           pass1: {
             model: "claude-opus-4-6",
             effort: "low",
             elapsed: 3,
             cost: 0.1,
           },
-          pass2: null,
         },
         proposals: [],
       });
@@ -313,19 +268,14 @@ describe("ExtractStore", () => {
       store.getState().resetAnalysis(id);
 
       const card = store.getState().cards.get(id)!;
-      expect(card.usedCritique).toBe(false);
       expect(card.pass1).toBeNull();
-      expect(card.pass2).toBeNull();
       expect(card.pass1Analysis).toBeNull();
       expect(card.analysis).toBeNull();
       expect(card.pass1Elapsed).toBe(0);
-      expect(card.pass2Elapsed).toBe(0);
       expect(card.pass1Cost).toBeNull();
-      expect(card.pass2Cost).toBeNull();
       expect(card.activeStage).toBe("extract");
       expect(card.selectedTemplateIndex).toEqual({
         extract: 0,
-        critique: 0,
         refine: 0,
       });
       expect(card.status).toBe("idle");
@@ -401,7 +351,7 @@ describe("ExtractStore", () => {
         type: "thinking",
         content: "hmm",
         timestamp: 101,
-        stage: "critique",
+        stage: "extract",
       });
       const card = store.getState().cards.get(id)!;
       expect(card.log).toHaveLength(2);
@@ -433,9 +383,9 @@ describe("ExtractStore", () => {
       });
       store.getState().appendLog(id, {
         type: "text",
-        content: "Critique",
+        content: "Refine",
         timestamp: 101,
-        stage: "critique",
+        stage: "refine",
       });
       const card = store.getState().cards.get(id)!;
       expect(card.log).toHaveLength(2);
@@ -450,15 +400,6 @@ describe("ExtractStore", () => {
       store.getState().selectTemplate(id, 2);
       expect(store.getState().cards.get(id)!.selectedTemplateIndex).toEqual({
         extract: 2,
-        critique: 0,
-        refine: 0,
-      });
-
-      store.getState().setActiveStage(id, "critique");
-      store.getState().selectTemplate(id, 1);
-      expect(store.getState().cards.get(id)!.selectedTemplateIndex).toEqual({
-        extract: 2,
-        critique: 1,
         refine: 0,
       });
 
@@ -466,7 +407,6 @@ describe("ExtractStore", () => {
       store.getState().selectTemplate(id, 3);
       expect(store.getState().cards.get(id)!.selectedTemplateIndex).toEqual({
         extract: 2,
-        critique: 1,
         refine: 3,
       });
     });
@@ -488,14 +428,36 @@ describe("ExtractStore", () => {
 
     it("startAnalysis resets activeStage to extract", () => {
       const id = store.getState().addCard(makeFile());
-      store.getState().setActiveStage(id, "critique");
-      store.getState().setViewMode(id, "critique");
+      store.getState().setActiveStage(id, "refine");
 
       store.getState().startAnalysis(id);
 
       const card = store.getState().cards.get(id)!;
       expect(card.activeStage).toBe("extract");
       expect(card.viewMode).toBe("original");
+    });
+  });
+
+  describe("autoRefine global setting", () => {
+    it("defaults to true and can be toggled", () => {
+      expect(store.getState().autoRefine).toBe(true);
+
+      store.getState().setAutoRefine(false);
+      expect(store.getState().autoRefine).toBe(false);
+
+      store.getState().setAutoRefine(true);
+      expect(store.getState().autoRefine).toBe(true);
+    });
+
+    it("is captured on card at startAnalysis time", () => {
+      store.getState().setAutoRefine(false);
+      const id = store.getState().addCard(makeFile());
+      store.getState().startAnalysis(id);
+      expect(store.getState().cards.get(id)!.autoRefine).toBe(false);
+
+      // Change global after start — card retains old value
+      store.getState().setAutoRefine(true);
+      expect(store.getState().cards.get(id)!.autoRefine).toBe(false);
     });
   });
 
@@ -511,9 +473,7 @@ describe("ExtractStore", () => {
           contentBounds: { x: 10, y: 20, w: 1800, h: 1000 },
         },
         provenance: {
-          usedCritique: false,
           pass1: { model: "claude-opus-4-6", effort: "low" },
-          pass2: null,
         },
         proposals: [
           {

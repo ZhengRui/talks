@@ -37,16 +37,12 @@ function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
     pass1Analysis: null,
     log: [],
     elapsed: 0,
-    usedCritique: false,
     pass1: null,
-    pass2: null,
     pass1Elapsed: 0,
-    pass2Elapsed: 0,
     pass1Cost: null,
-    pass2Cost: null,
     error: null,
     activeStage: "extract",
-    selectedTemplateIndex: { extract: 0, critique: 0, refine: 0 },
+    selectedTemplateIndex: { extract: 0, refine: 0 },
     viewMode: "original",
     refineAnalysis: null,
     refineStatus: "idle",
@@ -91,39 +87,32 @@ describe("LogModal", () => {
       status: "analyzing",
       activeStage: "extract",
       log: [
-        makeEntry("Done (pass 1 / success)", "extract"),
-        makeEntry("Pass 1 complete. Starting critique (pass 2)...", "critique"),
+        makeEntry("Done (extract / success)", "extract"),
       ],
     });
     mockStoreState.cards = new Map([["card-1", card]]);
 
     render(<LogModal />);
 
-    expect(screen.getByText("Done (pass 1 / success)")).toBeTruthy();
-    expect(screen.getByText("Pass 1 complete. Starting critique (pass 2)...")).toBeTruthy();
+    expect(screen.getByText("Done (extract / success)")).toBeTruthy();
     expect(screen.getByText("live")).toBeTruthy();
   });
 
   it("opens to the card's active stage with stage tabs", () => {
     const card = makeCard({
       status: "analyzed",
-      activeStage: "critique",
+      activeStage: "extract",
       log: [
-        makeEntry("Done (pass 1 / success)", "extract"),
-        makeEntry("Done (pass 2 / success)", "critique"),
+        makeEntry("Done (extract / success)", "extract"),
       ],
     });
     mockStoreState.cards = new Map([["card-1", card]]);
 
     render(<LogModal />);
 
-    // Opens to critique (the card's active stage) — only critique logs visible
-    expect(screen.queryByText("Done (pass 1 / success)")).toBeNull();
-    expect(screen.getByText("Done (pass 2 / success)")).toBeTruthy();
-    // Stage tabs are present
+    expect(screen.getByText("Done (extract / success)")).toBeTruthy();
     expect(screen.getByText("all")).toBeTruthy();
     expect(screen.getByText("extract")).toBeTruthy();
-    expect(screen.getByText("critique")).toBeTruthy();
   });
 
   it("shows refine stage tab when refine logs exist", () => {
@@ -131,7 +120,7 @@ describe("LogModal", () => {
       status: "analyzed",
       activeStage: "refine",
       log: [
-        makeEntry("Done (pass 1 / success)", "extract"),
+        makeEntry("Done (extract / success)", "extract"),
         makeEntry("Iter 1 diff — 23% mismatch", "refine"),
       ],
       refineStatus: "done",

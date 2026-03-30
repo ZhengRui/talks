@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ANALYSIS_SYSTEM_PROMPT,
-  CRITIQUE_ADDENDUM,
   buildAnalysisPrompt,
-  buildCritiquePrompt,
 } from "./prompts";
 
 describe("ANALYSIS_SYSTEM_PROMPT", () => {
@@ -70,29 +68,5 @@ describe("buildAnalysisPrompt", () => {
     expect(prompt).toContain("inventory-first reusable scene templates");
     expect(prompt).toContain("Additional context: Focus on background atmosphere");
     expect(prompt).toContain("Target slug: my-deck");
-  });
-});
-
-describe("CRITIQUE_ADDENDUM", () => {
-  it("enforces surgical patch mode", () => {
-    expect(CRITIQUE_ADDENDUM).toContain("SURGICAL PATCH ONLY");
-    expect(CRITIQUE_ADDENDUM).toContain("Do NOT re-describe the slide");
-    expect(CRITIQUE_ADDENDUM).toContain("Do NOT rewrite the proposal from scratch");
-    expect(CRITIQUE_ADDENDUM).toContain("Patch only the specific values that are wrong");
-  });
-
-  it("contains the critique checklist", () => {
-    expect(CRITIQUE_ADDENDUM).toContain("signatureVisuals");
-    expect(CRITIQUE_ADDENDUM).toContain("uncertainty");
-  });
-});
-
-describe("buildCritiquePrompt", () => {
-  it("includes the first-pass JSON payload", () => {
-    const payload = JSON.stringify({ source: { image: "slide.png" } }, null, 2);
-    const prompt = buildCritiquePrompt(payload);
-    expect(prompt).toContain("First-pass analysis:");
-    expect(prompt).toContain("```json");
-    expect(prompt).toContain('"image": "slide.png"');
   });
 });

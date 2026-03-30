@@ -28,6 +28,7 @@ vi.mock("./store", async () => {
         openLogModal: mockOpenLogModal,
         resetAnalysis: mockResetAnalysis,
         setActiveStage: mockSetActiveStage,
+        autoRefine: true,
       };
       return selector ? selector(state) : state;
     },
@@ -82,16 +83,12 @@ function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
     pass1Analysis: null,
     log: [],
     elapsed: 0,
-    usedCritique: false,
     pass1: defaultPass,
-    pass2: null,
     pass1Elapsed: 12,
-    pass2Elapsed: 0,
     pass1Cost: 0.82,
-    pass2Cost: null,
     error: null,
     activeStage: "extract",
-    selectedTemplateIndex: { extract: 0, critique: 0, refine: 0 },
+    selectedTemplateIndex: { extract: 0, refine: 0 },
     viewMode: "original",
     refineAnalysis: null,
     refineStatus: "idle",
@@ -242,13 +239,8 @@ describe("TemplateInspector", () => {
     expect(screen.getByText("Show")).toBeTruthy();
   });
 
-  it("shows stage tabs and extract-stage meta", () => {
-    const card = makeCard({
-      usedCritique: true,
-      pass2: { model: "claude-opus-4-6", effort: "max" },
-      pass2Elapsed: 14,
-      pass2Cost: 1.24,
-    });
+  it("shows extract stage tab and meta", () => {
+    const card = makeCard();
 
     render(
       <TemplateInspector
@@ -259,57 +251,6 @@ describe("TemplateInspector", () => {
     );
 
     expect(screen.getByText("Extract")).toBeTruthy();
-    expect(screen.getByText("Critique")).toBeTruthy();
     expect(screen.getByText(/opus-4-6 · high · 12s · \$0.82/)).toBeTruthy();
-  });
-
-  it("switches stage when critique tab is clicked", () => {
-    const card = makeCard({
-      usedCritique: true,
-      pass2: { model: "claude-opus-4-6", effort: "max" },
-      pass2Elapsed: 14,
-      pass2Cost: 1.24,
-    });
-
-    render(
-      <TemplateInspector
-        card={card}
-        onRefine={vi.fn()}
-        onCancelRefine={vi.fn()}
-      />,
-    );
-
-    fireEvent.click(screen.getByText("Critique"));
-
-    expect(mockSetActiveStage).toHaveBeenCalledWith("card-1", "critique");
-  });
-
-  it("renders failed critique diagnostic view", () => {
-    const card = makeCard({
-      usedCritique: true,
-      activeStage: "critique",
-      pass2: null,
-      log: [
-        {
-          type: "status",
-          content: "Critique failed, returning pass 1 result",
-          timestamp: 1,
-          stage: "critique",
-        },
-      ],
-    });
-
-    render(
-      <TemplateInspector
-        card={card}
-        onRefine={vi.fn()}
-        onCancelRefine={vi.fn()}
-      />,
-    );
-
-    expect(screen.getAllByText("Critique failed").length).toBeGreaterThan(0);
-    expect(screen.getByText(/Critique pass failed/)).toBeTruthy();
-    expect(screen.getByText(/returning pass 1 result/)).toBeTruthy();
-    expect(screen.queryByTestId("template-tabs")).toBeNull();
   });
 });

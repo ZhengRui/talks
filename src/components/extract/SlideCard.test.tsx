@@ -100,64 +100,14 @@ describe("SlideCard", () => {
     expect(testStore.getState().cards.has(cardId)).toBe(false);
   });
 
-  it("shows Original/Extract/Critique toggle when critique succeeded", () => {
-    testStore.getState().completeAnalysis(cardId, {
-      source: {
-        image: "data:image/png;base64,abc",
-        dimensions: { w: 1920, h: 1080 },
-      },
-      pass1Analysis: {
-        source: {
-          image: "data:image/png;base64,abc",
-          dimensions: { w: 1920, h: 1080 },
-        },
-        proposals: [
-          {
-            scope: "slide",
-            name: "extract-preview",
-            description: "extract",
-            region: { x: 0, y: 0, w: 1920, h: 1080 },
-            params: {},
-            style: {},
-            body: "mode: scene\nchildren: []",
-          },
-        ],
-      },
-      provenance: {
-        usedCritique: true,
-        pass1: { model: "claude-opus-4-6", effort: "low" },
-        pass2: { model: "claude-opus-4-6", effort: "high" },
-      },
-      proposals: [
-        {
-          scope: "slide",
-          name: "critique-preview",
-          description: "critique",
-          region: { x: 0, y: 0, w: 1920, h: 1080 },
-          params: {},
-          style: {},
-          body: "mode: scene\nchildren: []",
-        },
-      ],
-    });
-
-    const { getByText } = render(<SlideCard cardId={cardId} />);
-
-    expect(getByText("Original")).toBeTruthy();
-    expect(getByText("Extract")).toBeTruthy();
-    expect(getByText("Critique")).toBeTruthy();
-  });
-
-  it("shows only Original/Extract toggle when critique did not succeed", () => {
+  it("shows only Original/Extract toggle when analyzed", () => {
     testStore.getState().completeAnalysis(cardId, {
       source: {
         image: "data:image/png;base64,abc",
         dimensions: { w: 1920, h: 1080 },
       },
       provenance: {
-        usedCritique: false,
         pass1: { model: "claude-opus-4-6", effort: "low" },
-        pass2: null,
       },
       proposals: [
         {
@@ -179,61 +129,33 @@ describe("SlideCard", () => {
     expect(queryByText("Critique")).toBeNull();
   });
 
-  it("renders extract and critique previews from the correct stage analyses", () => {
+  it("renders extract preview from the correct stage analysis", () => {
     testStore.getState().completeAnalysis(cardId, {
       source: {
-        image: "data:image/png;base64,critique",
-        dimensions: { w: 1920, h: 1080 },
-      },
-      pass1Analysis: {
-        source: {
-          image: "data:image/png;base64,extract",
-          dimensions: { w: 1280, h: 720 },
-        },
-        proposals: [
-          {
-            scope: "slide",
-            name: "extract-preview",
-            description: "extract",
-            region: { x: 0, y: 0, w: 1280, h: 720 },
-            params: {},
-            style: {},
-            body: "mode: scene\nchildren: []",
-          },
-          {
-            scope: "block",
-            name: "extract-block",
-            description: "extract block",
-            region: { x: 10, y: 10, w: 100, h: 100 },
-            params: {},
-            style: {},
-            body: "kind: text\ntext: extract",
-          },
-        ],
+        image: "data:image/png;base64,extract",
+        dimensions: { w: 1280, h: 720 },
       },
       provenance: {
-        usedCritique: true,
         pass1: { model: "claude-opus-4-6", effort: "low" },
-        pass2: { model: "claude-opus-4-6", effort: "high" },
       },
       proposals: [
         {
           scope: "slide",
-          name: "critique-preview",
-          description: "critique",
-          region: { x: 0, y: 0, w: 1920, h: 1080 },
+          name: "extract-preview",
+          description: "extract",
+          region: { x: 0, y: 0, w: 1280, h: 720 },
           params: {},
           style: {},
           body: "mode: scene\nchildren: []",
         },
         {
           scope: "block",
-          name: "critique-block",
-          description: "critique block",
+          name: "extract-block",
+          description: "extract block",
           region: { x: 10, y: 10, w: 100, h: 100 },
           params: {},
           style: {},
-          body: "kind: text\ntext: critique",
+          body: "kind: text\ntext: extract",
         },
       ],
     });
@@ -252,19 +174,6 @@ describe("SlideCard", () => {
       1280,
       720,
     );
-
-    fireEvent.click(getByText("Critique"));
-    rerender(<SlideCard cardId={cardId} />);
-
-    expect(mockCompileProposalPreview).toHaveBeenLastCalledWith(
-      expect.objectContaining({ name: "critique-preview" }),
-      expect.arrayContaining([
-        expect.objectContaining({ name: "critique-preview" }),
-        expect.objectContaining({ name: "critique-block" }),
-      ]),
-      1920,
-      1080,
-    );
   });
 
   it("keeps preview text box guides off by default", () => {
@@ -274,9 +183,7 @@ describe("SlideCard", () => {
         dimensions: { w: 1920, h: 1080 },
       },
       provenance: {
-        usedCritique: false,
         pass1: { model: "claude-opus-4-6", effort: "low" },
-        pass2: null,
       },
       proposals: [
         {
@@ -310,9 +217,7 @@ describe("SlideCard", () => {
         dimensions: { w: 1920, h: 1080 },
       },
       provenance: {
-        usedCritique: false,
         pass1: { model: "claude-opus-4-6", effort: "low" },
-        pass2: null,
       },
       proposals: [
         {

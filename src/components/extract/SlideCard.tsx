@@ -46,17 +46,12 @@ export default function SlideCard({ cardId }: SlideCardProps) {
       : 0;
 
   const extractAnalysis = getStageAnalysis(card, "extract");
-  const critiqueAnalysis = getStageAnalysis(card, "critique");
   const refineAnalysis = getStageAnalysis(card, "refine");
   const extractSlideProposal = getSlideProposal(extractAnalysis?.proposals);
-  const critiqueSlideProposal = getSlideProposal(critiqueAnalysis?.proposals);
   const refineSlideProposal = getSlideProposal(refineAnalysis?.proposals);
   const previewOptions = [
     { value: "original" as const, label: "Original" },
     { value: "extract" as const, label: "Extract" },
-    ...(critiqueSlideProposal
-      ? [{ value: "critique" as const, label: "Critique" }]
-      : []),
     ...(card.refineIteration > 0
       ? [
           {
@@ -77,18 +72,12 @@ export default function SlideCard({ cardId }: SlideCardProps) {
           allProposals: extractAnalysis?.proposals ?? [],
           source: extractAnalysis?.source,
         }
-      : activeViewMode === "critique"
+      : activeViewMode === "iter"
         ? {
-            proposal: critiqueSlideProposal,
-            allProposals: critiqueAnalysis?.proposals ?? [],
-            source: critiqueAnalysis?.source,
+            proposal: refineSlideProposal,
+            allProposals: refineAnalysis?.proposals ?? [],
+            source: refineAnalysis?.source,
           }
-        : activeViewMode === "iter"
-          ? {
-              proposal: refineSlideProposal,
-              allProposals: refineAnalysis?.proposals ?? [],
-              source: refineAnalysis?.source,
-            }
         : null;
 
   return (

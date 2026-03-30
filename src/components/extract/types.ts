@@ -10,7 +10,7 @@ export function regionColor(index: number): string {
   return REGION_COLORS[index % REGION_COLORS.length];
 }
 
-export type AnalysisStage = "extract" | "critique" | "refine";
+export type AnalysisStage = "extract" | "refine";
 
 export interface ProposalField {
   type: string;
@@ -133,19 +133,14 @@ export interface AnalysisResult {
   };
   inventory?: Inventory;
   provenance?: {
-    usedCritique: boolean;
     pass1: AnalysisProvenance | null;
-    pass2: AnalysisProvenance | null;
   };
   proposals: Proposal[];
 }
 
 export interface AnalysisResultPayload extends Omit<AnalysisResult, "provenance"> {
-  pass1Analysis?: AnalysisResult | null;
   provenance?: {
-    usedCritique: boolean;
     pass1: StageAnalysisProvenance | null;
-    pass2: StageAnalysisProvenance | null;
   };
 }
 

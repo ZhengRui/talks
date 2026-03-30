@@ -103,9 +103,7 @@ describe("ExtractCanvas", () => {
         dimensions: { w: 1280, h: 720 },
       },
       provenance: {
-        usedCritique: false,
         pass1: { model: "claude-opus-4-6", effort: "low" },
-        pass2: null,
       },
       proposals: [
         makeProposal("extract-preview", "mode: scene\nchildren: []"),

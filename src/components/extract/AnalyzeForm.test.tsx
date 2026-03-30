@@ -6,9 +6,6 @@ import type { SlideCard } from "./store";
 const mockUpdateDescription = vi.fn();
 const mockSetModel = vi.fn();
 const mockSetEffort = vi.fn();
-const mockSetCritique = vi.fn();
-const mockSetCritiqueModel = vi.fn();
-const mockSetCritiqueEffort = vi.fn();
 const mockSetAutoRefine = vi.fn();
 
 vi.mock("./store", async () => {
@@ -20,14 +17,9 @@ vi.mock("./store", async () => {
         updateDescription: mockUpdateDescription,
         model: "claude-opus-4-6",
         effort: "low",
-        critique: true,
-        critiqueModel: "claude-opus-4-6",
-        critiqueEffort: "medium",
+        autoRefine: true,
         setModel: mockSetModel,
         setEffort: mockSetEffort,
-        setCritique: mockSetCritique,
-        setCritiqueModel: mockSetCritiqueModel,
-        setCritiqueEffort: mockSetCritiqueEffort,
         setAutoRefine: mockSetAutoRefine,
       };
       return selector ? selector(state) : state;
@@ -50,16 +42,12 @@ function makeCard(): SlideCard {
     pass1Analysis: null,
     log: [],
     elapsed: 0,
-    usedCritique: false,
     pass1: null,
-    pass2: null,
     pass1Elapsed: 0,
-    pass2Elapsed: 0,
     pass1Cost: null,
-    pass2Cost: null,
     error: null,
     activeStage: "extract",
-    selectedTemplateIndex: { extract: 0, critique: 0, refine: 0 },
+    selectedTemplateIndex: { extract: 0, refine: 0 },
     viewMode: "original",
     refineAnalysis: null,
     refineStatus: "idle",
@@ -81,12 +69,10 @@ afterEach(() => {
 });
 
 describe("AnalyzeForm", () => {
-  it("renders a compact critique toggle without helper text", () => {
+  it("renders extract and refine pass rows", () => {
     render(<AnalyzeForm card={makeCard()} onAnalyze={vi.fn()} />);
 
-    expect(screen.getByLabelText("Critique")).toBeTruthy();
-    expect(
-      screen.queryByText("Run a second pass for higher fidelity"),
-    ).toBeNull();
+    expect(screen.getByText("Extract")).toBeTruthy();
+    expect(screen.getByLabelText("Refine")).toBeTruthy();
   });
 });
