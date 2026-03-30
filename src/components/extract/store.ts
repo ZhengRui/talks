@@ -52,6 +52,8 @@ export interface SlideCard {
   refineResult: RefineIterationResult | null;
   refineHistory: RefineIterationResult[];
   refineError: string | null;
+  refineElapsed: number;
+  refineCost: number | null;
   refineStartMismatch: number | null;
   autoRefine: boolean;
   normalizedImage: File | null;
@@ -101,7 +103,7 @@ export interface ExtractState {
   updateRefinement: (id: string, result: RefineIterationResult) => void;
   completeRefineIteration: (id: string, mismatchRatio: number) => void;
   setDiffObjectUrl: (id: string, url: string | null) => void;
-  completeRefinement: (id: string) => void;
+  completeRefinement: (id: string, elapsed?: number, cost?: number | null) => void;
   failRefinement: (id: string, error: string) => void;
   abortRefinement: (id: string) => void;
   tickElapsed: (id: string) => void;
@@ -268,6 +270,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
         refineResult: null,
         refineHistory: [],
         refineError: null,
+        refineElapsed: 0,
+        refineCost: null,
         refineStartMismatch: null,
         autoRefine: true,
         normalizedImage: null,
@@ -339,6 +343,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineResult: null,
           refineHistory: [],
           refineError: null,
+          refineElapsed: 0,
+          refineCost: null,
           refineStartMismatch: null,
           diffObjectUrl: null,
         }));
@@ -398,6 +404,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineResult: null,
           refineHistory: [],
           refineError: null,
+          refineElapsed: 0,
+          refineCost: null,
           refineStartMismatch: null,
           diffObjectUrl: null,
         }));
@@ -466,6 +474,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineResult: null,
           refineHistory: [],
           refineError: null,
+          refineElapsed: 0,
+          refineCost: null,
           normalizedImage: null,
           diffObjectUrl: null,
         }));
@@ -473,14 +483,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
     },
 
     setViewMode(id: string, mode: "original" | "extract" | "critique" | "iter" | "diff") {
-      set((state) =>
-        updateCard(state, id, () => ({
-          viewMode: mode,
-          ...(mode === "extract" ? { activeStage: "extract" as const } : {}),
-          ...(mode === "critique" ? { activeStage: "critique" as const } : {}),
-          ...(mode === "iter" || mode === "diff" ? { activeStage: "refine" as const } : {}),
-        })),
-      );
+      set((state) => updateCard(state, id, () => ({ viewMode: mode })));
     },
 
     setActiveStage(id: string, stage: AnalysisStage) {
@@ -521,6 +524,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineResult: null,
           refineHistory: [],
           refineError: null,
+          refineElapsed: 0,
+          refineCost: null,
           refineStartMismatch: null,
           diffObjectUrl: null,
           activeStage: "refine" as const,
@@ -597,11 +602,13 @@ export function createExtractStore(): StoreApi<ExtractState> {
       });
     },
 
-    completeRefinement(id: string) {
+    completeRefinement(id: string, elapsed?: number, cost?: number | null) {
       set((state) =>
         updateCard(state, id, () => ({
           refineStatus: "done" as const,
           refineError: null,
+          ...(elapsed != null ? { refineElapsed: elapsed } : {}),
+          ...(cost != null ? { refineCost: cost } : {}),
         })),
       );
     },
@@ -627,7 +634,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
     tickElapsed(id: string) {
       set((state) =>
         updateCard(state, id, (card) =>
-          card.status === "analyzing"
+          card.status === "analyzing" || card.refineStatus === "running"
             ? { elapsed: card.elapsed + 1 }
             : {},
         ),

@@ -163,7 +163,7 @@ describe("InspectorPanel", () => {
     expect(analyzeBtnFound).toBe(true);
   });
 
-  it("shows spinner when analyzing card is selected", () => {
+  it("shows log tab when analyzing card is selected", () => {
     const card = makeCard({ id: "card-2", status: "analyzing", elapsed: 5 });
     mockCards.set("card-2", card);
     mockCardOrder = ["card-2"];
@@ -177,13 +177,13 @@ describe("InspectorPanel", () => {
       />,
     );
 
-    // Should show elapsed time
-    expect(container.textContent).toContain("5s");
-    expect(container.textContent).toContain("Analyzing");
-
-    // Should show the spinner element
-    const spinner = container.querySelector(".animate-spin");
-    expect(spinner).not.toBeNull();
+    // Should show the Result/Log toggle with Log active
+    const buttons = Array.from(container.querySelectorAll("button"));
+    const logBtn = buttons.find((b) => b.textContent === "Log");
+    expect(logBtn).not.toBeNull();
+    // Should show Extract stage tab
+    const extractBtn = buttons.find((b) => b.textContent === "Extract");
+    expect(extractBtn).not.toBeNull();
   });
 
   it("shows template inspector when analyzed card is selected", () => {

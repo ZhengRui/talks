@@ -473,19 +473,17 @@ describe("ExtractStore", () => {
   });
 
   describe("stage state", () => {
-    it("setViewMode syncs activeStage for extract, critique, iter, and diff", () => {
+    it("setViewMode does not sync activeStage", () => {
       const id = store.getState().addCard(makeFile());
-      store.getState().setViewMode(id, "extract");
-      expect(store.getState().cards.get(id)!.activeStage).toBe("extract");
-
-      store.getState().setViewMode(id, "critique");
-      expect(store.getState().cards.get(id)!.activeStage).toBe("critique");
+      store.getState().setActiveStage(id, "extract");
 
       store.getState().setViewMode(id, "iter");
-      expect(store.getState().cards.get(id)!.activeStage).toBe("refine");
+      expect(store.getState().cards.get(id)!.viewMode).toBe("iter");
+      expect(store.getState().cards.get(id)!.activeStage).toBe("extract");
 
       store.getState().setViewMode(id, "diff");
-      expect(store.getState().cards.get(id)!.activeStage).toBe("refine");
+      expect(store.getState().cards.get(id)!.viewMode).toBe("diff");
+      expect(store.getState().cards.get(id)!.activeStage).toBe("extract");
     });
 
     it("startAnalysis resets activeStage to extract", () => {

@@ -52,6 +52,8 @@ export interface RefineLoopResult {
   mismatchRatio: number;
   converged: boolean;
   proposals: Proposal[];
+  totalCost: number | null;
+  totalElapsed: number;
 }
 
 interface RenderAndDiffResult {
@@ -91,6 +93,8 @@ type ClaudeRefineParseStatus =
 interface ClaudeRefineResult {
   proposals: Proposal[] | null;
   status: ClaudeRefineParseStatus;
+  cost: number | null;
+  elapsed: number;
 }
 
 function checkAborted(signal?: AbortSignal): void {
@@ -261,6 +265,8 @@ async function callClaudeRefine(
   const queryOptions = buildQueryOptions(buildRefineSystemPrompt(hasDiffImage), model, effort);
   let resultText = "";
   let sawThinkingDeltaForAssistant = false;
+  let totalCost: number | null = null;
+  const startedAt = Date.now();
 
   for await (const message of query({
     prompt: makePrompt(
@@ -313,27 +319,34 @@ async function callClaudeRefine(
       continue;
     }
 
-    if (msg.type === "result" && typeof msg.result === "string") {
-      resultText = msg.result;
+    if (msg.type === "result") {
+      if (typeof msg.result === "string") {
+        resultText = msg.result;
+      }
+      if (typeof msg.total_cost_usd === "number") {
+        totalCost = msg.total_cost_usd;
+      }
     }
   }
 
+  const elapsed = Math.round((Date.now() - startedAt) / 1000);
+
   const jsonPayload = extractJsonPayload(resultText);
   if (!jsonPayload) {
-    return { proposals: null, status: "no_json" };
+    return { proposals: null, status: "no_json", cost: totalCost, elapsed };
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(jsonPayload) as unknown;
   } catch {
-    return { proposals: null, status: "invalid_json" };
+    return { proposals: null, status: "invalid_json", cost: totalCost, elapsed };
   }
   if (!Array.isArray(parsed)) {
-    return { proposals: null, status: "not_array" };
+    return { proposals: null, status: "not_array", cost: totalCost, elapsed };
   }
 
-  return { proposals: parsed as Proposal[], status: "ok" };
+  return { proposals: parsed as Proposal[], status: "ok", cost: totalCost, elapsed };
 }
 
 export async function runRefinementLoop(
@@ -356,6 +369,8 @@ export async function runRefinementLoop(
   let currentProposals = initialProposals;
   let lastMismatchRatio = 1;
   let lastCycle: RenderAndDiffResult | undefined;
+  let totalCost: number | null = null;
+  const loopStartedAt = Date.now();
 
   await emit(onEvent, {
     event: "refine:start",
@@ -404,9 +419,9 @@ export async function runRefinementLoop(
   if (initial.diff.mismatchRatio < mismatchThreshold) {
     await emit(onEvent, {
       event: "refine:done",
-      data: { finalIteration: 0, mismatchRatio: initial.diff.mismatchRatio, converged: true, proposals: currentProposals },
+      data: { finalIteration: 0, mismatchRatio: initial.diff.mismatchRatio, converged: true, proposals: currentProposals, totalCost, totalElapsed: Math.round((Date.now() - loopStartedAt) / 1000) },
     });
-    return { finalIteration: 0, mismatchRatio: initial.diff.mismatchRatio, converged: true, proposals: currentProposals };
+    return { finalIteration: 0, mismatchRatio: initial.diff.mismatchRatio, converged: true, proposals: currentProposals, totalCost, totalElapsed: Math.round((Date.now() - loopStartedAt) / 1000) };
   }
 
   // Each iteration: Claude call → accept parsed patch → render-diff
@@ -436,6 +451,10 @@ export async function runRefinementLoop(
       },
     });
 
+    if (refineResult.cost != null) {
+      totalCost = (totalCost ?? 0) + refineResult.cost;
+    }
+
     if (refineResult.status === "ok" && refineResult.proposals) {
       currentProposals = refineResult.proposals;
     }
@@ -451,7 +470,12 @@ export async function runRefinementLoop(
     });
     await emit(onEvent, {
       event: "refine:complete",
-      data: { iteration, mismatchRatio: candidateCycle.diff.mismatchRatio },
+      data: {
+        iteration,
+        mismatchRatio: candidateCycle.diff.mismatchRatio,
+        iterElapsed: refineResult.elapsed,
+        iterCost: refineResult.cost,
+      },
     });
 
     if (candidateCycle.diff.mismatchRatio < mismatchThreshold) {
@@ -462,6 +486,8 @@ export async function runRefinementLoop(
           mismatchRatio: candidateCycle.diff.mismatchRatio,
           converged: true,
           proposals: currentProposals,
+          totalCost,
+          totalElapsed: Math.round((Date.now() - loopStartedAt) / 1000),
         },
       });
       return {
@@ -469,13 +495,15 @@ export async function runRefinementLoop(
         mismatchRatio: candidateCycle.diff.mismatchRatio,
         converged: true,
         proposals: currentProposals,
+        totalCost,
+        totalElapsed: Math.round((Date.now() - loopStartedAt) / 1000),
       };
     }
   }
 
   await emit(onEvent, {
     event: "refine:done",
-    data: { finalIteration: maxIterations, mismatchRatio: lastMismatchRatio, converged: false, proposals: currentProposals },
+    data: { finalIteration: maxIterations, mismatchRatio: lastMismatchRatio, converged: false, proposals: currentProposals, totalCost, totalElapsed: Math.round((Date.now() - loopStartedAt) / 1000) },
   });
-  return { finalIteration: maxIterations, mismatchRatio: lastMismatchRatio, converged: false, proposals: currentProposals };
+  return { finalIteration: maxIterations, mismatchRatio: lastMismatchRatio, converged: false, proposals: currentProposals, totalCost, totalElapsed: Math.round((Date.now() - loopStartedAt) / 1000) };
 }

@@ -125,15 +125,18 @@ export default function InspectorPanel({
             </div>
           )}
 
-          {card && card.status === "analyzing" && (
-            <AnalyzingSpinner card={card} />
-          )}
-
-          {card && card.status === "analyzed" && (
+          {card && (card.status === "analyzing" || card.status === "analyzed") && (
             <TemplateInspector
               card={card}
               onRefine={onRefine}
               onCancelRefine={onCancelRefine}
+              defaultTab={
+                // Stay on log until the entire pipeline is done.
+                // Pipeline is done when: analyzed + refine is not running
+                card.status === "analyzed" && card.refineStatus !== "running"
+                  ? "result"
+                  : "log"
+              }
             />
           )}
         </div>

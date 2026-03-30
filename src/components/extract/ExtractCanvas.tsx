@@ -106,6 +106,7 @@ export default function ExtractCanvas() {
       const { cards, refineModel, refineEffort } = useExtractStore.getState();
       const card = cards.get(cardId);
       if (!card?.analysis) return;
+      console.trace("[DEBUG] handleRefine called", { cardId, autoRefine: card.autoRefine });
 
       refineAbortControllersRef.current.get(cardId)?.abort();
 
@@ -276,10 +277,17 @@ export default function ExtractCanvas() {
               case "refine:complete": {
                 const iteration = typeof data.iteration === "number" ? data.iteration : 0;
                 const mismatchRatio = typeof data.mismatchRatio === "number" ? data.mismatchRatio : 0;
+                const iterElapsed = typeof data.iterElapsed === "number" ? data.iterElapsed : null;
+                const iterCost = typeof data.iterCost === "number" ? data.iterCost : null;
                 completeRefineIteration(cardId, mismatchRatio);
+                const metaParts = [
+                  `${Math.round(mismatchRatio * 100)}%`,
+                  iterElapsed != null ? `${iterElapsed}s` : null,
+                  iterCost != null ? `$${iterCost.toFixed(2)}` : null,
+                ].filter(Boolean).join(" · ");
                 appendLog(cardId, {
                   type: "status",
-                  content: `Iter ${iteration} — ${Math.round(mismatchRatio * 100)}% mismatch`,
+                  content: `Iter ${iteration} — ${metaParts}`,
                   timestamp: Date.now(),
                   stage: "refine",
                 });
@@ -291,7 +299,9 @@ export default function ExtractCanvas() {
                 const finalIteration = typeof data.finalIteration === "number" ? data.finalIteration : 0;
                 const mismatchRatio = typeof data.mismatchRatio === "number" ? data.mismatchRatio : 0;
                 const converged = data.converged === true;
-                completeRefinement(cardId);
+                const totalElapsed = typeof data.totalElapsed === "number" ? data.totalElapsed : undefined;
+                const totalCost = typeof data.totalCost === "number" ? data.totalCost : undefined;
+                completeRefinement(cardId, totalElapsed, totalCost);
                 appendLog(cardId, {
                   type: "status",
                   content: converged
@@ -336,6 +346,12 @@ export default function ExtractCanvas() {
         const currentController = refineAbortControllersRef.current.get(cardId);
         if (currentController === abortController) {
           refineAbortControllersRef.current.delete(cardId);
+        }
+        // Clear the elapsed timer — pipeline is done
+        const timer = timersRef.current.get(cardId);
+        if (timer) {
+          clearInterval(timer);
+          timersRef.current.delete(cardId);
         }
       }
     },
@@ -534,11 +550,15 @@ export default function ExtractCanvas() {
           err instanceof Error ? err.message : String(err),
         );
       } finally {
-        // Clear elapsed timer
-        const finalTimer = timersRef.current.get(cardId);
-        if (finalTimer) {
-          clearInterval(finalTimer);
-          timersRef.current.delete(cardId);
+        // Clear elapsed timer only if refine is NOT about to start.
+        // If auto-refine is enabled, the timer keeps running through refinement.
+        const updatedCardFinal = useExtractStore.getState().cards.get(cardId);
+        if (!updatedCardFinal?.autoRefine || updatedCardFinal.status === "error") {
+          const finalTimer = timersRef.current.get(cardId);
+          if (finalTimer) {
+            clearInterval(finalTimer);
+            timersRef.current.delete(cardId);
+          }
         }
       }
     },

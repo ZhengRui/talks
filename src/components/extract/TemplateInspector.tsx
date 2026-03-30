@@ -15,6 +15,7 @@ interface TemplateInspectorProps {
   card: SlideCard;
   onRefine: (cardId: string) => void;
   onCancelRefine: (cardId: string) => void;
+  defaultTab?: "result" | "log";
 }
 
 function formatModel(model: string): string {
@@ -167,15 +168,13 @@ function InventoryContent({ inventory }: { inventory: Inventory }) {
 /** Popover that left-aligns by default but flips to right-align when it would overflow the viewport. */
 function ResetConfirmPopover({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [alignRight, setAlignRight] = useState(false);
+  const [placement, setPlacement] = useState<"measuring" | "left" | "right">("measuring");
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    if (rect.right > window.innerWidth) {
-      setAlignRight(true);
-    }
+    setPlacement(rect.right > window.innerWidth ? "right" : "left");
   }, []);
 
   return (
@@ -183,7 +182,7 @@ function ResetConfirmPopover({ onConfirm, onCancel }: { onConfirm: () => void; o
       <div className="fixed inset-0 z-10" onClick={onCancel} />
       <div
         ref={ref}
-        className={`absolute top-[calc(100%+7px)] z-20 w-56 rounded-lg border border-gray-200 bg-white p-3 shadow-lg ${alignRight ? "right-0" : "left-0"}`}
+        className={`absolute top-[calc(100%+7px)] z-20 w-56 rounded-lg border border-gray-200 bg-white p-3 shadow-lg ${placement === "right" ? "right-0" : "left-0"} ${placement === "measuring" ? "opacity-0" : "opacity-100"}`}
       >
         <p className="text-xs text-gray-600 mb-2.5">Clear all extracted templates?</p>
         <div className="flex items-center gap-1.5">
@@ -211,9 +210,9 @@ export default function TemplateInspector({
   card,
   onRefine,
   onCancelRefine,
+  defaultTab = "result",
 }: TemplateInspectorProps) {
   const selectTemplate = useExtractStore((s) => s.selectTemplate);
-  const openLogModal = useExtractStore((s) => s.openLogModal);
   const resetAnalysis = useExtractStore((s) => s.resetAnalysis);
   const setActiveStage = useExtractStore((s) => s.setActiveStage);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -228,8 +227,8 @@ export default function TemplateInspector({
     ? card.selectedTemplateIndex[card.activeStage]
     : 0;
   const selectedProposal = proposals[selectedIndex] ?? proposals[0] ?? null;
-  const critiqueFailed = card.usedCritique && !card.pass2;
-  const hasRefineStage = card.refineStatus !== "idle" || card.refineAnalysis !== null;
+  const critiqueFailed = card.usedCritique && !card.pass2 && card.status === "analyzed";
+  const hasRefineStage = card.autoRefine || card.refineStatus !== "idle" || card.refineAnalysis !== null;
   const isCritiqueFailureView =
     card.activeStage === "critique" && critiqueFailed;
   const critiqueLogs = filterLogEntries(card.log, "critique");
@@ -257,8 +256,44 @@ export default function TemplateInspector({
       ? `${card.refineIteration}/${card.refineMaxIterations}`
       : null;
 
+  const refineModel = useExtractStore((s) => s.refineModel);
+  const refineEffort = useExtractStore((s) => s.refineEffort);
+  const [viewTab, setViewTab] = useState<"result" | "log">(defaultTab);
+  // Sync when defaultTab changes (e.g. analyzing → analyzed)
+  const prevDefaultTab = useRef(defaultTab);
+  useEffect(() => {
+    if (prevDefaultTab.current !== defaultTab) {
+      setViewTab(defaultTab);
+      prevDefaultTab.current = defaultTab;
+    }
+  }, [defaultTab]);
+  const activeLogEntries = filterLogEntries(card.log, card.activeStage);
+
+  // Build stage meta string for the active stage
+  const stageMetaText = (() => {
+    if (isCritiqueFailureView) return null;
+    if (card.activeStage === "refine") {
+      return formatStageMeta([
+        formatModel(refineModel),
+        refineEffort,
+        card.refineElapsed > 0 ? `${card.refineElapsed}s` : null,
+        card.refineCost != null ? `$${card.refineCost.toFixed(2)}` : null,
+      ]);
+    }
+    if (activeMeta.pass) {
+      return formatStageMeta([
+        formatModel(activeMeta.pass.model),
+        activeMeta.pass.effort,
+        activeMeta.elapsed > 0 ? `${activeMeta.elapsed}s` : null,
+        activeMeta.cost != null ? `$${activeMeta.cost.toFixed(2)}` : null,
+      ]);
+    }
+    return null;
+  })();
+
   return (
     <div className="flex flex-col min-h-0 flex-1">
+      {/* Row 1: Stage tabs + Reset (far right) */}
       <div className="flex items-center gap-1.5 border-b border-gray-200 px-3 py-2 shrink-0">
         <button
           type="button"
@@ -307,6 +342,25 @@ export default function TemplateInspector({
             ) : null}
           </button>
         )}
+        {!card.autoRefine && card.status === "analyzed" && card.refineStatus === "idle" && (
+          <button
+            type="button"
+            onClick={() => onRefine(card.id)}
+            className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50"
+          >
+            Refine
+          </button>
+        )}
+        {card.refineStatus === "running" && (
+          <button
+            type="button"
+            onClick={() => onCancelRefine(card.id)}
+            className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700 transition-colors hover:bg-amber-100"
+          >
+            Cancel
+          </button>
+        )}
+        <div className="flex-1" />
         <div className="relative">
           <button
             type="button"
@@ -326,61 +380,55 @@ export default function TemplateInspector({
         </div>
       </div>
 
-      <div className="flex items-center gap-2 border-b border-gray-200 px-3 py-1.5 shrink-0 text-xs text-gray-500">
-        <button
-          type="button"
-          onClick={() => openLogModal(card.id)}
-          className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-200/60 hover:text-gray-700"
-          title="View log"
-        >
-          <FileText className="h-3.5 w-3.5" />
-          Log
-        </button>
-        {!card.autoRefine && card.refineStatus === "idle" && (
+      {/* Row 2: Result/Log toggle + stage meta (far right) */}
+      <div className="flex items-center gap-2 border-b border-gray-200 px-3 py-1.5 shrink-0 text-xs">
+        <div className="flex rounded-md border border-gray-200 overflow-hidden shrink-0">
           <button
             type="button"
-            onClick={() => onRefine(card.id)}
-            className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50"
+            onClick={() => setViewTab("result")}
+            className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+              viewTab === "result"
+                ? "bg-gray-900 text-white"
+                : "bg-white text-gray-500 hover:text-gray-700"
+            }`}
           >
-            Refine
+            Result
           </button>
-        )}
-        {card.refineStatus === "running" && (
           <button
             type="button"
-            onClick={() => onCancelRefine(card.id)}
-            className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700 transition-colors hover:bg-amber-100"
+            onClick={() => setViewTab("log")}
+            className={`px-2.5 py-1 text-xs font-medium transition-colors border-l border-gray-200 ${
+              viewTab === "log"
+                ? "bg-gray-900 text-white"
+                : "bg-white text-gray-500 hover:text-gray-700"
+            }`}
           >
-            Cancel
+            Log
           </button>
-        )}
+        </div>
+        <div className="flex-1" />
         {isCritiqueFailureView ? (
-          <span className="truncate text-amber-700">Critique failed</span>
-        ) : card.activeStage === "refine" ? (
-          <span className="truncate text-[10px] text-gray-400">
-            {formatStageMeta([
-              card.refineStatus,
-              card.refineIteration > 0
-                ? `${card.refineIteration}/${card.refineMaxIterations}`
-                : null,
-              card.refineResult
-                ? `${Math.round(card.refineResult.mismatchRatio * 100)}% mismatch`
-                : null,
-            ])}
-          </span>
-        ) : activeMeta.pass ? (
-          <span className="truncate text-[10px] text-gray-400">
-            {formatStageMeta([
-              formatModel(activeMeta.pass.model),
-              activeMeta.pass.effort,
-              activeMeta.elapsed > 0 ? `${activeMeta.elapsed}s` : null,
-              activeMeta.cost != null ? `$${activeMeta.cost.toFixed(2)}` : null,
-            ])}
-          </span>
+          <span className="truncate text-amber-700 text-[10px]">Critique failed</span>
+        ) : stageMetaText ? (
+          <span className="truncate text-[10px] text-gray-400">{stageMetaText}</span>
         ) : null}
       </div>
 
-      {isCritiqueFailureView ? (
+      {viewTab === "log" ? (
+        /* Log view — inline, filtered to active stage */
+        <div
+          className="flex-1 overflow-y-auto min-h-0 px-3 py-3"
+          style={{ scrollbarWidth: "none" }}
+        >
+          {activeLogEntries.length === 0 ? (
+            <p className="text-sm text-gray-400">No log entries for this stage.</p>
+          ) : (
+            activeLogEntries.map((entry, index) => (
+              <LogEntryRow key={`${entry.timestamp}-${index}`} entry={entry} />
+            ))
+          )}
+        </div>
+      ) : isCritiqueFailureView ? (
         <div
           className="flex-1 overflow-y-auto min-h-0 px-3 py-3"
           style={{ scrollbarWidth: "none" }}
@@ -397,6 +445,7 @@ export default function TemplateInspector({
           )}
         </div>
       ) : (
+        /* Result view */
         <>
           {proposals.length > 0 ? (
             <TemplateTabs

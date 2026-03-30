@@ -61,11 +61,7 @@ export default function SlideCard({ cardId }: SlideCardProps) {
       ? [
           {
             value: "iter" as const,
-            label: `Iter ${card.refineIteration}/${card.refineMaxIterations}${
-              card.refineResult
-                ? ` · ${Math.round(card.refineResult.mismatchRatio * 100)}%`
-                : ""
-            }`,
+            label: "Iter",
           },
           { value: "diff" as const, label: "Diff" },
         ]
@@ -98,7 +94,7 @@ export default function SlideCard({ cardId }: SlideCardProps) {
   return (
     <div
       data-testid={`slide-card-${cardId}`}
-      className="absolute"
+      className={`absolute${card.naturalSize ? "" : " opacity-0"}`}
       style={{
         left: card.position.x,
         top: card.position.y,
@@ -110,7 +106,7 @@ export default function SlideCard({ cardId }: SlideCardProps) {
         <span className="max-w-[40%] truncate text-[11px] text-gray-500">
           {card.label}
         </span>
-        {card.status === "analyzing" && (
+        {(card.status === "analyzing" || card.refineStatus === "running") && (
           <span className="flex items-center gap-1 text-[11px] text-blue-500">
             <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />
             {card.elapsed}s
@@ -128,24 +124,9 @@ export default function SlideCard({ cardId }: SlideCardProps) {
 
         {/* Right-side buttons */}
         <div className="ml-auto flex items-center gap-1">
-          {/* View mode toggle — pill style */}
+          {/* View mode toggle — underline tabs */}
           {isAnalyzed && extractSlideProposal && (
-            <div
-              className="relative grid rounded-full bg-gray-200 p-0.5"
-              style={{
-                gridTemplateColumns: `repeat(${previewOptions.length}, minmax(0, 1fr))`,
-              }}
-            >
-              <div
-                className="absolute top-0.5 bottom-0.5 rounded-full bg-white shadow-sm transition-all duration-200"
-                style={{
-                  left: 2,
-                  width: `calc((100% - 4px) / ${previewOptions.length})`,
-                  transform: `translateX(${
-                    previewOptions.findIndex((option) => option.value === activeViewMode) * 100
-                  }%)`,
-                }}
-              />
+            <div className="flex items-center gap-2">
               {previewOptions.map((option) => {
                 const isActive = activeViewMode === option.value;
                 return (
@@ -156,8 +137,10 @@ export default function SlideCard({ cardId }: SlideCardProps) {
                       e.stopPropagation();
                       setViewMode(cardId, option.value);
                     }}
-                    className={`relative z-10 rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                      isActive ? "text-gray-700" : "text-gray-400"
+                    className={`text-[9px] font-medium pb-px transition-colors ${
+                      isActive
+                        ? "text-gray-700 border-b-2 border-gray-700"
+                        : "text-gray-400 border-b-2 border-transparent hover:text-gray-500"
                     }`}
                   >
                     {option.label}
