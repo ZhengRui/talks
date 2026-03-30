@@ -10,7 +10,9 @@ const {
   mockRenderSlideToImage,
 } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
-  mockCompileProposalPreview: vi.fn(() => ({ width: 1920, height: 1080 })),
+  mockCompileProposalPreview: vi.fn(() => ({
+    width: 1920, height: 1080, background: "#000", elements: [],
+  })),
   mockAnnotateDiffImage: vi.fn(async (buffer: Buffer) => buffer),
   mockCompareImages: vi.fn(async () => ({
     mismatchRatio: 0.2,
@@ -131,6 +133,60 @@ describe("runRefinementLoop", () => {
       iteration: 1,
       mismatchRatio: 0.2,
     });
+  });
+
+  it("sends absolute geometry and preserves the original media type", async () => {
+    const proposals = makeProposals();
+    const pngBuffer = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a0GQAAAAASUVORK5CYII=",
+      "base64",
+    );
+    mockRenderSlideToImage.mockResolvedValueOnce(pngBuffer);
+
+    await runRefinementLoop({
+      image: pngBuffer,
+      imageMediaType: "image/jpeg",
+      proposals,
+      baseAnalysis: {
+        source: {
+          image: "reference.png",
+          dimensions: { w: 1920, h: 1080 },
+          contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
+        },
+        proposals,
+      },
+      maxIterations: 1,
+      mismatchThreshold: 0.05,
+      model: "claude-opus-4-6",
+      effort: "medium",
+    });
+
+    expect(mockQuery).toHaveBeenCalledTimes(1);
+    const queryArg = mockQuery.mock.calls[0]?.[0] as {
+      prompt: AsyncGenerator<{
+        message: {
+          content: Array<Record<string, unknown>>;
+        };
+      }>;
+      options: { systemPrompt: string };
+    };
+    const firstPrompt = await queryArg.prompt.next();
+    const content = firstPrompt.value?.message.content ?? [];
+
+    // 3 images (side-by-side, original, replica) + 1 text prompt
+    expect(content).toHaveLength(4);
+    expect(content[0]?.type).toBe("image");
+    expect(content[1]?.type).toBe("image");
+    expect(content[2]?.type).toBe("image");
+    expect(content[3]?.type).toBe("text");
+    // side-by-side is always PNG, original preserves upload type, replica is PNG
+    expect((content[0] as { source: { media_type: string } }).source.media_type).toBe("image/png");
+    expect((content[1] as { source: { media_type: string } }).source.media_type).toBe("image/jpeg");
+    expect((content[2] as { source: { media_type: string } }).source.media_type).toBe("image/png");
+    // no geometry table in prompt
+    const textContent = (content[3] as { text: string }).text;
+    expect(textContent).not.toContain("Resolved element geometry");
+    expect(textContent).toContain("proposals");
   });
 
   it("keeps a patch even when it increases mismatch", async () => {
