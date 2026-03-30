@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback } from "react";
-import { FileText, RotateCcw } from "lucide-react";
+import { FileText, RotateCcw, Sparkles } from "lucide-react";
 import { useExtractStore } from "./store";
 import type { SlideCard } from "./store";
 import { getStageAnalysis } from "./stage-utils";
@@ -13,7 +13,7 @@ import type { Inventory } from "./types";
 
 interface TemplateInspectorProps {
   card: SlideCard;
-  onRefine: (cardId: string) => void;
+  onRefine: (cardId: string, maxIterations?: number) => void;
   onCancelRefine: (cardId: string) => void;
   defaultTab?: "result" | "log";
 }
@@ -219,14 +219,13 @@ export default function TemplateInspector({
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const autoRefine = useExtractStore((s) => s.autoRefine);
   const activeAnalysis = getStageAnalysis(card, card.activeStage);
   const proposals = activeAnalysis?.proposals ?? [];
   const selectedIndex = proposals[card.selectedTemplateIndex[card.activeStage]]
     ? card.selectedTemplateIndex[card.activeStage]
     : 0;
   const selectedProposal = proposals[selectedIndex] ?? proposals[0] ?? null;
-  const hasRefineStage = autoRefine || card.refineStatus !== "idle" || card.refineAnalysis !== null;
+  const hasRefineStage = card.autoRefine || card.refineStatus !== "idle" || card.refineAnalysis !== null;
   const activeMeta =
     card.activeStage === "extract"
       ? {
@@ -243,6 +242,7 @@ export default function TemplateInspector({
 
   const refineModel = useExtractStore((s) => s.refineModel);
   const refineEffort = useExtractStore((s) => s.refineEffort);
+  const refinePass = card.refinePass;
   const [viewTab, setViewTab] = useState<"result" | "log">(defaultTab);
   // Sync when defaultTab changes (e.g. analyzing → analyzed)
   const prevDefaultTab = useRef(defaultTab);
@@ -258,8 +258,8 @@ export default function TemplateInspector({
   const stageMetaText = (() => {
     if (card.activeStage === "refine") {
       return formatStageMeta([
-        formatModel(refineModel),
-        refineEffort,
+        formatModel(refinePass?.model ?? refineModel),
+        refinePass?.effort ?? refineEffort,
         card.refineElapsed > 0 ? `${card.refineElapsed}s` : null,
         card.refineCost != null ? `$${card.refineCost.toFixed(2)}` : null,
       ]);
@@ -308,25 +308,28 @@ export default function TemplateInspector({
             ) : null}
           </button>
         )}
-        {!autoRefine && card.status === "analyzed" && card.refineStatus === "idle" && (
-          <button
-            type="button"
-            onClick={() => onRefine(card.id)}
-            className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50"
-          >
-            Refine
-          </button>
-        )}
+        <div className="flex-1" />
         {card.refineStatus === "running" && (
           <button
             type="button"
             onClick={() => onCancelRefine(card.id)}
-            className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700 transition-colors hover:bg-amber-100"
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-amber-600 transition-colors hover:bg-amber-100/60 hover:text-amber-700"
+            title="Cancel refinement"
           >
             Cancel
           </button>
         )}
-        <div className="flex-1" />
+        {card.status === "analyzed" && card.refineStatus !== "running" && (
+          <button
+            type="button"
+            onClick={() => onRefine(card.id, 1)}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-200/60 hover:text-gray-700"
+            title="Refine one more iteration"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Refine
+          </button>
+        )}
         <div className="relative">
           <button
             type="button"

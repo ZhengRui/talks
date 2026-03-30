@@ -13,6 +13,7 @@ const MODELS = [
   { value: "claude-opus-4-6", label: "Opus 4.6" },
   { value: "claude-sonnet-4-6", label: "Sonnet 4.6" },
   { value: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
+  { value: "mock-claude", label: "Mock Claude" },
 ];
 
 // Opus 4.6 & Sonnet 4.6: adaptive thinking with effort levels
@@ -34,6 +35,11 @@ const EFFORT_OPTIONS: Record<string, { value: string; label: string }[]> = {
     { value: "10000", label: "10k tokens" },
     { value: "30000", label: "30k tokens" },
     { value: "60000", label: "60k tokens" },
+  ],
+  "mock-claude": [
+    { value: "low", label: "Low" },
+    { value: "medium", label: "Medium" },
+    { value: "high", label: "High" },
   ],
 };
 
@@ -109,16 +115,22 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
   const updateDescription = useExtractStore((s) => s.updateDescription);
   const model = useExtractStore((s) => s.model);
   const effort = useExtractStore((s) => s.effort);
-  const autoRefine = useExtractStore((s) => s.autoRefine);
   const setAutoRefine = useExtractStore((s) => s.setAutoRefine);
+  const setCardAutoRefine = useExtractStore((s) => s.setCardAutoRefine);
   const setRefineMaxIterations = useExtractStore((s) => s.setRefineMaxIterations);
   const setRefineMismatchThreshold = useExtractStore((s) => s.setRefineMismatchThreshold);
   const refineModel = useExtractStore((s) => s.refineModel);
   const refineEffort = useExtractStore((s) => s.refineEffort);
   const setRefineModel = useExtractStore((s) => s.setRefineModel);
   const setRefineEffort = useExtractStore((s) => s.setRefineEffort);
+  const setCardRefineModel = useExtractStore((s) => s.setCardRefineModel);
+  const setCardRefineEffort = useExtractStore((s) => s.setCardRefineEffort);
   const setModel = useExtractStore((s) => s.setModel);
   const setEffort = useExtractStore((s) => s.setEffort);
+  const refineSettingsLocked = card.refineSettingsLocked === true;
+  const effectiveAutoRefine = card.autoRefine;
+  const effectiveRefineModel = card.refinePass?.model ?? refineModel;
+  const effectiveRefineEffort = card.refinePass?.effort ?? refineEffort;
 
   const handleModelChange = (newModel: string) => {
     setModel(newModel);
@@ -129,10 +141,34 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
   };
 
   const handleRefineModelChange = (newModel: string) => {
-    setRefineModel(newModel);
+    if (refineSettingsLocked) {
+      setCardRefineModel(card.id, newModel);
+    } else {
+      setRefineModel(newModel);
+    }
     const opts = EFFORT_OPTIONS[newModel];
-    if (opts && !opts.some((o) => o.value === refineEffort)) {
-      setRefineEffort(opts[0].value);
+    if (opts && !opts.some((o) => o.value === effectiveRefineEffort)) {
+      if (refineSettingsLocked) {
+        setCardRefineEffort(card.id, opts[0].value);
+      } else {
+        setRefineEffort(opts[0].value);
+      }
+    }
+  };
+
+  const handleRefineToggle = (enabled: boolean) => {
+    if (refineSettingsLocked) {
+      setCardAutoRefine(card.id, enabled);
+    } else {
+      setAutoRefine(enabled);
+    }
+  };
+
+  const handleRefineEffortChange = (value: string) => {
+    if (refineSettingsLocked) {
+      setCardRefineEffort(card.id, value);
+    } else {
+      setRefineEffort(value);
     }
   };
 
@@ -157,15 +193,15 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
         />
         <PassRow
           label="Refine"
-          toggled={autoRefine}
-          onToggle={(v) => setAutoRefine(v)}
-          model={refineModel}
+          toggled={effectiveAutoRefine}
+          onToggle={handleRefineToggle}
+          model={effectiveRefineModel}
           onModelChange={handleRefineModelChange}
-          effort={refineEffort}
-          onEffortChange={setRefineEffort}
-          disabled={!autoRefine}
+          effort={effectiveRefineEffort}
+          onEffortChange={handleRefineEffortChange}
+          disabled={!effectiveAutoRefine}
         />
-        <div className={`flex items-center gap-2${!autoRefine ? " opacity-40 pointer-events-none" : ""}`}>
+        <div className={`flex items-center gap-2${!effectiveAutoRefine ? " opacity-40 pointer-events-none" : ""}`}>
           <span className="shrink-0 w-[72px]" />
           <div className="flex flex-1 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400/30">
             <span className="text-gray-500 whitespace-nowrap">Iters:</span>
@@ -179,7 +215,7 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
                 const v = parseInt(e.target.value, 10);
                 if (Number.isFinite(v) && v >= 1 && v <= 30) setRefineMaxIterations(card.id, v);
               }}
-              disabled={!autoRefine}
+              disabled={!effectiveAutoRefine}
               className="flex-1 min-w-0 bg-transparent text-xs text-gray-700 focus:outline-none"
             />
           </div>
@@ -195,7 +231,7 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
                 const v = parseInt(e.target.value, 10);
                 if (Number.isFinite(v) && v >= 1 && v <= 99) setRefineMismatchThreshold(card.id, v / 100);
               }}
-              disabled={!autoRefine}
+              disabled={!effectiveAutoRefine}
               className="flex-1 min-w-0 bg-transparent text-xs text-gray-700 focus:outline-none"
             />
             <span className="text-gray-500">%</span>

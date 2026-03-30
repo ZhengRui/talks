@@ -5,6 +5,10 @@ import {
   buildRefineUserPrompt,
 } from "@/lib/extract/refine-prompt";
 import {
+  createMockRefineProposals,
+  isMockClaudeModel,
+} from "@/lib/extract/mock-claude";
+import {
   putRefineArtifact,
 } from "@/lib/extract/refine-artifacts";
 import type {
@@ -43,6 +47,8 @@ export interface RefineLoopOptions {
   effort: string;
   maxIterations: number;
   mismatchThreshold: number;
+  iterationOffset?: number;
+  forceIterations?: boolean;
   signal?: AbortSignal;
   onEvent?: (event: RefineEvent) => Promise<void> | void;
 }
@@ -69,6 +75,7 @@ interface RenderAndDiffResult {
 const DIFF_IMAGE_THRESHOLD = 0.30;
 
 interface ClaudeRefineOptions {
+  iteration: number;
   referenceImage: Buffer;
   referenceMediaType: string;
   replicaImage: Buffer;
@@ -238,6 +245,7 @@ async function callClaudeRefine(
   options: ClaudeRefineOptions,
 ): Promise<ClaudeRefineResult> {
   const {
+    iteration,
     referenceImage,
     referenceMediaType,
     replicaImage,
@@ -252,6 +260,26 @@ async function callClaudeRefine(
     signal,
     onEvent,
   } = options;
+  if (isMockClaudeModel(model)) {
+    await emit(onEvent, {
+      event: "refine:thinking",
+      data: {
+        text: "Mock Claude selected. Returning a deterministic local refine patch.",
+      },
+    });
+    await emit(onEvent, {
+      event: "refine:text",
+      data: {
+        text: "Mock Claude response ready.",
+      },
+    });
+    return {
+      proposals: createMockRefineProposals(proposals, iteration),
+      status: "ok",
+      cost: 0,
+      elapsed: 0,
+    };
+  }
   const hasDiffImage = annotatedDiffImage != null;
   const userPrompt = buildRefineUserPrompt({
     mismatchRatio,
@@ -362,10 +390,14 @@ export async function runRefinementLoop(
     effort,
     maxIterations,
     mismatchThreshold,
+    iterationOffset = 0,
+    forceIterations = false,
     signal,
     onEvent,
   } = options;
   const dimensions = baseAnalysis.source.dimensions;
+  const baseIteration = Math.max(0, Math.floor(iterationOffset));
+  const targetIteration = baseIteration + maxIterations;
   let currentProposals = initialProposals;
   let lastMismatchRatio = 1;
   let lastCycle: RenderAndDiffResult | undefined;
@@ -374,7 +406,13 @@ export async function runRefinementLoop(
 
   await emit(onEvent, {
     event: "refine:start",
-    data: { iteration: 1, maxIterations, model, effort, mismatchThreshold },
+    data: {
+      iteration: baseIteration,
+      maxIterations: targetIteration,
+      model,
+      effort,
+      mismatchThreshold,
+    },
   });
 
   // Helper: render current proposals, diff, annotate, emit, return diff result
@@ -415,25 +453,41 @@ export async function runRefinementLoop(
   const initial = await renderAndDiff(currentProposals);
   lastCycle = initial;
   lastMismatchRatio = initial.diff.mismatchRatio;
-  await emitDiffEvent(onEvent, 0, initial);
-  if (initial.diff.mismatchRatio < mismatchThreshold) {
+  await emitDiffEvent(onEvent, baseIteration, initial);
+  if (!forceIterations && initial.diff.mismatchRatio < mismatchThreshold) {
     await emit(onEvent, {
       event: "refine:done",
-      data: { finalIteration: 0, mismatchRatio: initial.diff.mismatchRatio, converged: true, proposals: currentProposals, totalCost, totalElapsed: Math.round((Date.now() - loopStartedAt) / 1000) },
+      data: {
+        finalIteration: baseIteration,
+        mismatchRatio: initial.diff.mismatchRatio,
+        converged: true,
+        proposals: currentProposals,
+        totalCost,
+        totalElapsed: Math.round((Date.now() - loopStartedAt) / 1000),
+      },
     });
-    return { finalIteration: 0, mismatchRatio: initial.diff.mismatchRatio, converged: true, proposals: currentProposals, totalCost, totalElapsed: Math.round((Date.now() - loopStartedAt) / 1000) };
+    return {
+      finalIteration: baseIteration,
+      mismatchRatio: initial.diff.mismatchRatio,
+      converged: true,
+      proposals: currentProposals,
+      totalCost,
+      totalElapsed: Math.round((Date.now() - loopStartedAt) / 1000),
+    };
   }
 
   // Each iteration: Claude call → accept parsed patch → render-diff
   for (let iteration = 1; iteration <= maxIterations; iteration++) {
     checkAborted(signal);
     const prevDiff = lastCycle ?? initial;
+    const absoluteIteration = baseIteration + iteration;
 
     // Skip the diff image when mismatch is too high — the heatmap is mostly
     // red noise and confuses the model. Just send original + replica.
     const includeDiff = prevDiff.diff.mismatchRatio <= DIFF_IMAGE_THRESHOLD;
 
     const refineResult = await callClaudeRefine({
+      iteration: absoluteIteration,
       referenceImage: prevDiff.referenceImage,
       referenceMediaType: prevDiff.referenceMediaType,
       replicaImage: prevDiff.replicaImage,
@@ -447,7 +501,10 @@ export async function runRefinementLoop(
       effort,
       signal,
       onEvent: async (event) => {
-        await emit(onEvent, { event: event.event, data: { iteration, ...event.data } });
+        await emit(onEvent, {
+          event: event.event,
+          data: { iteration: absoluteIteration, ...event.data },
+        });
       },
     });
 
@@ -462,16 +519,16 @@ export async function runRefinementLoop(
     const candidateCycle = await renderAndDiff(currentProposals);
     lastCycle = candidateCycle;
     lastMismatchRatio = candidateCycle.diff.mismatchRatio;
-    await emitDiffEvent(onEvent, iteration, candidateCycle);
+    await emitDiffEvent(onEvent, absoluteIteration, candidateCycle);
 
     await emit(onEvent, {
       event: "refine:patch",
-      data: { iteration, proposals: currentProposals },
+      data: { iteration: absoluteIteration, proposals: currentProposals },
     });
     await emit(onEvent, {
       event: "refine:complete",
       data: {
-        iteration,
+        iteration: absoluteIteration,
         mismatchRatio: candidateCycle.diff.mismatchRatio,
         iterElapsed: refineResult.elapsed,
         iterCost: refineResult.cost,
@@ -482,7 +539,7 @@ export async function runRefinementLoop(
       await emit(onEvent, {
         event: "refine:done",
         data: {
-          finalIteration: iteration,
+          finalIteration: absoluteIteration,
           mismatchRatio: candidateCycle.diff.mismatchRatio,
           converged: true,
           proposals: currentProposals,
@@ -491,7 +548,7 @@ export async function runRefinementLoop(
         },
       });
       return {
-        finalIteration: iteration,
+        finalIteration: absoluteIteration,
         mismatchRatio: candidateCycle.diff.mismatchRatio,
         converged: true,
         proposals: currentProposals,
@@ -503,7 +560,21 @@ export async function runRefinementLoop(
 
   await emit(onEvent, {
     event: "refine:done",
-    data: { finalIteration: maxIterations, mismatchRatio: lastMismatchRatio, converged: false, proposals: currentProposals, totalCost, totalElapsed: Math.round((Date.now() - loopStartedAt) / 1000) },
+    data: {
+      finalIteration: targetIteration,
+      mismatchRatio: lastMismatchRatio,
+      converged: false,
+      proposals: currentProposals,
+      totalCost,
+      totalElapsed: Math.round((Date.now() - loopStartedAt) / 1000),
+    },
   });
-  return { finalIteration: maxIterations, mismatchRatio: lastMismatchRatio, converged: false, proposals: currentProposals, totalCost, totalElapsed: Math.round((Date.now() - loopStartedAt) / 1000) };
+  return {
+    finalIteration: targetIteration,
+    mismatchRatio: lastMismatchRatio,
+    converged: false,
+    proposals: currentProposals,
+    totalCost,
+    totalElapsed: Math.round((Date.now() - loopStartedAt) / 1000),
+  };
 }

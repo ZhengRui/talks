@@ -4,6 +4,10 @@ import {
   ANALYSIS_SYSTEM_PROMPT,
   buildAnalysisPrompt,
 } from "@/lib/extract/prompts";
+import {
+  createMockAnalysisResult,
+  isMockClaudeModel,
+} from "@/lib/extract/mock-claude";
 import { normalizeAnalysisRegions } from "@/lib/extract/normalize-analysis";
 import type { AnalysisStage } from "@/components/extract/types";
 
@@ -123,6 +127,38 @@ export async function POST(request: NextRequest) {
       }
 
       try {
+        if (isMockClaudeModel(model)) {
+          const dimensions = actualSize ?? { w: 1280, h: 720 };
+          const mockAnalysis = createMockAnalysisResult({
+            description: text,
+            slug,
+            dimensions,
+          });
+
+          send("status", {
+            message: "Session started (extract) — Mock Claude · local stub",
+          }, "extract");
+          send("thinking", {
+            text: "Skipping Claude and returning a deterministic local extract result.",
+          }, "extract");
+          send("text", {
+            text: "Mock Claude response ready.",
+          }, "extract");
+          send("result", {
+            ...mockAnalysis,
+            provenance: {
+              pass1: {
+                model,
+                effort,
+                elapsed: 0,
+                cost: 0,
+              },
+            },
+          }, "extract");
+          controller.close();
+          return;
+        }
+
         function buildQueryOptions(
           systemPrompt: string,
           passModel: string = model,

@@ -23,12 +23,12 @@ vi.mock("./InspectorPanel", () => ({
     onRefine,
   }: {
     onAnalyze: (id: string) => void;
-    onRefine: (id: string) => void;
+    onRefine: (id: string, maxIterations?: number) => void;
     onCancelRefine: (id: string) => void;
   }) => (
     <div data-testid="inspector-panel">
       <button onClick={() => onAnalyze(testCardId)}>Analyze</button>
-      <button onClick={() => onRefine(testCardId)}>Refine</button>
+      <button onClick={() => onRefine(testCardId, 1)}>Refine</button>
     </div>
   ),
 }));
@@ -315,5 +315,289 @@ describe("ExtractCanvas", () => {
       expect(card.refineResult?.mismatchRatio).toBe(0.67);
       expect(card.refineHistory).toHaveLength(1);
     });
+  });
+
+  it("continues manual refinement with cumulative iteration state", async () => {
+    const refineRequests: FormData[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/extract/refine") {
+          refineRequests.push(init?.body as FormData);
+          const refineCall = refineRequests.length;
+
+          return makeSseResponse(
+            refineCall === 1
+              ? [
+                  {
+                    event: "refine:start",
+                    data: { iteration: 0, maxIterations: 1 },
+                  },
+                  {
+                    event: "refine:diff",
+                    data: {
+                      iteration: 0,
+                      mismatchRatio: 0.69,
+                      diffArtifactUrl: "/api/extract/refine/artifacts/initial",
+                      regions: [],
+                    },
+                  },
+                  {
+                    event: "refine:diff",
+                    data: {
+                      iteration: 1,
+                      mismatchRatio: 0.67,
+                      diffArtifactUrl: "/api/extract/refine/artifacts/iter-1",
+                      regions: [],
+                    },
+                  },
+                  {
+                    event: "refine:patch",
+                    data: {
+                      iteration: 1,
+                      proposals: [
+                        makeProposal(
+                          "refined-preview-1",
+                          "mode: scene\nchildren:\n  - kind: text\n    text: changed once",
+                        ),
+                      ],
+                    },
+                  },
+                  {
+                    event: "refine:complete",
+                    data: {
+                      iteration: 1,
+                      mismatchRatio: 0.67,
+                    },
+                  },
+                  {
+                    event: "refine:done",
+                    data: {
+                      finalIteration: 1,
+                      mismatchRatio: 0.67,
+                      converged: false,
+                      proposals: [
+                        makeProposal(
+                          "refined-preview-1",
+                          "mode: scene\nchildren:\n  - kind: text\n    text: changed once",
+                        ),
+                      ],
+                    },
+                  },
+                ]
+              : [
+                  {
+                    event: "refine:start",
+                    data: { iteration: 1, maxIterations: 2 },
+                  },
+                  {
+                    event: "refine:diff",
+                    data: {
+                      iteration: 1,
+                      mismatchRatio: 0.67,
+                      diffArtifactUrl: "/api/extract/refine/artifacts/iter-1-baseline",
+                      regions: [],
+                    },
+                  },
+                  {
+                    event: "refine:diff",
+                    data: {
+                      iteration: 2,
+                      mismatchRatio: 0.61,
+                      diffArtifactUrl: "/api/extract/refine/artifacts/iter-2",
+                      regions: [],
+                    },
+                  },
+                  {
+                    event: "refine:patch",
+                    data: {
+                      iteration: 2,
+                      proposals: [
+                        makeProposal(
+                          "refined-preview-2",
+                          "mode: scene\nchildren:\n  - kind: text\n    text: changed twice",
+                        ),
+                      ],
+                    },
+                  },
+                  {
+                    event: "refine:complete",
+                    data: {
+                      iteration: 2,
+                      mismatchRatio: 0.61,
+                    },
+                  },
+                  {
+                    event: "refine:done",
+                    data: {
+                      finalIteration: 2,
+                      mismatchRatio: 0.61,
+                      converged: false,
+                      proposals: [
+                        makeProposal(
+                          "refined-preview-2",
+                          "mode: scene\nchildren:\n  - kind: text\n    text: changed twice",
+                        ),
+                      ],
+                    },
+                  },
+                ],
+          );
+        }
+        if (url.startsWith("/api/extract/refine/artifacts/")) {
+          return new Response(new Blob(["artifact"], { type: "image/png" }), {
+            status: 200,
+          });
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      }),
+    );
+
+    const { getByText } = render(<ExtractCanvas />);
+
+    fireEvent.click(getByText("Refine"));
+
+    await waitFor(() => {
+      const card = testStore.getState().cards.get(testCardId)!;
+      expect(card.refineIteration).toBe(1);
+      expect(card.refineMaxIterations).toBe(1);
+      expect(card.refineAnalysis?.proposals[0]?.name).toBe("refined-preview-1");
+    });
+
+    fireEvent.click(getByText("Refine"));
+
+    await waitFor(() => {
+      const card = testStore.getState().cards.get(testCardId)!;
+      expect(card.refineIteration).toBe(2);
+      expect(card.refineMaxIterations).toBe(2);
+      expect(card.refineAnalysis?.proposals[0]?.name).toBe("refined-preview-2");
+      expect(card.refineHistory).toHaveLength(2);
+      expect(card.log.some((entry) => entry.content.includes("Iter 2"))).toBe(true);
+    });
+
+    expect(refineRequests).toHaveLength(2);
+    expect(refineRequests[0].get("maxIterations")).toBe("1");
+    expect(refineRequests[0].get("iterationOffset")).toBe("0");
+    expect(refineRequests[0].get("forceIterations")).toBe("1");
+    expect(refineRequests[1].get("maxIterations")).toBe("1");
+    expect(refineRequests[1].get("iterationOffset")).toBe("1");
+    expect(refineRequests[1].get("forceIterations")).toBe("1");
+  });
+
+  it("uses the card's snapped refine settings instead of the current global settings", async () => {
+    testStore.getState().setRefineModel("claude-opus-4-6");
+    testStore.getState().setRefineEffort("low");
+    testStore.getState().startAnalysis(testCardId);
+    testStore.getState().completeAnalysis(testCardId, {
+      source: {
+        image: "data:image/png;base64,abc",
+        dimensions: { w: 1280, h: 720 },
+      },
+      provenance: {
+        pass1: {
+          model: "claude-opus-4-6",
+          effort: "low",
+          elapsed: 1,
+          cost: 0.01,
+        },
+      },
+      proposals: [
+        makeProposal("extract-preview", "mode: scene\nchildren: []"),
+      ],
+    });
+
+    expect(testStore.getState().cards.get(testCardId)?.refinePass).toEqual({
+      model: "claude-opus-4-6",
+      effort: "low",
+    });
+
+    testStore.getState().setRefineEffort("medium");
+
+    const refineRequests: FormData[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/extract/refine") {
+          refineRequests.push(init?.body as FormData);
+          return makeSseResponse([
+            {
+              event: "refine:start",
+              data: { maxIterations: 1 },
+            },
+            {
+              event: "refine:diff",
+              data: {
+                iteration: 0,
+                mismatchRatio: 0.69,
+                diffArtifactUrl: "/api/extract/refine/artifacts/initial",
+                regions: [],
+              },
+            },
+            {
+              event: "refine:diff",
+              data: {
+                iteration: 1,
+                mismatchRatio: 0.67,
+                diffArtifactUrl: "/api/extract/refine/artifacts/iter-1",
+                regions: [],
+              },
+            },
+            {
+              event: "refine:patch",
+              data: {
+                iteration: 1,
+                proposals: [
+                  makeProposal(
+                    "refined-preview",
+                    "mode: scene\nchildren:\n  - kind: text\n    text: changed",
+                  ),
+                ],
+              },
+            },
+            {
+              event: "refine:complete",
+              data: {
+                iteration: 1,
+                mismatchRatio: 0.67,
+              },
+            },
+            {
+              event: "refine:done",
+              data: {
+                finalIteration: 1,
+                mismatchRatio: 0.67,
+                converged: false,
+                proposals: [
+                  makeProposal(
+                    "refined-preview",
+                    "mode: scene\nchildren:\n  - kind: text\n    text: changed",
+                  ),
+                ],
+              },
+            },
+          ]);
+        }
+        if (url.startsWith("/api/extract/refine/artifacts/")) {
+          return new Response(new Blob(["artifact"], { type: "image/png" }), {
+            status: 200,
+          });
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      }),
+    );
+
+    const { getByText } = render(<ExtractCanvas />);
+
+    fireEvent.click(getByText("Refine"));
+
+    await waitFor(() => {
+      expect(refineRequests).toHaveLength(1);
+    });
+
+    expect(refineRequests[0].get("model")).toBe("claude-opus-4-6");
+    expect(refineRequests[0].get("effort")).toBe("low");
   });
 });

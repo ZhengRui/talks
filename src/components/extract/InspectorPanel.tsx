@@ -13,7 +13,7 @@ const DEFAULT_WIDTH = 380;
 
 interface InspectorPanelProps {
   onAnalyze: (cardId: string) => void;
-  onRefine: (cardId: string) => void;
+  onRefine: (cardId: string, maxIterations?: number) => void;
   onCancelRefine: (cardId: string) => void;
 }
 

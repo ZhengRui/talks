@@ -7,6 +7,9 @@ const mockUpdateDescription = vi.fn();
 const mockSetModel = vi.fn();
 const mockSetEffort = vi.fn();
 const mockSetAutoRefine = vi.fn();
+const mockSetCardAutoRefine = vi.fn();
+const mockSetCardRefineModel = vi.fn();
+const mockSetCardRefineEffort = vi.fn();
 
 vi.mock("./store", async () => {
   const actual = await vi.importActual<typeof import("./store")>("./store");
@@ -21,6 +24,9 @@ vi.mock("./store", async () => {
         setModel: mockSetModel,
         setEffort: mockSetEffort,
         setAutoRefine: mockSetAutoRefine,
+        setCardAutoRefine: mockSetCardAutoRefine,
+        setCardRefineModel: mockSetCardRefineModel,
+        setCardRefineEffort: mockSetCardRefineEffort,
       };
       return selector ? selector(state) : state;
     },
@@ -45,6 +51,8 @@ function makeCard(): SlideCard {
     pass1: null,
     pass1Elapsed: 0,
     pass1Cost: null,
+    refinePass: { model: "claude-opus-4-6", effort: "medium" },
+    refineSettingsLocked: false,
     error: null,
     activeStage: "extract",
     selectedTemplateIndex: { extract: 0, refine: 0 },
@@ -74,5 +82,6 @@ describe("AnalyzeForm", () => {
 
     expect(screen.getByText("Extract")).toBeTruthy();
     expect(screen.getByLabelText("Refine")).toBeTruthy();
+    expect(screen.getAllByText("Mock Claude").length).toBeGreaterThan(0);
   });
 });

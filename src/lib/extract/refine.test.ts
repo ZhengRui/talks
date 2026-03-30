@@ -269,4 +269,93 @@ ${JSON.stringify(patchedProposals, null, 2)}
       mismatchRatio: 0.2,
     });
   });
+
+  it("emits cumulative iteration numbers when continuing refinement", async () => {
+    const proposals = makeProposals();
+    const patchedProposals = makePatchedProposals();
+    const events: Array<{ event: string; data: Record<string, unknown> }> = [];
+
+    mockQuery.mockImplementation(async function* () {
+      yield {
+        type: "result",
+        result: `\`\`\`json
+${JSON.stringify(patchedProposals, null, 2)}
+\`\`\``,
+      };
+    });
+
+    mockCompareImages
+      .mockResolvedValueOnce({
+        mismatchRatio: 0.2,
+        mismatchPixels: 20,
+        totalPixels: 100,
+        diffImage: Buffer.from("diff-initial"),
+        regions: [],
+        width: 100,
+        height: 100,
+      })
+      .mockResolvedValueOnce({
+        mismatchRatio: 0.18,
+        mismatchPixels: 18,
+        totalPixels: 100,
+        diffImage: Buffer.from("diff-iter-2"),
+        regions: [],
+        width: 100,
+        height: 100,
+      });
+
+    const result = await runRefinementLoop({
+      image: Buffer.from("reference"),
+      imageMediaType: "image/png",
+      proposals,
+      baseAnalysis: {
+        source: {
+          image: "reference.png",
+          dimensions: { w: 1920, h: 1080 },
+          contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
+        },
+        proposals,
+      },
+      maxIterations: 1,
+      iterationOffset: 1,
+      mismatchThreshold: 0.05,
+      model: "claude-opus-4-6",
+      effort: "medium",
+      onEvent: (event) => {
+        events.push(event);
+      },
+    });
+
+    expect(result.finalIteration).toBe(2);
+    expect(result.proposals).toEqual(patchedProposals);
+    expect(
+      events.find((event) => event.event === "refine:start")?.data,
+    ).toMatchObject({
+      iteration: 1,
+      maxIterations: 2,
+    });
+    expect(
+      events
+        .filter((event) => event.event === "refine:diff")
+        .map((event) => event.data.iteration),
+    ).toEqual([1, 2]);
+    expect(
+      events.find((event) => event.event === "refine:patch")?.data,
+    ).toMatchObject({
+      iteration: 2,
+      proposals: patchedProposals,
+    });
+    expect(
+      events.find((event) => event.event === "refine:complete")?.data,
+    ).toMatchObject({
+      iteration: 2,
+      mismatchRatio: 0.18,
+    });
+    expect(
+      events.find((event) => event.event === "refine:done")?.data,
+    ).toMatchObject({
+      finalIteration: 2,
+      mismatchRatio: 0.18,
+    });
+  });
 });

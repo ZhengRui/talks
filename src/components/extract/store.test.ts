@@ -30,6 +30,11 @@ describe("ExtractStore", () => {
       expect(card!.pass1).toBeNull();
       expect(card!.pass1Elapsed).toBe(0);
       expect(card!.pass1Cost).toBeNull();
+      expect(card!.refinePass).toEqual({
+        model: "claude-opus-4-6",
+        effort: "medium",
+      });
+      expect(card!.refineSettingsLocked).toBe(false);
       expect(card!.error).toBeNull();
       expect(card!.activeStage).toBe("extract");
       expect(card!.selectedTemplateIndex).toEqual({
@@ -175,6 +180,8 @@ describe("ExtractStore", () => {
     it("startAnalysis captures pass1 provenance and autoRefine setting", () => {
       store.getState().setModel("claude-sonnet-4-6");
       store.getState().setEffort("max");
+      store.getState().setRefineModel("claude-opus-4-6");
+      store.getState().setRefineEffort("low");
       store.getState().setAutoRefine(false);
 
       store.getState().startAnalysis(id);
@@ -187,6 +194,10 @@ describe("ExtractStore", () => {
       expect(card.activeStage).toBe("extract");
       expect(card.viewMode).toBe("original");
       expect(card.autoRefine).toBe(false);
+      expect(card.refinePass).toEqual({
+        model: "claude-opus-4-6",
+        effort: "low",
+      });
     });
 
     it("completeAnalysis stores analysis and provenance", () => {
@@ -458,6 +469,92 @@ describe("ExtractStore", () => {
       // Change global after start — card retains old value
       store.getState().setAutoRefine(true);
       expect(store.getState().cards.get(id)!.autoRefine).toBe(false);
+    });
+
+    it("updates unlocked cards when the global default changes", () => {
+      const id = store.getState().addCard(makeFile());
+      store.getState().setAutoRefine(false);
+      expect(store.getState().cards.get(id)!.autoRefine).toBe(false);
+    });
+  });
+
+  describe("refine defaults", () => {
+    it("updates unlocked cards when refine defaults change", () => {
+      const id1 = store.getState().addCard(makeFile("a.png"));
+      const id2 = store.getState().addCard(makeFile("b.png"));
+
+      store.getState().setRefineModel("claude-sonnet-4-6");
+      store.getState().setRefineEffort("high");
+      store.getState().setRefineMaxIterations(id1, 7);
+      store.getState().setRefineMismatchThreshold(id1, 0.12);
+
+      expect(store.getState().cards.get(id1)!.refinePass).toEqual({
+        model: "claude-sonnet-4-6",
+        effort: "high",
+      });
+      expect(store.getState().cards.get(id2)!.refinePass).toEqual({
+        model: "claude-sonnet-4-6",
+        effort: "high",
+      });
+      expect(store.getState().cards.get(id1)!.refineMaxIterations).toBe(7);
+      expect(store.getState().cards.get(id2)!.refineMaxIterations).toBe(7);
+      expect(store.getState().cards.get(id1)!.refineMismatchThreshold).toBe(0.12);
+      expect(store.getState().cards.get(id2)!.refineMismatchThreshold).toBe(0.12);
+    });
+
+    it("keeps started cards on their snapped refine defaults", () => {
+      const id = store.getState().addCard(makeFile("started.png"));
+      const idleId = store.getState().addCard(makeFile("idle.png"));
+      store.getState().setRefineModel("claude-opus-4-6");
+      store.getState().setRefineEffort("low");
+      store.getState().setRefineMaxIterations(id, 2);
+      store.getState().setRefineMismatchThreshold(id, 0.08);
+
+      store.getState().startAnalysis(id);
+
+      store.getState().setRefineModel("claude-sonnet-4-6");
+      store.getState().setRefineEffort("high");
+      store.getState().setRefineMaxIterations(idleId, 9);
+      store.getState().setRefineMismatchThreshold(idleId, 0.2);
+
+      const card = store.getState().cards.get(id)!;
+      expect(card.refinePass).toEqual({
+        model: "claude-opus-4-6",
+        effort: "low",
+      });
+      expect(card.refineMaxIterations).toBe(2);
+      expect(card.refineMismatchThreshold).toBe(0.08);
+    });
+
+    it("preserves locked refine settings when retrying after an error", () => {
+      const id = store.getState().addCard(makeFile());
+      store.getState().startAnalysis(id);
+      store.getState().failAnalysis(id, "boom");
+
+      store.getState().setCardAutoRefine(id, false);
+      store.getState().setCardRefineModel(id, "claude-sonnet-4-6");
+      store.getState().setCardRefineEffort(id, "high");
+      store.getState().setRefineMaxIterations(id, 6);
+      store.getState().setRefineMismatchThreshold(id, 0.14);
+
+      store.getState().setAutoRefine(true);
+      store.getState().setRefineModel("claude-opus-4-6");
+      store.getState().setRefineEffort("low");
+
+      const idleId = store.getState().addCard(makeFile("idle.png"));
+      store.getState().setRefineMaxIterations(idleId, 3);
+      store.getState().setRefineMismatchThreshold(idleId, 0.09);
+
+      store.getState().startAnalysis(id);
+
+      const card = store.getState().cards.get(id)!;
+      expect(card.autoRefine).toBe(false);
+      expect(card.refinePass).toEqual({
+        model: "claude-sonnet-4-6",
+        effort: "high",
+      });
+      expect(card.refineMaxIterations).toBe(6);
+      expect(card.refineMismatchThreshold).toBe(0.14);
     });
   });
 

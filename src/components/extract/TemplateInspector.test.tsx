@@ -8,6 +8,9 @@ const mockSelectTemplate = vi.fn();
 const mockOpenLogModal = vi.fn();
 const mockResetAnalysis = vi.fn();
 const mockSetActiveStage = vi.fn();
+let mockAutoRefine = true;
+let mockRefineModel = "claude-opus-4-6";
+let mockRefineEffort = "medium";
 const defaultPass: AnalysisProvenance = {
   model: "claude-opus-4-6",
   effort: "high",
@@ -28,7 +31,9 @@ vi.mock("./store", async () => {
         openLogModal: mockOpenLogModal,
         resetAnalysis: mockResetAnalysis,
         setActiveStage: mockSetActiveStage,
-        autoRefine: true,
+        autoRefine: mockAutoRefine,
+        refineModel: mockRefineModel,
+        refineEffort: mockRefineEffort,
       };
       return selector ? selector(state) : state;
     },
@@ -86,6 +91,7 @@ function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
     pass1: defaultPass,
     pass1Elapsed: 12,
     pass1Cost: 0.82,
+    refinePass: { model: "claude-opus-4-6", effort: "low" },
     error: null,
     activeStage: "extract",
     selectedTemplateIndex: { extract: 0, refine: 0 },
@@ -108,6 +114,9 @@ function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  mockAutoRefine = true;
+  mockRefineModel = "claude-opus-4-6";
+  mockRefineEffort = "medium";
 });
 
 describe("TemplateInspector", () => {
@@ -252,5 +261,24 @@ describe("TemplateInspector", () => {
 
     expect(screen.getByText("Extract")).toBeTruthy();
     expect(screen.getByText(/opus-4-6 · high · 12s · \$0.82/)).toBeTruthy();
+  });
+
+  it("shows the planned refine stage while extract is still running", () => {
+    mockAutoRefine = false;
+    const card = makeCard({
+      status: "analyzing",
+      autoRefine: true,
+    });
+
+    render(
+      <TemplateInspector
+        card={card}
+        onRefine={vi.fn()}
+        onCancelRefine={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Extract")).toBeTruthy();
+    expect(screen.getByText("Refine")).toBeTruthy();
   });
 });

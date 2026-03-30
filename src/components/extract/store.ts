@@ -36,6 +36,8 @@ export interface SlideCard {
   pass1: StageAnalysisProvenance | null;
   pass1Elapsed: number;
   pass1Cost: number | null;
+  refinePass?: StageAnalysisProvenance | null;
+  refineSettingsLocked?: boolean;
   error: string | null;
   activeStage: AnalysisStage;
   selectedTemplateIndex: Record<AnalysisStage, number>;
@@ -72,6 +74,8 @@ export interface ExtractState {
   autoRefine: boolean;
   refineModel: string;
   refineEffort: string;
+  refineDefaultMaxIterations: number;
+  refineDefaultMismatchThreshold: number;
   previewDebugTextBoxes: boolean;
 
   // Actions
@@ -90,9 +94,11 @@ export interface ExtractState {
   setActiveStage: (id: string, stage: AnalysisStage) => void;
   selectTemplate: (id: string, index: number) => void;
   setAutoRefine: (enabled: boolean) => void;
+  setCardAutoRefine: (id: string, enabled: boolean) => void;
   setRefineMaxIterations: (id: string, max: number) => void;
   setRefineMismatchThreshold: (id: string, threshold: number) => void;
   startRefinement: (id: string) => void;
+  continueRefinement: (id: string) => void;
   updateRefineDiff: (id: string, iteration: number, mismatchRatio: number, diffArtifactUrl: string) => void;
   updateRefinement: (id: string, result: RefineIterationResult) => void;
   completeRefineIteration: (id: string, mismatchRatio: number) => void;
@@ -114,6 +120,8 @@ export interface ExtractState {
   setEffort: (effort: string) => void;
   setRefineModel: (model: string) => void;
   setRefineEffort: (effort: string) => void;
+  setCardRefineModel: (id: string, model: string) => void;
+  setCardRefineEffort: (id: string, effort: string) => void;
   setPreviewDebugTextBoxes: (enabled: boolean) => void;
 }
 
@@ -192,6 +200,26 @@ function revokeObjectUrl(url: string | null | undefined): void {
   URL.revokeObjectURL(url);
 }
 
+function updateUnlockedCards(
+  state: ExtractState,
+  updater: (card: SlideCard) => Partial<SlideCard>,
+): Map<string, SlideCard> | null {
+  let changed = false;
+  const next = new Map(state.cards);
+
+  for (const [id, card] of state.cards.entries()) {
+    if (card.refineSettingsLocked) continue;
+    next.set(id, { ...card, ...updater(card) });
+    changed = true;
+  }
+
+  return changed ? next : null;
+}
+
+function currentRefinePass(state: Pick<ExtractState, "refineModel" | "refineEffort">): StageAnalysisProvenance {
+  return { model: state.refineModel, effort: state.refineEffort };
+}
+
 // ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
@@ -213,6 +241,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
     autoRefine: true,
     refineModel: "claude-opus-4-6",
     refineEffort: "medium",
+    refineDefaultMaxIterations: 4,
+    refineDefaultMismatchThreshold: 0.05,
     previewDebugTextBoxes: false,
 
     // Actions
@@ -243,6 +273,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
         pass1: null,
         pass1Elapsed: 0,
         pass1Cost: null,
+        refinePass: currentRefinePass(get()),
+        refineSettingsLocked: false,
         error: null,
         activeStage: "extract",
         selectedTemplateIndex: createSelectedTemplateIndex(),
@@ -250,8 +282,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
         refineAnalysis: null,
         refineStatus: "idle",
         refineIteration: 0,
-        refineMaxIterations: 4,
-        refineMismatchThreshold: 0.05,
+        refineMaxIterations: get().refineDefaultMaxIterations,
+        refineMismatchThreshold: get().refineDefaultMismatchThreshold,
         refineResult: null,
         refineHistory: [],
         refineError: null,
@@ -304,10 +336,22 @@ export function createExtractStore(): StoreApi<ExtractState> {
     },
 
     startAnalysis(id: string) {
-      const { model, effort, autoRefine } = get();
+      const {
+        model,
+        effort,
+        autoRefine,
+        refineModel,
+        refineEffort,
+        refineDefaultMaxIterations,
+        refineDefaultMismatchThreshold,
+      } = get();
       set((state) => {
         const card = state.cards.get(id);
         revokeObjectUrl(card?.diffObjectUrl);
+        const lockedRefineSettings = card?.refineSettingsLocked === true;
+        const nextRefinePass = lockedRefineSettings
+          ? (card?.refinePass ?? { model: refineModel, effort: refineEffort })
+          : { model: refineModel, effort: refineEffort };
         return updateCard(state, id, () => ({
           status: "analyzing" as const,
           log: [],
@@ -316,12 +360,20 @@ export function createExtractStore(): StoreApi<ExtractState> {
           pass1: { model, effort },
           pass1Elapsed: 0,
           pass1Cost: null,
+          refinePass: nextRefinePass,
+          refineSettingsLocked: true,
           activeStage: "extract" as const,
           viewMode: "original" as const,
-          autoRefine,
+          autoRefine: lockedRefineSettings ? (card?.autoRefine ?? autoRefine) : autoRefine,
           refineAnalysis: null,
           refineStatus: "idle" as const,
           refineIteration: 0,
+          refineMaxIterations: lockedRefineSettings
+            ? (card?.refineMaxIterations ?? refineDefaultMaxIterations)
+            : refineDefaultMaxIterations,
+          refineMismatchThreshold: lockedRefineSettings
+            ? (card?.refineMismatchThreshold ?? refineDefaultMismatchThreshold)
+            : refineDefaultMismatchThreshold,
           refineResult: null,
           refineHistory: [],
           refineError: null,
@@ -424,6 +476,13 @@ export function createExtractStore(): StoreApi<ExtractState> {
     },
 
     resetAnalysis(id: string) {
+      const {
+        autoRefine,
+        refineModel,
+        refineEffort,
+        refineDefaultMaxIterations,
+        refineDefaultMismatchThreshold,
+      } = get();
       set((state) => {
         const card = state.cards.get(id);
         revokeObjectUrl(card?.diffObjectUrl);
@@ -436,6 +495,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
           pass1: null,
           pass1Elapsed: 0,
           pass1Cost: null,
+          refinePass: { model: refineModel, effort: refineEffort },
+          refineSettingsLocked: false,
           error: null,
           activeStage: "extract" as const,
           selectedTemplateIndex: createSelectedTemplateIndex(),
@@ -443,6 +504,9 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineAnalysis: null,
           refineStatus: "idle" as const,
           refineIteration: 0,
+          autoRefine,
+          refineMaxIterations: refineDefaultMaxIterations,
+          refineMismatchThreshold: refineDefaultMismatchThreshold,
           refineResult: null,
           refineHistory: [],
           refineError: null,
@@ -474,15 +538,42 @@ export function createExtractStore(): StoreApi<ExtractState> {
     },
 
     setAutoRefine(enabled: boolean) {
-      set({ autoRefine: enabled });
+      set((state) => {
+        const cards = updateUnlockedCards(state, () => ({ autoRefine: enabled }));
+        return cards ? { autoRefine: enabled, cards } : { autoRefine: enabled };
+      });
+    },
+
+    setCardAutoRefine(id: string, enabled: boolean) {
+      set((state) => updateCard(state, id, () => ({ autoRefine: enabled })));
     },
 
     setRefineMaxIterations(id: string, max: number) {
-      set((state) => updateCard(state, id, () => ({ refineMaxIterations: max })));
+      set((state) => {
+        const card = state.cards.get(id);
+        if (!card) return {};
+        if (card.refineSettingsLocked) {
+          return updateCard(state, id, () => ({ refineMaxIterations: max }));
+        }
+        const cards = updateUnlockedCards(state, () => ({ refineMaxIterations: max }));
+        return cards
+          ? { refineDefaultMaxIterations: max, cards }
+          : { refineDefaultMaxIterations: max };
+      });
     },
 
     setRefineMismatchThreshold(id: string, threshold: number) {
-      set((state) => updateCard(state, id, () => ({ refineMismatchThreshold: threshold })));
+      set((state) => {
+        const card = state.cards.get(id);
+        if (!card) return {};
+        if (card.refineSettingsLocked) {
+          return updateCard(state, id, () => ({ refineMismatchThreshold: threshold }));
+        }
+        const cards = updateUnlockedCards(state, () => ({ refineMismatchThreshold: threshold }));
+        return cards
+          ? { refineDefaultMismatchThreshold: threshold, cards }
+          : { refineDefaultMismatchThreshold: threshold };
+      });
     },
 
     startRefinement(id: string) {
@@ -503,6 +594,18 @@ export function createExtractStore(): StoreApi<ExtractState> {
           activeStage: "refine" as const,
         }));
       });
+    },
+
+    /** Continue refinement: keep existing history, bump maxIterations by 1, set running. */
+    continueRefinement(id: string) {
+      set((state) =>
+        updateCard(state, id, (card) => ({
+          refineStatus: "running" as const,
+          refineError: null,
+          refineMaxIterations: card.refineIteration + 1,
+          activeStage: "refine" as const,
+        })),
+      );
     },
 
     updateRefineDiff(id: string, iteration: number, mismatchRatio: number, diffArtifactUrl: string) {
@@ -576,11 +679,11 @@ export function createExtractStore(): StoreApi<ExtractState> {
 
     completeRefinement(id: string, elapsed?: number, cost?: number | null) {
       set((state) =>
-        updateCard(state, id, () => ({
+        updateCard(state, id, (card) => ({
           refineStatus: "done" as const,
           refineError: null,
-          ...(elapsed != null ? { refineElapsed: elapsed } : {}),
-          ...(cost != null ? { refineCost: cost } : {}),
+          ...(elapsed != null ? { refineElapsed: card.refineElapsed + elapsed } : {}),
+          ...(cost != null ? { refineCost: (card.refineCost ?? 0) + cost } : {}),
         })),
       );
     },
@@ -692,11 +795,49 @@ export function createExtractStore(): StoreApi<ExtractState> {
     },
 
     setRefineModel(refineModel: string) {
-      set({ refineModel });
+      set((state) => {
+        const cards = updateUnlockedCards(state, (card) => ({
+          refinePass: {
+            ...(card.refinePass ?? currentRefinePass(state)),
+            model: refineModel,
+          },
+        }));
+        return cards ? { refineModel, cards } : { refineModel };
+      });
     },
 
     setRefineEffort(refineEffort: string) {
-      set({ refineEffort });
+      set((state) => {
+        const cards = updateUnlockedCards(state, (card) => ({
+          refinePass: {
+            ...(card.refinePass ?? currentRefinePass(state)),
+            effort: refineEffort,
+          },
+        }));
+        return cards ? { refineEffort, cards } : { refineEffort };
+      });
+    },
+
+    setCardRefineModel(id: string, model: string) {
+      set((state) =>
+        updateCard(state, id, (card) => ({
+          refinePass: {
+            ...(card.refinePass ?? currentRefinePass(state)),
+            model,
+          },
+        })),
+      );
+    },
+
+    setCardRefineEffort(id: string, effort: string) {
+      set((state) =>
+        updateCard(state, id, (card) => ({
+          refinePass: {
+            ...(card.refinePass ?? currentRefinePass(state)),
+            effort,
+          },
+        })),
+      );
     },
 
     setPreviewDebugTextBoxes(previewDebugTextBoxes: boolean) {

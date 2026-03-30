@@ -25,8 +25,11 @@ export async function POST(request: NextRequest): Promise<Response> {
   const model = (formData.get("model") as string) || "claude-opus-4-6";
   const effort = (formData.get("effort") as string) || "medium";
   const maxIterations = parseInt((formData.get("maxIterations") as string) || "4", 10) || 4;
+  const iterationOffset =
+    parseInt((formData.get("iterationOffset") as string) || "0", 10) || 0;
   const mismatchThreshold =
     parseFloat((formData.get("mismatchThreshold") as string) || "0.05") || 0.05;
+  const forceIterations = formData.get("forceIterations") === "1";
 
   if (!image || !proposalsJson || !baseAnalysisJson) {
     return new Response(JSON.stringify({ error: "Missing required fields" }), {
@@ -68,6 +71,8 @@ export async function POST(request: NextRequest): Promise<Response> {
           effort,
           maxIterations,
           mismatchThreshold,
+          iterationOffset,
+          forceIterations,
           signal: request.signal,
           onEvent(event: RefineEvent) {
             controller.enqueue(

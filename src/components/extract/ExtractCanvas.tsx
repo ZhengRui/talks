@@ -69,6 +69,8 @@ export default function ExtractCanvas() {
   const tickElapsed = useExtractStore((s) => s.tickElapsed);
   const setNormalizedImage = useExtractStore((s) => s.setNormalizedImage);
   const startRefinement = useExtractStore((s) => s.startRefinement);
+  const continueRefinement = useExtractStore((s) => s.continueRefinement);
+  const setRefineMaxIterations = useExtractStore((s) => s.setRefineMaxIterations);
   const updateRefineDiff = useExtractStore((s) => s.updateRefineDiff);
   const updateRefinement = useExtractStore((s) => s.updateRefinement);
   const completeRefineIteration = useExtractStore((s) => s.completeRefineIteration);
@@ -102,15 +104,33 @@ export default function ExtractCanvas() {
   }, []);
 
   const handleRefine = useCallback(
-    async (cardId: string) => {
+    async (cardId: string, overrideMaxIterations?: number) => {
       const { cards, refineModel, refineEffort } = useExtractStore.getState();
       const card = cards.get(cardId);
       if (!card?.analysis) return;
-      console.trace("[DEBUG] handleRefine called", { cardId, autoRefine: card.autoRefine });
+      const refinePass = card.refinePass ?? { model: refineModel, effort: refineEffort };
+      const isManualRefine = overrideMaxIterations != null;
+      const iterationOffset =
+        isManualRefine && card.refineIteration > 0 ? card.refineIteration : 0;
+      const requestMaxIterations = overrideMaxIterations ?? card.refineMaxIterations;
 
       refineAbortControllersRef.current.get(cardId)?.abort();
 
-      startRefinement(cardId);
+      // Manual single-iter refine: continue from existing state, don't reset history.
+      if (isManualRefine && card.refineIteration > 0) {
+        continueRefinement(cardId);
+      } else {
+        if (overrideMaxIterations != null) {
+          setRefineMaxIterations(cardId, overrideMaxIterations);
+        }
+        startRefinement(cardId);
+      }
+
+      // Restart elapsed timer if not already running
+      if (!timersRef.current.has(cardId)) {
+        const timer = setInterval(() => tickElapsed(cardId), 1000);
+        timersRef.current.set(cardId, timer);
+      }
 
       const formData = new FormData();
       formData.append("image", card.normalizedImage ?? card.file);
@@ -125,9 +145,13 @@ export default function ExtractCanvas() {
           JSON.stringify(card.analysis.source.contentBounds),
         );
       }
-      formData.append("model", refineModel);
-      formData.append("effort", refineEffort);
-      formData.append("maxIterations", String(card.refineMaxIterations));
+      formData.append("model", refinePass.model);
+      formData.append("effort", refinePass.effort);
+      formData.append("maxIterations", String(requestMaxIterations));
+      formData.append("iterationOffset", String(iterationOffset));
+      if (isManualRefine) {
+        formData.append("forceIterations", "1");
+      }
       formData.append(
         "mismatchThreshold",
         String(card.refineMismatchThreshold),
@@ -363,6 +387,8 @@ export default function ExtractCanvas() {
       failRefinement,
       setDiffObjectUrl,
       startRefinement,
+      continueRefinement,
+      setRefineMaxIterations,
       updateRefineDiff,
       updateRefinement,
     ],
