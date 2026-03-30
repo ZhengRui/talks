@@ -47,7 +47,6 @@ const DEFAULT_THRESHOLD = 24;
 const DEFAULT_MAX_REGIONS = 5;
 const TILE_SIZE = 32;
 const TILE_DENSITY_THRESHOLD = 0.08;
-const TILE_PIXEL_THRESHOLD = 64;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -205,10 +204,7 @@ function extractMismatchRegions(
       tileTotalCount[idx] = tilePixels;
 
       const mismatchRatio = tilePixels > 0 ? mismatch / tilePixels : 0;
-      if (
-        mismatchRatio >= TILE_DENSITY_THRESHOLD ||
-        mismatch >= TILE_PIXEL_THRESHOLD
-      ) {
+      if (mismatchRatio >= TILE_DENSITY_THRESHOLD) {
         hot[idx] = 1;
       }
     }

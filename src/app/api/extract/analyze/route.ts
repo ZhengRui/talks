@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
             if (msg.type === "system" && msg.subtype === "init") {
               const sessionModel = msg.model as string | undefined;
               send("status", {
-                message: `Session started (${passLabel}) — model: ${sessionModel ?? "unknown"}, thinking: ${queryOptions.thinking?.type ?? "default"}, effort: ${queryOptions.effort ?? effort}`,
+                message: `Session started (${passLabel}) — ${(sessionModel ?? "unknown").replace("claude-", "")} · ${queryOptions.thinking?.type ?? "default"} · ${queryOptions.effort ?? effort}`,
               }, stage);
               continue;
             }

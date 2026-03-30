@@ -192,9 +192,12 @@ export default function ExtractCanvas() {
 
             switch (currentEvent) {
               case "refine:start": {
+                const modelName = typeof data.model === "string" ? data.model.replace("claude-", "") : "?";
+                const effortVal = typeof data.effort === "string" ? data.effort : "?";
+                const threshold = typeof data.mismatchThreshold === "number" ? `${Math.round(data.mismatchThreshold * 100)}%` : "?";
                 appendLog(cardId, {
                   type: "status",
-                  content: `Refinement started — up to ${data.maxIterations ?? "?"} iterations`,
+                  content: `Refinement started — ${modelName} · ${effortVal} · ${data.maxIterations ?? "?"} iters · target ${threshold}`,
                   timestamp: Date.now(),
                   stage: "refine",
                 });

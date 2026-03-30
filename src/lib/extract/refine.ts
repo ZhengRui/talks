@@ -15,6 +15,7 @@ import { annotateDiffImage } from "@/lib/render/annotate";
 import { compareImages, type DiffRegion } from "@/lib/render/compare";
 import type { CropBounds } from "@/lib/render/crop";
 import { renderSlideToImage } from "@/lib/render/screenshot";
+import sharp from "sharp";
 
 export type RefineEventType =
   | "refine:start"
@@ -62,11 +63,14 @@ interface RenderAndDiffResult {
   diffArtifactUrl: string;
 }
 
+/** Skip the diff image when mismatch is this high — the heatmap is mostly red noise. */
+const DIFF_IMAGE_THRESHOLD = 0.30;
+
 interface ClaudeRefineOptions {
   referenceImage: Buffer;
   referenceMediaType: string;
   replicaImage: Buffer;
-  annotatedDiffImage: Buffer;
+  annotatedDiffImage: Buffer | null;
   mismatchRatio: number;
   regions: DiffRegion[];
   imageSize: { w: number; h: number };
@@ -159,45 +163,68 @@ function buildQueryOptions(
   };
 }
 
+/** Concatenate two images side-by-side (left: original, right: replica). */
+async function concatSideBySide(left: Buffer, right: Buffer): Promise<Buffer> {
+  const [leftMeta, rightMeta] = await Promise.all([
+    sharp(left).metadata(),
+    sharp(right).metadata(),
+  ]);
+  const lw = leftMeta.width!;
+  const lh = leftMeta.height!;
+  const rw = rightMeta.width!;
+  const rh = rightMeta.height!;
+  const h = Math.max(lh, rh);
+
+  return sharp({
+    create: { width: lw + rw, height: h, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } },
+  })
+    .composite([
+      { input: left, left: 0, top: 0 },
+      { input: right, left: lw, top: 0 },
+    ])
+    .png()
+    .toBuffer();
+}
+
 async function* makePrompt(
   referenceImage: Buffer,
-  referenceMediaType: string,
   replicaImage: Buffer,
-  annotatedDiffImage: Buffer,
+  annotatedDiffImage: Buffer | null,
   userPrompt: string,
 ) {
+  // Send original + replica as one side-by-side image for easier spatial comparison
+  const sideBySide = await concatSideBySide(referenceImage, replicaImage);
+
+  const content: Array<Record<string, unknown>> = [
+    {
+      type: "image" as const,
+      source: {
+        type: "base64" as const,
+        media_type: "image/png" as const,
+        data: sideBySide.toString("base64"),
+      },
+    },
+  ];
+
+  if (annotatedDiffImage) {
+    content.push({
+      type: "image" as const,
+      source: {
+        type: "base64" as const,
+        media_type: "image/png" as const,
+        data: annotatedDiffImage.toString("base64"),
+      },
+    });
+  }
+
+  content.push({ type: "text" as const, text: userPrompt });
+
   yield {
     type: "user" as const,
     session_id: "",
     message: {
       role: "user" as const,
-      content: [
-        {
-          type: "image" as const,
-          source: {
-            type: "base64" as const,
-            media_type: referenceMediaType,
-            data: referenceImage.toString("base64"),
-          },
-        },
-        {
-          type: "image" as const,
-          source: {
-            type: "base64" as const,
-            media_type: "image/png" as const,
-            data: replicaImage.toString("base64"),
-          },
-        },
-        {
-          type: "image" as const,
-          source: {
-            type: "base64" as const,
-            media_type: "image/png" as const,
-            data: annotatedDiffImage.toString("base64"),
-          },
-        },
-        { type: "text" as const, text: userPrompt },
-      ],
+      content,
     },
     parent_tool_use_id: null,
   };
@@ -221,22 +248,23 @@ async function callClaudeRefine(
     signal,
     onEvent,
   } = options;
+  const hasDiffImage = annotatedDiffImage != null;
   const userPrompt = buildRefineUserPrompt({
     mismatchRatio,
     regions,
     proposalsJson: JSON.stringify(proposals, null, 2),
     imageSize,
     contentBounds,
+    hasDiffImage,
   });
 
-  const queryOptions = buildQueryOptions(buildRefineSystemPrompt(), model, effort);
+  const queryOptions = buildQueryOptions(buildRefineSystemPrompt(hasDiffImage), model, effort);
   let resultText = "";
   let sawThinkingDeltaForAssistant = false;
 
   for await (const message of query({
     prompt: makePrompt(
       referenceImage,
-      referenceMediaType,
       replicaImage,
       annotatedDiffImage,
       userPrompt,
@@ -331,7 +359,7 @@ export async function runRefinementLoop(
 
   await emit(onEvent, {
     event: "refine:start",
-    data: { iteration: 1, maxIterations },
+    data: { iteration: 1, maxIterations, model, effort, mismatchThreshold },
   });
 
   // Helper: render current proposals, diff, annotate, emit, return diff result
@@ -386,11 +414,15 @@ export async function runRefinementLoop(
     checkAborted(signal);
     const prevDiff = lastCycle ?? initial;
 
+    // Skip the diff image when mismatch is too high — the heatmap is mostly
+    // red noise and confuses the model. Just send original + replica.
+    const includeDiff = prevDiff.diff.mismatchRatio <= DIFF_IMAGE_THRESHOLD;
+
     const refineResult = await callClaudeRefine({
       referenceImage: prevDiff.referenceImage,
       referenceMediaType: prevDiff.referenceMediaType,
       replicaImage: prevDiff.replicaImage,
-      annotatedDiffImage: prevDiff.annotated,
+      annotatedDiffImage: includeDiff ? prevDiff.annotated : null,
       mismatchRatio: prevDiff.diff.mismatchRatio,
       regions: prevDiff.diff.regions,
       imageSize: { w: prevDiff.diff.width, h: prevDiff.diff.height },
