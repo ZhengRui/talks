@@ -9,7 +9,7 @@ import TemplateTabs from "./TemplateTabs";
 import ParamsStyleView from "./ParamsStyleView";
 import InlineYaml from "./InlineYaml";
 import { LogEntryRow, filterLogEntries, LOG_ICONS } from "./log-utils";
-import type { Inventory } from "./types";
+import type { Inventory, PromptRecord } from "./types";
 import type { LogEntry } from "./store";
 
 function CopyLogButton({ log }: { log: LogEntry[] }) {
@@ -35,7 +35,8 @@ interface TemplateInspectorProps {
   card: SlideCard;
   onRefine: (cardId: string, maxIterations?: number) => void;
   onCancelRefine: (cardId: string) => void;
-  defaultTab?: "result" | "log";
+  defaultTab?: "result" | "log" | "prompt";
+  onScrollTargetChange?: (element: HTMLDivElement | null) => void;
 }
 
 function formatModel(model: string): string {
@@ -44,6 +45,81 @@ function formatModel(model: string): string {
 
 function formatStageMeta(parts: Array<string | null>): string {
   return parts.filter(Boolean).join(" · ");
+}
+
+function filterPromptEntries(promptHistory: PromptRecord[], stage: "extract" | "refine"): PromptRecord[] {
+  return promptHistory.filter((entry) => entry.stage === stage);
+}
+
+function formatPromptHeading(entry: PromptRecord): string {
+  const modelMeta = entry.model
+    ? formatStageMeta([
+        formatModel(entry.model),
+        entry.effort ?? null,
+      ])
+    : null;
+
+  if (entry.stage === "extract") {
+    return modelMeta ? `Extract · ${modelMeta}` : "Extract";
+  }
+
+  const phaseLabel = entry.phase === "vision" ? "Vision" : "Edit";
+  const iterLabel = entry.iteration != null ? `Iter ${entry.iteration}` : "Iter ?";
+  return modelMeta
+    ? `${iterLabel} · ${phaseLabel} · ${modelMeta}`
+    : `${iterLabel} · ${phaseLabel}`;
+}
+
+function PromptPane({ entries }: { entries: PromptRecord[] }) {
+  if (entries.length === 0) {
+    return (
+      <div className="flex items-center justify-center p-6 text-sm text-gray-400">
+        No prompts captured for this stage yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3 px-3 py-3">
+      {entries.map((entry, index) => (
+        <div key={`${entry.timestamp}-${index}`} className="rounded-xl border border-gray-200 bg-white">
+          <div className="border-b border-gray-200 px-3 py-2 text-xs font-medium text-gray-700">
+            {formatPromptHeading(entry)}
+          </div>
+          <PromptSection label="System Prompt" text={entry.systemPrompt} />
+          <PromptSection label="User Prompt" text={entry.userPrompt} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PromptSection({ label, text }: { label: string; text: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="border-b border-gray-100 last:border-b-0">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center justify-between px-3 py-2 text-left transition-colors hover:bg-gray-50"
+      >
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+          {label}
+        </span>
+        <span className="text-[10px] text-gray-500">
+          {open ? "Hide" : "Show"}
+        </span>
+      </button>
+      {open ? (
+        <div className="px-3 pb-3">
+          <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-gray-50 p-3 text-[11px] leading-5 text-gray-700">
+            {text}
+          </pre>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 /** Minimal JSON syntax highlighting for inventory raw view (light theme). */
@@ -231,13 +307,16 @@ export default function TemplateInspector({
   onRefine,
   onCancelRefine,
   defaultTab = "result",
+  onScrollTargetChange,
 }: TemplateInspectorProps) {
   const selectTemplate = useExtractStore((s) => s.selectTemplate);
   const resetAnalysis = useExtractStore((s) => s.resetAnalysis);
   const setActiveStage = useExtractStore((s) => s.setActiveStage);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const resultScrollRef = useRef<HTMLDivElement>(null);
+  const logScrollRef = useRef<HTMLDivElement>(null);
+  const promptScrollRef = useRef<HTMLDivElement>(null);
 
   const activeAnalysis = getStageAnalysis(card, card.activeStage);
   const proposals = activeAnalysis?.proposals ?? [];
@@ -265,7 +344,7 @@ export default function TemplateInspector({
   const refineEditModel = useExtractStore((s) => s.refineEditModel);
   const refineEditEffort = useExtractStore((s) => s.refineEditEffort);
   const refinePass = card.refinePass;
-  const [viewTab, setViewTab] = useState<"result" | "log">(defaultTab);
+  const [viewTab, setViewTab] = useState<"result" | "log" | "prompt">(defaultTab);
   // Sync when defaultTab changes (e.g. analyzing → analyzed)
   const prevDefaultTab = useRef(defaultTab);
   useEffect(() => {
@@ -274,7 +353,26 @@ export default function TemplateInspector({
       prevDefaultTab.current = defaultTab;
     }
   }, [defaultTab]);
+
+  useEffect(() => {
+    if (!onScrollTargetChange) return;
+
+    const nextTarget =
+      viewTab === "log"
+        ? logScrollRef.current
+        : viewTab === "prompt"
+          ? promptScrollRef.current
+          : resultScrollRef.current;
+
+    onScrollTargetChange(nextTarget);
+
+    return () => {
+      onScrollTargetChange(null);
+    };
+  }, [onScrollTargetChange, viewTab, card.activeStage, proposals.length, inventoryOpen]);
+
   const activeLogEntries = filterLogEntries(card.log, card.activeStage);
+  const activePromptEntries = filterPromptEntries(card.promptHistory ?? [], card.activeStage);
 
   // Build stage meta string for the active stage
   const stageMetaLines = (() => {
@@ -402,12 +500,12 @@ export default function TemplateInspector({
       </div>
 
       {/* Row 2: Result/Log toggle + stage meta (far right) */}
-      <div className="flex items-center gap-2 border-b border-gray-200 px-3 py-1.5 shrink-0 text-xs">
-        <div className="flex rounded-md border border-gray-200 overflow-hidden shrink-0">
+      <div className="@container flex items-center gap-2 border-b border-gray-200 px-3 py-1.5 shrink-0 text-xs">
+        <div className="flex overflow-hidden rounded-md border border-gray-200 shrink-0">
           <button
             type="button"
             onClick={() => setViewTab("result")}
-            className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+            className={`w-[72px] px-2.5 py-1 text-xs font-medium transition-colors ${
               viewTab === "result"
                 ? "bg-gray-900 text-white"
                 : "bg-white text-gray-500 hover:text-gray-700"
@@ -418,7 +516,7 @@ export default function TemplateInspector({
           <button
             type="button"
             onClick={() => setViewTab("log")}
-            className={`px-2.5 py-1 text-xs font-medium transition-colors border-l border-gray-200 ${
+            className={`w-[72px] border-l border-gray-200 px-2.5 py-1 text-xs font-medium transition-colors ${
               viewTab === "log"
                 ? "bg-gray-900 text-white"
                 : "bg-white text-gray-500 hover:text-gray-700"
@@ -426,10 +524,21 @@ export default function TemplateInspector({
           >
             Log
           </button>
+          <button
+            type="button"
+            onClick={() => setViewTab("prompt")}
+            className={`w-[72px] border-l border-gray-200 px-2.5 py-1 text-xs font-medium transition-colors ${
+              viewTab === "prompt"
+                ? "bg-gray-900 text-white"
+                : "bg-white text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Prompt
+          </button>
         </div>
         <div className="flex-1" />
         {stageMetaLines ? (
-          <div className="flex flex-col items-end text-[10px] text-gray-400">
+          <div className="hidden @[22rem]:flex flex-col items-end text-[10px] text-gray-400">
             {stageMetaLines.map((line) => (
               <span key={line} className="truncate">{line}</span>
             ))}
@@ -440,6 +549,7 @@ export default function TemplateInspector({
       {viewTab === "log" ? (
         /* Log view — inline, filtered to active stage */
         <div
+          ref={logScrollRef}
           className="relative flex-1 overflow-y-auto min-h-0 px-3 py-3"
           style={{ scrollbarWidth: "none" }}
         >
@@ -453,6 +563,14 @@ export default function TemplateInspector({
               <LogEntryRow key={`${entry.timestamp}-${index}`} entry={entry} />
             ))
           )}
+        </div>
+      ) : viewTab === "prompt" ? (
+        <div
+          ref={promptScrollRef}
+          className="flex-1 overflow-y-auto min-h-0"
+          style={{ scrollbarWidth: "none" }}
+        >
+          <PromptPane entries={activePromptEntries} />
         </div>
       ) : (
         /* Result view */
@@ -470,7 +588,7 @@ export default function TemplateInspector({
               open={inventoryOpen}
               onToggle={() => {
                 setInventoryOpen((v) => {
-                  if (!v) scrollRef.current?.scrollTo?.({ top: 0 });
+                  if (!v) resultScrollRef.current?.scrollTo?.({ top: 0 });
                   return !v;
                 });
               }}
@@ -478,7 +596,7 @@ export default function TemplateInspector({
           )}
 
           <div
-            ref={scrollRef}
+            ref={resultScrollRef}
             className="flex-1 overflow-y-auto min-h-0"
             style={{ scrollbarWidth: "none" }}
           >

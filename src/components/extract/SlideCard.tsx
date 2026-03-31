@@ -17,6 +17,12 @@ function getSlideProposal(proposals: Proposal[] | undefined): Proposal | null {
   return proposals?.find((proposal) => proposal.scope === "slide") ?? null;
 }
 
+function benchmarkBadgeClass(variant: "control" | "coords" | null): string {
+  if (variant === "coords") return "bg-amber-100 text-amber-800";
+  if (variant === "control") return "bg-sky-100 text-sky-800";
+  return "";
+}
+
 export default function SlideCard({ cardId }: SlideCardProps) {
   const card = useExtractStore((s) => s.cards.get(cardId));
   const isSelected = useExtractStore((s) => s.selectedCardId === cardId);
@@ -95,6 +101,13 @@ export default function SlideCard({ cardId }: SlideCardProps) {
         <span className="max-w-[40%] truncate text-[11px] text-gray-500">
           {card.label}
         </span>
+        {card.benchmarkVariant && (
+          <span
+            className={`rounded px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide ${benchmarkBadgeClass(card.benchmarkVariant)}`}
+          >
+            {card.benchmarkVariant}
+          </span>
+        )}
         {(card.status === "analyzing" || card.refineStatus === "running") && (
           <span className="flex items-center gap-1 text-[11px] text-blue-500">
             <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />

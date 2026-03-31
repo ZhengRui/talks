@@ -1,17 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import BenchmarkLauncher from "./BenchmarkLauncher";
 import CanvasViewport from "./CanvasViewport";
 import CanvasToolbar from "./CanvasToolbar";
 import InspectorPanel from "./InspectorPanel";
 import { useExtractStore, type LogEntry } from "./store";
 import type {
+  AnalysisStage,
   AnalysisResultPayload,
+  GeometryHints,
+  PromptPhase,
   Proposal,
   RefineIterationResult,
 } from "./types";
 
 const MAX_IMAGE_DIMENSION = 2000;
+const BENCHMARK_GAP = 40;
+const BENCHMARK_CELL_SIZE = 480;
 
 /**
  * Downscale an image File so its longest side is at most MAX_IMAGE_DIMENSION.
@@ -76,13 +82,67 @@ function formatRefineConfig(data: Record<string, unknown>): string {
   return `vision: ${formatRefineModel(visionModel)} · ${visionEffort} / edit: ${formatRefineModel(editModel)} · ${editEffort}`;
 }
 
+interface BenchmarkLoadResponse {
+  slug: string;
+  title: string;
+  slideIndex: number;
+  label: string;
+  fileName: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  imageDataUrl: string;
+  geometryHints: GeometryHints;
+}
+
+function dataUrlToFile(dataUrl: string, fileName: string, mimeType: string): File {
+  const [prefix, base64] = dataUrl.split(",", 2);
+  if (!prefix || !base64) {
+    throw new Error("Invalid imageDataUrl returned by benchmark loader");
+  }
+
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return new File([bytes], fileName, { type: mimeType });
+}
+
+function nextBenchmarkPairPositions() {
+  const { cards } = useExtractStore.getState();
+  let maxBottom = 0;
+
+  for (const card of cards.values()) {
+    maxBottom = Math.max(maxBottom, card.position.y + card.size.h);
+  }
+
+  const y = cards.size > 0 ? maxBottom + BENCHMARK_GAP : BENCHMARK_GAP;
+  return {
+    control: { x: BENCHMARK_GAP, y },
+    coords: { x: BENCHMARK_GAP + BENCHMARK_CELL_SIZE + BENCHMARK_GAP, y },
+  };
+}
+
+function parsePromptPhase(value: unknown): PromptPhase | null {
+  return value === "extract" || value === "vision" || value === "edit"
+    ? value
+    : null;
+}
+
 export default function ExtractCanvas() {
+  const [benchmarkOpen, setBenchmarkOpen] = useState(false);
+  const addCard = useExtractStore((s) => s.addCard);
   const startAnalysis = useExtractStore((s) => s.startAnalysis);
   const appendLog = useExtractStore((s) => s.appendLog);
+  const appendPrompt = useExtractStore((s) => s.appendPrompt);
   const completeAnalysis = useExtractStore((s) => s.completeAnalysis);
   const failAnalysis = useExtractStore((s) => s.failAnalysis);
   const tickElapsed = useExtractStore((s) => s.tickElapsed);
   const setNormalizedImage = useExtractStore((s) => s.setNormalizedImage);
+  const setNaturalSize = useExtractStore((s) => s.setNaturalSize);
+  const selectCard = useExtractStore((s) => s.selectCard);
   const startRefinement = useExtractStore((s) => s.startRefinement);
   const continueRefinement = useExtractStore((s) => s.continueRefinement);
   const setRefineMaxIterations = useExtractStore((s) => s.setRefineMaxIterations);
@@ -170,6 +230,9 @@ export default function ExtractCanvas() {
           "contentBounds",
           JSON.stringify(card.analysis.source.contentBounds),
         );
+      }
+      if (card.geometryHints) {
+        formData.append("geometryHints", JSON.stringify(card.geometryHints));
       }
       formData.append("visionModel", refinePass.visionModel);
       formData.append("visionEffort", refinePass.visionEffort);
@@ -261,6 +324,30 @@ export default function ExtractCanvas() {
                   timestamp: Date.now(),
                   stage: "refine",
                 });
+                break;
+              }
+              case "refine:vision:prompt":
+              case "refine:edit:prompt": {
+                const phase = parsePromptPhase(data.phase);
+                if (
+                  phase &&
+                  typeof data.systemPrompt === "string" &&
+                  typeof data.userPrompt === "string"
+                ) {
+                  appendPrompt(cardId, {
+                    stage: "refine",
+                    phase,
+                    iteration:
+                      typeof data.iteration === "number" ? data.iteration : null,
+                    systemPrompt: data.systemPrompt,
+                    userPrompt: data.userPrompt,
+                    model:
+                      typeof data.model === "string" ? data.model : undefined,
+                    effort:
+                      typeof data.effort === "string" ? data.effort : undefined,
+                    timestamp: Date.now(),
+                  });
+                }
                 break;
               }
               case "refine:vision:thinking": {
@@ -476,6 +563,7 @@ export default function ExtractCanvas() {
     [
       abortRefinement,
       appendLog,
+      appendPrompt,
       completeRefinement,
       completeRefineIteration,
       failRefinement,
@@ -518,6 +606,12 @@ export default function ExtractCanvas() {
       formData.append("image", normalizedImage);
       if (card.description.trim()) {
         formData.append("text", card.description.trim());
+      }
+      if (card.benchmarkSlug) {
+        formData.append("slug", card.benchmarkSlug);
+      }
+      if (card.geometryHints) {
+        formData.append("geometryHints", JSON.stringify(card.geometryHints));
       }
       formData.append("model", model);
       formData.append("effort", effort);
@@ -576,6 +670,29 @@ export default function ExtractCanvas() {
                     stage,
                   };
                   appendLog(cardId, statusEntry);
+                  break;
+                }
+                case "prompt": {
+                  const phase = parsePromptPhase(data.phase);
+                  if (
+                    phase &&
+                    typeof data.systemPrompt === "string" &&
+                    typeof data.userPrompt === "string"
+                  ) {
+                    appendPrompt(cardId, {
+                      stage: stage ?? "extract",
+                      phase,
+                      iteration:
+                        typeof data.iteration === "number" ? data.iteration : null,
+                      systemPrompt: data.systemPrompt,
+                      userPrompt: data.userPrompt,
+                      model:
+                        typeof data.model === "string" ? data.model : undefined,
+                      effort:
+                        typeof data.effort === "string" ? data.effort : undefined,
+                      timestamp: Date.now(),
+                    });
+                  }
                   break;
                 }
                 case "thinking": {
@@ -637,6 +754,32 @@ export default function ExtractCanvas() {
                   return;
                 }
                 case "result": {
+                  const phase = parsePromptPhase(data.prompt?.phase);
+                  if (
+                    phase &&
+                    typeof data.prompt?.systemPrompt === "string" &&
+                    typeof data.prompt?.userPrompt === "string"
+                  ) {
+                    appendPrompt(cardId, {
+                      stage: stage ?? "extract",
+                      phase,
+                      iteration:
+                        typeof data.prompt?.iteration === "number"
+                          ? data.prompt.iteration
+                          : null,
+                      systemPrompt: data.prompt.systemPrompt,
+                      userPrompt: data.prompt.userPrompt,
+                      model:
+                        typeof data.prompt?.model === "string"
+                          ? data.prompt.model
+                          : undefined,
+                      effort:
+                        typeof data.prompt?.effort === "string"
+                          ? data.prompt.effort
+                          : undefined,
+                      timestamp: Date.now(),
+                    });
+                  }
                   completeAnalysis(cardId, data as AnalysisResultPayload);
                   analysisCompleted = true;
                   const resultEntry: LogEntry = {
@@ -679,6 +822,7 @@ export default function ExtractCanvas() {
       }
     },
     [
+      appendPrompt,
       startAnalysis,
       appendLog,
       completeAnalysis,
@@ -689,10 +833,63 @@ export default function ExtractCanvas() {
     ],
   );
 
+  const handleOpenBenchmark = useCallback(() => {
+    setBenchmarkOpen(true);
+  }, []);
+
+  const handleRunBenchmark = useCallback(
+    async (slug: string, slideIndex: number) => {
+      const response = await fetch("/api/extract/benchmark/load", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, slideIndex }),
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error ?? `Failed to load benchmark slide (${response.status})`);
+      }
+
+      const data = await response.json() as BenchmarkLoadResponse;
+      const controlFile = dataUrlToFile(data.imageDataUrl, data.fileName, data.mimeType);
+      const coordsFile = dataUrlToFile(data.imageDataUrl, data.fileName, data.mimeType);
+      const positions = nextBenchmarkPairPositions();
+      const groupId = `benchmark-${Date.now()}`;
+
+      const controlId = addCard(controlFile, {
+        label: `${data.label} · control`,
+        position: positions.control,
+        benchmarkGroupId: groupId,
+        benchmarkVariant: "control",
+        benchmarkSlug: data.slug,
+        benchmarkSlideIndex: data.slideIndex,
+      });
+      const coordsId = addCard(coordsFile, {
+        label: `${data.label} · coords`,
+        position: positions.coords,
+        benchmarkGroupId: groupId,
+        benchmarkVariant: "coords",
+        benchmarkSlug: data.slug,
+        benchmarkSlideIndex: data.slideIndex,
+        geometryHints: data.geometryHints,
+      });
+
+      setNaturalSize(controlId, data.width, data.height);
+      setNaturalSize(coordsId, data.width, data.height);
+      selectCard(controlId);
+    },
+    [addCard, selectCard, setNaturalSize],
+  );
+
   return (
     <div className="fixed inset-0 text-[#e6edf7]">
       <CanvasViewport />
-      <CanvasToolbar />
+      <CanvasToolbar onOpenBenchmark={handleOpenBenchmark} />
+      <BenchmarkLauncher
+        open={benchmarkOpen}
+        onClose={() => setBenchmarkOpen(false)}
+        onRun={handleRunBenchmark}
+      />
       <InspectorPanel
         onAnalyze={handleAnalyze}
         onRefine={handleRefine}

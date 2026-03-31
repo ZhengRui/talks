@@ -94,6 +94,7 @@ function makeCard(): SlideCard {
     autoRefine: true,
     normalizedImage: null,
     diffObjectUrl: null,
+    promptHistory: [],
   };
 }
 

@@ -196,6 +196,42 @@ ${JSON.stringify(makePatchedProposals(), null, 2)}
     expect(editCall.options.systemPrompt).not.toContain("Image 1");
   });
 
+  it("emits prompt events for vision and edit requests", async () => {
+    const proposals = makeProposals();
+    const events: Array<{ event: string; data: Record<string, unknown> }> = [];
+
+    await runRefinementLoop({
+      image: Buffer.from("reference"),
+      imageMediaType: "image/png",
+      proposals,
+      baseAnalysis: makeBaseAnalysis(proposals),
+      maxIterations: 1,
+      mismatchThreshold: 0.05,
+      visionModel: "claude-opus-4-6",
+      visionEffort: "medium",
+      editModel: "claude-sonnet-4-6",
+      editEffort: "high",
+      onEvent: (event) => {
+        events.push(event);
+      },
+    });
+
+    expect(events.find((event) => event.event === "refine:vision:prompt")?.data)
+      .toMatchObject({
+        iteration: 1,
+        phase: "vision",
+        model: "claude-opus-4-6",
+        effort: "medium",
+      });
+    expect(events.find((event) => event.event === "refine:edit:prompt")?.data)
+      .toMatchObject({
+        iteration: 1,
+        phase: "edit",
+        model: "claude-sonnet-4-6",
+        effort: "high",
+      });
+  });
+
   it("keeps proposals unchanged when the edit step returns malformed JSON", async () => {
     const proposals = makeProposals();
     const events: Array<{ event: string; data: Record<string, unknown> }> = [];

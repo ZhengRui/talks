@@ -75,9 +75,11 @@ function isLikelyTrackpadWheel(e: WheelEvent) {
   return !looksLikeClassicWheelStep;
 }
 
-export default function CanvasViewport() {
+export default function CanvasViewport({
+}: Record<string, never>) {
   const pan = useExtractStore((s) => s.pan);
   const zoom = useExtractStore((s) => s.zoom);
+  const panelWidth = useExtractStore((s) => s.panelWidth);
   const cardOrder = useExtractStore((s) => s.cardOrder);
   const setPan = useExtractStore((s) => s.setPan);
   const selectCard = useExtractStore((s) => s.selectCard);
@@ -109,6 +111,7 @@ export default function CanvasViewport() {
   useEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
+    const wheelGesture = wheelGestureRef.current;
 
     function syncState() {
       syncRaf.current = 0;
@@ -130,28 +133,26 @@ export default function CanvasViewport() {
     }
 
     function scheduleWheelGestureReset() {
-      const gesture = wheelGestureRef.current;
-      if (gesture.resetTimer) {
-        clearTimeout(gesture.resetTimer);
+      if (wheelGesture.resetTimer) {
+        clearTimeout(wheelGesture.resetTimer);
       }
-      gesture.resetTimer = setTimeout(() => {
-        gesture.mode = null;
-        gesture.resetTimer = null;
+      wheelGesture.resetTimer = setTimeout(() => {
+        wheelGesture.mode = null;
+        wheelGesture.resetTimer = null;
       }, WHEEL_GESTURE_IDLE_MS);
     }
 
     function onWheel(e: WheelEvent) {
       e.preventDefault();
       const live = liveRef.current;
-      const gesture = wheelGestureRef.current;
 
       if (e.ctrlKey) {
-        gesture.mode = "zoom";
-      } else if (!gesture.mode) {
-        gesture.mode = isLikelyTrackpadWheel(e) ? "pan" : "zoom";
+        wheelGesture.mode = "zoom";
+      } else if (!wheelGesture.mode) {
+        wheelGesture.mode = isLikelyTrackpadWheel(e) ? "pan" : "zoom";
       }
 
-      if (gesture.mode === "pan") {
+      if (wheelGesture.mode === "pan") {
         // Two-finger trackpad scroll → pan
         live.x -= e.deltaX;
         live.y -= e.deltaY;
@@ -176,8 +177,8 @@ export default function CanvasViewport() {
     return () => {
       el.removeEventListener("wheel", onWheel);
       if (syncRaf.current) cancelAnimationFrame(syncRaf.current);
-      if (wheelGestureRef.current.resetTimer) {
-        clearTimeout(wheelGestureRef.current.resetTimer);
+      if (wheelGesture.resetTimer) {
+        clearTimeout(wheelGesture.resetTimer);
       }
     };
   }, []);
@@ -284,13 +285,17 @@ export default function CanvasViewport() {
 
       {isEmpty && (
         <div
+          data-testid="canvas-empty-state"
           style={{
             position: "absolute",
-            inset: 0,
+            top: 0,
+            right: panelWidth,
+            bottom: 0,
+            left: 0,
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            pointerEvents: "none",
           }}
         >
           <span className="text-[#999] text-lg">

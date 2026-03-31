@@ -17,6 +17,18 @@ vi.mock("./CanvasToolbar", () => ({
   default: () => <div data-testid="canvas-toolbar" />,
 }));
 
+vi.mock("./BenchmarkLauncher", () => ({
+  default: ({
+    onRun,
+  }: {
+    open: boolean;
+    onClose: () => void;
+    onRun: (slug: string, slideIndex: number) => Promise<void>;
+  }) => (
+    <button onClick={() => void onRun("demo", 1)}>Benchmark</button>
+  ),
+}));
+
 vi.mock("./InspectorPanel", () => ({
   default: ({
     onAnalyze,
@@ -71,6 +83,23 @@ function makeProposal(name: string, body: string) {
   };
 }
 
+function seedAnalyzedCard(): string {
+  const id = testStore.getState().addCard(makeFile("test-slide.png"));
+  testStore.getState().completeAnalysis(id, {
+    source: {
+      image: "data:image/png;base64,abc",
+      dimensions: { w: 1280, h: 720 },
+    },
+    provenance: {
+      pass1: { model: "claude-opus-4-6", effort: "low" },
+    },
+    proposals: [
+      makeProposal("extract-preview", "mode: scene\nchildren: []"),
+    ],
+  });
+  return id;
+}
+
 function makeSseResponse(
   events: Array<{ event: string; data: Record<string, unknown> }>,
 ): Response {
@@ -93,19 +122,7 @@ function makeSseResponse(
 describe("ExtractCanvas", () => {
   beforeEach(() => {
     testStore = createExtractStore();
-    testCardId = testStore.getState().addCard(makeFile("test-slide.png"));
-    testStore.getState().completeAnalysis(testCardId, {
-      source: {
-        image: "data:image/png;base64,abc",
-        dimensions: { w: 1280, h: 720 },
-      },
-      provenance: {
-        pass1: { model: "claude-opus-4-6", effort: "low" },
-      },
-      proposals: [
-        makeProposal("extract-preview", "mode: scene\nchildren: []"),
-      ],
-    });
+    testCardId = seedAnalyzedCard();
 
     vi.stubGlobal(
       "fetch",
@@ -139,6 +156,17 @@ describe("ExtractCanvas", () => {
               data: { iteration: 1 },
             },
             {
+              event: "refine:vision:prompt",
+              data: {
+                iteration: 1,
+                phase: "vision",
+                systemPrompt: "vision system prompt",
+                userPrompt: "vision user prompt",
+                model: "claude-opus-4-6",
+                effort: "medium",
+              },
+            },
+            {
               event: "refine:vision:text",
               data: { text: "1. Title is too large." },
             },
@@ -149,6 +177,17 @@ describe("ExtractCanvas", () => {
             {
               event: "refine:edit:start",
               data: { iteration: 1 },
+            },
+            {
+              event: "refine:edit:prompt",
+              data: {
+                iteration: 1,
+                phase: "edit",
+                systemPrompt: "edit system prompt",
+                userPrompt: "edit user prompt",
+                model: "claude-opus-4-6",
+                effort: "medium",
+              },
             },
             {
               event: "refine:edit:text",
@@ -244,6 +283,137 @@ describe("ExtractCanvas", () => {
     expect(root.className).toContain("inset-0");
   });
 
+  it("creates benchmark cards without auto-starting analysis", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url === "/api/extract/benchmark/load") {
+          return new Response(
+            JSON.stringify({
+              slug: "demo",
+              title: "Demo Deck",
+              slideIndex: 1,
+              label: "demo slide 1",
+              fileName: "demo-slide-1.png",
+              mimeType: "image/png",
+              width: 1280,
+              height: 720,
+              imageDataUrl: "data:image/png;base64,ZmFrZQ==",
+              geometryHints: {
+                source: "layout",
+                canvas: { w: 1280, h: 720 },
+                elements: [],
+              },
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      }),
+    );
+
+    const { getByText } = render(<ExtractCanvas />);
+
+    fireEvent.click(getByText("Benchmark"));
+
+    await waitFor(() => {
+      expect(testStore.getState().cards.size).toBe(3);
+    });
+
+    const cards = Array.from(testStore.getState().cards.values());
+    const controlCard = cards.find((card) => card.label.includes("control"));
+    const coordsCard = cards.find((card) => card.label.includes("coords"));
+
+    expect(controlCard?.status).toBe("idle");
+    expect(coordsCard?.status).toBe("idle");
+    expect(controlCard?.geometryHints).toBeNull();
+    expect(coordsCard?.geometryHints?.source).toBe("layout");
+  });
+
+  it("captures the extract system and user prompts from the analyze result fallback", async () => {
+    testStore.getState().setAutoRefine(false);
+
+    class MockImage {
+      naturalWidth = 1280;
+      naturalHeight = 720;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      _src = "";
+
+      get src() {
+        return this._src;
+      }
+
+      set src(value: string) {
+        this._src = value;
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+
+    vi.stubGlobal("Image", MockImage);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url === "/api/extract/analyze") {
+          return makeSseResponse([
+            {
+              event: "result",
+              data: {
+                source: {
+                  image: "data:image/png;base64,abc",
+                  dimensions: { w: 1280, h: 720 },
+                },
+                prompt: {
+                  phase: "extract",
+                  systemPrompt: "extract system prompt",
+                  userPrompt: "extract user prompt",
+                  model: "claude-opus-4-6",
+                  effort: "medium",
+                },
+                provenance: {
+                  pass1: {
+                    model: "claude-opus-4-6",
+                    effort: "medium",
+                    elapsed: 1,
+                    cost: 0.01,
+                  },
+                },
+                proposals: [
+                  makeProposal("extract-preview", "mode: scene\nchildren: []"),
+                ],
+              },
+            },
+          ]);
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      }),
+    );
+
+    const { getByText } = render(<ExtractCanvas />);
+
+    fireEvent.click(getByText("Analyze"));
+
+    await waitFor(() => {
+      expect(testStore.getState().cards.get(testCardId)?.promptHistory).toEqual([
+        {
+          stage: "extract",
+          phase: "extract",
+          iteration: null,
+          systemPrompt: "extract system prompt",
+          userPrompt: "extract user prompt",
+          model: "claude-opus-4-6",
+          effort: "medium",
+          timestamp: expect.any(Number),
+        },
+      ]);
+    });
+  });
+
   it("applies an accepted refine iteration to store state", async () => {
     const { getByText } = render(<ExtractCanvas />);
 
@@ -257,6 +427,28 @@ describe("ExtractCanvas", () => {
       expect(card.refineResult?.mismatchRatio).toBe(0.67);
       expect(card.refineHistory).toHaveLength(1);
       expect(card.refineStatus).toBe("done");
+      expect(card.promptHistory).toEqual([
+        {
+          stage: "refine",
+          phase: "vision",
+          iteration: 1,
+          systemPrompt: "vision system prompt",
+          userPrompt: "vision user prompt",
+          model: "claude-opus-4-6",
+          effort: "medium",
+          timestamp: expect.any(Number),
+        },
+        {
+          stage: "refine",
+          phase: "edit",
+          iteration: 1,
+          systemPrompt: "edit system prompt",
+          userPrompt: "edit user prompt",
+          model: "claude-opus-4-6",
+          effort: "medium",
+          timestamp: expect.any(Number),
+        },
+      ]);
     });
   });
 

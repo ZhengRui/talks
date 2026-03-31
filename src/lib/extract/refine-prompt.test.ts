@@ -7,6 +7,21 @@ import {
   buildVisionSystemPrompt,
   buildVisionUserPrompt,
 } from "./refine-prompt";
+import type { GeometryHints } from "@/components/extract/types";
+
+const geometryHints: GeometryHints = {
+  source: "layout",
+  canvas: { w: 1920, h: 1080 },
+  elements: [
+    {
+      id: "title",
+      kind: "text",
+      depth: 0,
+      rect: { x: 440, y: 255, w: 600, h: 60 },
+      text: "KEY PLAYERS",
+    },
+  ],
+};
 
 describe("buildVisionSystemPrompt", () => {
   it("instructs visual comparison without mentioning JSON or proposals", () => {
@@ -62,5 +77,23 @@ describe("buildEditUserPrompt", () => {
     expect(prompt).toContain("Title too large");
     expect(prompt).toContain('"scope":"slide"');
     expect(prompt).toContain("contentBounds");
+  });
+
+  it("injects geometry hints only when provided", () => {
+    const withoutHints = buildEditUserPrompt({
+      differences: "1. Title too large",
+      proposalsJson: '[{"scope":"slide"}]',
+      contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
+    });
+    const withHints = buildEditUserPrompt({
+      differences: "1. Title too large",
+      proposalsJson: '[{"scope":"slide"}]',
+      contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
+      geometryHints,
+    });
+
+    expect(withoutHints).not.toContain("Geometry ground truth");
+    expect(withHints).toContain("Geometry ground truth");
+    expect(withHints).toContain('"source": "layout"');
   });
 });

@@ -13,6 +13,7 @@ import {
 import { putRefineArtifact } from "@/lib/extract/refine-artifacts";
 import type {
   AnalysisResult,
+  GeometryHints,
   Proposal,
 } from "@/components/extract/types";
 import { annotateDiffImage } from "@/lib/render/annotate";
@@ -23,10 +24,12 @@ import { renderSlideToImage } from "@/lib/render/screenshot";
 export type RefineEventType =
   | "refine:start"
   | "refine:vision:start"
+  | "refine:vision:prompt"
   | "refine:vision:thinking"
   | "refine:vision:text"
   | "refine:vision:done"
   | "refine:edit:start"
+  | "refine:edit:prompt"
   | "refine:edit:thinking"
   | "refine:edit:text"
   | "refine:edit:done"
@@ -48,6 +51,7 @@ export interface RefineLoopOptions {
   proposals: Proposal[];
   baseAnalysis: AnalysisResult;
   contentBounds?: CropBounds | null;
+  geometryHints?: GeometryHints | null;
   visionModel: string;
   visionEffort: string;
   editModel: string;
@@ -77,6 +81,7 @@ interface RenderAndDiffResult {
 }
 
 interface VisionOptions {
+  iteration: number;
   referenceImage: Buffer;
   referenceMediaType: string;
   replicaImage: Buffer;
@@ -99,6 +104,7 @@ interface EditOptions {
   differences: string;
   proposals: Proposal[];
   contentBounds?: CropBounds | null;
+  geometryHints?: GeometryHints | null;
   model: string;
   effort: string;
   signal?: AbortSignal;
@@ -344,6 +350,7 @@ async function callClaudeVision(
   options: VisionOptions,
 ): Promise<VisionResult> {
   const {
+    iteration,
     referenceImage,
     referenceMediaType,
     replicaImage,
@@ -354,6 +361,23 @@ async function callClaudeVision(
     signal,
     onEvent,
   } = options;
+  const systemPrompt = buildVisionSystemPrompt();
+  const userPrompt = buildVisionUserPrompt({
+    imageSize,
+    contentBounds,
+  });
+
+  await emit(onEvent, {
+    event: "refine:vision:prompt",
+    data: {
+      iteration,
+      phase: "vision",
+      systemPrompt,
+      userPrompt,
+      model,
+      effort,
+    },
+  });
 
   if (isMockClaudeModel(model)) {
     const differences = [
@@ -379,10 +403,6 @@ async function callClaudeVision(
     };
   }
 
-  const userPrompt = buildVisionUserPrompt({
-    imageSize,
-    contentBounds,
-  });
   const result = await streamClaudeText({
     prompt: makeVisionPrompt(
       referenceImage,
@@ -390,7 +410,7 @@ async function callClaudeVision(
       replicaImage,
       userPrompt,
     ),
-    systemPrompt: buildVisionSystemPrompt(),
+    systemPrompt,
     model,
     effort,
     signal,
@@ -414,11 +434,31 @@ async function callClaudeEdit(
     differences,
     proposals,
     contentBounds,
+    geometryHints,
     model,
     effort,
     signal,
     onEvent,
   } = options;
+  const systemPrompt = buildEditSystemPrompt();
+  const userPrompt = buildEditUserPrompt({
+    differences,
+    proposalsJson: JSON.stringify(proposals, null, 2),
+    contentBounds,
+    geometryHints,
+  });
+
+  await emit(onEvent, {
+    event: "refine:edit:prompt",
+    data: {
+      iteration,
+      phase: "edit",
+      systemPrompt,
+      userPrompt,
+      model,
+      effort,
+    },
+  });
 
   if (isMockClaudeModel(model)) {
     await emit(onEvent, {
@@ -441,14 +481,9 @@ async function callClaudeEdit(
     };
   }
 
-  const userPrompt = buildEditUserPrompt({
-    differences,
-    proposalsJson: JSON.stringify(proposals, null, 2),
-    contentBounds,
-  });
   const result = await streamClaudeText({
     prompt: makeEditPrompt(userPrompt),
-    systemPrompt: buildEditSystemPrompt(),
+    systemPrompt,
     model,
     effort,
     signal,
@@ -509,6 +544,7 @@ export async function runRefinementLoop(
     proposals: initialProposals,
     baseAnalysis,
     contentBounds = baseAnalysis.source.contentBounds ?? null,
+    geometryHints = null,
     visionModel,
     visionEffort,
     editModel,
@@ -610,6 +646,7 @@ export async function runRefinementLoop(
       data: { iteration: absoluteIteration },
     });
     const visionResult = await callClaudeVision({
+      iteration: absoluteIteration,
       referenceImage: prevDiff.referenceImage,
       referenceMediaType: imageMediaType,
       replicaImage: prevDiff.replicaImage,
@@ -661,6 +698,7 @@ export async function runRefinementLoop(
       differences: visionResult.differences,
       proposals: currentProposals,
       contentBounds,
+      geometryHints,
       model: editModel,
       effort: editEffort,
       signal,

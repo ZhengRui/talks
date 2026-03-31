@@ -21,7 +21,7 @@ export default function ThumbnailStrip() {
             key={id}
             type="button"
             onClick={() => selectCard(id)}
-            className="shrink-0 flex items-center justify-center overflow-hidden rounded-md"
+            className="relative shrink-0 flex items-center justify-center overflow-hidden rounded-md"
             style={{
               width: 48,
               height: 48,
@@ -36,6 +36,17 @@ export default function ThumbnailStrip() {
               alt={`Slide ${id}`}
               className="max-h-full max-w-full object-contain"
             />
+            {card.benchmarkVariant && (
+              <span
+                className={`absolute bottom-0.5 right-0.5 rounded px-1 py-px text-[8px] font-semibold uppercase tracking-wide ${
+                  card.benchmarkVariant === "coords"
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-sky-100 text-sky-800"
+                }`}
+              >
+                {card.benchmarkVariant}
+              </span>
+            )}
           </button>
         );
       })}

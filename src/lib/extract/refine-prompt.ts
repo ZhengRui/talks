@@ -1,5 +1,6 @@
 import { readFileSync } from "fs";
 import { join } from "path";
+import type { GeometryHints } from "@/components/extract/types";
 
 /** Injected at import time so it's available as a constant. */
 const SCENE_REFERENCE_CONTENT = (() => {
@@ -22,6 +23,7 @@ export interface EditPromptContext {
   differences: string;
   proposalsJson: string;
   contentBounds?: { x: number; y: number; w: number; h: number } | null;
+  geometryHints?: GeometryHints | null;
 }
 
 export function buildVisionSystemPrompt(): string {
@@ -97,6 +99,7 @@ ${SCENE_REFERENCE_CONTENT}
 - Do NOT rewrite proposals from scratch.
 - Do NOT restructure, rename, or reorganize proposals.
 - Do NOT invent a new coordinate system, hidden scaling factor, or alternate slide bounds.
+- If geometry ground truth is provided in the user prompt, treat those rectangles as exact and patch toward them instead of re-guessing layout.
 - The template body uses Nunjucks. Do NOT use filters like \`| min\`, \`| max\`, \`| abs\`, \`| round\` — they are not available. Use pre-computed numeric values instead.
 - If the difference list is weak or unhelpful, keep the proposals unchanged.
 - The coordinate origin is the top-left corner. x increases to the right. y increases downward.
@@ -112,9 +115,13 @@ export function buildEditUserPrompt(context: EditPromptContext): string {
   const boundsMode = context.contentBounds
     ? "Treat everything outside that rectangle as non-slide chrome and ignore it."
     : "The full image is slide content.";
+  const geometrySection = context.geometryHints
+    ? `\nGeometry ground truth:\n- These element rectangles come from the framework's rendered layout and are exact.\n- Reuse them when patching proposal geometry instead of re-estimating positions from the image.\n\`\`\`json\n${JSON.stringify(context.geometryHints, null, 2)}\n\`\`\`\n`
+    : "";
 
   return `Visible slide area (contentBounds): ${contentBounds}
 ${boundsMode}
+${geometrySection}
 
 Difference list:
 ${context.differences}

@@ -89,9 +89,13 @@ function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
     refineResult: null,
     refineHistory: [],
     refineError: null,
+    refineElapsed: 0,
+    refineCost: null,
+    refineStartMismatch: null,
     autoRefine: true,
     normalizedImage: null,
     diffObjectUrl: null,
+    promptHistory: [],
     ...overrides,
   };
 }
@@ -259,5 +263,23 @@ describe("InspectorPanel", () => {
     // Should render thumbnail images
     const images = container.querySelectorAll("img");
     expect(images.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("shows jump-to-top and jump-to-bottom buttons when a card is selected", () => {
+    const card = makeCard({ id: "card-5", status: "idle" });
+    mockCards.set("card-5", card);
+    mockCardOrder = ["card-5"];
+    mockSelectedCardId = "card-5";
+
+    render(
+      <InspectorPanel
+        onAnalyze={onAnalyze}
+        onRefine={onRefine}
+        onCancelRefine={onCancelRefine}
+      />,
+    );
+
+    expect(document.querySelector('button[title="Jump to top"]')).not.toBeNull();
+    expect(document.querySelector('button[title="Jump to bottom"]')).not.toBeNull();
   });
 });

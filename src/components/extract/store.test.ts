@@ -53,6 +53,7 @@ describe("ExtractStore", () => {
       expect(card!.autoRefine).toBe(true);
       expect(card!.normalizedImage).toBeNull();
       expect(card!.diffObjectUrl).toBeNull();
+      expect(card!.promptHistory).toEqual([]);
     });
 
     it("positions first card at (40, 40)", () => {
@@ -67,6 +68,31 @@ describe("ExtractStore", () => {
       const card2 = store.getState().cards.get(id2)!;
       // Second card: column 1, row 0 → x = 40 + (480+40)*1
       expect(card2.position).toEqual({ x: 40 + 520, y: 40 });
+    });
+
+    it("accepts benchmark metadata and explicit positions", () => {
+      const id = store.getState().addCard(makeFile("bench.png"), {
+        label: "demo slide 2 · coords",
+        position: { x: 200, y: 300 },
+        benchmarkGroupId: "group-1",
+        benchmarkVariant: "coords",
+        benchmarkSlug: "demo",
+        benchmarkSlideIndex: 2,
+        geometryHints: {
+          source: "layout",
+          canvas: { w: 1920, h: 1080 },
+          elements: [],
+        },
+      });
+      const card = store.getState().cards.get(id)!;
+
+      expect(card.label).toBe("demo slide 2 · coords");
+      expect(card.position).toEqual({ x: 200, y: 300 });
+      expect(card.benchmarkGroupId).toBe("group-1");
+      expect(card.benchmarkVariant).toBe("coords");
+      expect(card.benchmarkSlug).toBe("demo");
+      expect(card.benchmarkSlideIndex).toBe(2);
+      expect(card.geometryHints?.source).toBe("layout");
     });
 
     it("wraps to next row after 3 cards", () => {
@@ -171,12 +197,65 @@ describe("ExtractStore", () => {
         content: "old",
         timestamp: 1,
       });
+      store.getState().appendPrompt(id, {
+        stage: "extract",
+        phase: "extract",
+        iteration: null,
+        systemPrompt: "old system",
+        userPrompt: "old user",
+        timestamp: 1,
+      });
       store.getState().startAnalysis(id);
       const card = store.getState().cards.get(id)!;
       expect(card.status).toBe("analyzing");
       expect(card.log).toEqual([]);
       expect(card.error).toBeNull();
       expect(card.elapsed).toBe(0);
+      expect(card.promptHistory).toEqual([]);
+    });
+
+    it("appends prompt history entries", () => {
+      store.getState().appendPrompt(id, {
+        stage: "extract",
+        phase: "extract",
+        iteration: null,
+        systemPrompt: "system",
+        userPrompt: "user",
+        model: "claude-opus-4-6",
+        effort: "medium",
+        timestamp: 123,
+      });
+
+      expect(store.getState().cards.get(id)!.promptHistory).toEqual([
+        {
+          stage: "extract",
+          phase: "extract",
+          iteration: null,
+          systemPrompt: "system",
+          userPrompt: "user",
+          model: "claude-opus-4-6",
+          effort: "medium",
+          timestamp: 123,
+        },
+      ]);
+    });
+
+    it("deduplicates identical prompt history entries", () => {
+      const entry = {
+        stage: "extract" as const,
+        phase: "extract" as const,
+        iteration: null,
+        systemPrompt: "system",
+        userPrompt: "user",
+        model: "claude-opus-4-6",
+        effort: "medium",
+        timestamp: 123,
+      };
+
+      store.getState().appendPrompt(id, entry);
+      store.getState().appendPrompt(id, { ...entry, timestamp: 456 });
+
+      expect(store.getState().cards.get(id)!.promptHistory).toEqual([entry]);
     });
 
     it("startAnalysis captures pass1 provenance and autoRefine setting", () => {
@@ -608,6 +687,38 @@ describe("ExtractStore", () => {
           },
         ],
       });
+    });
+
+    it("startRefinement clears old refine prompts but keeps extract prompts", () => {
+      store.getState().appendPrompt(id, {
+        stage: "extract",
+        phase: "extract",
+        iteration: null,
+        systemPrompt: "extract system",
+        userPrompt: "extract user",
+        timestamp: 1,
+      });
+      store.getState().appendPrompt(id, {
+        stage: "refine",
+        phase: "vision",
+        iteration: 1,
+        systemPrompt: "refine system",
+        userPrompt: "refine user",
+        timestamp: 2,
+      });
+
+      store.getState().startRefinement(id);
+
+      expect(store.getState().cards.get(id)!.promptHistory).toEqual([
+        {
+          stage: "extract",
+          phase: "extract",
+          iteration: null,
+          systemPrompt: "extract system",
+          userPrompt: "extract user",
+          timestamp: 1,
+        },
+      ]);
     });
 
     it("startRefinement resets refine state and activates the refine stage", () => {

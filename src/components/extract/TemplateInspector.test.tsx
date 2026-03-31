@@ -119,6 +119,7 @@ function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
     autoRefine: true,
     normalizedImage: null,
     diffObjectUrl: null,
+    promptHistory: [],
     ...overrides,
   };
 }
@@ -212,6 +213,124 @@ describe("TemplateInspector", () => {
       />,
     );
     expect(screen.queryByText("Inventory")).toBeNull();
+  });
+
+  it("renders captured prompts in the Prompt tab for the active stage", () => {
+    const card = makeCard({
+      activeStage: "refine",
+      promptHistory: [
+        {
+          stage: "extract",
+          phase: "extract",
+          iteration: null,
+          systemPrompt: "extract system",
+          userPrompt: "extract user",
+          timestamp: 1,
+        },
+        {
+          stage: "refine",
+          phase: "vision",
+          iteration: 1,
+          systemPrompt: "vision system",
+          userPrompt: "vision user",
+          model: "claude-opus-4-6",
+          effort: "medium",
+          timestamp: 2,
+        },
+        {
+          stage: "refine",
+          phase: "edit",
+          iteration: 1,
+          systemPrompt: "edit system",
+          userPrompt: "edit user",
+          model: "claude-sonnet-4-6",
+          effort: "high",
+          timestamp: 3,
+        },
+      ],
+    });
+
+    render(
+      <TemplateInspector
+        card={card}
+        onRefine={vi.fn()}
+        onCancelRefine={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Prompt"));
+
+    expect(screen.getByText("Iter 1 · Vision · opus-4-6 · medium")).toBeTruthy();
+    expect(screen.getByText("Iter 1 · Edit · sonnet-4-6 · high")).toBeTruthy();
+    expect(screen.getAllByText("System Prompt").length).toBeGreaterThan(0);
+    expect(screen.queryByText("vision system")).toBeNull();
+    expect(screen.queryByText("edit user")).toBeNull();
+    expect(screen.getAllByText("Show").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByText("Show")[0]);
+    expect(screen.getByText("vision system")).toBeTruthy();
+    expect(screen.queryByText("extract system")).toBeNull();
+  });
+
+  it("uses equal-width buttons for Result, Log, and Prompt", () => {
+    const card = makeCard();
+
+    const { container } = render(
+      <TemplateInspector
+        card={card}
+        onRefine={vi.fn()}
+        onCancelRefine={vi.fn()}
+      />,
+    );
+
+    const buttons = Array.from(container.querySelectorAll("button")).filter((button) =>
+      ["Result", "Log", "Prompt"].includes(button.textContent ?? ""),
+    );
+
+    expect(buttons).toHaveLength(3);
+    buttons.forEach((button) => {
+      expect(button.className).toContain("w-[72px]");
+    });
+  });
+
+  it("reports the active scroll container as tabs change", () => {
+    const onScrollTargetChange = vi.fn();
+    const card = makeCard({
+      promptHistory: [
+        {
+          stage: "extract",
+          phase: "extract",
+          iteration: null,
+          systemPrompt: "extract system",
+          userPrompt: "extract user",
+          timestamp: 1,
+        },
+      ],
+      log: [
+        {
+          type: "status",
+          content: "hello",
+          timestamp: 1,
+          stage: "extract",
+        },
+      ],
+    });
+
+    render(
+      <TemplateInspector
+        card={card}
+        onRefine={vi.fn()}
+        onCancelRefine={vi.fn()}
+        onScrollTargetChange={onScrollTargetChange}
+      />,
+    );
+
+    expect(onScrollTargetChange).toHaveBeenCalledWith(expect.any(HTMLDivElement));
+
+    fireEvent.click(screen.getByText("Log"));
+    expect(onScrollTargetChange).toHaveBeenLastCalledWith(expect.any(HTMLDivElement));
+
+    fireEvent.click(screen.getByText("Prompt"));
+    expect(onScrollTargetChange).toHaveBeenLastCalledWith(expect.any(HTMLDivElement));
   });
 
   it("starts with inventory panel collapsed", () => {

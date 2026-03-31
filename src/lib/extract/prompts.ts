@@ -7,6 +7,7 @@
 
 import { readFileSync } from "fs";
 import { join } from "path";
+import type { GeometryHints } from "@/components/extract/types";
 
 /** Injected at import time so it's available as a constant. */
 const SCENE_REFERENCE_CONTENT = (() => {
@@ -39,6 +40,7 @@ Specifically:
 - Obvious presentation UI chrome (nav dots, counters, export buttons, control bars) is NOT slide content. Use the full image as \`source.dimensions\` and simply ignore chrome in the inventory and proposals.
 - Do NOT debate template-authoring mechanics (loops vs explicit nodes, row layout vs manual positioning, border layering, z-order, quoting, preset organization). Pick the simplest valid encoding that preserves appearance and move on.
 - Do NOT reverse-engineer viewport scaling, device pixel ratios, CSS layout, or rendering pipeline internals. The system normalizes overlay metadata and preview canvas sizing automatically, but your proposal body must still keep \`sourceSize\`, guides, and all frame values in one self-consistent source-pixel coordinate space.
+- If the user prompt includes geometry ground truth, treat those rectangles as exact placement data. Do NOT override or debate them.
 - For background gradients and atmospheric effects, use visually faithful approximations. Do NOT reconstruct exact canvas-vs-viewport coordinate mappings.
 
 ## Produce two outputs in order
@@ -233,14 +235,28 @@ These are errors models frequently make. Follow reference.md's Pitfalls section,
 - Stack/row layouts inside bounded containers: give each child an explicit \`frame.h\` (or use a suitable gap + container height that fits all items). Without explicit child heights, items may overflow or get clipped. Calculate: container_h should be >= (item_h * count) + (gap * (count - 1)).
 - Text frame widths: use generous widths to avoid clipping. For centered titles/headings that appear single-line in the source, use generous widths, often 80%+ of the slide width. If the source heading is intentionally multiline, preserve the observed wrap instead of forcing one line. The renderer's heading font may be wider than you estimate — err on the side of slightly too wide rather than too narrow for single-line headings.`;
 
+function buildGeometryHintsText(geometryHints: GeometryHints): string {
+  return [
+    "Geometry ground truth:",
+    "- The following element rectangles come from the framework's rendered layout and are exact.",
+    "- Use them as the source of truth for placement and sizing when you can map an element confidently.",
+    "- Do not re-guess layout geometry, invent alternate coordinates, or argue with these boxes.",
+    "- Focus your effort on content, styling, hierarchy, color, and effects.",
+    "```json",
+    JSON.stringify(geometryHints, null, 2),
+    "```",
+  ].join("\n");
+}
+
 export function buildAnalysisPrompt(
   text: string | null,
   slug: string | null,
+  geometryHints?: GeometryHints | null,
 ): string {
   let prompt = `Analyze this screenshot and produce inventory-first reusable scene templates. The scene YAML reference is already in your system prompt — do not attempt to read any files.`;
   prompt += `\n\nFor source.dimensions: estimate the image size on first look. Do not round to standard resolutions. Stay self-consistent — do not refine dimensions after your initial estimate.`;
   if (text) prompt += `\n\nAdditional context: ${text}`;
   if (slug) prompt += `\n\nTarget slug: ${slug}`;
+  if (geometryHints) prompt += `\n\n${buildGeometryHintsText(geometryHints)}`;
   return prompt;
 }
-

@@ -3,6 +3,21 @@ import {
   ANALYSIS_SYSTEM_PROMPT,
   buildAnalysisPrompt,
 } from "./prompts";
+import type { GeometryHints } from "@/components/extract/types";
+
+const geometryHints: GeometryHints = {
+  source: "layout",
+  canvas: { w: 1920, h: 1080 },
+  elements: [
+    {
+      id: "title",
+      kind: "text",
+      depth: 0,
+      rect: { x: 440, y: 255, w: 600, h: 60 },
+      text: "KEY PLAYERS",
+    },
+  ],
+};
 
 describe("ANALYSIS_SYSTEM_PROMPT", () => {
   it("includes inventory as a required output field", () => {
@@ -68,5 +83,15 @@ describe("buildAnalysisPrompt", () => {
     expect(prompt).toContain("inventory-first reusable scene templates");
     expect(prompt).toContain("Additional context: Focus on background atmosphere");
     expect(prompt).toContain("Target slug: my-deck");
+  });
+
+  it("injects geometry ground truth only when hints are provided", () => {
+    const withoutHints = buildAnalysisPrompt(null, "my-deck");
+    const withHints = buildAnalysisPrompt(null, "my-deck", geometryHints);
+
+    expect(withoutHints).not.toContain("Geometry ground truth");
+    expect(withHints).toContain("Geometry ground truth");
+    expect(withHints).toContain('"source": "layout"');
+    expect(withHints).toContain('"id": "title"');
   });
 });

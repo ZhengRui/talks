@@ -9,7 +9,7 @@ import {
   isMockClaudeModel,
 } from "@/lib/extract/mock-claude";
 import { normalizeAnalysisRegions } from "@/lib/extract/normalize-analysis";
-import type { AnalysisStage } from "@/components/extract/types";
+import type { AnalysisStage, GeometryHints } from "@/components/extract/types";
 
 /** Infer media type from file extension. */
 function inferMediaType(fileName: string): string {
@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
   const image = formData.get("image") as File | null;
   const text = formData.get("text") as string | null;
   const slug = formData.get("slug") as string | null;
+  const geometryHintsJson = formData.get("geometryHints") as string | null;
   const model = (formData.get("model") as string) || "claude-opus-4-6";
   const effort = (formData.get("effort") as string) || "low";
 
@@ -87,7 +88,18 @@ export async function POST(request: NextRequest) {
   const imageBuffer = Buffer.from(await image.arrayBuffer());
   const actualSize = readImageSize(imageBuffer);
   const mediaType = image.type || inferMediaType(image.name);
-  const analysisPrompt = buildAnalysisPrompt(text, slug);
+  let geometryHints: GeometryHints | null = null;
+  if (geometryHintsJson) {
+    try {
+      geometryHints = JSON.parse(geometryHintsJson) as GeometryHints;
+    } catch {
+      return new Response(JSON.stringify({ error: "Invalid geometryHints payload" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }
+  const analysisPrompt = buildAnalysisPrompt(text, slug, geometryHints);
 
   async function* makePrompt(promptText: string) {
     yield {
@@ -127,6 +139,14 @@ export async function POST(request: NextRequest) {
       }
 
       try {
+        send("prompt", {
+          phase: "extract",
+          systemPrompt: ANALYSIS_SYSTEM_PROMPT,
+          userPrompt: analysisPrompt,
+          model,
+          effort,
+        }, "extract");
+
         if (isMockClaudeModel(model)) {
           const dimensions = actualSize ?? { w: 1280, h: 720 };
           const mockAnalysis = createMockAnalysisResult({
@@ -333,6 +353,13 @@ export async function POST(request: NextRequest) {
 
         send("result", {
           ...analysis,
+          prompt: {
+            phase: "extract",
+            systemPrompt: ANALYSIS_SYSTEM_PROMPT,
+            userPrompt: analysisPrompt,
+            model,
+            effort,
+          },
           provenance: {
             pass1: {
               model,

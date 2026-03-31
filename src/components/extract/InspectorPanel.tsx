@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  ArrowDownToLine,
+  ArrowUpToLine,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { useExtractStore } from "./store";
 import ThumbnailStrip from "./ThumbnailStrip";
 import AnalyzeForm from "./AnalyzeForm";
@@ -31,6 +36,8 @@ export default function InspectorPanel({
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const [collapsed, setCollapsed] = useState(false);
   const isResizing = useRef(false);
+  const analyzeScrollRef = useRef<HTMLDivElement>(null);
+  const templateScrollTargetRef = useRef<HTMLDivElement | null>(null);
 
   // Sync panel width to store so other components can read it
   useEffect(() => {
@@ -61,6 +68,31 @@ export default function InspectorPanel({
     },
     [width],
   );
+
+  const setTemplateScrollTarget = useCallback((element: HTMLDivElement | null) => {
+    templateScrollTargetRef.current = element;
+  }, []);
+
+  const getActiveScrollTarget = useCallback(() => {
+    if (!card) return null;
+    if (card.status === "idle" || card.status === "error") {
+      return analyzeScrollRef.current;
+    }
+    if (card.status === "analyzing" || card.status === "analyzed") {
+      return templateScrollTargetRef.current;
+    }
+    return null;
+  }, [card]);
+
+  const scrollToTop = useCallback(() => {
+    const target = getActiveScrollTarget();
+    target?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [getActiveScrollTarget]);
+
+  const scrollToBottom = useCallback(() => {
+    const target = getActiveScrollTarget();
+    target?.scrollTo({ top: target.scrollHeight, behavior: "smooth" });
+  }, [getActiveScrollTarget]);
 
   // Shared style for expand/collapse toggle button
   const toggleBtnClass =
@@ -119,7 +151,7 @@ export default function InspectorPanel({
           )}
 
           {card && (card.status === "idle" || card.status === "error") && (
-            <div className="overflow-y-auto">
+            <div ref={analyzeScrollRef} className="overflow-y-auto min-h-0">
               <AnalyzeForm card={card} onAnalyze={onAnalyze} />
             </div>
           )}
@@ -129,6 +161,7 @@ export default function InspectorPanel({
               card={card}
               onRefine={onRefine}
               onCancelRefine={onCancelRefine}
+              onScrollTargetChange={setTemplateScrollTarget}
               defaultTab={
                 // Stay on log until the entire pipeline is done.
                 // Pipeline is done when: analyzed + refine is not running
@@ -139,6 +172,27 @@ export default function InspectorPanel({
             />
           )}
         </div>
+
+        {card ? (
+          <div className="pointer-events-none absolute bottom-4 right-4 z-30 flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={scrollToTop}
+              className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white/90 text-gray-500 shadow-md backdrop-blur transition-colors hover:bg-white hover:text-gray-700"
+              title="Jump to top"
+            >
+              <ArrowUpToLine className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={scrollToBottom}
+              className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white/90 text-gray-500 shadow-md backdrop-blur transition-colors hover:bg-white hover:text-gray-700"
+              title="Jump to bottom"
+            >
+              <ArrowDownToLine className="h-4 w-4" />
+            </button>
+          </div>
+        ) : null}
       </div>
     </>
   );

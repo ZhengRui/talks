@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { runRefinementLoop, type RefineEvent } from "@/lib/extract/refine";
-import type { AnalysisResult, Proposal } from "@/components/extract/types";
+import type { AnalysisResult, GeometryHints, Proposal } from "@/components/extract/types";
 import type { CropBounds } from "@/lib/render/crop";
 
 export const runtime = "nodejs";
@@ -22,6 +22,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   const proposalsJson = formData.get("proposals") as string | null;
   const baseAnalysisJson = formData.get("baseAnalysis") as string | null;
   const contentBoundsJson = formData.get("contentBounds") as string | null;
+  const geometryHintsJson = formData.get("geometryHints") as string | null;
   const visionModel = (formData.get("visionModel") as string) || "claude-opus-4-6";
   const visionEffort = (formData.get("visionEffort") as string) || "medium";
   const editModel = (formData.get("editModel") as string) || "claude-opus-4-6";
@@ -43,12 +44,16 @@ export async function POST(request: NextRequest): Promise<Response> {
   let proposals: Proposal[];
   let baseAnalysis: AnalysisResult;
   let contentBounds: CropBounds | null = null;
+  let geometryHints: GeometryHints | null = null;
   try {
     proposals = JSON.parse(proposalsJson) as Proposal[];
     baseAnalysis = JSON.parse(baseAnalysisJson) as AnalysisResult;
     if (contentBoundsJson) {
       const parsed = JSON.parse(contentBoundsJson);
       contentBounds = isBounds(parsed) ? parsed : null;
+    }
+    if (geometryHintsJson) {
+      geometryHints = JSON.parse(geometryHintsJson) as GeometryHints;
     }
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON payload" }), {
@@ -69,6 +74,7 @@ export async function POST(request: NextRequest): Promise<Response> {
           proposals,
           baseAnalysis,
           contentBounds,
+          geometryHints,
           visionModel,
           visionEffort,
           editModel,

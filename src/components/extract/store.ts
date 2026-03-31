@@ -4,6 +4,9 @@ import type {
   AnalysisResult,
   AnalysisResultPayload,
   AnalysisStage,
+  BenchmarkVariant,
+  GeometryHints,
+  PromptRecord,
   RefineProvenance,
   RefineIterationResult,
   StageAnalysisProvenance,
@@ -57,6 +60,22 @@ export interface SlideCard {
   autoRefine: boolean;
   normalizedImage: File | null;
   diffObjectUrl: string | null;
+  promptHistory: PromptRecord[];
+  benchmarkGroupId: string | null;
+  benchmarkVariant: BenchmarkVariant | null;
+  benchmarkSlug: string | null;
+  benchmarkSlideIndex: number | null;
+  geometryHints: GeometryHints | null;
+}
+
+export interface AddCardOptions {
+  label?: string;
+  position?: { x: number; y: number };
+  benchmarkGroupId?: string | null;
+  benchmarkVariant?: BenchmarkVariant | null;
+  benchmarkSlug?: string | null;
+  benchmarkSlideIndex?: number | null;
+  geometryHints?: GeometryHints | null;
 }
 
 export interface ExtractState {
@@ -81,12 +100,13 @@ export interface ExtractState {
   previewDebugTextBoxes: boolean;
 
   // Actions
-  addCard: (file: File) => string;
+  addCard: (file: File, options?: AddCardOptions) => string;
   removeCard: (id: string) => void;
   selectCard: (id: string | null) => void;
   updateDescription: (id: string, text: string) => void;
   startAnalysis: (id: string) => void;
   appendLog: (id: string, entry: LogEntry) => void;
+  appendPrompt: (id: string, entry: PromptRecord) => void;
   completeAnalysis: (id: string, result: AnalysisResultPayload) => void;
   failAnalysis: (id: string, error: string) => void;
   setNormalizedImage: (id: string, file: File | null) => void;
@@ -262,15 +282,15 @@ export function createExtractStore(): StoreApi<ExtractState> {
 
     // Actions
 
-    addCard(file: File): string {
+    addCard(file: File, options: AddCardOptions = {}): string {
       const id = generateId();
       const previewUrl = URL.createObjectURL(file);
       const { cardOrder, layoutKey } = get();
       const index = cardOrder.length;
       // +1 because this card is about to be added
       const cols = colsFromLayoutKey(layoutKey, index + 1);
-      const position = gridPosition(index, cols);
-      const label = `Slide #${Math.random().toString(36).slice(2, 5)}`;
+      const position = options.position ?? gridPosition(index, cols);
+      const label = options.label ?? `Slide #${Math.random().toString(36).slice(2, 5)}`;
       const card: SlideCard = {
         id,
         label,
@@ -308,6 +328,12 @@ export function createExtractStore(): StoreApi<ExtractState> {
         autoRefine: get().autoRefine,
         normalizedImage: null,
         diffObjectUrl: null,
+        promptHistory: [],
+        benchmarkGroupId: options.benchmarkGroupId ?? null,
+        benchmarkVariant: options.benchmarkVariant ?? null,
+        benchmarkSlug: options.benchmarkSlug ?? null,
+        benchmarkSlideIndex: options.benchmarkSlideIndex ?? null,
+        geometryHints: options.geometryHints ?? null,
       };
       set((state) => {
         const next = new Map(state.cards);
@@ -408,6 +434,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineCost: null,
           refineStartMismatch: null,
           diffObjectUrl: null,
+          promptHistory: [],
         }));
       });
     },
@@ -433,6 +460,28 @@ export function createExtractStore(): StoreApi<ExtractState> {
             log.push(entry);
           }
           return { log };
+        }),
+      );
+    },
+
+    appendPrompt(id: string, entry: PromptRecord) {
+      set((state) =>
+        updateCard(state, id, (card) => {
+          const alreadyCaptured = card.promptHistory.some((existing) =>
+            existing.stage === entry.stage &&
+            existing.phase === entry.phase &&
+            existing.iteration === entry.iteration &&
+            existing.systemPrompt === entry.systemPrompt &&
+            existing.userPrompt === entry.userPrompt,
+          );
+
+          if (alreadyCaptured) {
+            return {};
+          }
+
+          return {
+            promptHistory: [...card.promptHistory, entry],
+          };
         }),
       );
     },
@@ -548,6 +597,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineCost: null,
           normalizedImage: null,
           diffObjectUrl: null,
+          promptHistory: [],
         }));
       });
     },
@@ -625,6 +675,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineCost: null,
           refineStartMismatch: null,
           diffObjectUrl: null,
+          promptHistory: card?.promptHistory.filter((entry) => entry.stage !== "refine") ?? [],
           activeStage: "refine" as const,
         }));
       });

@@ -11,6 +11,42 @@ export function regionColor(index: number): string {
 }
 
 export type AnalysisStage = "extract" | "refine";
+export type PromptPhase = "extract" | "vision" | "edit";
+
+export interface PromptRecord {
+  stage: AnalysisStage;
+  phase: PromptPhase;
+  iteration: number | null;
+  systemPrompt: string;
+  userPrompt: string;
+  model?: string;
+  effort?: string;
+  timestamp: number;
+}
+
+export interface GeometryHintRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface GeometryHintElement {
+  id: string;
+  kind: string;
+  parentId?: string;
+  depth: number;
+  rect: GeometryHintRect;
+  text?: string;
+}
+
+export interface GeometryHints {
+  source: "layout";
+  canvas: { w: number; h: number };
+  elements: GeometryHintElement[];
+}
+
+export type BenchmarkVariant = "control" | "coords";
 
 export interface ProposalField {
   type: string;

@@ -13,7 +13,6 @@ const mockSelectCard = vi.fn();
 const mockAddCard = vi.fn().mockReturnValue("new-card-id");
 const mockSetPan = vi.fn();
 const mockSetZoom = vi.fn();
-
 let mockStoreState: Record<string, unknown> = {};
 
 vi.mock("./store", () => ({
@@ -51,6 +50,7 @@ beforeEach(() => {
   mockStoreState = {
     pan: { x: 0, y: 0 },
     zoom: 1,
+    panelWidth: 380,
     cardOrder: [],
     selectedCardId: null,
     cards: new Map(),
@@ -122,8 +122,10 @@ describe("CanvasViewport", () => {
   });
 
   it("shows empty state hint when no cards exist", () => {
-    const { getByText } = render(<CanvasViewport />);
+    const { getByText, queryByRole, getByTestId } = render(<CanvasViewport />);
     expect(getByText(/Paste an image/i)).toBeDefined();
+    expect(queryByRole("button")).toBeNull();
+    expect(getByTestId("canvas-empty-state").style.right).toBe("380px");
   });
 
   it("does not show empty state hint when cards exist", () => {
