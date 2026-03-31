@@ -195,6 +195,7 @@ export default function SlideCard({ cardId }: SlideCardProps) {
           <DiffImageView diffObjectUrl={card.diffObjectUrl} />
         ) : activeViewMode !== "original" && activePreview?.proposal && activePreview.source ? (
           <ReplicaPreview
+            key={activeViewMode}
             proposal={activePreview.proposal}
             allProposals={activePreview.allProposals}
             canvasW={activePreview.source.dimensions.w}

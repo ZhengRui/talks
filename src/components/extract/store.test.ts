@@ -31,8 +31,10 @@ describe("ExtractStore", () => {
       expect(card!.pass1Elapsed).toBe(0);
       expect(card!.pass1Cost).toBeNull();
       expect(card!.refinePass).toEqual({
-        model: "claude-opus-4-6",
-        effort: "medium",
+        visionModel: "claude-opus-4-6",
+        visionEffort: "medium",
+        editModel: "claude-opus-4-6",
+        editEffort: "medium",
       });
       expect(card!.refineSettingsLocked).toBe(false);
       expect(card!.error).toBeNull();
@@ -180,8 +182,10 @@ describe("ExtractStore", () => {
     it("startAnalysis captures pass1 provenance and autoRefine setting", () => {
       store.getState().setModel("claude-sonnet-4-6");
       store.getState().setEffort("max");
-      store.getState().setRefineModel("claude-opus-4-6");
-      store.getState().setRefineEffort("low");
+      store.getState().setRefineVisionModel("claude-opus-4-6");
+      store.getState().setRefineVisionEffort("low");
+      store.getState().setRefineEditModel("claude-sonnet-4-6");
+      store.getState().setRefineEditEffort("high");
       store.getState().setAutoRefine(false);
 
       store.getState().startAnalysis(id);
@@ -195,8 +199,10 @@ describe("ExtractStore", () => {
       expect(card.viewMode).toBe("original");
       expect(card.autoRefine).toBe(false);
       expect(card.refinePass).toEqual({
-        model: "claude-opus-4-6",
-        effort: "low",
+        visionModel: "claude-opus-4-6",
+        visionEffort: "low",
+        editModel: "claude-sonnet-4-6",
+        editEffort: "high",
       });
     });
 
@@ -483,18 +489,24 @@ describe("ExtractStore", () => {
       const id1 = store.getState().addCard(makeFile("a.png"));
       const id2 = store.getState().addCard(makeFile("b.png"));
 
-      store.getState().setRefineModel("claude-sonnet-4-6");
-      store.getState().setRefineEffort("high");
+      store.getState().setRefineVisionModel("claude-sonnet-4-6");
+      store.getState().setRefineVisionEffort("high");
+      store.getState().setRefineEditModel("claude-opus-4-6");
+      store.getState().setRefineEditEffort("low");
       store.getState().setRefineMaxIterations(id1, 7);
       store.getState().setRefineMismatchThreshold(id1, 0.12);
 
       expect(store.getState().cards.get(id1)!.refinePass).toEqual({
-        model: "claude-sonnet-4-6",
-        effort: "high",
+        visionModel: "claude-sonnet-4-6",
+        visionEffort: "high",
+        editModel: "claude-opus-4-6",
+        editEffort: "low",
       });
       expect(store.getState().cards.get(id2)!.refinePass).toEqual({
-        model: "claude-sonnet-4-6",
-        effort: "high",
+        visionModel: "claude-sonnet-4-6",
+        visionEffort: "high",
+        editModel: "claude-opus-4-6",
+        editEffort: "low",
       });
       expect(store.getState().cards.get(id1)!.refineMaxIterations).toBe(7);
       expect(store.getState().cards.get(id2)!.refineMaxIterations).toBe(7);
@@ -505,22 +517,28 @@ describe("ExtractStore", () => {
     it("keeps started cards on their snapped refine defaults", () => {
       const id = store.getState().addCard(makeFile("started.png"));
       const idleId = store.getState().addCard(makeFile("idle.png"));
-      store.getState().setRefineModel("claude-opus-4-6");
-      store.getState().setRefineEffort("low");
+      store.getState().setRefineVisionModel("claude-opus-4-6");
+      store.getState().setRefineVisionEffort("low");
+      store.getState().setRefineEditModel("claude-sonnet-4-6");
+      store.getState().setRefineEditEffort("high");
       store.getState().setRefineMaxIterations(id, 2);
       store.getState().setRefineMismatchThreshold(id, 0.08);
 
       store.getState().startAnalysis(id);
 
-      store.getState().setRefineModel("claude-sonnet-4-6");
-      store.getState().setRefineEffort("high");
+      store.getState().setRefineVisionModel("claude-sonnet-4-6");
+      store.getState().setRefineVisionEffort("high");
+      store.getState().setRefineEditModel("claude-opus-4-6");
+      store.getState().setRefineEditEffort("low");
       store.getState().setRefineMaxIterations(idleId, 9);
       store.getState().setRefineMismatchThreshold(idleId, 0.2);
 
       const card = store.getState().cards.get(id)!;
       expect(card.refinePass).toEqual({
-        model: "claude-opus-4-6",
-        effort: "low",
+        visionModel: "claude-opus-4-6",
+        visionEffort: "low",
+        editModel: "claude-sonnet-4-6",
+        editEffort: "high",
       });
       expect(card.refineMaxIterations).toBe(2);
       expect(card.refineMismatchThreshold).toBe(0.08);
@@ -532,14 +550,18 @@ describe("ExtractStore", () => {
       store.getState().failAnalysis(id, "boom");
 
       store.getState().setCardAutoRefine(id, false);
-      store.getState().setCardRefineModel(id, "claude-sonnet-4-6");
-      store.getState().setCardRefineEffort(id, "high");
+      store.getState().setCardRefineVisionModel(id, "claude-sonnet-4-6");
+      store.getState().setCardRefineVisionEffort(id, "high");
+      store.getState().setCardRefineEditModel(id, "claude-opus-4-6");
+      store.getState().setCardRefineEditEffort(id, "low");
       store.getState().setRefineMaxIterations(id, 6);
       store.getState().setRefineMismatchThreshold(id, 0.14);
 
       store.getState().setAutoRefine(true);
-      store.getState().setRefineModel("claude-opus-4-6");
-      store.getState().setRefineEffort("low");
+      store.getState().setRefineVisionModel("claude-opus-4-6");
+      store.getState().setRefineVisionEffort("low");
+      store.getState().setRefineEditModel("claude-sonnet-4-6");
+      store.getState().setRefineEditEffort("high");
 
       const idleId = store.getState().addCard(makeFile("idle.png"));
       store.getState().setRefineMaxIterations(idleId, 3);
@@ -550,8 +572,10 @@ describe("ExtractStore", () => {
       const card = store.getState().cards.get(id)!;
       expect(card.autoRefine).toBe(false);
       expect(card.refinePass).toEqual({
-        model: "claude-sonnet-4-6",
-        effort: "high",
+        visionModel: "claude-sonnet-4-6",
+        visionEffort: "high",
+        editModel: "claude-opus-4-6",
+        editEffort: "low",
       });
       expect(card.refineMaxIterations).toBe(6);
       expect(card.refineMismatchThreshold).toBe(0.14);

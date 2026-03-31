@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState, useEffect, useCallback } from "react";
-import { Check, Copy, FileText, RotateCcw, Sparkles } from "lucide-react";
+import { useRef, useState, useEffect } from "react";
+import { Check, Copy, RotateCcw, Sparkles } from "lucide-react";
 import { useExtractStore } from "./store";
 import type { SlideCard } from "./store";
 import { getStageAnalysis } from "./stage-utils";
@@ -260,8 +260,10 @@ export default function TemplateInspector({
       ? `${card.refineIteration}/${card.refineMaxIterations}`
       : null;
 
-  const refineModel = useExtractStore((s) => s.refineModel);
-  const refineEffort = useExtractStore((s) => s.refineEffort);
+  const refineVisionModel = useExtractStore((s) => s.refineVisionModel);
+  const refineVisionEffort = useExtractStore((s) => s.refineVisionEffort);
+  const refineEditModel = useExtractStore((s) => s.refineEditModel);
+  const refineEditEffort = useExtractStore((s) => s.refineEditEffort);
   const refinePass = card.refinePass;
   const [viewTab, setViewTab] = useState<"result" | "log">(defaultTab);
   // Sync when defaultTab changes (e.g. analyzing → analyzed)
@@ -275,22 +277,51 @@ export default function TemplateInspector({
   const activeLogEntries = filterLogEntries(card.log, card.activeStage);
 
   // Build stage meta string for the active stage
-  const stageMetaText = (() => {
+  const stageMetaLines = (() => {
     if (card.activeStage === "refine") {
-      return formatStageMeta([
-        formatModel(refinePass?.model ?? refineModel),
-        refinePass?.effort ?? refineEffort,
+      const resolvedPass = refinePass ?? {
+        visionModel: refineVisionModel,
+        visionEffort: refineVisionEffort,
+        editModel: refineEditModel,
+        editEffort: refineEditEffort,
+      };
+      const totals = formatStageMeta([
         card.refineElapsed > 0 ? `${card.refineElapsed}s` : null,
         card.refineCost != null ? `$${card.refineCost.toFixed(2)}` : null,
       ]);
+
+      if (
+        resolvedPass.visionModel === resolvedPass.editModel &&
+        resolvedPass.visionEffort === resolvedPass.editEffort
+      ) {
+        return [
+          formatStageMeta([
+            formatModel(resolvedPass.visionModel),
+            resolvedPass.visionEffort,
+            totals || null,
+          ]),
+        ];
+      }
+
+      return [
+        `vision: ${formatStageMeta([
+          formatModel(resolvedPass.visionModel),
+          resolvedPass.visionEffort,
+        ])}`,
+        `edit: ${formatStageMeta([
+          formatModel(resolvedPass.editModel),
+          resolvedPass.editEffort,
+        ])}`,
+        ...(totals ? [totals] : []),
+      ];
     }
     if (activeMeta?.pass) {
-      return formatStageMeta([
+      return [formatStageMeta([
         formatModel(activeMeta.pass.model),
         activeMeta.pass.effort,
         activeMeta.elapsed > 0 ? `${activeMeta.elapsed}s` : null,
         activeMeta.cost != null ? `$${activeMeta.cost.toFixed(2)}` : null,
-      ]);
+      ])];
     }
     return null;
   })();
@@ -298,7 +329,7 @@ export default function TemplateInspector({
   return (
     <div className="flex flex-col min-h-0 flex-1">
       {/* Row 1: Stage tabs + Reset (far right) */}
-      <div className="flex items-center gap-1.5 border-b border-gray-200 px-3 py-2 shrink-0">
+      <div className="@container flex items-center gap-1.5 border-b border-gray-200 px-3 py-2 shrink-0">
         <button
           type="button"
           onClick={() => setActiveStage(card.id, "extract")}
@@ -336,7 +367,8 @@ export default function TemplateInspector({
             className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-amber-600 transition-colors hover:bg-amber-100/60 hover:text-amber-700"
             title="Cancel refinement"
           >
-            Cancel
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            <span className="hidden @[22rem]:inline">Cancel</span>
           </button>
         )}
         {card.status === "analyzed" && card.refineStatus !== "running" && (
@@ -347,7 +379,7 @@ export default function TemplateInspector({
             title="Refine one more iteration"
           >
             <Sparkles className="h-3.5 w-3.5" />
-            Refine
+            <span className="hidden @[22rem]:inline">Refine</span>
           </button>
         )}
         <div className="relative">
@@ -358,7 +390,7 @@ export default function TemplateInspector({
             title="Reset analysis"
           >
             <RotateCcw className="h-3.5 w-3.5" />
-            Reset
+            <span className="hidden @[22rem]:inline">Reset</span>
           </button>
           {showResetConfirm && (
             <ResetConfirmPopover
@@ -396,8 +428,12 @@ export default function TemplateInspector({
           </button>
         </div>
         <div className="flex-1" />
-        {stageMetaText ? (
-          <span className="truncate text-[10px] text-gray-400">{stageMetaText}</span>
+        {stageMetaLines ? (
+          <div className="flex flex-col items-end text-[10px] text-gray-400">
+            {stageMetaLines.map((line) => (
+              <span key={line} className="truncate">{line}</span>
+            ))}
+          </div>
         ) : null}
       </div>
 

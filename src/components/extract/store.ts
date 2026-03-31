@@ -4,6 +4,7 @@ import type {
   AnalysisResult,
   AnalysisResultPayload,
   AnalysisStage,
+  RefineProvenance,
   RefineIterationResult,
   StageAnalysisProvenance,
 } from "./types";
@@ -36,7 +37,7 @@ export interface SlideCard {
   pass1: StageAnalysisProvenance | null;
   pass1Elapsed: number;
   pass1Cost: number | null;
-  refinePass?: StageAnalysisProvenance | null;
+  refinePass?: RefineProvenance | null;
   refineSettingsLocked?: boolean;
   error: string | null;
   activeStage: AnalysisStage;
@@ -71,8 +72,10 @@ export interface ExtractState {
   model: string;
   effort: string;
   autoRefine: boolean;
-  refineModel: string;
-  refineEffort: string;
+  refineVisionModel: string;
+  refineVisionEffort: string;
+  refineEditModel: string;
+  refineEditEffort: string;
   refineDefaultMaxIterations: number;
   refineDefaultMismatchThreshold: number;
   previewDebugTextBoxes: boolean;
@@ -115,10 +118,14 @@ export interface ExtractState {
   closeYamlModal: () => void;
   setModel: (model: string) => void;
   setEffort: (effort: string) => void;
-  setRefineModel: (model: string) => void;
-  setRefineEffort: (effort: string) => void;
-  setCardRefineModel: (id: string, model: string) => void;
-  setCardRefineEffort: (id: string, effort: string) => void;
+  setRefineVisionModel: (model: string) => void;
+  setRefineVisionEffort: (effort: string) => void;
+  setRefineEditModel: (model: string) => void;
+  setRefineEditEffort: (effort: string) => void;
+  setCardRefineVisionModel: (id: string, model: string) => void;
+  setCardRefineVisionEffort: (id: string, effort: string) => void;
+  setCardRefineEditModel: (id: string, model: string) => void;
+  setCardRefineEditEffort: (id: string, effort: string) => void;
   setPreviewDebugTextBoxes: (enabled: boolean) => void;
 }
 
@@ -213,8 +220,18 @@ function updateUnlockedCards(
   return changed ? next : null;
 }
 
-function currentRefinePass(state: Pick<ExtractState, "refineModel" | "refineEffort">): StageAnalysisProvenance {
-  return { model: state.refineModel, effort: state.refineEffort };
+function currentRefinePass(
+  state: Pick<
+    ExtractState,
+    "refineVisionModel" | "refineVisionEffort" | "refineEditModel" | "refineEditEffort"
+  >,
+): RefineProvenance {
+  return {
+    visionModel: state.refineVisionModel,
+    visionEffort: state.refineVisionEffort,
+    editModel: state.refineEditModel,
+    editEffort: state.refineEditEffort,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -235,8 +252,10 @@ export function createExtractStore(): StoreApi<ExtractState> {
     model: "claude-opus-4-6",
     effort: "medium",
     autoRefine: true,
-    refineModel: "claude-opus-4-6",
-    refineEffort: "medium",
+    refineVisionModel: "claude-opus-4-6",
+    refineVisionEffort: "medium",
+    refineEditModel: "claude-opus-4-6",
+    refineEditEffort: "medium",
     refineDefaultMaxIterations: 4,
     refineDefaultMismatchThreshold: 0.05,
     previewDebugTextBoxes: false,
@@ -336,8 +355,10 @@ export function createExtractStore(): StoreApi<ExtractState> {
         model,
         effort,
         autoRefine,
-        refineModel,
-        refineEffort,
+        refineVisionModel,
+        refineVisionEffort,
+        refineEditModel,
+        refineEditEffort,
         refineDefaultMaxIterations,
         refineDefaultMismatchThreshold,
       } = get();
@@ -346,8 +367,18 @@ export function createExtractStore(): StoreApi<ExtractState> {
         revokeObjectUrl(card?.diffObjectUrl);
         const lockedRefineSettings = card?.refineSettingsLocked === true;
         const nextRefinePass = lockedRefineSettings
-          ? (card?.refinePass ?? { model: refineModel, effort: refineEffort })
-          : { model: refineModel, effort: refineEffort };
+          ? (card?.refinePass ?? {
+              visionModel: refineVisionModel,
+              visionEffort: refineVisionEffort,
+              editModel: refineEditModel,
+              editEffort: refineEditEffort,
+            })
+          : {
+              visionModel: refineVisionModel,
+              visionEffort: refineVisionEffort,
+              editModel: refineEditModel,
+              editEffort: refineEditEffort,
+            };
         return updateCard(state, id, () => ({
           status: "analyzing" as const,
           log: [],
@@ -474,8 +505,10 @@ export function createExtractStore(): StoreApi<ExtractState> {
     resetAnalysis(id: string) {
       const {
         autoRefine,
-        refineModel,
-        refineEffort,
+        refineVisionModel,
+        refineVisionEffort,
+        refineEditModel,
+        refineEditEffort,
         refineDefaultMaxIterations,
         refineDefaultMismatchThreshold,
       } = get();
@@ -491,7 +524,12 @@ export function createExtractStore(): StoreApi<ExtractState> {
           pass1: null,
           pass1Elapsed: 0,
           pass1Cost: null,
-          refinePass: { model: refineModel, effort: refineEffort },
+          refinePass: {
+            visionModel: refineVisionModel,
+            visionEffort: refineVisionEffort,
+            editModel: refineEditModel,
+            editEffort: refineEditEffort,
+          },
           refineSettingsLocked: false,
           error: null,
           activeStage: "extract" as const,
@@ -780,47 +818,97 @@ export function createExtractStore(): StoreApi<ExtractState> {
       set({ effort });
     },
 
-    setRefineModel(refineModel: string) {
+    setRefineVisionModel(refineVisionModel: string) {
       set((state) => {
         const cards = updateUnlockedCards(state, (card) => ({
           refinePass: {
             ...(card.refinePass ?? currentRefinePass(state)),
-            model: refineModel,
+            visionModel: refineVisionModel,
           },
         }));
-        return cards ? { refineModel, cards } : { refineModel };
+        return cards ? { refineVisionModel, cards } : { refineVisionModel };
       });
     },
 
-    setRefineEffort(refineEffort: string) {
+    setRefineVisionEffort(refineVisionEffort: string) {
       set((state) => {
         const cards = updateUnlockedCards(state, (card) => ({
           refinePass: {
             ...(card.refinePass ?? currentRefinePass(state)),
-            effort: refineEffort,
+            visionEffort: refineVisionEffort,
           },
         }));
-        return cards ? { refineEffort, cards } : { refineEffort };
+        return cards
+          ? { refineVisionEffort, cards }
+          : { refineVisionEffort };
       });
     },
 
-    setCardRefineModel(id: string, model: string) {
+    setRefineEditModel(refineEditModel: string) {
+      set((state) => {
+        const cards = updateUnlockedCards(state, (card) => ({
+          refinePass: {
+            ...(card.refinePass ?? currentRefinePass(state)),
+            editModel: refineEditModel,
+          },
+        }));
+        return cards ? { refineEditModel, cards } : { refineEditModel };
+      });
+    },
+
+    setRefineEditEffort(refineEditEffort: string) {
+      set((state) => {
+        const cards = updateUnlockedCards(state, (card) => ({
+          refinePass: {
+            ...(card.refinePass ?? currentRefinePass(state)),
+            editEffort: refineEditEffort,
+          },
+        }));
+        return cards
+          ? { refineEditEffort, cards }
+          : { refineEditEffort };
+      });
+    },
+
+    setCardRefineVisionModel(id: string, model: string) {
       set((state) =>
         updateCard(state, id, (card) => ({
           refinePass: {
             ...(card.refinePass ?? currentRefinePass(state)),
-            model,
+            visionModel: model,
           },
         })),
       );
     },
 
-    setCardRefineEffort(id: string, effort: string) {
+    setCardRefineVisionEffort(id: string, effort: string) {
       set((state) =>
         updateCard(state, id, (card) => ({
           refinePass: {
             ...(card.refinePass ?? currentRefinePass(state)),
-            effort,
+            visionEffort: effort,
+          },
+        })),
+      );
+    },
+
+    setCardRefineEditModel(id: string, model: string) {
+      set((state) =>
+        updateCard(state, id, (card) => ({
+          refinePass: {
+            ...(card.refinePass ?? currentRefinePass(state)),
+            editModel: model,
+          },
+        })),
+      );
+    },
+
+    setCardRefineEditEffort(id: string, effort: string) {
+      set((state) =>
+        updateCard(state, id, (card) => ({
+          refinePass: {
+            ...(card.refinePass ?? currentRefinePass(state)),
+            editEffort: effort,
           },
         })),
       );

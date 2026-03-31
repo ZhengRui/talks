@@ -22,8 +22,10 @@ export async function POST(request: NextRequest): Promise<Response> {
   const proposalsJson = formData.get("proposals") as string | null;
   const baseAnalysisJson = formData.get("baseAnalysis") as string | null;
   const contentBoundsJson = formData.get("contentBounds") as string | null;
-  const model = (formData.get("model") as string) || "claude-opus-4-6";
-  const effort = (formData.get("effort") as string) || "medium";
+  const visionModel = (formData.get("visionModel") as string) || "claude-opus-4-6";
+  const visionEffort = (formData.get("visionEffort") as string) || "medium";
+  const editModel = (formData.get("editModel") as string) || "claude-opus-4-6";
+  const editEffort = (formData.get("editEffort") as string) || "medium";
   const maxIterations = parseInt((formData.get("maxIterations") as string) || "4", 10) || 4;
   const iterationOffset =
     parseInt((formData.get("iterationOffset") as string) || "0", 10) || 0;
@@ -67,8 +69,10 @@ export async function POST(request: NextRequest): Promise<Response> {
           proposals,
           baseAnalysis,
           contentBounds,
-          model,
-          effort,
+          visionModel,
+          visionEffort,
+          editModel,
+          editEffort,
           maxIterations,
           mismatchThreshold,
           iterationOffset,

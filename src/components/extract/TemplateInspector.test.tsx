@@ -8,8 +8,10 @@ const mockSelectTemplate = vi.fn();
 const mockResetAnalysis = vi.fn();
 const mockSetActiveStage = vi.fn();
 let mockAutoRefine = true;
-let mockRefineModel = "claude-opus-4-6";
-let mockRefineEffort = "medium";
+let mockRefineVisionModel = "claude-opus-4-6";
+let mockRefineVisionEffort = "medium";
+let mockRefineEditModel = "claude-opus-4-6";
+let mockRefineEditEffort = "medium";
 const defaultPass: AnalysisProvenance = {
   model: "claude-opus-4-6",
   effort: "high",
@@ -30,8 +32,10 @@ vi.mock("./store", async () => {
         resetAnalysis: mockResetAnalysis,
         setActiveStage: mockSetActiveStage,
         autoRefine: mockAutoRefine,
-        refineModel: mockRefineModel,
-        refineEffort: mockRefineEffort,
+        refineVisionModel: mockRefineVisionModel,
+        refineVisionEffort: mockRefineVisionEffort,
+        refineEditModel: mockRefineEditModel,
+        refineEditEffort: mockRefineEditEffort,
       };
       return selector ? selector(state) : state;
     },
@@ -90,7 +94,13 @@ function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
     pass1: defaultPass,
     pass1Elapsed: 12,
     pass1Cost: 0.82,
-    refinePass: { model: "claude-opus-4-6", effort: "low" },
+    refinePass: {
+      visionModel: "claude-opus-4-6",
+      visionEffort: "low",
+      editModel: "claude-opus-4-6",
+      editEffort: "low",
+    },
+    refineSettingsLocked: false,
     error: null,
     activeStage: "extract",
     selectedTemplateIndex: { extract: 0, refine: 0 },
@@ -103,6 +113,9 @@ function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
     refineResult: null,
     refineHistory: [],
     refineError: null,
+    refineElapsed: 9,
+    refineCost: 0.14,
+    refineStartMismatch: null,
     autoRefine: true,
     normalizedImage: null,
     diffObjectUrl: null,
@@ -114,8 +127,10 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   mockAutoRefine = true;
-  mockRefineModel = "claude-opus-4-6";
-  mockRefineEffort = "medium";
+  mockRefineVisionModel = "claude-opus-4-6";
+  mockRefineVisionEffort = "medium";
+  mockRefineEditModel = "claude-opus-4-6";
+  mockRefineEditEffort = "medium";
 });
 
 describe("TemplateInspector", () => {
@@ -260,6 +275,30 @@ describe("TemplateInspector", () => {
 
     expect(screen.getByText("Extract")).toBeTruthy();
     expect(screen.getByText(/opus-4-6 · high · 12s · \$0.82/)).toBeTruthy();
+  });
+
+  it("shows separate vision and edit provenance when refine settings differ", () => {
+    const card = makeCard({
+      activeStage: "refine",
+      refinePass: {
+        visionModel: "claude-opus-4-6",
+        visionEffort: "low",
+        editModel: "claude-sonnet-4-6",
+        editEffort: "high",
+      },
+    });
+
+    render(
+      <TemplateInspector
+        card={card}
+        onRefine={vi.fn()}
+        onCancelRefine={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/vision: opus-4-6 · low/)).toBeTruthy();
+    expect(screen.getByText(/edit: sonnet-4-6 · high/)).toBeTruthy();
+    expect(screen.getByText(/9s · \$0.14/)).toBeTruthy();
   });
 
   it("shows the planned refine stage while extract is still running", () => {

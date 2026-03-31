@@ -124,6 +124,13 @@ export interface StageAnalysisProvenance extends AnalysisProvenance {
   cost?: number | null;
 }
 
+export interface RefineProvenance {
+  visionModel: string;
+  visionEffort: string;
+  editModel: string;
+  editEffort: string;
+}
+
 export interface AnalysisResult {
   source: {
     image: string;

@@ -76,53 +76,165 @@ function makePatchedProposals(): Proposal[] {
   ];
 }
 
+function makeBaseAnalysis(proposals: Proposal[]) {
+  return {
+    source: {
+      image: "reference.png",
+      dimensions: { w: 1920, h: 1080 },
+      contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
+    },
+    proposals,
+  };
+}
+
 describe("runRefinementLoop", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockQuery.mockImplementation(async function* () {
-      yield {
-        type: "result",
-        result: "this is not valid json",
-      };
-    });
+    mockQuery.mockReset();
+    mockQuery
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: "1. Title is too large compared to the original.\n2. Background line pattern is missing.",
+        };
+      })
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: `\`\`\`json
+${JSON.stringify(makePatchedProposals(), null, 2)}
+\`\`\``,
+        };
+      });
   });
 
-  it("keeps proposals unchanged when Claude returns malformed JSON", async () => {
+  it("vision call sends 3 images and no proposals JSON", async () => {
+    const proposals = makeProposals();
+    const pngBuffer = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a0GQAAAAASUVORK5CYII=",
+      "base64",
+    );
+    mockRenderSlideToImage.mockResolvedValueOnce(pngBuffer);
+
+    await runRefinementLoop({
+      image: pngBuffer,
+      imageMediaType: "image/jpeg",
+      proposals,
+      baseAnalysis: makeBaseAnalysis(proposals),
+      maxIterations: 1,
+      mismatchThreshold: 0.05,
+      visionModel: "claude-opus-4-6",
+      visionEffort: "medium",
+      editModel: "claude-opus-4-6",
+      editEffort: "medium",
+    });
+
+    expect(mockQuery).toHaveBeenCalledTimes(2);
+    const visionCall = mockQuery.mock.calls[0]?.[0] as {
+      prompt: AsyncGenerator<{
+        message: {
+          content: Array<Record<string, unknown>>;
+        };
+      }>;
+      options: { systemPrompt: string };
+    };
+    const firstPrompt = await visionCall.prompt.next();
+    const content = firstPrompt.value?.message.content ?? [];
+
+    // text label + image + text label + image + user prompt = 5 blocks
+    expect(content).toHaveLength(5);
+    expect(content[0]?.type).toBe("text");
+    expect((content[0] as { text: string }).text).toBe("ORIGINAL slide:");
+    expect(content[1]?.type).toBe("image");
+    expect((content[1] as { source: { media_type: string } }).source.media_type).toBe("image/jpeg");
+    expect(content[2]?.type).toBe("text");
+    expect((content[2] as { text: string }).text).toBe("REPLICA slide:");
+    expect(content[3]?.type).toBe("image");
+    expect((content[3] as { source: { media_type: string } }).source.media_type).toBe("image/png");
+    expect(content[4]?.type).toBe("text");
+
+    const userPrompt = (content[4] as { text: string }).text;
+    expect(userPrompt).not.toContain("proposals");
+    expect(visionCall.options.systemPrompt).not.toContain("JSON");
+    expect(visionCall.options.systemPrompt).toContain("ORIGINAL");
+    expect(visionCall.options.systemPrompt).toContain("REPLICA");
+  });
+
+  it("edit call sends differences and proposals JSON with no images", async () => {
+    const proposals = makeProposals();
+
+    await runRefinementLoop({
+      image: Buffer.from("reference"),
+      imageMediaType: "image/png",
+      proposals,
+      baseAnalysis: makeBaseAnalysis(proposals),
+      maxIterations: 1,
+      mismatchThreshold: 0.05,
+      visionModel: "claude-opus-4-6",
+      visionEffort: "medium",
+      editModel: "claude-opus-4-6",
+      editEffort: "medium",
+    });
+
+    const editCall = mockQuery.mock.calls[1]?.[0] as {
+      prompt: AsyncGenerator<{
+        message: {
+          content: Array<Record<string, unknown>>;
+        };
+      }>;
+      options: { systemPrompt: string };
+    };
+    const firstPrompt = await editCall.prompt.next();
+    const content = firstPrompt.value?.message.content ?? [];
+
+    expect(content).toHaveLength(1);
+    expect(content[0]?.type).toBe("text");
+    const textContent = (content[0] as { text: string }).text;
+    expect(textContent).toContain("Title is too large");
+    expect(textContent).toContain('"scope": "slide"');
+    expect(editCall.options.systemPrompt).toContain("proposals");
+    expect(editCall.options.systemPrompt).not.toContain("Image 1");
+  });
+
+  it("keeps proposals unchanged when the edit step returns malformed JSON", async () => {
     const proposals = makeProposals();
     const events: Array<{ event: string; data: Record<string, unknown> }> = [];
+
+    mockQuery
+      .mockReset()
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: "1. Title is too large.\n2. Accent rule is missing.",
+        };
+      })
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: "this is not valid json",
+        };
+      });
 
     const result = await runRefinementLoop({
       image: Buffer.from("reference"),
       imageMediaType: "image/png",
       proposals,
-      baseAnalysis: {
-        source: {
-          image: "reference.png",
-          dimensions: { w: 1920, h: 1080 },
-          contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
-        },
-        proposals,
-      },
-      maxIterations: 2,
+      baseAnalysis: makeBaseAnalysis(proposals),
+      maxIterations: 1,
       mismatchThreshold: 0.05,
-      model: "claude-opus-4-6",
-      effort: "medium",
+      visionModel: "claude-opus-4-6",
+      visionEffort: "medium",
+      editModel: "claude-opus-4-6",
+      editEffort: "medium",
       onEvent: (event) => {
         events.push(event);
       },
     });
 
     expect(result.converged).toBe(false);
-    expect(result.finalIteration).toBe(2);
+    expect(result.finalIteration).toBe(1);
     expect(result.proposals).toEqual(proposals);
-    // Initial diff plus one post-patch render per iteration.
-    expect(mockCompareImages).toHaveBeenCalledTimes(3);
-    expect(mockCompareImages).toHaveBeenNthCalledWith(
-      1,
-      Buffer.from("reference"),
-      Buffer.from("replica"),
-      { maskBounds: { x: 0, y: 0, w: 1920, h: 1080 } },
-    );
+    expect(mockCompareImages).toHaveBeenCalledTimes(2);
     expect(mockQuery).toHaveBeenCalledTimes(2);
     expect(
       events.find((event) => event.event === "refine:patch")?.data.proposals,
@@ -135,195 +247,137 @@ describe("runRefinementLoop", () => {
     });
   });
 
-  it("sends absolute geometry and preserves the original media type", async () => {
+  it("skips edit and keeps proposals when vision returns empty", async () => {
     const proposals = makeProposals();
-    const pngBuffer = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a0GQAAAAASUVORK5CYII=",
-      "base64",
-    );
-    mockRenderSlideToImage.mockResolvedValueOnce(pngBuffer);
+    const events: Array<{ event: string; data: Record<string, unknown> }> = [];
 
-    await runRefinementLoop({
-      image: pngBuffer,
-      imageMediaType: "image/jpeg",
-      proposals,
-      baseAnalysis: {
-        source: {
-          image: "reference.png",
-          dimensions: { w: 1920, h: 1080 },
-          contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
-        },
-        proposals,
-      },
-      maxIterations: 1,
-      mismatchThreshold: 0.05,
-      model: "claude-opus-4-6",
-      effort: "medium",
-    });
-
-    expect(mockQuery).toHaveBeenCalledTimes(1);
-    const queryArg = mockQuery.mock.calls[0]?.[0] as {
-      prompt: AsyncGenerator<{
-        message: {
-          content: Array<Record<string, unknown>>;
+    mockQuery
+      .mockReset()
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: "   ",
         };
-      }>;
-      options: { systemPrompt: string };
-    };
-    const firstPrompt = await queryArg.prompt.next();
-    const content = firstPrompt.value?.message.content ?? [];
-
-    // 3 images (side-by-side, original, replica) + 1 text prompt
-    expect(content).toHaveLength(4);
-    expect(content[0]?.type).toBe("image");
-    expect(content[1]?.type).toBe("image");
-    expect(content[2]?.type).toBe("image");
-    expect(content[3]?.type).toBe("text");
-    // side-by-side is always PNG, original preserves upload type, replica is PNG
-    expect((content[0] as { source: { media_type: string } }).source.media_type).toBe("image/png");
-    expect((content[1] as { source: { media_type: string } }).source.media_type).toBe("image/jpeg");
-    expect((content[2] as { source: { media_type: string } }).source.media_type).toBe("image/png");
-    // no geometry table in prompt
-    const textContent = (content[3] as { text: string }).text;
-    expect(textContent).not.toContain("Resolved element geometry");
-    expect(textContent).toContain("proposals");
-  });
-
-  it("keeps a patch even when it increases mismatch", async () => {
-    const proposals = makeProposals();
-    const patchedProposals = makePatchedProposals();
-    const events: Array<{ event: string; data: Record<string, unknown> }> = [];
-
-    mockQuery.mockImplementation(async function* () {
-      yield {
-        type: "result",
-        result: `\`\`\`json
-${JSON.stringify(patchedProposals, null, 2)}
-\`\`\``,
-      };
-    });
-
-    mockCompareImages
-      .mockResolvedValueOnce({
-        mismatchRatio: 0.2,
-        mismatchPixels: 20,
-        totalPixels: 100,
-        diffImage: Buffer.from("diff-initial"),
-        regions: [],
-        width: 100,
-        height: 100,
-      })
-      .mockResolvedValueOnce({
-        mismatchRatio: 0.3,
-        mismatchPixels: 30,
-        totalPixels: 100,
-        diffImage: Buffer.from("diff-regressed"),
-        regions: [],
-        width: 100,
-        height: 100,
       });
 
     const result = await runRefinementLoop({
       image: Buffer.from("reference"),
       imageMediaType: "image/png",
       proposals,
-      baseAnalysis: {
-        source: {
-          image: "reference.png",
-          dimensions: { w: 1920, h: 1080 },
-          contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
-        },
-        proposals,
-      },
+      baseAnalysis: makeBaseAnalysis(proposals),
       maxIterations: 1,
       mismatchThreshold: 0.05,
-      model: "claude-opus-4-6",
-      effort: "medium",
+      visionModel: "claude-opus-4-6",
+      visionEffort: "medium",
+      editModel: "claude-opus-4-6",
+      editEffort: "medium",
       onEvent: (event) => {
         events.push(event);
       },
     });
 
-    expect(result.converged).toBe(false);
-    expect(result.finalIteration).toBe(1);
-    expect(result.mismatchRatio).toBe(0.3);
-    expect(result.proposals).toEqual(patchedProposals);
+    expect(result.proposals).toEqual(proposals);
+    expect(mockQuery).toHaveBeenCalledTimes(1);
+    expect(mockCompareImages).toHaveBeenCalledTimes(1);
+    expect(events.some((event) => event.event === "refine:edit:start")).toBe(false);
+    expect(events.some((event) => event.event === "refine:diff" && event.data.iteration === 1)).toBe(false);
     expect(
-      events.find((event) => event.event === "refine:patch")?.data,
+      events.find((event) => event.event === "refine:vision:done")?.data,
     ).toMatchObject({
-      iteration: 1,
-      proposals: patchedProposals,
+      differences: "   ",
+      visionEmpty: true,
     });
-    expect(
-      events.find((event) => event.event === "refine:complete")?.data,
-    ).toMatchObject({
-      iteration: 1,
-      mismatchRatio: 0.3,
-    });
-  });
-
-  it("keeps a patch when the mismatch stays flat", async () => {
-    const proposals = makeProposals();
-    const patchedProposals = makePatchedProposals();
-    const events: Array<{ event: string; data: Record<string, unknown> }> = [];
-
-    mockQuery.mockImplementation(async function* () {
-      yield {
-        type: "result",
-        result: `\`\`\`json
-${JSON.stringify(patchedProposals, null, 2)}
-\`\`\``,
-      };
-    });
-
-    mockCompareImages
-      .mockResolvedValueOnce({
-        mismatchRatio: 0.2,
-        mismatchPixels: 20,
-        totalPixels: 100,
-        diffImage: Buffer.from("diff-initial"),
-        regions: [],
-        width: 100,
-        height: 100,
-      })
-      .mockResolvedValueOnce({
-        mismatchRatio: 0.2,
-        mismatchPixels: 20,
-        totalPixels: 100,
-        diffImage: Buffer.from("diff-flat"),
-        regions: [],
-        width: 100,
-        height: 100,
-      });
-
-    const result = await runRefinementLoop({
-      image: Buffer.from("reference"),
-      imageMediaType: "image/png",
-      proposals,
-      baseAnalysis: {
-        source: {
-          image: "reference.png",
-          dimensions: { w: 1920, h: 1080 },
-          contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
-        },
-        proposals,
-      },
-      maxIterations: 1,
-      mismatchThreshold: 0.05,
-      model: "claude-opus-4-6",
-      effort: "medium",
-      onEvent: (event) => {
-        events.push(event);
-      },
-    });
-
-    expect(result.proposals).toEqual(patchedProposals);
     expect(
       events.find((event) => event.event === "refine:complete")?.data,
     ).toMatchObject({
       iteration: 1,
       mismatchRatio: 0.2,
+      visionEmpty: true,
     });
+  });
+
+  it("skips edit when trimmed vision output is 19 characters", async () => {
+    const proposals = makeProposals();
+    const events: Array<{ event: string; data: Record<string, unknown> }> = [];
+
+    mockQuery
+      .mockReset()
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: "1234567890123456789",
+        };
+      });
+
+    await runRefinementLoop({
+      image: Buffer.from("reference"),
+      imageMediaType: "image/png",
+      proposals,
+      baseAnalysis: makeBaseAnalysis(proposals),
+      maxIterations: 1,
+      mismatchThreshold: 0.05,
+      visionModel: "claude-opus-4-6",
+      visionEffort: "medium",
+      editModel: "claude-opus-4-6",
+      editEffort: "medium",
+      onEvent: (event) => {
+        events.push(event);
+      },
+    });
+
+    expect(mockQuery).toHaveBeenCalledTimes(1);
+    expect(events.some((event) => event.event === "refine:edit:start")).toBe(false);
+    expect(
+      events.find((event) => event.event === "refine:complete")?.data,
+    ).toMatchObject({
+      visionEmpty: true,
+    });
+  });
+
+  it("runs the edit step when trimmed vision output is 20 characters", async () => {
+    const proposals = makeProposals();
+    const patchedProposals = makePatchedProposals();
+    const events: Array<{ event: string; data: Record<string, unknown> }> = [];
+
+    mockQuery
+      .mockReset()
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: "12345678901234567890",
+        };
+      })
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: `\`\`\`json
+${JSON.stringify(patchedProposals, null, 2)}
+\`\`\``,
+        };
+      });
+
+    const result = await runRefinementLoop({
+      image: Buffer.from("reference"),
+      imageMediaType: "image/png",
+      proposals,
+      baseAnalysis: makeBaseAnalysis(proposals),
+      maxIterations: 1,
+      mismatchThreshold: 0.05,
+      visionModel: "claude-opus-4-6",
+      visionEffort: "medium",
+      editModel: "claude-opus-4-6",
+      editEffort: "medium",
+      onEvent: (event) => {
+        events.push(event);
+      },
+    });
+
+    expect(mockQuery).toHaveBeenCalledTimes(2);
+    expect(result.proposals).toEqual(patchedProposals);
+    expect(events.some((event) => event.event === "refine:edit:start")).toBe(true);
+    expect(
+      events.find((event) => event.event === "refine:complete")?.data.visionEmpty,
+    ).toBeUndefined();
   });
 
   it("emits cumulative iteration numbers when continuing refinement", async () => {
@@ -331,14 +385,22 @@ ${JSON.stringify(patchedProposals, null, 2)}
     const patchedProposals = makePatchedProposals();
     const events: Array<{ event: string; data: Record<string, unknown> }> = [];
 
-    mockQuery.mockImplementation(async function* () {
-      yield {
-        type: "result",
-        result: `\`\`\`json
+    mockQuery
+      .mockReset()
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: "1. Title is too large.\n2. Accent rule is missing.",
+        };
+      })
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: `\`\`\`json
 ${JSON.stringify(patchedProposals, null, 2)}
 \`\`\``,
-      };
-    });
+        };
+      });
 
     mockCompareImages
       .mockResolvedValueOnce({
@@ -364,19 +426,14 @@ ${JSON.stringify(patchedProposals, null, 2)}
       image: Buffer.from("reference"),
       imageMediaType: "image/png",
       proposals,
-      baseAnalysis: {
-        source: {
-          image: "reference.png",
-          dimensions: { w: 1920, h: 1080 },
-          contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
-        },
-        proposals,
-      },
+      baseAnalysis: makeBaseAnalysis(proposals),
       maxIterations: 1,
       iterationOffset: 1,
       mismatchThreshold: 0.05,
-      model: "claude-opus-4-6",
-      effort: "medium",
+      visionModel: "claude-opus-4-6",
+      visionEffort: "medium",
+      editModel: "claude-opus-4-6",
+      editEffort: "medium",
       onEvent: (event) => {
         events.push(event);
       },
@@ -389,6 +446,8 @@ ${JSON.stringify(patchedProposals, null, 2)}
     ).toMatchObject({
       iteration: 1,
       maxIterations: 2,
+      visionModel: "claude-opus-4-6",
+      editModel: "claude-opus-4-6",
     });
     expect(
       events

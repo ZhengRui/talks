@@ -8,8 +8,14 @@ const mockSetModel = vi.fn();
 const mockSetEffort = vi.fn();
 const mockSetAutoRefine = vi.fn();
 const mockSetCardAutoRefine = vi.fn();
-const mockSetCardRefineModel = vi.fn();
-const mockSetCardRefineEffort = vi.fn();
+const mockSetRefineVisionModel = vi.fn();
+const mockSetRefineVisionEffort = vi.fn();
+const mockSetRefineEditModel = vi.fn();
+const mockSetRefineEditEffort = vi.fn();
+const mockSetCardRefineVisionModel = vi.fn();
+const mockSetCardRefineVisionEffort = vi.fn();
+const mockSetCardRefineEditModel = vi.fn();
+const mockSetCardRefineEditEffort = vi.fn();
 
 vi.mock("./store", async () => {
   const actual = await vi.importActual<typeof import("./store")>("./store");
@@ -25,8 +31,20 @@ vi.mock("./store", async () => {
         setEffort: mockSetEffort,
         setAutoRefine: mockSetAutoRefine,
         setCardAutoRefine: mockSetCardAutoRefine,
-        setCardRefineModel: mockSetCardRefineModel,
-        setCardRefineEffort: mockSetCardRefineEffort,
+        refineVisionModel: "claude-opus-4-6",
+        refineVisionEffort: "medium",
+        refineEditModel: "claude-sonnet-4-6",
+        refineEditEffort: "high",
+        setRefineVisionModel: mockSetRefineVisionModel,
+        setRefineVisionEffort: mockSetRefineVisionEffort,
+        setRefineEditModel: mockSetRefineEditModel,
+        setRefineEditEffort: mockSetRefineEditEffort,
+        setCardRefineVisionModel: mockSetCardRefineVisionModel,
+        setCardRefineVisionEffort: mockSetCardRefineVisionEffort,
+        setCardRefineEditModel: mockSetCardRefineEditModel,
+        setCardRefineEditEffort: mockSetCardRefineEditEffort,
+        setRefineMaxIterations: vi.fn(),
+        setRefineMismatchThreshold: vi.fn(),
       };
       return selector ? selector(state) : state;
     },
@@ -51,7 +69,12 @@ function makeCard(): SlideCard {
     pass1: null,
     pass1Elapsed: 0,
     pass1Cost: null,
-    refinePass: { model: "claude-opus-4-6", effort: "medium" },
+    refinePass: {
+      visionModel: "claude-opus-4-6",
+      visionEffort: "medium",
+      editModel: "claude-sonnet-4-6",
+      editEffort: "high",
+    },
     refineSettingsLocked: false,
     error: null,
     activeStage: "extract",
@@ -65,6 +88,9 @@ function makeCard(): SlideCard {
     refineResult: null,
     refineHistory: [],
     refineError: null,
+    refineElapsed: 0,
+    refineCost: null,
+    refineStartMismatch: null,
     autoRefine: true,
     normalizedImage: null,
     diffObjectUrl: null,
@@ -77,11 +103,13 @@ afterEach(() => {
 });
 
 describe("AnalyzeForm", () => {
-  it("renders extract and refine pass rows", () => {
+  it("renders extract, vision, and edit pass rows", () => {
     render(<AnalyzeForm card={makeCard()} onAnalyze={vi.fn()} />);
 
     expect(screen.getByText("Extract")).toBeTruthy();
     expect(screen.getByLabelText("Refine")).toBeTruthy();
+    expect(screen.getByText("Vision")).toBeTruthy();
+    expect(screen.getByText("Edit")).toBeTruthy();
     expect(screen.getAllByText("Mock Claude").length).toBeGreaterThan(0);
   });
 });

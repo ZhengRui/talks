@@ -7,7 +7,6 @@ import InspectorPanel from "./InspectorPanel";
 import { useExtractStore, type LogEntry } from "./store";
 import type {
   AnalysisResultPayload,
-  AnalysisStage,
   Proposal,
   RefineIterationResult,
 } from "./types";
@@ -60,6 +59,23 @@ async function downscaleImage(file: File): Promise<File> {
   });
 }
 
+function formatRefineModel(value: string): string {
+  return value.replace("claude-", "");
+}
+
+function formatRefineConfig(data: Record<string, unknown>): string {
+  const visionModel = typeof data.visionModel === "string" ? data.visionModel : "?";
+  const visionEffort = typeof data.visionEffort === "string" ? data.visionEffort : "?";
+  const editModel = typeof data.editModel === "string" ? data.editModel : "?";
+  const editEffort = typeof data.editEffort === "string" ? data.editEffort : "?";
+
+  if (visionModel === editModel && visionEffort === editEffort) {
+    return `${formatRefineModel(visionModel)} · ${visionEffort}`;
+  }
+
+  return `vision: ${formatRefineModel(visionModel)} · ${visionEffort} / edit: ${formatRefineModel(editModel)} · ${editEffort}`;
+}
+
 export default function ExtractCanvas() {
   const startAnalysis = useExtractStore((s) => s.startAnalysis);
   const appendLog = useExtractStore((s) => s.appendLog);
@@ -104,10 +120,21 @@ export default function ExtractCanvas() {
 
   const handleRefine = useCallback(
     async (cardId: string, overrideMaxIterations?: number) => {
-      const { cards, refineModel, refineEffort } = useExtractStore.getState();
+      const {
+        cards,
+        refineVisionModel,
+        refineVisionEffort,
+        refineEditModel,
+        refineEditEffort,
+      } = useExtractStore.getState();
       const card = cards.get(cardId);
       if (!card?.analysis) return;
-      const refinePass = card.refinePass ?? { model: refineModel, effort: refineEffort };
+      const refinePass = card.refinePass ?? {
+        visionModel: refineVisionModel,
+        visionEffort: refineVisionEffort,
+        editModel: refineEditModel,
+        editEffort: refineEditEffort,
+      };
       const isManualRefine = overrideMaxIterations != null;
       const iterationOffset =
         isManualRefine && card.refineIteration > 0 ? card.refineIteration : 0;
@@ -144,8 +171,10 @@ export default function ExtractCanvas() {
           JSON.stringify(card.analysis.source.contentBounds),
         );
       }
-      formData.append("model", refinePass.model);
-      formData.append("effort", refinePass.effort);
+      formData.append("visionModel", refinePass.visionModel);
+      formData.append("visionEffort", refinePass.visionEffort);
+      formData.append("editModel", refinePass.editModel);
+      formData.append("editEffort", refinePass.editEffort);
       formData.append("maxIterations", String(requestMaxIterations));
       formData.append("iterationOffset", String(iterationOffset));
       if (isManualRefine) {
@@ -216,18 +245,25 @@ export default function ExtractCanvas() {
 
             switch (currentEvent) {
               case "refine:start": {
-                const modelName = typeof data.model === "string" ? data.model.replace("claude-", "") : "?";
-                const effortVal = typeof data.effort === "string" ? data.effort : "?";
                 const threshold = typeof data.mismatchThreshold === "number" ? `${Math.round(data.mismatchThreshold * 100)}%` : "?";
                 appendLog(cardId, {
                   type: "status",
-                  content: `Refinement started — ${modelName} · ${effortVal} · ${data.maxIterations ?? "?"} iters · target ${threshold}`,
+                  content: `Refinement started — ${formatRefineConfig(data)} · ${data.maxIterations ?? "?"} iters · target ${threshold}`,
                   timestamp: Date.now(),
                   stage: "refine",
                 });
                 break;
               }
-              case "refine:thinking": {
+              case "refine:vision:start": {
+                appendLog(cardId, {
+                  type: "status",
+                  content: `Iter ${typeof data.iteration === "number" ? data.iteration : "?"} — Starting vision`,
+                  timestamp: Date.now(),
+                  stage: "refine",
+                });
+                break;
+              }
+              case "refine:vision:thinking": {
                 appendLog(cardId, {
                   type: "thinking",
                   content: typeof data.text === "string" ? data.text : "",
@@ -236,10 +272,66 @@ export default function ExtractCanvas() {
                 });
                 break;
               }
-              case "refine:text": {
+              case "refine:vision:text": {
                 appendLog(cardId, {
                   type: "text",
                   content: typeof data.text === "string" ? data.text : "",
+                  timestamp: Date.now(),
+                  stage: "refine",
+                });
+                break;
+              }
+              case "refine:vision:done": {
+                const visionMeta = [
+                  typeof data.elapsed === "number" ? `${data.elapsed}s` : null,
+                  typeof data.cost === "number" ? `$${data.cost.toFixed(2)}` : null,
+                ].filter(Boolean).join(" · ");
+                appendLog(cardId, {
+                  type: "status",
+                  content: `Vision complete${visionMeta ? ` · ${visionMeta}` : ""}`,
+                  timestamp: Date.now(),
+                  stage: "refine",
+                });
+                if (data.visionEmpty !== true) {
+                  appendLog(cardId, {
+                    type: "status",
+                    content: "Starting edit",
+                    timestamp: Date.now(),
+                    stage: "refine",
+                  });
+                }
+                break;
+              }
+              case "refine:edit:start": {
+                // The edit stream is separated from vision by the status line above.
+                break;
+              }
+              case "refine:edit:thinking": {
+                appendLog(cardId, {
+                  type: "thinking",
+                  content: typeof data.text === "string" ? data.text : "",
+                  timestamp: Date.now(),
+                  stage: "refine",
+                });
+                break;
+              }
+              case "refine:edit:text": {
+                appendLog(cardId, {
+                  type: "text",
+                  content: typeof data.text === "string" ? data.text : "",
+                  timestamp: Date.now(),
+                  stage: "refine",
+                });
+                break;
+              }
+              case "refine:edit:done": {
+                const editMeta = [
+                  typeof data.elapsed === "number" ? `${data.elapsed}s` : null,
+                  typeof data.cost === "number" ? `$${data.cost.toFixed(2)}` : null,
+                ].filter(Boolean).join(" · ");
+                appendLog(cardId, {
+                  type: "status",
+                  content: `Edit complete${editMeta ? ` · ${editMeta}` : ""}`,
                   timestamp: Date.now(),
                   stage: "refine",
                 });
@@ -302,6 +394,7 @@ export default function ExtractCanvas() {
                 const mismatchRatio = typeof data.mismatchRatio === "number" ? data.mismatchRatio : 0;
                 const iterElapsed = typeof data.iterElapsed === "number" ? data.iterElapsed : null;
                 const iterCost = typeof data.iterCost === "number" ? data.iterCost : null;
+                const visionEmpty = data.visionEmpty === true;
                 completeRefineIteration(cardId, mismatchRatio);
                 const metaParts = [
                   `${Math.round(mismatchRatio * 100)}%`,
@@ -310,7 +403,9 @@ export default function ExtractCanvas() {
                 ].filter(Boolean).join(" · ");
                 appendLog(cardId, {
                   type: "status",
-                  content: `Iter ${iteration} — ${metaParts}`,
+                  content: visionEmpty
+                    ? `Iter ${iteration} — No differences found — skipped edit${metaParts ? ` · ${metaParts}` : ""}`
+                    : `Iter ${iteration} — ${metaParts}`,
                   timestamp: Date.now(),
                   stage: "refine",
                 });
@@ -388,6 +483,7 @@ export default function ExtractCanvas() {
       startRefinement,
       continueRefinement,
       setRefineMaxIterations,
+      tickElapsed,
       updateRefineDiff,
       updateRefinement,
     ],

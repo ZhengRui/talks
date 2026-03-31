@@ -49,42 +49,28 @@ function isAdaptiveModel(model: string): boolean {
 
 function PassRow({
   label,
-  toggled,
-  onToggle,
   model,
   onModelChange,
   effort,
   onEffortChange,
   disabled,
+  sub,
 }: {
   label: string;
-  toggled: boolean;
-  onToggle?: (v: boolean) => void;
   model: string;
   onModelChange: (v: string) => void;
   effort: string;
   onEffortChange: (v: string) => void;
   disabled?: boolean;
+  sub?: boolean;
 }) {
   const effortOptions = EFFORT_OPTIONS[model] ?? EFFORT_OPTIONS["claude-opus-4-6"];
   return (
-    <div className="flex items-center gap-2">
-      {onToggle ? (
-        <label className="flex shrink-0 items-center gap-1 text-xs font-medium text-gray-600 w-[72px] cursor-pointer">
-          <input
-            type="checkbox"
-            checked={toggled}
-            onChange={(e) => onToggle(e.target.checked)}
-            className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-1 focus:ring-blue-400/40"
-          />
-          <span>{label}</span>
-        </label>
-      ) : (
-        <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-gray-600 w-[72px]">
-          <span className="inline-block h-3.5 w-3.5 rounded bg-blue-600" />
-          <span>{label}</span>
-        </span>
-      )}
+    <div className={`flex items-center gap-2${sub ? " pl-5" : ""}`}>
+      <span className={`flex shrink-0 items-center gap-1 text-xs font-medium ${sub ? "text-gray-400 w-[52px]" : "text-gray-600 w-[72px]"}`}>
+        {!sub && <span className="inline-block h-3.5 w-3.5 rounded bg-blue-600" />}
+        {label}
+      </span>
       <select
         value={model}
         onChange={(e) => onModelChange(e.target.value)}
@@ -119,18 +105,26 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
   const setCardAutoRefine = useExtractStore((s) => s.setCardAutoRefine);
   const setRefineMaxIterations = useExtractStore((s) => s.setRefineMaxIterations);
   const setRefineMismatchThreshold = useExtractStore((s) => s.setRefineMismatchThreshold);
-  const refineModel = useExtractStore((s) => s.refineModel);
-  const refineEffort = useExtractStore((s) => s.refineEffort);
-  const setRefineModel = useExtractStore((s) => s.setRefineModel);
-  const setRefineEffort = useExtractStore((s) => s.setRefineEffort);
-  const setCardRefineModel = useExtractStore((s) => s.setCardRefineModel);
-  const setCardRefineEffort = useExtractStore((s) => s.setCardRefineEffort);
+  const refineVisionModel = useExtractStore((s) => s.refineVisionModel);
+  const refineVisionEffort = useExtractStore((s) => s.refineVisionEffort);
+  const refineEditModel = useExtractStore((s) => s.refineEditModel);
+  const refineEditEffort = useExtractStore((s) => s.refineEditEffort);
+  const setRefineVisionModel = useExtractStore((s) => s.setRefineVisionModel);
+  const setRefineVisionEffort = useExtractStore((s) => s.setRefineVisionEffort);
+  const setRefineEditModel = useExtractStore((s) => s.setRefineEditModel);
+  const setRefineEditEffort = useExtractStore((s) => s.setRefineEditEffort);
+  const setCardRefineVisionModel = useExtractStore((s) => s.setCardRefineVisionModel);
+  const setCardRefineVisionEffort = useExtractStore((s) => s.setCardRefineVisionEffort);
+  const setCardRefineEditModel = useExtractStore((s) => s.setCardRefineEditModel);
+  const setCardRefineEditEffort = useExtractStore((s) => s.setCardRefineEditEffort);
   const setModel = useExtractStore((s) => s.setModel);
   const setEffort = useExtractStore((s) => s.setEffort);
   const refineSettingsLocked = card.refineSettingsLocked === true;
   const effectiveAutoRefine = card.autoRefine;
-  const effectiveRefineModel = card.refinePass?.model ?? refineModel;
-  const effectiveRefineEffort = card.refinePass?.effort ?? refineEffort;
+  const effectiveRefineVisionModel = card.refinePass?.visionModel ?? refineVisionModel;
+  const effectiveRefineVisionEffort = card.refinePass?.visionEffort ?? refineVisionEffort;
+  const effectiveRefineEditModel = card.refinePass?.editModel ?? refineEditModel;
+  const effectiveRefineEditEffort = card.refinePass?.editEffort ?? refineEditEffort;
 
   const handleModelChange = (newModel: string) => {
     setModel(newModel);
@@ -140,18 +134,35 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
     }
   };
 
-  const handleRefineModelChange = (newModel: string) => {
-    if (refineSettingsLocked) {
-      setCardRefineModel(card.id, newModel);
-    } else {
-      setRefineModel(newModel);
-    }
-    const opts = EFFORT_OPTIONS[newModel];
-    if (opts && !opts.some((o) => o.value === effectiveRefineEffort)) {
+  const handleRefineModelChange = (
+    step: "vision" | "edit",
+    newModel: string,
+    currentEffort: string,
+  ) => {
+    if (step === "vision") {
       if (refineSettingsLocked) {
-        setCardRefineEffort(card.id, opts[0].value);
+        setCardRefineVisionModel(card.id, newModel);
       } else {
-        setRefineEffort(opts[0].value);
+        setRefineVisionModel(newModel);
+      }
+    } else if (refineSettingsLocked) {
+      setCardRefineEditModel(card.id, newModel);
+    } else {
+      setRefineEditModel(newModel);
+    }
+
+    const opts = EFFORT_OPTIONS[newModel];
+    if (opts && !opts.some((o) => o.value === currentEffort)) {
+      if (step === "vision") {
+        if (refineSettingsLocked) {
+          setCardRefineVisionEffort(card.id, opts[0].value);
+        } else {
+          setRefineVisionEffort(opts[0].value);
+        }
+      } else if (refineSettingsLocked) {
+        setCardRefineEditEffort(card.id, opts[0].value);
+      } else {
+        setRefineEditEffort(opts[0].value);
       }
     }
   };
@@ -164,11 +175,17 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
     }
   };
 
-  const handleRefineEffortChange = (value: string) => {
-    if (refineSettingsLocked) {
-      setCardRefineEffort(card.id, value);
+  const handleRefineEffortChange = (step: "vision" | "edit", value: string) => {
+    if (step === "vision") {
+      if (refineSettingsLocked) {
+        setCardRefineVisionEffort(card.id, value);
+      } else {
+        setRefineVisionEffort(value);
+      }
+    } else if (refineSettingsLocked) {
+      setCardRefineEditEffort(card.id, value);
     } else {
-      setRefineEffort(value);
+      setRefineEditEffort(value);
     }
   };
 
@@ -185,20 +202,40 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
       <div className="flex flex-col gap-1.5">
         <PassRow
           label="Extract"
-          toggled={true}
           model={model}
           onModelChange={handleModelChange}
           effort={effort}
           onEffortChange={setEffort}
         />
+        <label className="flex items-center gap-1 text-xs font-medium text-gray-600 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={effectiveAutoRefine}
+            onChange={(e) => handleRefineToggle(e.target.checked)}
+            className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-1 focus:ring-blue-400/40"
+          />
+          <span>Refine</span>
+        </label>
         <PassRow
-          label="Refine"
-          toggled={effectiveAutoRefine}
-          onToggle={handleRefineToggle}
-          model={effectiveRefineModel}
-          onModelChange={handleRefineModelChange}
-          effort={effectiveRefineEffort}
-          onEffortChange={handleRefineEffortChange}
+          label="Vision"
+          sub
+          model={effectiveRefineVisionModel}
+          onModelChange={(value) => {
+            handleRefineModelChange("vision", value, effectiveRefineVisionEffort);
+          }}
+          effort={effectiveRefineVisionEffort}
+          onEffortChange={(value) => handleRefineEffortChange("vision", value)}
+          disabled={!effectiveAutoRefine}
+        />
+        <PassRow
+          label="Edit"
+          sub
+          model={effectiveRefineEditModel}
+          onModelChange={(value) => {
+            handleRefineModelChange("edit", value, effectiveRefineEditEffort);
+          }}
+          effort={effectiveRefineEditEffort}
+          onEffortChange={(value) => handleRefineEffortChange("edit", value)}
           disabled={!effectiveAutoRefine}
         />
         <div className={`flex items-center gap-2${!effectiveAutoRefine ? " opacity-40 pointer-events-none" : ""}`}>

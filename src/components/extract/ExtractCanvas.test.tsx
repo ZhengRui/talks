@@ -115,7 +115,15 @@ describe("ExtractCanvas", () => {
           return makeSseResponse([
             {
               event: "refine:start",
-              data: { maxIterations: 3 },
+              data: {
+                iteration: 0,
+                maxIterations: 3,
+                visionModel: "claude-opus-4-6",
+                visionEffort: "medium",
+                editModel: "claude-opus-4-6",
+                editEffort: "medium",
+                mismatchThreshold: 0.05,
+              },
             },
             {
               event: "refine:diff",
@@ -125,6 +133,30 @@ describe("ExtractCanvas", () => {
                 diffArtifactUrl: "/api/extract/refine/artifacts/initial",
                 regions: [],
               },
+            },
+            {
+              event: "refine:vision:start",
+              data: { iteration: 1 },
+            },
+            {
+              event: "refine:vision:text",
+              data: { text: "1. Title is too large." },
+            },
+            {
+              event: "refine:vision:done",
+              data: { differences: "1. Title is too large.", cost: 0, elapsed: 0 },
+            },
+            {
+              event: "refine:edit:start",
+              data: { iteration: 1 },
+            },
+            {
+              event: "refine:edit:text",
+              data: { text: "[{\"scope\":\"slide\"}]" },
+            },
+            {
+              event: "refine:edit:done",
+              data: { cost: 0, elapsed: 0 },
             },
             {
               event: "refine:diff",
@@ -237,7 +269,15 @@ describe("ExtractCanvas", () => {
           return makeSseResponse([
             {
               event: "refine:start",
-              data: { maxIterations: 3 },
+              data: {
+                iteration: 0,
+                maxIterations: 3,
+                visionModel: "claude-opus-4-6",
+                visionEffort: "medium",
+                editModel: "claude-opus-4-6",
+                editEffort: "medium",
+                mismatchThreshold: 0.05,
+              },
             },
             {
               event: "refine:diff",
@@ -247,6 +287,30 @@ describe("ExtractCanvas", () => {
                 diffArtifactUrl: "/api/extract/refine/artifacts/initial",
                 regions: [],
               },
+            },
+            {
+              event: "refine:vision:start",
+              data: { iteration: 1 },
+            },
+            {
+              event: "refine:vision:text",
+              data: { text: "1. Title is too large." },
+            },
+            {
+              event: "refine:vision:done",
+              data: { differences: "1. Title is too large.", cost: 0, elapsed: 0 },
+            },
+            {
+              event: "refine:edit:start",
+              data: { iteration: 1 },
+            },
+            {
+              event: "refine:edit:text",
+              data: { text: "[{\"scope\":\"slide\"}]" },
+            },
+            {
+              event: "refine:edit:done",
+              data: { cost: 0, elapsed: 0 },
             },
             {
               event: "refine:patch",
@@ -324,7 +388,15 @@ describe("ExtractCanvas", () => {
               ? [
                   {
                     event: "refine:start",
-                    data: { iteration: 0, maxIterations: 1 },
+                    data: {
+                      iteration: 0,
+                      maxIterations: 1,
+                      visionModel: "claude-opus-4-6",
+                      visionEffort: "medium",
+                      editModel: "claude-opus-4-6",
+                      editEffort: "medium",
+                      mismatchThreshold: 0.05,
+                    },
                   },
                   {
                     event: "refine:diff",
@@ -334,6 +406,30 @@ describe("ExtractCanvas", () => {
                       diffArtifactUrl: "/api/extract/refine/artifacts/initial",
                       regions: [],
                     },
+                  },
+                  {
+                    event: "refine:vision:start",
+                    data: { iteration: 1 },
+                  },
+                  {
+                    event: "refine:vision:text",
+                    data: { text: "1. Title is too large." },
+                  },
+                  {
+                    event: "refine:vision:done",
+                    data: { differences: "1. Title is too large.", cost: 0, elapsed: 0 },
+                  },
+                  {
+                    event: "refine:edit:start",
+                    data: { iteration: 1 },
+                  },
+                  {
+                    event: "refine:edit:text",
+                    data: { text: "[{\"scope\":\"slide\"}]" },
+                  },
+                  {
+                    event: "refine:edit:done",
+                    data: { cost: 0, elapsed: 0 },
                   },
                   {
                     event: "refine:diff",
@@ -381,7 +477,15 @@ describe("ExtractCanvas", () => {
               : [
                   {
                     event: "refine:start",
-                    data: { iteration: 1, maxIterations: 2 },
+                    data: {
+                      iteration: 1,
+                      maxIterations: 2,
+                      visionModel: "claude-opus-4-6",
+                      visionEffort: "medium",
+                      editModel: "claude-opus-4-6",
+                      editEffort: "medium",
+                      mismatchThreshold: 0.05,
+                    },
                   },
                   {
                     event: "refine:diff",
@@ -391,6 +495,30 @@ describe("ExtractCanvas", () => {
                       diffArtifactUrl: "/api/extract/refine/artifacts/iter-1-baseline",
                       regions: [],
                     },
+                  },
+                  {
+                    event: "refine:vision:start",
+                    data: { iteration: 2 },
+                  },
+                  {
+                    event: "refine:vision:text",
+                    data: { text: "1. Title is too large." },
+                  },
+                  {
+                    event: "refine:vision:done",
+                    data: { differences: "1. Title is too large.", cost: 0, elapsed: 0 },
+                  },
+                  {
+                    event: "refine:edit:start",
+                    data: { iteration: 2 },
+                  },
+                  {
+                    event: "refine:edit:text",
+                    data: { text: "[{\"scope\":\"slide\"}]" },
+                  },
+                  {
+                    event: "refine:edit:done",
+                    data: { cost: 0, elapsed: 0 },
                   },
                   {
                     event: "refine:diff",
@@ -478,8 +606,10 @@ describe("ExtractCanvas", () => {
   });
 
   it("uses the card's snapped refine settings instead of the current global settings", async () => {
-    testStore.getState().setRefineModel("claude-opus-4-6");
-    testStore.getState().setRefineEffort("low");
+    testStore.getState().setRefineVisionModel("claude-opus-4-6");
+    testStore.getState().setRefineVisionEffort("low");
+    testStore.getState().setRefineEditModel("claude-sonnet-4-6");
+    testStore.getState().setRefineEditEffort("high");
     testStore.getState().startAnalysis(testCardId);
     testStore.getState().completeAnalysis(testCardId, {
       source: {
@@ -500,11 +630,13 @@ describe("ExtractCanvas", () => {
     });
 
     expect(testStore.getState().cards.get(testCardId)?.refinePass).toEqual({
-      model: "claude-opus-4-6",
-      effort: "low",
+      visionModel: "claude-opus-4-6",
+      visionEffort: "low",
+      editModel: "claude-sonnet-4-6",
+      editEffort: "high",
     });
 
-    testStore.getState().setRefineEffort("medium");
+    testStore.getState().setRefineEditEffort("medium");
 
     const refineRequests: FormData[] = [];
     vi.stubGlobal(
@@ -516,7 +648,15 @@ describe("ExtractCanvas", () => {
           return makeSseResponse([
             {
               event: "refine:start",
-              data: { maxIterations: 1 },
+              data: {
+                iteration: 0,
+                maxIterations: 1,
+                visionModel: "claude-opus-4-6",
+                visionEffort: "low",
+                editModel: "claude-sonnet-4-6",
+                editEffort: "high",
+                mismatchThreshold: 0.05,
+              },
             },
             {
               event: "refine:diff",
@@ -526,6 +666,30 @@ describe("ExtractCanvas", () => {
                 diffArtifactUrl: "/api/extract/refine/artifacts/initial",
                 regions: [],
               },
+            },
+            {
+              event: "refine:vision:start",
+              data: { iteration: 1 },
+            },
+            {
+              event: "refine:vision:text",
+              data: { text: "1. Title is too large." },
+            },
+            {
+              event: "refine:vision:done",
+              data: { differences: "1. Title is too large.", cost: 0, elapsed: 0 },
+            },
+            {
+              event: "refine:edit:start",
+              data: { iteration: 1 },
+            },
+            {
+              event: "refine:edit:text",
+              data: { text: "[{\"scope\":\"slide\"}]" },
+            },
+            {
+              event: "refine:edit:done",
+              data: { cost: 0, elapsed: 0 },
             },
             {
               event: "refine:diff",
@@ -588,7 +752,9 @@ describe("ExtractCanvas", () => {
       expect(refineRequests).toHaveLength(1);
     });
 
-    expect(refineRequests[0].get("model")).toBe("claude-opus-4-6");
-    expect(refineRequests[0].get("effort")).toBe("low");
+    expect(refineRequests[0].get("visionModel")).toBe("claude-opus-4-6");
+    expect(refineRequests[0].get("visionEffort")).toBe("low");
+    expect(refineRequests[0].get("editModel")).toBe("claude-sonnet-4-6");
+    expect(refineRequests[0].get("editEffort")).toBe("high");
   });
 });
