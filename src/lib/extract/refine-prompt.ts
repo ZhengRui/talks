@@ -82,11 +82,18 @@ Everything else is fixable. "Hard to implement" is not unfixable.
 
 ## Rules
 
-- Return ONLY a JSON object with \`issues\` and optional \`resolvedIssueIds\`.
+- Return ONLY a JSON object with \`priorIssueChecks\` and \`issues\`.
 - Focus on the 3 most visually impactful differences first, but you may return up to 5 issues total.
 - Use this schema exactly:
   \`\`\`json
   {
+    "priorIssueChecks": [
+      {
+        "issueId": "hero-graphic.structure",
+        "status": "still_wrong",
+        "note": "The same structural mismatch is still clearly visible."
+      }
+    ],
     "issues": [
       {
         "priority": 1,
@@ -100,12 +107,17 @@ Everything else is fixable. "Hard to implement" is not unfixable.
         "desired": "Original uses a different structure that changes the overall visual identity.",
         "confidence": 0.92
       }
-    ],
-    "resolvedIssueIds": ["previous-issue-id-that-now-matches"]
+    ]
   }
   \`\`\`
+- When prior issues are provided, include one \`priorIssueChecks\` entry for each prior \`issueId\`.
 - \`priority\` must be an integer rank starting at 1.
 - \`issueId\` must identify the specific underlying issue, not just the element. Reuse the same \`issueId\` if the same issue is still visible. Examples: \`title.content\`, \`title.tricolor-direction\`, \`badge-pill.border-style\`.
+- \`status\` in \`priorIssueChecks\` must be one of: \`resolved\`, \`still_wrong\`, \`unclear\`.
+- Use \`resolved\` only when that exact prior issue now clearly matches in the CURRENT REPLICA image.
+- Use \`still_wrong\` when that exact prior issue is still visibly present.
+- Use \`unclear\` when the evidence is ambiguous or mixed. Do not force a binary decision when the image does not support it confidently.
+- \`note\` should briefly explain the adjudication when helpful.
 - \`category\` must be one of: \`content\`, \`signature_visual\`, \`layout\`, \`style\`.
 - \`ref\` should match an extract inventory id when possible (for example a typography id, region id, or repeatGroup id). Use \`null\` when you cannot map confidently.
 - \`fixType\` must be one of: \`structural_change\`, \`layout_adjustment\`, \`style_adjustment\`, \`content_fix\`.
@@ -115,8 +127,11 @@ Everything else is fixable. "Hard to implement" is not unfixable.
 - \`desired\` should describe what the ORIGINAL shows.
 - If semantic anchors are provided, treat \`signatureVisuals\` as top-priority identity constraints. If one is still visibly wrong, rank it above local text clipping or minor polish.
 - For diagrams, decorative systems, repeating structures, and multi-part graphics: judge structure, topology, count, and attachment pattern before weight, opacity, or color.
+- For ordered bands, layered graphics, repeated stripes, directional gradients, connector systems, and other directional/structural visuals: distinguish a true reversal from a visibility problem. If the structure/order is roughly present but one side dominates visually, report the residual issue as prominence, weighting, proportions, clipping, contrast, or color strength rather than claiming the direction/order is inverted.
+- Only call something reversed, swapped, or structurally inverted when that conclusion is visually unambiguous in the CURRENT REPLICA image. If the evidence is mixed, use lower confidence and prefer the less destructive diagnosis.
 - If multiple issue categories are visibly present, diversify the top 3 so they cover different classes when possible: \`content\`, \`signature_visual\`, and \`layout\` before second-order duplicates.
-- If prior issues to re-check are provided, judge each one against the CURRENT REPLICA image. If the same issue is still visible, carry it forward with the same \`issueId\`. If that specific issue now clearly matches, list its \`issueId\` in \`resolvedIssueIds\`.
+- If prior issues to re-check are provided, judge each one against the CURRENT REPLICA image before generating the final issue list. Use \`priorIssueChecks\` to classify each one as \`resolved\`, \`still_wrong\`, or \`unclear\`.
+- Treat prior issues as hypotheses to re-check, not as truth. The CURRENT REPLICA image wins if a prior issue no longer matches.
 - Do not mark an entire element as resolved because one issue on that element changed. One \`ref\` can have multiple simultaneous issue ids.
 - Do not silently downgrade a prior structural signature-visual issue to a style issue unless the structure now clearly matches.
 - **Do not chase pixel alignment.** If an element is roughly in the right place, leave it. Only fix things that are visibly wrong at a glance.
@@ -148,7 +163,7 @@ export function buildVisionUserPrompt(context: VisionPromptContext): string {
       .join("\n")}`
     : "";
   const priorIssuesSection = context.priorIssuesJson
-    ? `\nPrevious issues to re-check from the prior iteration:\n\`\`\`json\n${context.priorIssuesJson}\n\`\`\`\nJudge each prior issue against the CURRENT REPLICA image. If the same issue is still visible, keep the same issueId. If that specific issue now clearly matches, list its issueId under resolvedIssueIds. Do not treat one change on a shared ref like "title" as resolving every other issue on that ref.`
+    ? `\nPrevious issues to re-check from the prior iteration:\n\`\`\`json\n${context.priorIssuesJson}\n\`\`\`\nBefore producing the final issue list, classify each prior issue under priorIssueChecks as resolved, still_wrong, or unclear. Keep the same issueId when the same issue is still visible. Do not treat one change on a shared ref like "title" as resolving every other issue on that ref.`
     : "";
 
   return `Image size: ${context.imageSize.w}x${context.imageSize.h}
@@ -191,6 +206,10 @@ ${SCENE_REFERENCE_CONTENT}
 - Do NOT rewrite proposals from scratch.
 - Do NOT restructure, rename, or reorganize proposals.
 - If an issue has \`fixType: "structural_change"\`, you may replace the minimal relevant subsection of the proposal body required to fix it.
+- Treat the structured issue list as a diagnosis, not a literal patch recipe.
+- For high-reversal edits such as swapping direction/order, flipping layers, changing topology, or undoing an earlier structural fix: first verify that the current proposal does NOT already encode the desired structure. If it already does, do not blindly reverse it again.
+- When the proposal already encodes the requested structure but the replica still looks wrong, prefer lower-level fixes like proportions, clip bounds, band heights, opacity, contrast, color strength, spacing, or scale before applying another structural reversal.
+- Only apply a structural reversal when the image evidence is unambiguous and the proposal does not already match the intended direction/order.
 - Do NOT invent a new coordinate system, hidden scaling factor, or alternate slide bounds.
 - The proposals may be authored in a different internal coordinate space than the images. Preserve that proposal-space coordinate system unless a visual fix truly requires changing proposal geometry.
 - If geometry ground truth is provided in the user prompt, treat those rectangles as exact and patch toward them instead of re-guessing layout.

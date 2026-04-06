@@ -376,7 +376,11 @@ export default function ExtractCanvas() {
               case "refine:vision:done": {
                 setRefinePriorIssuesJson(
                   cardId,
-                  typeof data.issuesJson === "string" ? data.issuesJson : null,
+                  typeof data.priorIssuesJson === "string"
+                    ? data.priorIssuesJson
+                    : typeof data.issuesJson === "string"
+                      ? data.issuesJson
+                      : null,
                 );
                 const visionMeta = [
                   typeof data.elapsed === "number" ? `${data.elapsed}s` : null,

@@ -56,10 +56,12 @@ import { runRefinementLoop } from "./refine";
 function makeVisionIssuesJson(
   overrides?: {
     issues?: Array<Record<string, unknown>>;
+    priorIssueChecks?: Array<Record<string, unknown>>;
     resolvedIssueIds?: string[];
   },
 ): string {
   return JSON.stringify({
+    priorIssueChecks: overrides?.priorIssueChecks ?? [],
     issues: overrides?.issues ?? [
       {
         priority: 1,
@@ -98,7 +100,9 @@ function makeVisionIssuesJson(
         confidence: 0.82,
       },
     ],
-    resolvedIssueIds: overrides?.resolvedIssueIds ?? [],
+    ...(overrides?.resolvedIssueIds
+      ? { resolvedIssueIds: overrides.resolvedIssueIds }
+      : {}),
   }, null, 2);
 }
 
@@ -242,7 +246,8 @@ ${JSON.stringify(makePatchedProposals(), null, 2)}
     expect(userPrompt).toContain("Signature visuals from extract");
     expect(userPrompt).toContain("Orange hub circle with diagonal connector X");
     expect(visionCall.options.systemPrompt).toContain("JSON object");
-    expect(visionCall.options.systemPrompt).toContain("\"resolvedIssueIds\"");
+    expect(visionCall.options.systemPrompt).toContain("\"priorIssueChecks\"");
+    expect(visionCall.options.systemPrompt).toContain("\"status\"");
     expect(visionCall.options.systemPrompt).toContain("\"issueId\"");
     expect(visionCall.options.systemPrompt).toContain("\"category\"");
     expect(visionCall.options.systemPrompt).toContain("\"ref\"");
@@ -500,6 +505,67 @@ ${JSON.stringify(patchedProposals, null, 2)}
     expect(issues?.[0]?.ref).toBe("connector-lines");
   });
 
+  it("derives a generic band-direction issue id for layered directional visuals when the model omits issueId", async () => {
+    const proposals = makeProposals();
+    const patchedProposals = makePatchedProposals();
+
+    mockQuery
+      .mockReset()
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: makeVisionIssuesJson({
+            issues: [
+              {
+                priority: 1,
+                category: "signature_visual",
+                ref: "hero-title",
+                area: "hero title color bands",
+                issue: "band order is inverted",
+                fixType: "style_adjustment",
+                observed: "Replica shows the layered bands in the wrong top-to-bottom order.",
+                desired: "Original uses a different top-to-bottom band order.",
+                confidence: 0.92,
+              },
+            ],
+          }),
+        };
+      })
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: `\`\`\`json
+${JSON.stringify(patchedProposals, null, 2)}
+\`\`\``,
+        };
+      });
+
+    await runRefinementLoop({
+      image: Buffer.from("reference"),
+      imageMediaType: "image/png",
+      proposals,
+      baseAnalysis: makeBaseAnalysis(proposals),
+      maxIterations: 1,
+      mismatchThreshold: 0.05,
+      visionModel: "claude-opus-4-6",
+      visionEffort: "medium",
+      editModel: "claude-opus-4-6",
+      editEffort: "medium",
+    });
+
+    const editCall = mockQuery.mock.calls[1]?.[0] as {
+      prompt: AsyncGenerator<{
+        message: {
+          content: Array<Record<string, unknown>>;
+        };
+      }>;
+    };
+    const firstPrompt = await editCall.prompt.next();
+    const textContent = (firstPrompt.value?.message.content?.[4] as { text: string }).text;
+
+    expect(textContent).toContain("\"issueId\": \"hero-title.band-direction\"");
+  });
+
   it("includes unresolved sticky signature visuals in the edit issue list even when they fall below the top 3", async () => {
     const proposals = makeProposals();
     const patchedProposals = makePatchedProposals();
@@ -543,6 +609,12 @@ ${JSON.stringify(patchedProposals, null, 2)}
                 observed: "Replica title dominates the slide.",
                 desired: "Original title feels smaller.",
                 confidence: 0.82,
+              },
+            ],
+            priorIssueChecks: [
+              {
+                issueId: "connector-lines.graphic-structure",
+                status: "still_wrong",
               },
             ],
           }),
@@ -601,6 +673,7 @@ ${JSON.stringify(patchedProposals, null, 2)}
   it("does not re-carry a resolved issueId when another issue on the same ref remains", async () => {
     const proposals = makeProposals();
     const patchedProposals = makePatchedProposals();
+    const events: Array<{ event: string; data: Record<string, unknown> }> = [];
 
     mockQuery
       .mockReset()
@@ -634,7 +707,12 @@ ${JSON.stringify(patchedProposals, null, 2)}
                 confidence: 0.8,
               },
             ],
-            resolvedIssueIds: ["title.tricolor-direction"],
+            priorIssueChecks: [
+              {
+                issueId: "title.tricolor-direction",
+                status: "resolved",
+              },
+            ],
           }),
         };
       })
@@ -685,6 +763,9 @@ ${JSON.stringify(patchedProposals, null, 2)}
       visionEffort: "medium",
       editModel: "claude-opus-4-6",
       editEffort: "medium",
+      onEvent: (event) => {
+        events.push(event);
+      },
     });
 
     const editCall = mockQuery.mock.calls[1]?.[0] as {
@@ -696,10 +777,173 @@ ${JSON.stringify(patchedProposals, null, 2)}
     };
     const firstPrompt = await editCall.prompt.next();
     const textContent = (firstPrompt.value?.message.content?.[4] as { text: string }).text;
+    const visionDoneData = events.find((event) => event.event === "refine:vision:done")?.data as
+      | Record<string, unknown>
+      | undefined;
 
     expect(textContent).toContain("\"issueId\": \"title.scale\"");
     expect(textContent).not.toContain("\"issueId\": \"title.tricolor-direction\"");
     expect(textContent).not.toContain("tricolor direction is inverted");
+    expect(visionDoneData?.priorIssueChecks).toEqual([
+      { issueId: "title.content", status: "unclear" },
+      { issueId: "title.tricolor-direction", status: "resolved" },
+    ]);
+    expect(typeof visionDoneData?.priorIssuesJson).toBe("string");
+    expect(visionDoneData?.priorIssuesJson).toContain("\"issueId\": \"title.scale\"");
+    expect(visionDoneData?.priorIssuesJson).not.toContain("\"issueId\": \"title.tricolor-direction\"");
+  });
+
+  it("keeps unclear prior issues for the next vision pass without forcing them into edit", async () => {
+    const proposals = makeProposals();
+    const patchedProposals = makePatchedProposals();
+
+    mockQuery
+      .mockReset()
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: makeVisionIssuesJson({
+            priorIssueChecks: [
+              {
+                issueId: "connector-lines.graphic-structure",
+                status: "unclear",
+              },
+            ],
+            issues: [
+              {
+                priority: 1,
+                issueId: "title.scale",
+                category: "layout",
+                ref: "title",
+                area: "title size",
+                issue: "title is slightly too large",
+                fixType: "layout_adjustment",
+                observed: "Replica title spans too much width.",
+                desired: "Original title is more contained.",
+                confidence: 0.84,
+              },
+            ],
+          }),
+        };
+      })
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: `\`\`\`json
+${JSON.stringify(patchedProposals, null, 2)}
+\`\`\``,
+        };
+      })
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: makeVisionIssuesJson({
+            issues: [
+              {
+                priority: 1,
+                issueId: "background.background-style",
+                category: "style",
+                ref: null,
+                area: "background glow",
+                issue: "background glow is too faint",
+                fixType: "style_adjustment",
+                observed: "Replica lacks enough warm glow.",
+                desired: "Original has a stronger warm glow.",
+                confidence: 0.8,
+              },
+            ],
+          }),
+        };
+      })
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: `\`\`\`json
+${JSON.stringify(patchedProposals, null, 2)}
+\`\`\``,
+        };
+      });
+
+    mockCompareImages
+      .mockResolvedValueOnce({
+        mismatchRatio: 0.2,
+        mismatchPixels: 20,
+        totalPixels: 100,
+        diffImage: Buffer.from("diff-initial"),
+        regions: [],
+        width: 100,
+        height: 100,
+      })
+      .mockResolvedValueOnce({
+        mismatchRatio: 0.18,
+        mismatchPixels: 18,
+        totalPixels: 100,
+        diffImage: Buffer.from("diff-iter-1"),
+        regions: [],
+        width: 100,
+        height: 100,
+      })
+      .mockResolvedValueOnce({
+        mismatchRatio: 0.16,
+        mismatchPixels: 16,
+        totalPixels: 100,
+        diffImage: Buffer.from("diff-iter-2"),
+        regions: [],
+        width: 100,
+        height: 100,
+      });
+
+    await runRefinementLoop({
+      image: Buffer.from("reference"),
+      imageMediaType: "image/png",
+      proposals,
+      baseAnalysis: makeBaseAnalysis(proposals),
+      priorIssuesJson: JSON.stringify([
+        {
+          priority: 1,
+          issueId: "connector-lines.graphic-structure",
+          category: "signature_visual",
+          ref: "connector-lines",
+          area: "connector lines",
+          issue: "line topology is wrong",
+          fixType: "structural_change",
+          observed: "Replica uses short spokes.",
+          desired: "Original uses a diagonal X.",
+          confidence: 0.9,
+          sticky: true,
+        },
+      ], null, 2),
+      maxIterations: 2,
+      mismatchThreshold: 0.05,
+      visionModel: "claude-opus-4-6",
+      visionEffort: "medium",
+      editModel: "claude-opus-4-6",
+      editEffort: "medium",
+    });
+
+    const firstEditCall = mockQuery.mock.calls[1]?.[0] as {
+      prompt: AsyncGenerator<{
+        message: {
+          content: Array<Record<string, unknown>>;
+        };
+      }>;
+    };
+    const firstEditPrompt = await firstEditCall.prompt.next();
+    const firstEditText = (firstEditPrompt.value?.message.content?.[4] as { text: string }).text;
+
+    const secondVisionCall = mockQuery.mock.calls[2]?.[0] as {
+      prompt: AsyncGenerator<{
+        message: {
+          content: Array<Record<string, unknown>>;
+        };
+      }>;
+    };
+    const secondVisionPrompt = await secondVisionCall.prompt.next();
+    const secondVisionText = (secondVisionPrompt.value?.message.content?.[4] as { text: string }).text;
+
+    expect(firstEditText).not.toContain("\"issueId\": \"connector-lines.graphic-structure\"");
+    expect(firstEditText).not.toContain("\"sticky\": true");
+    expect(secondVisionText).toContain("\"issueId\": \"connector-lines.graphic-structure\"");
   });
 
   it("edit call sends labeled comparison images alongside structured issues and proposals JSON", async () => {

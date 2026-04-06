@@ -55,14 +55,20 @@ describe("buildVisionSystemPrompt", () => {
     expect(prompt).toContain("original");
     expect(prompt).toContain("replica");
     expect(prompt).toContain("JSON object");
+    expect(prompt).toContain("\"priorIssueChecks\"");
     expect(prompt).toContain("\"issues\"");
-    expect(prompt).toContain("\"resolvedIssueIds\"");
+    expect(prompt).toContain("\"status\"");
     expect(prompt).toContain("\"issueId\"");
     expect(prompt).toContain("\"category\"");
     expect(prompt).toContain("\"ref\"");
     expect(prompt).toContain("\"fixType\"");
     expect(prompt).toContain("structural_change");
     expect(prompt).toContain("diversify the top 3");
+    expect(prompt).toContain("distinguish a true reversal from a visibility problem");
+    expect(prompt).toContain("less destructive diagnosis");
+    expect(prompt).toContain("resolved");
+    expect(prompt).toContain("still_wrong");
+    expect(prompt).toContain("unclear");
     expect(prompt).not.toContain("proposals");
   });
 
@@ -115,7 +121,8 @@ describe("buildVisionUserPrompt", () => {
     expect(prompt).toContain("\"issueId\": \"connector-lines.graphic-structure\"");
     expect(prompt).toContain("\"ref\": \"connector-lines\"");
     expect(prompt).toContain("\"fixType\": \"structural_change\"");
-    expect(prompt).toContain("resolvedIssueIds");
+    expect(prompt).toContain("priorIssueChecks");
+    expect(prompt).toContain("resolved, still_wrong, or unclear");
   });
 });
 
@@ -135,6 +142,9 @@ describe("buildEditSystemPrompt", () => {
     expect(prompt).toContain("sticky");
     expect(prompt).toContain("structural_change");
     expect(prompt).toContain("unresolved sticky `signature_visual` issues");
+    expect(prompt).toContain("diagnosis, not a literal patch recipe");
+    expect(prompt).toContain("If it already does, do not blindly reverse it again");
+    expect(prompt).toContain("proportions, clip bounds, band heights, opacity, contrast, color strength, spacing, or scale");
     expect(prompt).toContain("contentBounds is in the pixel space of the ORIGINAL/REPLICA images");
     expect(prompt).toContain("Treat image-space context and proposal-space context as separate");
     expect(prompt).toContain("Preserve that proposal-space coordinate system");

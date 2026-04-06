@@ -109,6 +109,11 @@ type VisionIssueCategory =
   | "layout"
   | "style";
 
+type VisionPriorIssueStatus =
+  | "resolved"
+  | "still_wrong"
+  | "unclear";
+
 interface VisionIssue {
   priority: number;
   issueId: string;
@@ -123,10 +128,18 @@ interface VisionIssue {
   sticky?: boolean;
 }
 
+interface VisionPriorIssueCheck {
+  issueId: string;
+  status: VisionPriorIssueStatus;
+  note?: string;
+}
+
 interface VisionResult {
   issues: VisionIssue[];
   issuesJson: string;
   editIssuesJson: string;
+  priorIssuesJson: string;
+  priorIssueChecks: VisionPriorIssueCheck[];
   resolvedIssueIds: string[];
   rawText: string;
   cost: number | null;
@@ -185,6 +198,11 @@ const VALID_VISION_CATEGORIES = new Set<VisionIssueCategory>([
   "signature_visual",
   "layout",
   "style",
+]);
+const VALID_PRIOR_ISSUE_STATUSES = new Set<VisionPriorIssueStatus>([
+  "resolved",
+  "still_wrong",
+  "unclear",
 ]);
 const CORE_VISION_CATEGORIES: VisionIssueCategory[] = [
   "signature_visual",
@@ -347,9 +365,17 @@ function inferIssueKind(
   fixType: VisionIssueFixType,
 ): string {
   const normalized = normalizeWhitespace(text);
+  const mentionsLayeredVisual =
+    /(tricolor|stripe|stripes|band|bands|gradient|gradients|layer|layers|clip|clipping|fill order|color stop|color stops|color band|color bands)/.test(
+      normalized,
+    );
+  const mentionsDirectionalProblem =
+    /(direction|orientation|order|ordered|inverted|reversed|swapped|top-to-bottom|bottom-to-top|left-to-right|right-to-left|\b[a-z0-9#]+ on top\b|\b[a-z0-9#]+ on bottom\b|\b[a-z0-9#]+ at top\b|\b[a-z0-9#]+ at bottom\b)/.test(
+      normalized,
+    );
 
-  if (/(tricolor|stripe|gradient direction|band direction|orientation|blue on top|red on top|bottom red|top blue)/.test(normalized)) {
-    return "tricolor-direction";
+  if (mentionsLayeredVisual && mentionsDirectionalProblem) {
+    return "band-direction";
   }
   if (/(missing|truncated|clipped|cut off|spelling|capitalization|copy|text content)/.test(normalized)) {
     return "content";
@@ -569,6 +595,40 @@ function normalizeResolvedIssueIds(value: unknown): string[] {
   return [...ids];
 }
 
+function normalizePriorIssueStatus(value: unknown): VisionPriorIssueStatus | null {
+  if (
+    typeof value === "string" &&
+    VALID_PRIOR_ISSUE_STATUSES.has(value as VisionPriorIssueStatus)
+  ) {
+    return value as VisionPriorIssueStatus;
+  }
+  return null;
+}
+
+function normalizePriorIssueChecks(value: unknown): VisionPriorIssueCheck[] {
+  if (!Array.isArray(value)) return [];
+
+  const checks = new Map<string, VisionPriorIssueCheck>();
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+    const raw = entry as Record<string, unknown>;
+    const issueIds = normalizeResolvedIssueIds([raw.issueId]);
+    const issueId = issueIds[0];
+    const status = normalizePriorIssueStatus(raw.status);
+    if (!issueId || !status) continue;
+
+    checks.set(issueId, {
+      issueId,
+      status,
+      ...(typeof raw.note === "string" && raw.note.trim()
+        ? { note: raw.note.trim() }
+        : {}),
+    });
+  }
+
+  return [...checks.values()];
+}
+
 function buildSignatureRefSet(
   semanticAnchors?: VisionSemanticAnchors | null,
 ): Set<string> {
@@ -591,6 +651,7 @@ function parseVisionCritique(
   signatureRefs: Set<string>,
 ): {
   issues: VisionIssue[];
+  priorIssueChecks: VisionPriorIssueCheck[];
   resolvedIssueIds: string[];
   issuesJson: string;
 } {
@@ -599,6 +660,7 @@ function parseVisionCritique(
     const issues = fallbackIssuesFromText(resultText);
     return {
       issues,
+      priorIssueChecks: [],
       resolvedIssueIds: [],
       issuesJson: serializeIssues(issues),
     };
@@ -611,12 +673,14 @@ function parseVisionCritique(
     const issues = fallbackIssuesFromText(resultText);
     return {
       issues,
+      priorIssueChecks: [],
       resolvedIssueIds: [],
       issuesJson: serializeIssues(issues),
     };
   }
 
   let issueEntries: unknown[] | null = null;
+  let priorIssueChecks: VisionPriorIssueCheck[] = [];
   let resolvedIssueIds: string[] = [];
 
   if (Array.isArray(parsed)) {
@@ -624,6 +688,7 @@ function parseVisionCritique(
   } else if (parsed && typeof parsed === "object") {
     const object = parsed as Record<string, unknown>;
     issueEntries = Array.isArray(object.issues) ? object.issues : null;
+    priorIssueChecks = normalizePriorIssueChecks(object.priorIssueChecks);
     resolvedIssueIds = normalizeResolvedIssueIds(
       object.resolvedIssueIds ?? object.resolvedRefs,
     );
@@ -633,6 +698,7 @@ function parseVisionCritique(
     const issues = fallbackIssuesFromText(resultText);
     return {
       issues,
+      priorIssueChecks,
       resolvedIssueIds: [],
       issuesJson: serializeIssues(issues),
     };
@@ -647,12 +713,59 @@ function parseVisionCritique(
   const filteredResolvedIssueIds = resolvedIssueIds.filter(
     (issueId) => !unresolvedIssueIds.has(issueId),
   );
+  const normalizedPriorIssueChecks = priorIssueChecks.map((check) => (
+    unresolvedIssueIds.has(check.issueId)
+      ? { ...check, status: "still_wrong" as const }
+      : check
+  ));
 
   return {
     issues: sortAndReindexIssues(issues),
+    priorIssueChecks: normalizedPriorIssueChecks,
     resolvedIssueIds: filteredResolvedIssueIds,
     issuesJson: serializeIssues(issues),
   };
+}
+
+function coalescePriorIssueChecks(
+  priorIssues: VisionIssue[],
+  currentIssues: VisionIssue[],
+  parsedPriorIssueChecks: VisionPriorIssueCheck[],
+  resolvedIssueIds: string[],
+): VisionPriorIssueCheck[] {
+  if (priorIssues.length === 0) return [];
+
+  const currentIssueIdSet = new Set(currentIssues.map((issue) => issue.issueId));
+  const resolvedIssueIdSet = new Set(resolvedIssueIds);
+  const explicitChecks = new Map(
+    parsedPriorIssueChecks.map((check) => [check.issueId, check] as const),
+  );
+
+  return priorIssues.map((priorIssue) => {
+    const explicit = explicitChecks.get(priorIssue.issueId);
+    if (explicit) {
+      if (currentIssueIdSet.has(priorIssue.issueId)) {
+        return { ...explicit, status: "still_wrong" };
+      }
+      return explicit;
+    }
+    if (currentIssueIdSet.has(priorIssue.issueId)) {
+      return {
+        issueId: priorIssue.issueId,
+        status: "still_wrong",
+      };
+    }
+    if (resolvedIssueIdSet.has(priorIssue.issueId)) {
+      return {
+        issueId: priorIssue.issueId,
+        status: "resolved",
+      };
+    }
+    return {
+      issueId: priorIssue.issueId,
+      status: "unclear",
+    };
+  });
 }
 
 function applyCategoryCoverage(issues: VisionIssue[]): VisionIssue[] {
@@ -702,10 +815,12 @@ function applyCategoryCoverage(issues: VisionIssue[]): VisionIssue[] {
 function mergeStickySignatureIssues(
   currentIssues: VisionIssue[],
   priorIssues: VisionIssue[],
-  resolvedIssueIds: string[],
+  priorIssueChecks: VisionPriorIssueCheck[],
 ): VisionIssue[] {
   const merged = dedupeIssues(currentIssues);
-  const resolvedIssueIdSet = new Set(resolvedIssueIds);
+  const statusByIssueId = new Map(
+    priorIssueChecks.map((check) => [check.issueId, check.status] as const),
+  );
   const indexByKey = new Map<string, number>();
 
   merged.forEach((issue, index) => {
@@ -714,7 +829,8 @@ function mergeStickySignatureIssues(
 
   for (const priorIssue of priorIssues) {
     if (priorIssue.category !== "signature_visual") continue;
-    if (resolvedIssueIdSet.has(priorIssue.issueId)) continue;
+    const status = statusByIssueId.get(priorIssue.issueId);
+    if (status === "resolved" || status === "unclear") continue;
 
     const key = issueKey(priorIssue);
     const existingIndex = indexByKey.get(key);
@@ -738,6 +854,40 @@ function mergeStickySignatureIssues(
   }
 
   return sortAndReindexIssues(merged);
+}
+
+function buildPriorIssuesForRecheck(
+  currentIssues: VisionIssue[],
+  priorIssues: VisionIssue[],
+  priorIssueChecks: VisionPriorIssueCheck[],
+): VisionIssue[] {
+  const carry = new Map<string, VisionIssue>();
+  const statusByIssueId = new Map(
+    priorIssueChecks.map((check) => [check.issueId, check.status] as const),
+  );
+
+  for (const issue of currentIssues) {
+    carry.set(issue.issueId, issue);
+  }
+
+  for (const priorIssue of priorIssues) {
+    const status = statusByIssueId.get(priorIssue.issueId);
+    if (status === "resolved") continue;
+    if (carry.has(priorIssue.issueId)) continue;
+    if (status !== "still_wrong" && status !== "unclear") continue;
+
+    carry.set(priorIssue.issueId, {
+      ...priorIssue,
+      sticky: status === "still_wrong" && priorIssue.category === "signature_visual"
+        ? true
+        : priorIssue.sticky,
+      confidence: status === "unclear"
+        ? Math.min(priorIssue.confidence, 0.5)
+        : priorIssue.confidence,
+    });
+  }
+
+  return sortAndReindexIssues([...carry.values()]);
 }
 
 function selectIssuesForEdit(issues: VisionIssue[]): VisionIssue[] {
@@ -1075,6 +1225,8 @@ async function runVisionCritique(
       issues: rankedIssues,
       issuesJson,
       editIssuesJson,
+      priorIssuesJson: issuesJson,
+      priorIssueChecks: [],
       resolvedIssueIds: [],
       rawText: issuesJson,
       cost: 0,
@@ -1099,17 +1251,32 @@ async function runVisionCritique(
   });
 
   const parsed = parseVisionCritique(result.resultText, signatureRefs);
+  const priorIssueChecks = coalescePriorIssueChecks(
+    priorIssues ?? [],
+    parsed.issues,
+    parsed.priorIssueChecks,
+    parsed.resolvedIssueIds,
+  );
   const stickyIssues = mergeStickySignatureIssues(
     parsed.issues,
     priorIssues ?? [],
-    parsed.resolvedIssueIds,
+    priorIssueChecks,
   );
   const rankedIssues = applyCategoryCoverage(stickyIssues);
+  const priorIssuesForRecheck = buildPriorIssuesForRecheck(
+    rankedIssues,
+    priorIssues ?? [],
+    priorIssueChecks,
+  );
   return {
     issues: rankedIssues,
     issuesJson: serializeIssues(rankedIssues),
     editIssuesJson: serializeIssues(selectIssuesForEdit(rankedIssues)),
-    resolvedIssueIds: parsed.resolvedIssueIds,
+    priorIssuesJson: serializeIssues(priorIssuesForRecheck),
+    priorIssueChecks,
+    resolvedIssueIds: priorIssueChecks
+      .filter((check) => check.status === "resolved")
+      .map((check) => check.issueId),
     rawText: result.resultText,
     cost: result.totalCost,
     elapsed: result.elapsed,
@@ -1369,7 +1536,10 @@ export async function runRefinementLoop(
       signal,
       onEvent,
     });
-    priorVisionIssues = visionResult.issues;
+    priorVisionIssues = parseVisionCritique(
+      visionResult.priorIssuesJson,
+      signatureRefs,
+    ).issues;
     totalCost = accumulateCost(totalCost, visionResult.cost);
     const visionEmpty = visionResult.issues.length === 0;
     await emit(onEvent, {
@@ -1379,6 +1549,8 @@ export async function runRefinementLoop(
         issues: visionResult.issues,
         issuesJson: visionResult.issuesJson,
         editIssuesJson: visionResult.editIssuesJson,
+        priorIssuesJson: visionResult.priorIssuesJson,
+        priorIssueChecks: visionResult.priorIssueChecks,
         resolvedIssueIds: visionResult.resolvedIssueIds,
         issueCount: visionResult.issues.length,
         cost: visionResult.cost,

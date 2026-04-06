@@ -612,6 +612,7 @@ describe("ExtractCanvas", () => {
                     data: {
                       differences: "1. Title is too large.",
                       issuesJson: '[{"priority":1,"area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
+                      priorIssuesJson: '[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
                       cost: 0,
                       elapsed: 0,
                     },
@@ -807,7 +808,7 @@ describe("ExtractCanvas", () => {
     expect(refineRequests[1].get("iterationOffset")).toBe("1");
     expect(refineRequests[1].get("forceIterations")).toBe("1");
     expect(refineRequests[1].get("priorIssuesJson")).toBe(
-      '[{"priority":1,"area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
+      '[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
     );
   });
 
