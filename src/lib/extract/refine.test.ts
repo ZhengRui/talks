@@ -60,46 +60,52 @@ function makeVisionIssuesJson(
     resolvedIssueIds?: string[];
   },
 ): string {
+  const issues = overrides?.issues ?? [
+    {
+      priority: 1,
+      issueId: "title.scale",
+      category: "layout",
+      ref: "title",
+      area: "title",
+      issue: "title is too large",
+      fixType: "style_adjustment",
+      observed: "Replica title feels oversized.",
+      desired: "Original title should feel smaller.",
+      confidence: 0.9,
+    },
+    {
+      priority: 2,
+      issueId: "proxy-cards.content",
+      category: "content",
+      ref: "proxy-cards",
+      area: "proxy card descriptions",
+      issue: "description text is truncated",
+      fixType: "content_fix",
+      observed: "Replica cuts off the final word in two cards.",
+      desired: "Original shows the full proxy descriptions.",
+      confidence: 0.88,
+    },
+    {
+      priority: 3,
+      issueId: "connector-lines.graphic-structure",
+      category: "signature_visual",
+      ref: "connector-lines",
+      area: "background lines",
+      issue: "background line pattern is missing",
+      fixType: "structural_change",
+      observed: "Replica is missing the line pattern.",
+      desired: "Original includes the line pattern.",
+      confidence: 0.82,
+    },
+  ];
+
+  if (!overrides?.priorIssueChecks && !overrides?.resolvedIssueIds) {
+    return JSON.stringify(issues, null, 2);
+  }
+
   return JSON.stringify({
     priorIssueChecks: overrides?.priorIssueChecks ?? [],
-    issues: overrides?.issues ?? [
-      {
-        priority: 1,
-        issueId: "title.scale",
-        category: "layout",
-        ref: "title",
-        area: "title",
-        issue: "title is too large",
-        fixType: "style_adjustment",
-        observed: "Replica title feels oversized.",
-        desired: "Original title should feel smaller.",
-        confidence: 0.9,
-      },
-      {
-        priority: 2,
-        issueId: "proxy-cards.content",
-        category: "content",
-        ref: "proxy-cards",
-        area: "proxy card descriptions",
-        issue: "description text is truncated",
-        fixType: "content_fix",
-        observed: "Replica cuts off the final word in two cards.",
-        desired: "Original shows the full proxy descriptions.",
-        confidence: 0.88,
-      },
-      {
-        priority: 3,
-        issueId: "connector-lines.graphic-structure",
-        category: "signature_visual",
-        ref: "connector-lines",
-        area: "background lines",
-        issue: "background line pattern is missing",
-        fixType: "structural_change",
-        observed: "Replica is missing the line pattern.",
-        desired: "Original includes the line pattern.",
-        confidence: 0.82,
-      },
-    ],
+    issues,
     ...(overrides?.resolvedIssueIds
       ? { resolvedIssueIds: overrides.resolvedIssueIds }
       : {}),
@@ -127,6 +133,11 @@ function makePatchedProposals(): Proposal[] {
       body: "children:\n  - kind: text\n    text: changed",
     },
   ];
+}
+
+function extractStructuredIssuesFromEditPrompt(prompt: string): string {
+  const match = prompt.match(/Structured issues:\n```json\n([\s\S]*?)\n```/);
+  return match?.[1] ?? "";
 }
 
 function makeBaseAnalysis(proposals: Proposal[]) {
@@ -245,9 +256,8 @@ ${JSON.stringify(makePatchedProposals(), null, 2)}
     expect(userPrompt).not.toContain("proposals");
     expect(userPrompt).toContain("Signature visuals from extract");
     expect(userPrompt).toContain("Orange hub circle with diagonal connector X");
-    expect(visionCall.options.systemPrompt).toContain("JSON object");
-    expect(visionCall.options.systemPrompt).toContain("\"priorIssueChecks\"");
-    expect(visionCall.options.systemPrompt).toContain("\"status\"");
+    expect(visionCall.options.systemPrompt).toContain("JSON array");
+    expect(visionCall.options.systemPrompt).not.toContain("\"priorIssueChecks\"");
     expect(visionCall.options.systemPrompt).toContain("\"issueId\"");
     expect(visionCall.options.systemPrompt).toContain("\"category\"");
     expect(visionCall.options.systemPrompt).toContain("\"ref\"");
@@ -777,13 +787,14 @@ ${JSON.stringify(patchedProposals, null, 2)}
     };
     const firstPrompt = await editCall.prompt.next();
     const textContent = (firstPrompt.value?.message.content?.[4] as { text: string }).text;
+    const structuredIssues = extractStructuredIssuesFromEditPrompt(textContent);
     const visionDoneData = events.find((event) => event.event === "refine:vision:done")?.data as
       | Record<string, unknown>
       | undefined;
 
-    expect(textContent).toContain("\"issueId\": \"title.scale\"");
-    expect(textContent).not.toContain("\"issueId\": \"title.tricolor-direction\"");
-    expect(textContent).not.toContain("tricolor direction is inverted");
+    expect(structuredIssues).toContain("\"issueId\": \"title.scale\"");
+    expect(structuredIssues).not.toContain("\"issueId\": \"title.tricolor-direction\"");
+    expect(structuredIssues).not.toContain("tricolor direction is inverted");
     expect(visionDoneData?.priorIssueChecks).toEqual([
       { issueId: "title.content", status: "unclear" },
       { issueId: "title.tricolor-direction", status: "resolved" },
@@ -945,6 +956,7 @@ ${JSON.stringify(patchedProposals, null, 2)}
     expect(firstEditText).not.toContain("\"sticky\": true");
     expect(secondVisionText).toContain("\"issueId\": \"connector-lines.graphic-structure\"");
   });
+
 
   it("edit call sends labeled comparison images alongside structured issues and proposals JSON", async () => {
     const proposals = makeProposals();

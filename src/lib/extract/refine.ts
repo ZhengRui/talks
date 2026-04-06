@@ -646,6 +646,7 @@ function buildSignatureRefSet(
   return refs;
 }
 
+
 function parseVisionCritique(
   resultText: string,
   signatureRefs: Set<string>,
@@ -1157,7 +1158,9 @@ async function runVisionCritique(
     onEvent,
   } = options;
   const signatureRefs = buildSignatureRefSet(semanticAnchors);
-  const systemPrompt = buildVisionSystemPrompt();
+  const systemPrompt = buildVisionSystemPrompt({
+    hasPriorIssues: Boolean(priorIssues?.length),
+  });
   const userPrompt = buildVisionUserPrompt({
     imageSize,
     contentBounds,

@@ -41,6 +41,10 @@ export interface EditPromptContext {
   geometryHints?: GeometryHints | null;
 }
 
+export interface VisionSystemPromptOptions {
+  hasPriorIssues?: boolean;
+}
+
 function isFullImageBounds(
   bounds: { x: number; y: number; w: number; h: number } | null | undefined,
   imageSize: { w: number; h: number } | undefined,
@@ -55,7 +59,80 @@ function isFullImageBounds(
   );
 }
 
-export function buildVisionSystemPrompt(): string {
+function buildVisionResponseSchema(options: VisionSystemPromptOptions): string {
+  const { hasPriorIssues = false } = options;
+
+  if (!hasPriorIssues) {
+    return `\`\`\`json
+[
+  {
+    "priority": 1,
+    "issueId": "hero-graphic.structure",
+    "category": "signature_visual",
+    "ref": "hero-graphic",
+    "area": "primary graphic group",
+    "issue": "structure is wrong",
+    "fixType": "structural_change",
+    "observed": "Replica uses the wrong arrangement and relationships between parts.",
+    "desired": "Original uses a different structure that changes the overall visual identity.",
+    "confidence": 0.92
+  }
+]
+\`\`\``;
+  }
+
+  const lines = ["{"] as string[];
+  if (hasPriorIssues) {
+    lines.push(`  "priorIssueChecks": [`);
+    lines.push("    {");
+    lines.push('      "issueId": "hero-graphic.structure",');
+    lines.push('      "status": "still_wrong",');
+    lines.push('      "note": "The same structural mismatch is still clearly visible."');
+    lines.push("    }");
+    lines.push("  ],");
+  }
+  lines.push('  "issues": [');
+  lines.push("    {");
+  lines.push('      "priority": 1,');
+  lines.push('      "issueId": "hero-graphic.structure",');
+  lines.push('      "category": "signature_visual",');
+  lines.push('      "ref": "hero-graphic",');
+  lines.push('      "area": "primary graphic group",');
+  lines.push('      "issue": "structure is wrong",');
+  lines.push('      "fixType": "structural_change",');
+  lines.push('      "observed": "Replica uses the wrong arrangement and relationships between parts.",');
+  lines.push('      "desired": "Original uses a different structure that changes the overall visual identity.",');
+  lines.push('      "confidence": 0.92');
+  lines.push("    }");
+  lines.push("  ]");
+  lines.push("}");
+
+  return `\`\`\`json\n${lines.join("\n")}\n\`\`\``;
+}
+
+export function buildVisionSystemPrompt(options: VisionSystemPromptOptions = {}): string {
+  const { hasPriorIssues = false } = options;
+  const needsObject = hasPriorIssues;
+  const optionalFieldInstructions = [
+    hasPriorIssues
+      ? "- Include one `priorIssueChecks` entry for each provided prior issue."
+      : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const priorIssueRules = hasPriorIssues
+    ? `
+- \`status\` in \`priorIssueChecks\` must be one of: \`resolved\`, \`still_wrong\`, \`unclear\`.
+- Use \`resolved\` only when that exact prior issue now clearly matches in the CURRENT REPLICA image.
+- Use \`still_wrong\` when that exact prior issue is still visibly present.
+- Use \`unclear\` when the evidence is ambiguous or mixed. Do not force a binary decision when the image does not support it confidently.
+- \`note\` should briefly explain the adjudication when helpful.
+- If prior issues to re-check are provided, judge each one against the CURRENT REPLICA image before generating the final issue list. Use \`priorIssueChecks\` to classify each one as \`resolved\`, \`still_wrong\`, or \`unclear\`.
+- Treat prior issues as hypotheses to re-check, not as truth. The CURRENT REPLICA image wins if a prior issue no longer matches.
+- Do not mark an entire element as resolved because one issue on that element changed. One \`ref\` can have multiple simultaneous issue ids.
+- Do not silently downgrade a prior structural signature-visual issue to a style issue unless the structure now clearly matches.`
+    : "";
+
   return `You are visually comparing a slide replica against the original screenshot.
 
 You will receive two images, each labeled:
@@ -82,42 +159,13 @@ Everything else is fixable. "Hard to implement" is not unfixable.
 
 ## Rules
 
-- Return ONLY a JSON object with \`priorIssueChecks\` and \`issues\`.
+- Return ONLY a ${needsObject ? "JSON object" : "JSON array"}.
 - Focus on the 3 most visually impactful differences first, but you may return up to 5 issues total.
 - Use this schema exactly:
-  \`\`\`json
-  {
-    "priorIssueChecks": [
-      {
-        "issueId": "hero-graphic.structure",
-        "status": "still_wrong",
-        "note": "The same structural mismatch is still clearly visible."
-      }
-    ],
-    "issues": [
-      {
-        "priority": 1,
-        "issueId": "hero-graphic.structure",
-        "category": "signature_visual",
-        "ref": "hero-graphic",
-        "area": "primary graphic group",
-        "issue": "structure is wrong",
-        "fixType": "structural_change",
-        "observed": "Replica uses the wrong arrangement and relationships between parts.",
-        "desired": "Original uses a different structure that changes the overall visual identity.",
-        "confidence": 0.92
-      }
-    ]
-  }
-  \`\`\`
-- When prior issues are provided, include one \`priorIssueChecks\` entry for each prior \`issueId\`.
+${buildVisionResponseSchema(options)}
 - \`priority\` must be an integer rank starting at 1.
 - \`issueId\` must identify the specific underlying issue, not just the element. Reuse the same \`issueId\` if the same issue is still visible. Examples: \`title.content\`, \`title.tricolor-direction\`, \`badge-pill.border-style\`.
-- \`status\` in \`priorIssueChecks\` must be one of: \`resolved\`, \`still_wrong\`, \`unclear\`.
-- Use \`resolved\` only when that exact prior issue now clearly matches in the CURRENT REPLICA image.
-- Use \`still_wrong\` when that exact prior issue is still visibly present.
-- Use \`unclear\` when the evidence is ambiguous or mixed. Do not force a binary decision when the image does not support it confidently.
-- \`note\` should briefly explain the adjudication when helpful.
+${optionalFieldInstructions}
 - \`category\` must be one of: \`content\`, \`signature_visual\`, \`layout\`, \`style\`.
 - \`ref\` should match an extract inventory id when possible (for example a typography id, region id, or repeatGroup id). Use \`null\` when you cannot map confidently.
 - \`fixType\` must be one of: \`structural_change\`, \`layout_adjustment\`, \`style_adjustment\`, \`content_fix\`.
@@ -130,14 +178,11 @@ Everything else is fixable. "Hard to implement" is not unfixable.
 - For ordered bands, layered graphics, repeated stripes, directional gradients, connector systems, and other directional/structural visuals: distinguish a true reversal from a visibility problem. If the structure/order is roughly present but one side dominates visually, report the residual issue as prominence, weighting, proportions, clipping, contrast, or color strength rather than claiming the direction/order is inverted.
 - Only call something reversed, swapped, or structurally inverted when that conclusion is visually unambiguous in the CURRENT REPLICA image. If the evidence is mixed, use lower confidence and prefer the less destructive diagnosis.
 - If multiple issue categories are visibly present, diversify the top 3 so they cover different classes when possible: \`content\`, \`signature_visual\`, and \`layout\` before second-order duplicates.
-- If prior issues to re-check are provided, judge each one against the CURRENT REPLICA image before generating the final issue list. Use \`priorIssueChecks\` to classify each one as \`resolved\`, \`still_wrong\`, or \`unclear\`.
-- Treat prior issues as hypotheses to re-check, not as truth. The CURRENT REPLICA image wins if a prior issue no longer matches.
-- Do not mark an entire element as resolved because one issue on that element changed. One \`ref\` can have multiple simultaneous issue ids.
-- Do not silently downgrade a prior structural signature-visual issue to a style issue unless the structure now clearly matches.
+${priorIssueRules}
 - **Do not chase pixel alignment.** If an element is roughly in the right place, leave it. Only fix things that are visibly wrong at a glance.
 - Only the slide content inside contentBounds matters. Ignore pixels outside contentBounds — they are presentation chrome.
 
-Return ONLY the JSON object.`;
+Return ONLY the ${needsObject ? "JSON object" : "JSON array"}.`;
 }
 
 export function buildVisionUserPrompt(context: VisionPromptContext): string {
@@ -240,7 +285,6 @@ export function buildEditUserPrompt(context: EditPromptContext): string {
   const geometrySection = context.geometryHints
     ? `\nGeometry ground truth:\n- These element rectangles come from the framework's rendered layout and are exact.\n- Reuse them when patching proposal geometry instead of re-estimating positions from the image.\n\`\`\`json\n${JSON.stringify(context.geometryHints, null, 2)}\n\`\`\`\n`
     : "";
-
   return `You will also receive two labeled images before this prompt:
 - ORIGINAL slide: the target screenshot
 - REPLICA slide: the current rendered output

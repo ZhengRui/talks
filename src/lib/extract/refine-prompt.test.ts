@@ -49,15 +49,15 @@ const semanticAnchors: VisionSemanticAnchors = {
 };
 
 describe("buildVisionSystemPrompt", () => {
-  it("returns a structured issue schema for visual comparison", () => {
+  it("returns a simple issue-array schema when no adjudication context is provided", () => {
     const prompt = buildVisionSystemPrompt();
     expect(prompt).toContain("visually impactful differences");
     expect(prompt).toContain("original");
     expect(prompt).toContain("replica");
-    expect(prompt).toContain("JSON object");
-    expect(prompt).toContain("\"priorIssueChecks\"");
-    expect(prompt).toContain("\"issues\"");
-    expect(prompt).toContain("\"status\"");
+    expect(prompt).toContain("JSON array");
+    expect(prompt).not.toContain("\"referenceFactChecks\"");
+    expect(prompt).not.toContain("\"priorIssueChecks\"");
+    expect(prompt).not.toContain("\"issues\"");
     expect(prompt).toContain("\"issueId\"");
     expect(prompt).toContain("\"category\"");
     expect(prompt).toContain("\"ref\"");
@@ -66,10 +66,22 @@ describe("buildVisionSystemPrompt", () => {
     expect(prompt).toContain("diversify the top 3");
     expect(prompt).toContain("distinguish a true reversal from a visibility problem");
     expect(prompt).toContain("less destructive diagnosis");
+    expect(prompt).not.toContain("proposals");
+  });
+
+  it("returns an object schema with adjudication fields when prior issues exist", () => {
+    const prompt = buildVisionSystemPrompt({
+      hasPriorIssues: true,
+    });
+
+    expect(prompt).toContain("JSON object");
+    expect(prompt).toContain("\"priorIssueChecks\"");
+    expect(prompt).toContain("\"issues\"");
+    expect(prompt).toContain("\"status\"");
     expect(prompt).toContain("resolved");
     expect(prompt).toContain("still_wrong");
     expect(prompt).toContain("unclear");
-    expect(prompt).not.toContain("proposals");
+    expect(prompt).not.toContain("\"referenceFactChecks\"");
   });
 
   it("lists unfixable items", () => {
@@ -91,7 +103,7 @@ describe("buildVisionUserPrompt", () => {
     expect(prompt).not.toContain("proposals");
   });
 
-  it("includes semantic anchors and prior unresolved issues when provided", () => {
+  it("includes semantic anchors and prior issues when provided", () => {
     const prompt = buildVisionUserPrompt({
       imageSize: { w: 1920, h: 1080 },
       contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
@@ -123,6 +135,7 @@ describe("buildVisionUserPrompt", () => {
     expect(prompt).toContain("\"fixType\": \"structural_change\"");
     expect(prompt).toContain("priorIssueChecks");
     expect(prompt).toContain("resolved, still_wrong, or unclear");
+    expect(prompt).not.toContain("Canonical reference facts");
   });
 });
 
