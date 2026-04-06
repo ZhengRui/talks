@@ -82,7 +82,7 @@ Everything else is fixable. "Hard to implement" is not unfixable.
 
 ## Rules
 
-- Return ONLY a JSON object with \`issues\` and optional \`resolvedRefs\`.
+- Return ONLY a JSON object with \`issues\` and optional \`resolvedIssueIds\`.
 - Focus on the 3 most visually impactful differences first, but you may return up to 5 issues total.
 - Use this schema exactly:
   \`\`\`json
@@ -90,6 +90,7 @@ Everything else is fixable. "Hard to implement" is not unfixable.
     "issues": [
       {
         "priority": 1,
+        "issueId": "hero-graphic.structure",
         "category": "signature_visual",
         "ref": "hero-graphic",
         "area": "primary graphic group",
@@ -100,10 +101,11 @@ Everything else is fixable. "Hard to implement" is not unfixable.
         "confidence": 0.92
       }
     ],
-    "resolvedRefs": ["previous-ref-that-now-matches"]
+    "resolvedIssueIds": ["previous-issue-id-that-now-matches"]
   }
   \`\`\`
 - \`priority\` must be an integer rank starting at 1.
+- \`issueId\` must identify the specific underlying issue, not just the element. Reuse the same \`issueId\` if the same issue is still visible. Examples: \`title.content\`, \`title.tricolor-direction\`, \`badge-pill.border-style\`.
 - \`category\` must be one of: \`content\`, \`signature_visual\`, \`layout\`, \`style\`.
 - \`ref\` should match an extract inventory id when possible (for example a typography id, region id, or repeatGroup id). Use \`null\` when you cannot map confidently.
 - \`fixType\` must be one of: \`structural_change\`, \`layout_adjustment\`, \`style_adjustment\`, \`content_fix\`.
@@ -114,7 +116,8 @@ Everything else is fixable. "Hard to implement" is not unfixable.
 - If semantic anchors are provided, treat \`signatureVisuals\` as top-priority identity constraints. If one is still visibly wrong, rank it above local text clipping or minor polish.
 - For diagrams, decorative systems, repeating structures, and multi-part graphics: judge structure, topology, count, and attachment pattern before weight, opacity, or color.
 - If multiple issue categories are visibly present, diversify the top 3 so they cover different classes when possible: \`content\`, \`signature_visual\`, and \`layout\` before second-order duplicates.
-- If prior unresolved signature-visual issues are provided, do NOT omit them silently. Either carry them forward in \`issues\` or add their \`ref\` values to \`resolvedRefs\` if they now clearly match.
+- If prior issues to re-check are provided, judge each one against the CURRENT REPLICA image. If the same issue is still visible, carry it forward with the same \`issueId\`. If that specific issue now clearly matches, list its \`issueId\` in \`resolvedIssueIds\`.
+- Do not mark an entire element as resolved because one issue on that element changed. One \`ref\` can have multiple simultaneous issue ids.
 - Do not silently downgrade a prior structural signature-visual issue to a style issue unless the structure now clearly matches.
 - **Do not chase pixel alignment.** If an element is roughly in the right place, leave it. Only fix things that are visibly wrong at a glance.
 - Only the slide content inside contentBounds matters. Ignore pixels outside contentBounds — they are presentation chrome.
@@ -145,7 +148,7 @@ export function buildVisionUserPrompt(context: VisionPromptContext): string {
       .join("\n")}`
     : "";
   const priorIssuesSection = context.priorIssuesJson
-    ? `\nPrevious unresolved issues from the prior iteration:\n\`\`\`json\n${context.priorIssuesJson}\n\`\`\`\nIf any of these are still visibly wrong, keep them at high priority instead of replacing them with lower-level cosmetic issues. If a prior signature-visual issue now clearly matches, list its ref under resolvedRefs.`
+    ? `\nPrevious issues to re-check from the prior iteration:\n\`\`\`json\n${context.priorIssuesJson}\n\`\`\`\nJudge each prior issue against the CURRENT REPLICA image. If the same issue is still visible, keep the same issueId. If that specific issue now clearly matches, list its issueId under resolvedIssueIds. Do not treat one change on a shared ref like "title" as resolving every other issue on that ref.`
     : "";
 
   return `Image size: ${context.imageSize.w}x${context.imageSize.h}
@@ -180,7 +183,7 @@ ${SCENE_REFERENCE_CONTENT}
 - Fix the 3 highest-priority issues from the list, plus any unresolved sticky \`signature_visual\` issues.
 - Use the ORIGINAL and REPLICA images as the source of truth when deciding what to patch.
 - Use the structured issue list as guidance, but if it is incomplete or slightly wrong, resolve against the images.
-- Each issue may include: \`priority\`, \`category\`, \`ref\`, \`area\`, \`issue\`, \`fixType\`, \`observed\`, \`desired\`, \`confidence\`, \`sticky\`.
+- Each issue may include: \`priority\`, \`issueId\`, \`category\`, \`ref\`, \`area\`, \`issue\`, \`fixType\`, \`observed\`, \`desired\`, \`confidence\`, \`sticky\`.
 - Treat \`sticky: true\` on a \`signature_visual\` issue as mandatory even if its priority falls below 3.
 - The provided contentBounds is in the pixel space of the ORIGINAL/REPLICA images. It is only for identifying the visible slide area in those images.
 - Treat image-space context and proposal-space context as separate. Do not mix them.

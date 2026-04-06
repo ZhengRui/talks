@@ -56,13 +56,14 @@ import { runRefinementLoop } from "./refine";
 function makeVisionIssuesJson(
   overrides?: {
     issues?: Array<Record<string, unknown>>;
-    resolvedRefs?: string[];
+    resolvedIssueIds?: string[];
   },
 ): string {
   return JSON.stringify({
     issues: overrides?.issues ?? [
       {
         priority: 1,
+        issueId: "title.scale",
         category: "layout",
         ref: "title",
         area: "title",
@@ -74,6 +75,7 @@ function makeVisionIssuesJson(
       },
       {
         priority: 2,
+        issueId: "proxy-cards.content",
         category: "content",
         ref: "proxy-cards",
         area: "proxy card descriptions",
@@ -85,6 +87,7 @@ function makeVisionIssuesJson(
       },
       {
         priority: 3,
+        issueId: "connector-lines.graphic-structure",
         category: "signature_visual",
         ref: "connector-lines",
         area: "background lines",
@@ -95,7 +98,7 @@ function makeVisionIssuesJson(
         confidence: 0.82,
       },
     ],
-    resolvedRefs: overrides?.resolvedRefs ?? [],
+    resolvedIssueIds: overrides?.resolvedIssueIds ?? [],
   }, null, 2);
 }
 
@@ -239,7 +242,8 @@ ${JSON.stringify(makePatchedProposals(), null, 2)}
     expect(userPrompt).toContain("Signature visuals from extract");
     expect(userPrompt).toContain("Orange hub circle with diagonal connector X");
     expect(visionCall.options.systemPrompt).toContain("JSON object");
-    expect(visionCall.options.systemPrompt).toContain("\"resolvedRefs\"");
+    expect(visionCall.options.systemPrompt).toContain("\"resolvedIssueIds\"");
+    expect(visionCall.options.systemPrompt).toContain("\"issueId\"");
     expect(visionCall.options.systemPrompt).toContain("\"category\"");
     expect(visionCall.options.systemPrompt).toContain("\"ref\"");
     expect(visionCall.options.systemPrompt).toContain("\"fixType\"");
@@ -334,7 +338,8 @@ ${JSON.stringify(patchedProposals, null, 2)}
     const secondPrompt = await secondVisionCall.prompt.next();
     const secondText = (secondPrompt.value?.message.content?.[4] as { text: string }).text;
 
-    expect(secondText).toContain("Previous unresolved issues from the prior iteration");
+    expect(secondText).toContain("Previous issues to re-check from the prior iteration");
+    expect(secondText).toContain("\"issueId\": \"title.scale\"");
     expect(secondText).toContain("\"issue\": \"title is too large\"");
     expect(secondText).toContain("\"fixType\": \"structural_change\"");
     expect(secondText).toContain("\"ref\": \"connector-lines\"");
@@ -351,6 +356,7 @@ ${JSON.stringify(patchedProposals, null, 2)}
       priorIssuesJson: JSON.stringify([
         {
           priority: 1,
+          issueId: "connector-lines.graphic-structure",
           category: "signature_visual",
           ref: "connector-lines",
           area: "connector lines",
@@ -379,7 +385,8 @@ ${JSON.stringify(patchedProposals, null, 2)}
     const firstPrompt = await firstVisionCall.prompt.next();
     const firstText = (firstPrompt.value?.message.content?.[4] as { text: string }).text;
 
-    expect(firstText).toContain("Previous unresolved issues from the prior iteration");
+    expect(firstText).toContain("Previous issues to re-check from the prior iteration");
+    expect(firstText).toContain("\"issueId\": \"connector-lines.graphic-structure\"");
     expect(firstText).toContain("\"issue\": \"line topology is wrong\"");
     expect(firstText).toContain("\"fixType\": \"structural_change\"");
     expect(firstText).toContain("\"ref\": \"connector-lines\"");
@@ -591,6 +598,110 @@ ${JSON.stringify(patchedProposals, null, 2)}
     expect(textContent).toContain("\"fixType\": \"structural_change\"");
   });
 
+  it("does not re-carry a resolved issueId when another issue on the same ref remains", async () => {
+    const proposals = makeProposals();
+    const patchedProposals = makePatchedProposals();
+
+    mockQuery
+      .mockReset()
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: makeVisionIssuesJson({
+            issues: [
+              {
+                priority: 1,
+                issueId: "title.scale",
+                category: "layout",
+                ref: "title",
+                area: "title size / scale",
+                issue: "title is slightly too large",
+                fixType: "layout_adjustment",
+                observed: "Replica title spans too much width.",
+                desired: "Original title is more contained.",
+                confidence: 0.85,
+              },
+              {
+                priority: 2,
+                issueId: "background.background-style",
+                category: "style",
+                ref: null,
+                area: "background glow",
+                issue: "background glow is too faint",
+                fixType: "style_adjustment",
+                observed: "Replica lacks enough warm glow.",
+                desired: "Original has a stronger warm glow.",
+                confidence: 0.8,
+              },
+            ],
+            resolvedIssueIds: ["title.tricolor-direction"],
+          }),
+        };
+      })
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: `\`\`\`json
+${JSON.stringify(patchedProposals, null, 2)}
+\`\`\``,
+        };
+      });
+
+    await runRefinementLoop({
+      image: Buffer.from("reference"),
+      imageMediaType: "image/png",
+      proposals,
+      baseAnalysis: makeBaseAnalysis(proposals),
+      priorIssuesJson: JSON.stringify([
+        {
+          priority: 1,
+          issueId: "title.content",
+          category: "content",
+          ref: "title",
+          area: "title text",
+          issue: "title is missing 2026",
+          fixType: "content_fix",
+          observed: "Replica shows only IRAN WAR.",
+          desired: "Original shows IRAN WAR 2026.",
+          confidence: 0.95,
+        },
+        {
+          priority: 2,
+          issueId: "title.tricolor-direction",
+          category: "signature_visual",
+          ref: "title",
+          area: "title tricolor direction",
+          issue: "tricolor direction is inverted",
+          fixType: "style_adjustment",
+          observed: "Replica shows red on top and blue on bottom.",
+          desired: "Original shows blue on top and red on bottom.",
+          confidence: 0.92,
+          sticky: true,
+        },
+      ], null, 2),
+      maxIterations: 1,
+      mismatchThreshold: 0.05,
+      visionModel: "claude-opus-4-6",
+      visionEffort: "medium",
+      editModel: "claude-opus-4-6",
+      editEffort: "medium",
+    });
+
+    const editCall = mockQuery.mock.calls[1]?.[0] as {
+      prompt: AsyncGenerator<{
+        message: {
+          content: Array<Record<string, unknown>>;
+        };
+      }>;
+    };
+    const firstPrompt = await editCall.prompt.next();
+    const textContent = (firstPrompt.value?.message.content?.[4] as { text: string }).text;
+
+    expect(textContent).toContain("\"issueId\": \"title.scale\"");
+    expect(textContent).not.toContain("\"issueId\": \"title.tricolor-direction\"");
+    expect(textContent).not.toContain("tricolor direction is inverted");
+  });
+
   it("edit call sends labeled comparison images alongside structured issues and proposals JSON", async () => {
     const proposals = makeProposals();
     const pngBuffer = Buffer.from(
@@ -635,6 +746,7 @@ ${JSON.stringify(patchedProposals, null, 2)}
     expect(content[4]?.type).toBe("text");
     const textContent = (content[4] as { text: string }).text;
     expect(textContent).toContain("Structured issues:");
+    expect(textContent).toContain("\"issueId\": \"title.scale\"");
     expect(textContent).toContain("\"issue\": \"title is too large\"");
     expect(textContent).toContain("\"category\": \"layout\"");
     expect(textContent).toContain("\"ref\": \"connector-lines\"");

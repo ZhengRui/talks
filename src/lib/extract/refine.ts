@@ -111,6 +111,7 @@ type VisionIssueCategory =
 
 interface VisionIssue {
   priority: number;
+  issueId: string;
   category: VisionIssueCategory;
   ref?: string | null;
   area: string;
@@ -126,7 +127,7 @@ interface VisionResult {
   issues: VisionIssue[];
   issuesJson: string;
   editIssuesJson: string;
-  resolvedRefs: string[];
+  resolvedIssueIds: string[];
   rawText: string;
   cost: number | null;
   elapsed: number;
@@ -333,7 +334,88 @@ function normalizeWhitespace(value: string): string {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
-function issueKey(issue: Pick<VisionIssue, "ref" | "area" | "issue">): string {
+function slugifyIdentifier(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
+function inferIssueKind(
+  text: string,
+  fixType: VisionIssueFixType,
+): string {
+  const normalized = normalizeWhitespace(text);
+
+  if (/(tricolor|stripe|gradient direction|band direction|orientation|blue on top|red on top|bottom red|top blue)/.test(normalized)) {
+    return "tricolor-direction";
+  }
+  if (/(missing|truncated|clipped|cut off|spelling|capitalization|copy|text content)/.test(normalized)) {
+    return "content";
+  }
+  if (/(border|fill|opacity|pill|badge)/.test(normalized)) {
+    return "border-style";
+  }
+  if (/(background|glow|ambient|atmospheric|gradient)/.test(normalized)) {
+    return "background-style";
+  }
+  if (/(connector|line|pattern|topology|structure|attachment|cross|spoke|diagram)/.test(normalized)) {
+    return "graphic-structure";
+  }
+  if (/(size|scale|width|height|too large|too small|span|narrow|wide)/.test(normalized)) {
+    return "scale";
+  }
+  if (/(position|spacing|margin|padding|aligned|alignment|centered|shifted|offset|breathing room|cluster|top margin|vertical)/.test(normalized)) {
+    return "position";
+  }
+  if (fixType === "content_fix") {
+    return "content";
+  }
+  if (fixType === "layout_adjustment") {
+    return "position";
+  }
+  if (fixType === "structural_change") {
+    return "structure";
+  }
+
+  const fallback = slugifyIdentifier(normalized)
+    .split("-")
+    .slice(0, 4)
+    .join("-");
+  return fallback || "issue";
+}
+
+function normalizeIssueId(
+  value: unknown,
+  ref: string | null,
+  area: string,
+  issue: string,
+  observed: string,
+  desired: string,
+  fixType: VisionIssueFixType,
+): string {
+  if (typeof value === "string" && value.trim()) {
+    const normalized = value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .replace(/-{2,}/g, "-");
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  const anchor = slugifyIdentifier(ref ?? area) || "slide";
+  const kind = inferIssueKind(`${area} ${issue} ${observed} ${desired}`, fixType);
+  return `${anchor}.${kind}`;
+}
+
+function issueKey(issue: Pick<VisionIssue, "issueId" | "ref" | "area" | "issue">): string {
+  if (issue.issueId) {
+    return `id:${normalizeWhitespace(issue.issueId)}`;
+  }
   if (issue.ref) {
     return `ref:${normalizeWhitespace(issue.ref)}`;
   }
@@ -369,8 +451,10 @@ function serializeIssues(issues: VisionIssue[]): string {
 
 function makeFallbackIssue(text: string, priority: number): VisionIssue {
   const fixType = normalizeFixType(undefined);
+  const issueId = normalizeIssueId(undefined, null, "slide", text, text, "", fixType);
   return {
     priority,
+    issueId,
     category: normalizeCategory(undefined, fixType, null, new Set<string>(), text),
     ref: null,
     area: "slide",
@@ -435,8 +519,19 @@ function normalizeVisionIssue(
     return null;
   }
 
+  const normalizedIssue = issueText || observed || desired;
+
   return {
     priority: priorityValue,
+    issueId: normalizeIssueId(
+      raw.issueId,
+      ref,
+      area,
+      normalizedIssue,
+      observed,
+      desired,
+      fixType,
+    ),
     category: normalizeCategory(
       raw.category,
       fixType,
@@ -446,7 +541,7 @@ function normalizeVisionIssue(
     ),
     ref,
     area,
-    issue: issueText || observed || desired,
+    issue: normalizedIssue,
     fixType,
     observed,
     desired,
@@ -455,17 +550,23 @@ function normalizeVisionIssue(
   };
 }
 
-function normalizeResolvedRefs(value: unknown): string[] {
+function normalizeResolvedIssueIds(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
 
-  const refs = new Set<string>();
+  const ids = new Set<string>();
   for (const entry of value) {
-    const ref = normalizeRef(entry);
-    if (ref) {
-      refs.add(ref);
+    if (typeof entry !== "string") continue;
+    const normalized = entry
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .replace(/-{2,}/g, "-");
+    if (normalized) {
+      ids.add(normalized);
     }
   }
-  return [...refs];
+  return [...ids];
 }
 
 function buildSignatureRefSet(
@@ -490,7 +591,7 @@ function parseVisionCritique(
   signatureRefs: Set<string>,
 ): {
   issues: VisionIssue[];
-  resolvedRefs: string[];
+  resolvedIssueIds: string[];
   issuesJson: string;
 } {
   const jsonPayload = extractJsonPayload(resultText);
@@ -498,7 +599,7 @@ function parseVisionCritique(
     const issues = fallbackIssuesFromText(resultText);
     return {
       issues,
-      resolvedRefs: [],
+      resolvedIssueIds: [],
       issuesJson: serializeIssues(issues),
     };
   }
@@ -510,27 +611,29 @@ function parseVisionCritique(
     const issues = fallbackIssuesFromText(resultText);
     return {
       issues,
-      resolvedRefs: [],
+      resolvedIssueIds: [],
       issuesJson: serializeIssues(issues),
     };
   }
 
   let issueEntries: unknown[] | null = null;
-  let resolvedRefs: string[] = [];
+  let resolvedIssueIds: string[] = [];
 
   if (Array.isArray(parsed)) {
     issueEntries = parsed;
   } else if (parsed && typeof parsed === "object") {
     const object = parsed as Record<string, unknown>;
     issueEntries = Array.isArray(object.issues) ? object.issues : null;
-    resolvedRefs = normalizeResolvedRefs(object.resolvedRefs);
+    resolvedIssueIds = normalizeResolvedIssueIds(
+      object.resolvedIssueIds ?? object.resolvedRefs,
+    );
   }
 
   if (!issueEntries) {
     const issues = fallbackIssuesFromText(resultText);
     return {
       issues,
-      resolvedRefs: [],
+      resolvedIssueIds: [],
       issuesJson: serializeIssues(issues),
     };
   }
@@ -540,12 +643,14 @@ function parseVisionCritique(
     .filter((issue): issue is VisionIssue => Boolean(issue))
     .sort((a, b) => a.priority - b.priority);
 
-  const unresolvedRefs = new Set(issues.map((issue) => issue.ref).filter(Boolean) as string[]);
-  const filteredResolvedRefs = resolvedRefs.filter((ref) => !unresolvedRefs.has(ref));
+  const unresolvedIssueIds = new Set(issues.map((issue) => issue.issueId));
+  const filteredResolvedIssueIds = resolvedIssueIds.filter(
+    (issueId) => !unresolvedIssueIds.has(issueId),
+  );
 
   return {
     issues: sortAndReindexIssues(issues),
-    resolvedRefs: filteredResolvedRefs,
+    resolvedIssueIds: filteredResolvedIssueIds,
     issuesJson: serializeIssues(issues),
   };
 }
@@ -597,10 +702,10 @@ function applyCategoryCoverage(issues: VisionIssue[]): VisionIssue[] {
 function mergeStickySignatureIssues(
   currentIssues: VisionIssue[],
   priorIssues: VisionIssue[],
-  resolvedRefs: string[],
+  resolvedIssueIds: string[],
 ): VisionIssue[] {
   const merged = dedupeIssues(currentIssues);
-  const resolvedRefSet = new Set(resolvedRefs);
+  const resolvedIssueIdSet = new Set(resolvedIssueIds);
   const indexByKey = new Map<string, number>();
 
   merged.forEach((issue, index) => {
@@ -608,8 +713,8 @@ function mergeStickySignatureIssues(
   });
 
   for (const priorIssue of priorIssues) {
-    if (priorIssue.category !== "signature_visual" || !priorIssue.ref) continue;
-    if (resolvedRefSet.has(priorIssue.ref)) continue;
+    if (priorIssue.category !== "signature_visual") continue;
+    if (resolvedIssueIdSet.has(priorIssue.issueId)) continue;
 
     const key = issueKey(priorIssue);
     const existingIndex = indexByKey.get(key);
@@ -617,6 +722,7 @@ function mergeStickySignatureIssues(
       merged[existingIndex] = {
         ...merged[existingIndex],
         category: "signature_visual",
+        issueId: priorIssue.issueId,
         ref: priorIssue.ref,
         sticky: true,
       };
@@ -927,6 +1033,7 @@ async function runVisionCritique(
     const issues = [
       {
         priority: 1,
+        issueId: "title.scale",
         category: "content",
         ref: "title",
         area: "title",
@@ -938,6 +1045,7 @@ async function runVisionCritique(
       },
       {
         priority: 2,
+        issueId: "background-glow.background-style",
         category: "signature_visual",
         ref: "background-glow",
         area: "background glow",
@@ -967,7 +1075,7 @@ async function runVisionCritique(
       issues: rankedIssues,
       issuesJson,
       editIssuesJson,
-      resolvedRefs: [],
+      resolvedIssueIds: [],
       rawText: issuesJson,
       cost: 0,
       elapsed: 0,
@@ -994,14 +1102,14 @@ async function runVisionCritique(
   const stickyIssues = mergeStickySignatureIssues(
     parsed.issues,
     priorIssues ?? [],
-    parsed.resolvedRefs,
+    parsed.resolvedIssueIds,
   );
   const rankedIssues = applyCategoryCoverage(stickyIssues);
   return {
     issues: rankedIssues,
     issuesJson: serializeIssues(rankedIssues),
     editIssuesJson: serializeIssues(selectIssuesForEdit(rankedIssues)),
-    resolvedRefs: parsed.resolvedRefs,
+    resolvedIssueIds: parsed.resolvedIssueIds,
     rawText: result.resultText,
     cost: result.totalCost,
     elapsed: result.elapsed,
@@ -1271,7 +1379,7 @@ export async function runRefinementLoop(
         issues: visionResult.issues,
         issuesJson: visionResult.issuesJson,
         editIssuesJson: visionResult.editIssuesJson,
-        resolvedRefs: visionResult.resolvedRefs,
+        resolvedIssueIds: visionResult.resolvedIssueIds,
         issueCount: visionResult.issues.length,
         cost: visionResult.cost,
         elapsed: visionResult.elapsed,

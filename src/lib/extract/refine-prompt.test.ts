@@ -56,7 +56,8 @@ describe("buildVisionSystemPrompt", () => {
     expect(prompt).toContain("replica");
     expect(prompt).toContain("JSON object");
     expect(prompt).toContain("\"issues\"");
-    expect(prompt).toContain("\"resolvedRefs\"");
+    expect(prompt).toContain("\"resolvedIssueIds\"");
+    expect(prompt).toContain("\"issueId\"");
     expect(prompt).toContain("\"category\"");
     expect(prompt).toContain("\"ref\"");
     expect(prompt).toContain("\"fixType\"");
@@ -92,6 +93,7 @@ describe("buildVisionUserPrompt", () => {
       priorIssuesJson: JSON.stringify([
         {
           priority: 1,
+          issueId: "connector-lines.graphic-structure",
           category: "signature_visual",
           ref: "connector-lines",
           area: "connector lines",
@@ -109,10 +111,11 @@ describe("buildVisionUserPrompt", () => {
     expect(prompt).toContain("Orange hub circle with diagonal connector X");
     expect(prompt).toContain("Must-preserve content from extract");
     expect(prompt).toContain("Important extracted regions");
-    expect(prompt).toContain("Previous unresolved issues from the prior iteration");
+    expect(prompt).toContain("Previous issues to re-check from the prior iteration");
+    expect(prompt).toContain("\"issueId\": \"connector-lines.graphic-structure\"");
     expect(prompt).toContain("\"ref\": \"connector-lines\"");
     expect(prompt).toContain("\"fixType\": \"structural_change\"");
-    expect(prompt).toContain("resolvedRefs");
+    expect(prompt).toContain("resolvedIssueIds");
   });
 });
 
@@ -126,6 +129,7 @@ describe("buildEditSystemPrompt", () => {
     expect(prompt).toContain("REPLICA");
     expect(prompt).toContain("structured issue list");
     expect(prompt).toContain("fixType");
+    expect(prompt).toContain("issueId");
     expect(prompt).toContain("category");
     expect(prompt).toContain("ref");
     expect(prompt).toContain("sticky");
@@ -147,6 +151,7 @@ describe("buildEditUserPrompt", () => {
       issuesJson: JSON.stringify([
         {
           priority: 1,
+          issueId: "title.scale",
           category: "layout",
           ref: "title",
           area: "title",
@@ -168,6 +173,7 @@ describe("buildEditUserPrompt", () => {
     expect(prompt).toContain("Current proposals are authored in approximately 1456x818 space.");
     expect(prompt).toContain("Do not rescale or rewrite the whole proposal");
     expect(prompt).toContain("Structured issues:");
+    expect(prompt).toContain("\"issueId\": \"title.scale\"");
     expect(prompt).toContain("\"issue\": \"title too large\"");
     expect(prompt).toContain("\"category\": \"layout\"");
     expect(prompt).toContain("\"ref\": \"title\"");
