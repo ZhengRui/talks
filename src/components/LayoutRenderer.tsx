@@ -345,6 +345,8 @@ function renderImage(el: ImageElement): React.ReactNode {
         ...anim.style,
       }}
     >
+      {/* Layout rendering needs a raw img element to preserve deterministic slide sizing. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={el.src}
         alt=""

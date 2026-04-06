@@ -31,6 +31,8 @@ export default function ThumbnailStrip() {
               opacity: isSelected ? 1 : 0.6,
             }}
           >
+            {/* Thumbnail previews use blob/object URLs, so a raw img is intentional here. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={card.previewUrl}
               alt={`Slide ${id}`}

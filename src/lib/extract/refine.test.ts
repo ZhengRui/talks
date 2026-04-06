@@ -108,7 +108,7 @@ ${JSON.stringify(makePatchedProposals(), null, 2)}
       });
   });
 
-  it("vision call sends 3 images and no proposals JSON", async () => {
+  it("vision call sends labeled comparison images and no proposals JSON", async () => {
     const proposals = makeProposals();
     const pngBuffer = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a0GQAAAAASUVORK5CYII=",
@@ -160,11 +160,16 @@ ${JSON.stringify(makePatchedProposals(), null, 2)}
     expect(visionCall.options.systemPrompt).toContain("REPLICA");
   });
 
-  it("edit call sends differences and proposals JSON with no images", async () => {
+  it("edit call sends labeled comparison images alongside differences and proposals JSON", async () => {
     const proposals = makeProposals();
+    const pngBuffer = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a0GQAAAAASUVORK5CYII=",
+      "base64",
+    );
+    mockRenderSlideToImage.mockResolvedValueOnce(pngBuffer);
 
     await runRefinementLoop({
-      image: Buffer.from("reference"),
+      image: pngBuffer,
       imageMediaType: "image/png",
       proposals,
       baseAnalysis: makeBaseAnalysis(proposals),
@@ -187,13 +192,23 @@ ${JSON.stringify(makePatchedProposals(), null, 2)}
     const firstPrompt = await editCall.prompt.next();
     const content = firstPrompt.value?.message.content ?? [];
 
-    expect(content).toHaveLength(1);
+    expect(content).toHaveLength(5);
     expect(content[0]?.type).toBe("text");
-    const textContent = (content[0] as { text: string }).text;
+    expect((content[0] as { text: string }).text).toBe("ORIGINAL slide:");
+    expect(content[1]?.type).toBe("image");
+    expect((content[1] as { source: { media_type: string } }).source.media_type).toBe("image/png");
+    expect(content[2]?.type).toBe("text");
+    expect((content[2] as { text: string }).text).toBe("REPLICA slide:");
+    expect(content[3]?.type).toBe("image");
+    expect((content[3] as { source: { media_type: string } }).source.media_type).toBe("image/png");
+    expect(content[4]?.type).toBe("text");
+    const textContent = (content[4] as { text: string }).text;
     expect(textContent).toContain("Title is too large");
     expect(textContent).toContain('"scope": "slide"');
+    expect(textContent).toContain("You will also receive two labeled images");
     expect(editCall.options.systemPrompt).toContain("proposals");
-    expect(editCall.options.systemPrompt).not.toContain("Image 1");
+    expect(editCall.options.systemPrompt).toContain("ORIGINAL");
+    expect(editCall.options.systemPrompt).toContain("REPLICA");
   });
 
   it("emits prompt events for vision and edit requests", async () => {

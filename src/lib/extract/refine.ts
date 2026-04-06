@@ -101,6 +101,10 @@ interface VisionResult {
 
 interface EditOptions {
   iteration: number;
+  referenceImage: Buffer;
+  referenceMediaType: string;
+  replicaImage: Buffer;
+  imageSize: { w: number; h: number };
   differences: string;
   proposals: Proposal[];
   contentBounds?: CropBounds | null;
@@ -246,13 +250,40 @@ async function* makeVisionPrompt(
   };
 }
 
-async function* makeEditPrompt(userPrompt: string) {
+async function* makeComparisonEditPrompt(
+  referenceImage: Buffer,
+  referenceMediaType: string,
+  replicaImage: Buffer,
+  userPrompt: string,
+) {
+  const content: Array<Record<string, unknown>> = [
+    { type: "text" as const, text: "ORIGINAL slide:" },
+    {
+      type: "image" as const,
+      source: {
+        type: "base64" as const,
+        media_type: referenceMediaType,
+        data: referenceImage.toString("base64"),
+      },
+    },
+    { type: "text" as const, text: "REPLICA slide:" },
+    {
+      type: "image" as const,
+      source: {
+        type: "base64" as const,
+        media_type: "image/png" as const,
+        data: replicaImage.toString("base64"),
+      },
+    },
+    { type: "text" as const, text: userPrompt },
+  ];
+
   yield {
     type: "user" as const,
     session_id: "",
     message: {
       role: "user" as const,
-      content: [{ type: "text" as const, text: userPrompt }],
+      content,
     },
     parent_tool_use_id: null,
   };
@@ -431,6 +462,10 @@ async function callClaudeEdit(
 ): Promise<EditResult> {
   const {
     iteration,
+    referenceImage,
+    referenceMediaType,
+    replicaImage,
+    imageSize,
     differences,
     proposals,
     contentBounds,
@@ -440,8 +475,13 @@ async function callClaudeEdit(
     signal,
     onEvent,
   } = options;
+  const slideProposal = proposals.find((proposal) => proposal.scope === "slide");
   const systemPrompt = buildEditSystemPrompt();
   const userPrompt = buildEditUserPrompt({
+    imageSize,
+    proposalSpace: slideProposal?.region
+      ? { w: slideProposal.region.w, h: slideProposal.region.h }
+      : null,
     differences,
     proposalsJson: JSON.stringify(proposals, null, 2),
     contentBounds,
@@ -482,7 +522,12 @@ async function callClaudeEdit(
   }
 
   const result = await streamClaudeText({
-    prompt: makeEditPrompt(userPrompt),
+    prompt: makeComparisonEditPrompt(
+      referenceImage,
+      referenceMediaType,
+      replicaImage,
+      userPrompt,
+    ),
     systemPrompt,
     model,
     effort,
@@ -695,6 +740,10 @@ export async function runRefinementLoop(
     });
     const editResult = await callClaudeEdit({
       iteration: absoluteIteration,
+      referenceImage: prevDiff.referenceImage,
+      referenceMediaType: imageMediaType,
+      replicaImage: prevDiff.replicaImage,
+      imageSize: { w: prevDiff.diff.width, h: prevDiff.diff.height },
       differences: visionResult.differences,
       proposals: currentProposals,
       contentBounds,

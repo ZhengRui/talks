@@ -219,6 +219,8 @@ export default function SlideCard({ cardId }: SlideCardProps) {
           />
         ) : (
           <>
+            {/* Uploaded previews use blob/object URLs, so a raw img is intentional here. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={imgSrc}
               alt=""
@@ -292,11 +294,15 @@ function DiffImageView({ diffObjectUrl }: { diffObjectUrl: string | null }) {
   }
 
   return (
-    <img
+    <>
+      {/* Diff artifacts are ephemeral object URLs, so keep the preview as a raw img. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
       src={diffObjectUrl}
       alt=""
       className="pointer-events-none h-full w-full object-contain select-none"
-    />
+      />
+    </>
   );
 }
 

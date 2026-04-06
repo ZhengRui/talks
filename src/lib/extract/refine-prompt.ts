@@ -20,10 +20,26 @@ export interface VisionPromptContext {
 }
 
 export interface EditPromptContext {
+  imageSize?: { w: number; h: number };
+  proposalSpace?: { w: number; h: number } | null;
   differences: string;
   proposalsJson: string;
   contentBounds?: { x: number; y: number; w: number; h: number } | null;
   geometryHints?: GeometryHints | null;
+}
+
+function isFullImageBounds(
+  bounds: { x: number; y: number; w: number; h: number } | null | undefined,
+  imageSize: { w: number; h: number } | undefined,
+): boolean {
+  return Boolean(
+    bounds &&
+    imageSize &&
+    bounds.x === 0 &&
+    bounds.y === 0 &&
+    bounds.w === imageSize.w &&
+    bounds.h === imageSize.h,
+  );
 }
 
 export function buildVisionSystemPrompt(): string {
@@ -80,6 +96,9 @@ export function buildEditSystemPrompt(): string {
   return `You are patching slide proposals to reduce visible mismatch.
 
 You will receive:
+- Two images, each labeled:
+  - ORIGINAL: the unchanging reference screenshot. This is the ground truth.
+  - REPLICA: the current rendered version we are trying to improve.
 - A plain text difference list produced by a visual comparison step
 - The current proposals JSON
 - contentBounds for the actual slide area
@@ -95,10 +114,15 @@ ${SCENE_REFERENCE_CONTENT}
 ## Rules
 
 - Fix only the 3 most visually impactful differences from the list.
+- Use the ORIGINAL and REPLICA images as the source of truth when deciding what to patch.
+- Use the difference list as guidance, but if it is incomplete or slightly wrong, resolve against the images.
+- The provided contentBounds is in the pixel space of the ORIGINAL/REPLICA images. It is only for identifying the visible slide area in those images.
+- Treat image-space context and proposal-space context as separate. Do not mix them.
 - Patch the proposals JSON surgically.
 - Do NOT rewrite proposals from scratch.
 - Do NOT restructure, rename, or reorganize proposals.
 - Do NOT invent a new coordinate system, hidden scaling factor, or alternate slide bounds.
+- The proposals may be authored in a different internal coordinate space than the images. Preserve that proposal-space coordinate system unless a visual fix truly requires changing proposal geometry.
 - If geometry ground truth is provided in the user prompt, treat those rectangles as exact and patch toward them instead of re-guessing layout.
 - The template body uses Nunjucks. Do NOT use filters like \`| min\`, \`| max\`, \`| abs\`, \`| round\` — they are not available. Use pre-computed numeric values instead.
 - If the difference list is weak or unhelpful, keep the proposals unchanged.
@@ -109,18 +133,35 @@ Return ONLY a JSON array of proposals, wrapped in \`\`\`json fences.`;
 }
 
 export function buildEditUserPrompt(context: EditPromptContext): string {
-  const contentBounds = context.contentBounds
-    ? `(${context.contentBounds.x}, ${context.contentBounds.y}, ${context.contentBounds.w}x${context.contentBounds.h})`
-    : "full image";
-  const boundsMode = context.contentBounds
-    ? "Treat everything outside that rectangle as non-slide chrome and ignore it."
-    : "The full image is slide content.";
+  const fullImageBounds = isFullImageBounds(context.contentBounds, context.imageSize);
+  const imageSizeLine = context.imageSize
+    ? `- Image size: ${context.imageSize.w}x${context.imageSize.h}`
+    : null;
+  const slideAreaLine = fullImageBounds
+    ? "- Visible slide area in those images: full image"
+    : context.contentBounds
+      ? `- Visible slide area in those images (imageContentBounds): (${context.contentBounds.x}, ${context.contentBounds.y}, ${context.contentBounds.w}x${context.contentBounds.h})`
+      : "- Visible slide area in those images: full image";
+  const imageChromeLine = fullImageBounds || !context.contentBounds
+    ? "- The full image is slide content."
+    : "- Treat everything outside that rectangle as non-slide chrome and ignore it.";
+  const proposalSpaceLine = context.proposalSpace
+    ? `- Current proposals are authored in approximately ${context.proposalSpace.w}x${context.proposalSpace.h} space.`
+    : "- Current proposals may use a different authored coordinate space than the images.";
   const geometrySection = context.geometryHints
     ? `\nGeometry ground truth:\n- These element rectangles come from the framework's rendered layout and are exact.\n- Reuse them when patching proposal geometry instead of re-estimating positions from the image.\n\`\`\`json\n${JSON.stringify(context.geometryHints, null, 2)}\n\`\`\`\n`
     : "";
 
-  return `Visible slide area (contentBounds): ${contentBounds}
-${boundsMode}
+  return `You will also receive two labeled images before this prompt:
+- ORIGINAL slide: the target screenshot
+- REPLICA slide: the current rendered output
+
+Image context:
+${[imageSizeLine, slideAreaLine, imageChromeLine].filter(Boolean).join("\n")}
+
+Proposal context:
+${proposalSpaceLine}
+- Preserve that proposal-space coordinate system. Do not rescale or rewrite the whole proposal just to match the image dimensions.
 ${geometrySection}
 
 Difference list:

@@ -34,7 +34,7 @@ export interface SlideCard {
   status: "idle" | "analyzing" | "analyzed" | "error";
   description: string;
   analysis: AnalysisResult | null;
-  pass1Analysis: AnalysisResult | null;
+  pass1Analysis: AnalysisResult | null; // normalized render-space extract analysis
   log: LogEntry[];
   elapsed: number;
   pass1: StageAnalysisProvenance | null;
@@ -488,14 +488,22 @@ export function createExtractStore(): StoreApi<ExtractState> {
 
     completeAnalysis(id: string, result: AnalysisResultPayload) {
       const provenance = result.provenance;
-      const analysis = sortAnalysisResult(result);
+      const analysis = sortAnalysisResult({
+        source: result.source,
+        ...(result.inventory ? { inventory: result.inventory } : {}),
+        ...(provenance ? { provenance } : {}),
+        proposals: result.proposals,
+      });
+      const normalizedAnalysis = sortAnalysisResult(
+        result.normalizedAnalysis ?? analysis,
+      );
       set((state) => {
         const card = state.cards.get(id);
         revokeObjectUrl(card?.diffObjectUrl);
         return updateCard(state, id, () => ({
           status: "analyzed" as const,
           analysis,
-          pass1Analysis: null,
+          pass1Analysis: normalizedAnalysis,
           pass1: provenance?.pass1 ?? null,
           pass1Elapsed: provenance?.pass1?.elapsed ?? 0,
           pass1Cost: provenance?.pass1?.cost ?? null,

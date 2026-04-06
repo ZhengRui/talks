@@ -320,7 +320,11 @@ describe("ExtractStore", () => {
         provenance: result.provenance,
         proposals: result.proposals,
       });
-      expect(card.pass1Analysis).toBeNull();
+      expect(card.pass1Analysis).toEqual({
+        source: result.source,
+        provenance: result.provenance,
+        proposals: result.proposals,
+      });
       expect(card.pass1).toEqual({
         model: "claude-opus-4-6",
         effort: "low",
@@ -333,6 +337,79 @@ describe("ExtractStore", () => {
         extract: 0,
         refine: 0,
       });
+    });
+
+    it("preserves raw extract analysis while storing normalized render analysis separately", () => {
+      const rawResult = {
+        source: {
+          image: "base64...",
+          dimensions: { w: 1456, h: 818 },
+          contentBounds: { x: 0, y: 0, w: 1456, h: 818 },
+        },
+        provenance: {
+          pass1: {
+            model: "claude-opus-4-6",
+            effort: "low",
+          },
+        },
+        proposals: [
+          {
+            scope: "slide" as const,
+            name: "extract-slide",
+            description: "extract",
+            region: { x: 0, y: 0, w: 1456, h: 818 },
+            params: {
+              proxies: {
+                type: "array",
+                value: [{ x: 648, y: 248 }],
+              },
+            },
+            style: {},
+            body: "sourceSize: { w: 1456, h: 818 }",
+          },
+        ],
+        normalizedAnalysis: {
+          source: {
+            image: "base64...",
+            dimensions: { w: 1920, h: 1080 },
+            reportedDimensions: { w: 1456, h: 818 },
+            contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
+          },
+          provenance: {
+            pass1: {
+              model: "claude-opus-4-6",
+              effort: "low",
+            },
+          },
+          proposals: [
+            {
+              scope: "slide" as const,
+              name: "extract-slide",
+              description: "extract",
+              region: { x: 0, y: 0, w: 1920, h: 1080 },
+              params: {
+                proxies: {
+                  type: "array",
+                  value: [{ x: 648, y: 248 }],
+                },
+              },
+              style: {},
+              body: "sourceSize: { w: 1456, h: 818 }",
+            },
+          ],
+        },
+      };
+
+      store.getState().completeAnalysis(id, rawResult);
+      const card = store.getState().cards.get(id)!;
+
+      expect(card.analysis?.source.dimensions).toEqual({ w: 1456, h: 818 });
+      expect(card.analysis?.proposals[0]?.region).toEqual({ x: 0, y: 0, w: 1456, h: 818 });
+      expect(card.pass1Analysis?.source.dimensions).toEqual({ w: 1920, h: 1080 });
+      expect(card.pass1Analysis?.source.reportedDimensions).toEqual({ w: 1456, h: 818 });
+      expect(card.pass1Analysis?.proposals[0]?.region).toEqual({ x: 0, y: 0, w: 1920, h: 1080 });
+      expect(card.analysis?.proposals[0]?.body).toContain("1456");
+      expect(card.pass1Analysis?.proposals[0]?.body).toContain("1456");
     });
 
     it("failAnalysis sets status to error and stores error message", () => {

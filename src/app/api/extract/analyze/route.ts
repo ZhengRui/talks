@@ -352,7 +352,8 @@ export async function POST(request: NextRequest) {
         const analysis = normalizeAnalysisRegions(pass1Parsed, actualSize);
 
         send("result", {
-          ...analysis,
+          ...pass1Parsed,
+          normalizedAnalysis: analysis,
           prompt: {
             phase: "extract",
             systemPrompt: ANALYSIS_SYSTEM_PROMPT,

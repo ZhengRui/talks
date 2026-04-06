@@ -797,6 +797,135 @@ describe("ExtractCanvas", () => {
     expect(refineRequests[1].get("forceIterations")).toBe("1");
   });
 
+  it("sends raw proposals to refine while keeping baseAnalysis and contentBounds in normalized image space", async () => {
+    testStore.getState().startAnalysis(testCardId);
+    testStore.getState().completeAnalysis(testCardId, {
+      source: {
+        image: "data:image/png;base64,abc",
+        dimensions: { w: 1456, h: 818 },
+        contentBounds: { x: 0, y: 0, w: 1456, h: 818 },
+      },
+      provenance: {
+        pass1: { model: "claude-opus-4-6", effort: "low" },
+      },
+      proposals: [
+        {
+          ...makeProposal("extract-preview", "sourceSize: { w: 1456, h: 818 }\nchildren: []"),
+          region: { x: 0, y: 0, w: 1456, h: 818 },
+          params: {
+            proxies: {
+              type: "array",
+              value: [{ x: 648, y: 248, lineEndX: 728, lineEndY: 378 }],
+            },
+          },
+        },
+      ],
+      normalizedAnalysis: {
+        source: {
+          image: "data:image/png;base64,abc",
+          dimensions: { w: 1920, h: 1080 },
+          reportedDimensions: { w: 1456, h: 818 },
+          contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
+        },
+        proposals: [
+          {
+            ...makeProposal("extract-preview", "sourceSize: { w: 1456, h: 818 }\nchildren: []"),
+            region: { x: 0, y: 0, w: 1920, h: 1080 },
+            params: {
+              proxies: {
+                type: "array",
+                value: [{ x: 648, y: 248, lineEndX: 728, lineEndY: 378 }],
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    const refineRequests: FormData[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input);
+        if (url === "/api/extract/refine") {
+          refineRequests.push(init?.body as FormData);
+          return makeSseResponse([
+            {
+              event: "refine:start",
+              data: {
+                iteration: 0,
+                maxIterations: 1,
+                visionModel: "claude-opus-4-6",
+                visionEffort: "medium",
+                editModel: "claude-opus-4-6",
+                editEffort: "medium",
+                mismatchThreshold: 0.05,
+              },
+            },
+            {
+              event: "refine:diff",
+              data: {
+                iteration: 0,
+                mismatchRatio: 0.11,
+                diffArtifactUrl: "/api/extract/refine/artifacts/initial",
+                regions: [],
+              },
+            },
+            {
+              event: "refine:done",
+              data: {
+                finalIteration: 0,
+                mismatchRatio: 0.11,
+                converged: false,
+                proposals: [],
+              },
+            },
+          ]);
+        }
+        if (url.startsWith("/api/extract/refine/artifacts/")) {
+          return new Response(new Blob(["artifact"], { type: "image/png" }), {
+            status: 200,
+          });
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      }),
+    );
+
+    const { getByText } = render(<ExtractCanvas />);
+
+    fireEvent.click(getByText("Refine"));
+
+    await waitFor(() => {
+      expect(refineRequests).toHaveLength(1);
+    });
+
+    const request = refineRequests[0]!;
+    const sentProposals = JSON.parse(request.get("proposals") as string) as Array<{
+      region: { w: number; h: number };
+      params: { proxies: { value: Array<{ x: number; y: number }> } };
+      body: string;
+    }>;
+    const sentBaseAnalysis = JSON.parse(request.get("baseAnalysis") as string) as {
+      source: {
+        dimensions: { w: number; h: number };
+        reportedDimensions?: { w: number; h: number };
+        contentBounds?: { w: number; h: number };
+      };
+    };
+    const sentContentBounds = JSON.parse(request.get("contentBounds") as string) as {
+      w: number;
+      h: number;
+    };
+
+    expect(sentProposals[0]?.region).toEqual({ x: 0, y: 0, w: 1456, h: 818 });
+    expect(sentProposals[0]?.params.proxies.value[0]).toMatchObject({ x: 648, y: 248 });
+    expect(sentProposals[0]?.body).toContain("1456");
+    expect(sentBaseAnalysis.source.dimensions).toEqual({ w: 1920, h: 1080 });
+    expect(sentBaseAnalysis.source.reportedDimensions).toEqual({ w: 1456, h: 818 });
+    expect(sentBaseAnalysis.source.contentBounds).toEqual({ x: 0, y: 0, w: 1920, h: 1080 });
+    expect(sentContentBounds).toEqual({ x: 0, y: 0, w: 1920, h: 1080 });
+  });
+
   it("uses the card's snapped refine settings instead of the current global settings", async () => {
     testStore.getState().setRefineVisionModel("claude-opus-4-6");
     testStore.getState().setRefineVisionEffort("low");

@@ -189,6 +189,7 @@ export default function ExtractCanvas() {
       } = useExtractStore.getState();
       const card = cards.get(cardId);
       if (!card?.analysis) return;
+      const renderAnalysis = card.pass1Analysis ?? card.analysis;
       const refinePass = card.refinePass ?? {
         visionModel: refineVisionModel,
         visionEffort: refineVisionEffort,
@@ -224,11 +225,11 @@ export default function ExtractCanvas() {
         "proposals",
         JSON.stringify(card.refineAnalysis?.proposals ?? card.analysis.proposals),
       );
-      formData.append("baseAnalysis", JSON.stringify(card.analysis));
-      if (card.analysis.source.contentBounds) {
+      formData.append("baseAnalysis", JSON.stringify(renderAnalysis));
+      if (renderAnalysis.source.contentBounds) {
         formData.append(
           "contentBounds",
-          JSON.stringify(card.analysis.source.contentBounds),
+          JSON.stringify(renderAnalysis.source.contentBounds),
         );
       }
       if (card.geometryHints) {

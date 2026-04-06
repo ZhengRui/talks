@@ -182,6 +182,7 @@ export interface AnalysisResult {
 }
 
 export interface AnalysisResultPayload extends Omit<AnalysisResult, "provenance"> {
+  normalizedAnalysis?: AnalysisResult;
   provenance?: {
     pass1: StageAnalysisProvenance | null;
   };

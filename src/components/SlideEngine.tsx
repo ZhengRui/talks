@@ -89,6 +89,7 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const overlayPath = resolveOverlayPath(overlay, currentSlide);
+  const overlayEnabled = Boolean(overlay);
 
   useEffect(() => {
     setCurrentSlide(clampSlideIndex(initialSlide, totalSlides));
@@ -139,19 +140,19 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
           break;
         case "o":
         case "O":
-          if (overlay) {
+          if (overlayEnabled) {
             e.preventDefault();
             setOverlayVisible((visible) => !visible);
           }
           break;
         case "[":
-          if (overlay) {
+          if (overlayEnabled) {
             e.preventDefault();
             setOverlayOpacity((value) => Math.max(0, Number((value - 0.1).toFixed(2))));
           }
           break;
         case "]":
-          if (overlay) {
+          if (overlayEnabled) {
             e.preventDefault();
             setOverlayOpacity((value) => Math.min(1, Number((value + 0.1).toFixed(2))));
           }
@@ -161,7 +162,7 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [next, prev, goTo, totalSlides]);
+  }, [next, prev, goTo, totalSlides, overlayEnabled]);
 
   // Scroll / wheel navigation — accumulate delta, trigger at threshold
   useEffect(() => {
@@ -244,6 +245,8 @@ const SlideEngine: React.FC<SlideEngineProps> = ({
             {slide}
             {i === currentSlide && overlayVisible && overlayPath && (
               <div className="slide-overlay-layer" aria-hidden="true">
+                {/* Overlay rendering uses a raw img to avoid framework image wrappers in the slide canvas. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   className="slide-overlay-image"
                   src={overlayPath}

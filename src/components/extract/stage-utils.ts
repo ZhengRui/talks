@@ -6,7 +6,7 @@ export function getStageAnalysis(
   stage: AnalysisStage,
 ): AnalysisResult | null {
   if (stage === "extract") {
-    return card.pass1Analysis ?? card.analysis;
+    return card.analysis;
   }
   return card.refineAnalysis;
 }
