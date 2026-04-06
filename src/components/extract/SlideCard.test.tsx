@@ -242,4 +242,39 @@ describe("SlideCard", () => {
       undefined,
     );
   });
+
+  it("renders inline preview compile errors without crashing", () => {
+    mockCompileProposalPreview.mockImplementationOnce(() => {
+      throw new Error('Template "extract-preview" uses unsupported Nunjucks filter(s): | max. Pre-compute those numeric values instead.');
+    });
+
+    testStore.getState().completeAnalysis(cardId, {
+      source: {
+        image: "data:image/png;base64,abc",
+        dimensions: { w: 1920, h: 1080 },
+      },
+      provenance: {
+        pass1: { model: "claude-opus-4-6", effort: "low" },
+      },
+      proposals: [
+        {
+          scope: "slide",
+          name: "extract-preview",
+          description: "extract",
+          region: { x: 0, y: 0, w: 1920, h: 1080 },
+          params: {},
+          style: {},
+          body: "mode: scene\nchildren: []",
+        },
+      ],
+    });
+
+    const { getByText, rerender } = render(<SlideCard cardId={cardId} />);
+
+    fireEvent.click(getByText("Extract"));
+    rerender(<SlideCard cardId={cardId} />);
+
+    expect(getByText("Compile error")).toBeTruthy();
+    expect(getByText(/unsupported Nunjucks filter/)).toBeTruthy();
+  });
 });

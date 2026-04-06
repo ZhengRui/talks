@@ -3,6 +3,7 @@ import { compileProposalPreview } from "@/lib/extract/compile-preview";
 import {
   buildEditSystemPrompt,
   buildEditUserPrompt,
+  type VisionSemanticAnchors,
   buildVisionSystemPrompt,
   buildVisionUserPrompt,
 } from "@/lib/extract/refine-prompt";
@@ -52,6 +53,7 @@ export interface RefineLoopOptions {
   baseAnalysis: AnalysisResult;
   contentBounds?: CropBounds | null;
   geometryHints?: GeometryHints | null;
+  priorIssuesJson?: string | null;
   visionModel: string;
   visionEffort: string;
   editModel: string;
@@ -87,14 +89,45 @@ interface VisionOptions {
   replicaImage: Buffer;
   imageSize: { w: number; h: number };
   contentBounds?: CropBounds | null;
+  semanticAnchors?: VisionSemanticAnchors | null;
+  priorIssues?: VisionIssue[] | null;
   model: string;
   effort: string;
   signal?: AbortSignal;
   onEvent?: (event: RefineEvent) => Promise<void> | void;
 }
 
+type VisionIssueFixType =
+  | "structural_change"
+  | "layout_adjustment"
+  | "style_adjustment"
+  | "content_fix";
+
+type VisionIssueCategory =
+  | "content"
+  | "signature_visual"
+  | "layout"
+  | "style";
+
+interface VisionIssue {
+  priority: number;
+  category: VisionIssueCategory;
+  ref?: string | null;
+  area: string;
+  issue: string;
+  fixType: VisionIssueFixType;
+  observed: string;
+  desired: string;
+  confidence: number;
+  sticky?: boolean;
+}
+
 interface VisionResult {
-  differences: string;
+  issues: VisionIssue[];
+  issuesJson: string;
+  editIssuesJson: string;
+  resolvedRefs: string[];
+  rawText: string;
   cost: number | null;
   elapsed: number;
 }
@@ -105,7 +138,7 @@ interface EditOptions {
   referenceMediaType: string;
   replicaImage: Buffer;
   imageSize: { w: number; h: number };
-  differences: string;
+  issuesJson: string;
   proposals: Proposal[];
   contentBounds?: CropBounds | null;
   geometryHints?: GeometryHints | null;
@@ -140,6 +173,23 @@ interface StreamClaudeTextOptions {
 }
 
 const MIN_VISION_DIFFERENCE_LENGTH = 20;
+const VALID_VISION_FIX_TYPES = new Set<VisionIssueFixType>([
+  "structural_change",
+  "layout_adjustment",
+  "style_adjustment",
+  "content_fix",
+]);
+const VALID_VISION_CATEGORIES = new Set<VisionIssueCategory>([
+  "content",
+  "signature_visual",
+  "layout",
+  "style",
+]);
+const CORE_VISION_CATEGORIES: VisionIssueCategory[] = [
+  "signature_visual",
+  "content",
+  "layout",
+];
 
 function checkAborted(signal?: AbortSignal): void {
   if (signal?.aborted) {
@@ -173,13 +223,469 @@ async function emitDiffEvent(
 }
 
 function extractJsonPayload(resultText: string): string | null {
-  const fenced = resultText.match(/```json\s*([\s\S]*?)\s*```/);
+  const fenced = resultText.match(/```json\s*([\s\S]*?)\s*```/i)
+    ?? resultText.match(/```\s*([\s\S]*?)\s*```/);
   if (fenced?.[1]) return fenced[1];
 
-  const arrayMatch = resultText.match(/(\[[\s\S]*\])/);
-  if (arrayMatch?.[1]) return arrayMatch[1];
+  const trimmed = resultText.trim();
+  if (
+    (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+    (trimmed.startsWith("[") && trimmed.endsWith("]"))
+  ) {
+    return trimmed;
+  }
+
+  const firstObject = trimmed.indexOf("{");
+  const firstArray = trimmed.indexOf("[");
+  const startCandidates = [firstObject, firstArray].filter((index) => index >= 0);
+  if (startCandidates.length === 0) return null;
+
+  const start = Math.min(...startCandidates);
+  const opener = trimmed[start];
+  const closer = opener === "{" ? "}" : "]";
+  let depth = 0;
+
+  for (let index = start; index < trimmed.length; index += 1) {
+    const char = trimmed[index];
+    if (char === opener) depth += 1;
+    if (char === closer) depth -= 1;
+    if (depth === 0) {
+      return trimmed.slice(start, index + 1);
+    }
+  }
 
   return null;
+}
+
+function clampConfidence(value: unknown): number {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return 0.5;
+  }
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
+}
+
+function normalizeFixType(value: unknown): VisionIssueFixType {
+  if (typeof value === "string" && VALID_VISION_FIX_TYPES.has(value as VisionIssueFixType)) {
+    return value as VisionIssueFixType;
+  }
+  return "layout_adjustment";
+}
+
+function normalizeRef(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function normalizeCategory(
+  value: unknown,
+  fixType: VisionIssueFixType,
+  ref: string | null,
+  signatureRefs: Set<string>,
+  fallbackText: string,
+): VisionIssueCategory {
+  if (ref && signatureRefs.has(ref)) {
+    return "signature_visual";
+  }
+
+  if (
+    typeof value === "string" &&
+    VALID_VISION_CATEGORIES.has(value as VisionIssueCategory)
+  ) {
+    return value as VisionIssueCategory;
+  }
+  if (fixType === "content_fix") {
+    return "content";
+  }
+  if (fixType === "layout_adjustment") {
+    return "layout";
+  }
+
+  const normalized = fallbackText.toLowerCase();
+  if (
+    /(truncate|truncated|missing|clipped|spelling|capitalization|copy|text content|word|words)/.test(
+      normalized,
+    )
+  ) {
+    return "content";
+  }
+  if (
+    /(position|spacing|margin|padding|aligned|alignment|centered|left-aligned|right-aligned|too high|too low|shifted|offset|cluster|breathing room|gap|layout)/.test(
+      normalized,
+    )
+  ) {
+    return "layout";
+  }
+  if (
+    /(connector|diagram|graphic|pattern|topology|structure|arrangement|attachment|line count|shape|spoke|hub|hero|illustration|chart|cross)/.test(
+      normalized,
+    )
+  ) {
+    return "signature_visual";
+  }
+
+  return "style";
+}
+
+function normalizeWhitespace(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function issueKey(issue: Pick<VisionIssue, "ref" | "area" | "issue">): string {
+  if (issue.ref) {
+    return `ref:${normalizeWhitespace(issue.ref)}`;
+  }
+  return `text:${normalizeWhitespace(issue.area)}|${normalizeWhitespace(issue.issue)}`;
+}
+
+function reindexIssues(issues: VisionIssue[]): VisionIssue[] {
+  return issues.map((issue, index) => ({ ...issue, priority: index + 1 }));
+}
+
+function sortAndReindexIssues(issues: VisionIssue[]): VisionIssue[] {
+  return reindexIssues(
+    issues
+      .slice()
+      .sort((a, b) => a.priority - b.priority),
+  );
+}
+
+function dedupeIssues(issues: VisionIssue[]): VisionIssue[] {
+  const deduped = new Map<string, VisionIssue>();
+  for (const issue of sortAndReindexIssues(issues)) {
+    const key = issueKey(issue);
+    if (!deduped.has(key)) {
+      deduped.set(key, issue);
+    }
+  }
+  return sortAndReindexIssues([...deduped.values()]);
+}
+
+function serializeIssues(issues: VisionIssue[]): string {
+  return JSON.stringify(reindexIssues(issues), null, 2);
+}
+
+function makeFallbackIssue(text: string, priority: number): VisionIssue {
+  const fixType = normalizeFixType(undefined);
+  return {
+    priority,
+    category: normalizeCategory(undefined, fixType, null, new Set<string>(), text),
+    ref: null,
+    area: "slide",
+    issue: text,
+    fixType,
+    observed: text,
+    desired: "",
+    confidence: 0.5,
+  };
+}
+
+function fallbackIssuesFromText(resultText: string): VisionIssue[] {
+  const trimmed = resultText.trim();
+  if (trimmed.length < MIN_VISION_DIFFERENCE_LENGTH) {
+    return [];
+  }
+
+  const lines = trimmed
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => line.replace(/^\d+[\.)]\s*/, "").trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) {
+    return [makeFallbackIssue(trimmed, 1)];
+  }
+
+  return lines.slice(0, 5).map((line, index) => makeFallbackIssue(line, index + 1));
+}
+
+function normalizeVisionIssue(
+  entry: unknown,
+  index: number,
+  signatureRefs: Set<string>,
+): VisionIssue | null {
+  const priority = index + 1;
+
+  if (typeof entry === "string") {
+    const text = entry.trim();
+    return text ? makeFallbackIssue(text, priority) : null;
+  }
+
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+
+  const raw = entry as Record<string, unknown>;
+  const issueText = typeof raw.issue === "string" ? raw.issue.trim() : "";
+  const observed = typeof raw.observed === "string" ? raw.observed.trim() : "";
+  const desired = typeof raw.desired === "string" ? raw.desired.trim() : "";
+  const area = typeof raw.area === "string" && raw.area.trim()
+    ? raw.area.trim()
+    : "slide";
+  const ref = normalizeRef(raw.ref);
+  const fixType = normalizeFixType(raw.fixType);
+  const priorityValue = typeof raw.priority === "number" && Number.isFinite(raw.priority)
+    ? Math.max(1, Math.round(raw.priority))
+    : priority;
+
+  if (!issueText && !observed && !desired) {
+    return null;
+  }
+
+  return {
+    priority: priorityValue,
+    category: normalizeCategory(
+      raw.category,
+      fixType,
+      ref,
+      signatureRefs,
+      `${area} ${issueText} ${observed} ${desired}`,
+    ),
+    ref,
+    area,
+    issue: issueText || observed || desired,
+    fixType,
+    observed,
+    desired,
+    confidence: clampConfidence(raw.confidence),
+    ...(typeof raw.sticky === "boolean" ? { sticky: raw.sticky } : {}),
+  };
+}
+
+function normalizeResolvedRefs(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  const refs = new Set<string>();
+  for (const entry of value) {
+    const ref = normalizeRef(entry);
+    if (ref) {
+      refs.add(ref);
+    }
+  }
+  return [...refs];
+}
+
+function buildSignatureRefSet(
+  semanticAnchors?: VisionSemanticAnchors | null,
+): Set<string> {
+  const refs = new Set<string>();
+
+  for (const item of semanticAnchors?.signatureVisuals ?? []) {
+    if (item.ref) {
+      refs.add(item.ref);
+    }
+  }
+  for (const region of semanticAnchors?.regions ?? []) {
+    refs.add(region.id);
+  }
+
+  return refs;
+}
+
+function parseVisionCritique(
+  resultText: string,
+  signatureRefs: Set<string>,
+): {
+  issues: VisionIssue[];
+  resolvedRefs: string[];
+  issuesJson: string;
+} {
+  const jsonPayload = extractJsonPayload(resultText);
+  if (!jsonPayload) {
+    const issues = fallbackIssuesFromText(resultText);
+    return {
+      issues,
+      resolvedRefs: [],
+      issuesJson: serializeIssues(issues),
+    };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonPayload) as unknown;
+  } catch {
+    const issues = fallbackIssuesFromText(resultText);
+    return {
+      issues,
+      resolvedRefs: [],
+      issuesJson: serializeIssues(issues),
+    };
+  }
+
+  let issueEntries: unknown[] | null = null;
+  let resolvedRefs: string[] = [];
+
+  if (Array.isArray(parsed)) {
+    issueEntries = parsed;
+  } else if (parsed && typeof parsed === "object") {
+    const object = parsed as Record<string, unknown>;
+    issueEntries = Array.isArray(object.issues) ? object.issues : null;
+    resolvedRefs = normalizeResolvedRefs(object.resolvedRefs);
+  }
+
+  if (!issueEntries) {
+    const issues = fallbackIssuesFromText(resultText);
+    return {
+      issues,
+      resolvedRefs: [],
+      issuesJson: serializeIssues(issues),
+    };
+  }
+
+  const issues = issueEntries
+    .map((entry, index) => normalizeVisionIssue(entry, index, signatureRefs))
+    .filter((issue): issue is VisionIssue => Boolean(issue))
+    .sort((a, b) => a.priority - b.priority);
+
+  const unresolvedRefs = new Set(issues.map((issue) => issue.ref).filter(Boolean) as string[]);
+  const filteredResolvedRefs = resolvedRefs.filter((ref) => !unresolvedRefs.has(ref));
+
+  return {
+    issues: sortAndReindexIssues(issues),
+    resolvedRefs: filteredResolvedRefs,
+    issuesJson: serializeIssues(issues),
+  };
+}
+
+function applyCategoryCoverage(issues: VisionIssue[]): VisionIssue[] {
+  const normalized = dedupeIssues(issues);
+  if (normalized.length <= 1) return normalized;
+
+  const selected: VisionIssue[] = [];
+  const seenKeys = new Set<string>();
+  const availableCoreCategories = CORE_VISION_CATEGORIES.filter((category) =>
+    normalized.some((issue) => issue.category === category),
+  );
+
+  const take = (issue: VisionIssue | undefined): void => {
+    if (!issue) return;
+    const key = issueKey(issue);
+    if (seenKeys.has(key)) return;
+    seenKeys.add(key);
+    selected.push(issue);
+  };
+
+  if (availableCoreCategories.length >= 3) {
+    for (const category of CORE_VISION_CATEGORIES) {
+      take(normalized.find((issue) => issue.category === category));
+    }
+  } else {
+    take(normalized[0]);
+
+    for (const category of CORE_VISION_CATEGORIES) {
+      if (selected.length >= Math.min(3, normalized.length)) break;
+      if (selected.some((issue) => issue.category === category)) continue;
+      take(normalized.find((issue) => issue.category === category));
+    }
+
+    for (const issue of normalized) {
+      if (selected.length >= Math.min(3, normalized.length)) break;
+      take(issue);
+    }
+  }
+
+  for (const issue of normalized) {
+    take(issue);
+  }
+
+  return reindexIssues(selected);
+}
+
+function mergeStickySignatureIssues(
+  currentIssues: VisionIssue[],
+  priorIssues: VisionIssue[],
+  resolvedRefs: string[],
+): VisionIssue[] {
+  const merged = dedupeIssues(currentIssues);
+  const resolvedRefSet = new Set(resolvedRefs);
+  const indexByKey = new Map<string, number>();
+
+  merged.forEach((issue, index) => {
+    indexByKey.set(issueKey(issue), index);
+  });
+
+  for (const priorIssue of priorIssues) {
+    if (priorIssue.category !== "signature_visual" || !priorIssue.ref) continue;
+    if (resolvedRefSet.has(priorIssue.ref)) continue;
+
+    const key = issueKey(priorIssue);
+    const existingIndex = indexByKey.get(key);
+    if (existingIndex != null) {
+      merged[existingIndex] = {
+        ...merged[existingIndex],
+        category: "signature_visual",
+        ref: priorIssue.ref,
+        sticky: true,
+      };
+      continue;
+    }
+
+    merged.push({
+      ...priorIssue,
+      category: "signature_visual",
+      sticky: true,
+    });
+    indexByKey.set(key, merged.length - 1);
+  }
+
+  return sortAndReindexIssues(merged);
+}
+
+function selectIssuesForEdit(issues: VisionIssue[]): VisionIssue[] {
+  const normalized = sortAndReindexIssues(issues);
+  const selected: VisionIssue[] = [];
+  const seenKeys = new Set<string>();
+
+  const take = (issue: VisionIssue | undefined): void => {
+    if (!issue) return;
+    const key = issueKey(issue);
+    if (seenKeys.has(key)) return;
+    seenKeys.add(key);
+    selected.push(issue);
+  };
+
+  normalized.slice(0, 3).forEach((issue) => take(issue));
+  normalized
+    .filter((issue) => issue.category === "signature_visual" && issue.sticky)
+    .forEach((issue) => take(issue));
+
+  return reindexIssues(selected);
+}
+
+function buildVisionSemanticAnchors(
+  analysis: AnalysisResult,
+): VisionSemanticAnchors | null {
+  const inventory = analysis.inventory;
+  if (!inventory) return null;
+
+  const signatureVisuals = inventory.signatureVisuals?.slice(0, 3) ?? [];
+  const mustPreserve = inventory.mustPreserve?.slice(0, 5) ?? [];
+  const regions = (inventory.regions ?? [])
+    .filter((region) => region.importance === "high" || region.importance === "medium")
+    .slice(0, 5)
+    .map((region) => ({
+      id: region.id,
+      kind: region.kind,
+      description: region.description,
+      importance: region.importance,
+    }));
+
+  if (
+    signatureVisuals.length === 0 &&
+    mustPreserve.length === 0 &&
+    regions.length === 0
+  ) {
+    return null;
+  }
+
+  return {
+    ...(signatureVisuals.length ? { signatureVisuals } : {}),
+    ...(mustPreserve.length ? { mustPreserve } : {}),
+    ...(regions.length ? { regions } : {}),
+  };
 }
 
 function buildQueryOptions(
@@ -377,7 +883,7 @@ async function streamClaudeText(
   };
 }
 
-async function callClaudeVision(
+async function runVisionCritique(
   options: VisionOptions,
 ): Promise<VisionResult> {
   const {
@@ -387,15 +893,22 @@ async function callClaudeVision(
     replicaImage,
     imageSize,
     contentBounds,
+    semanticAnchors,
+    priorIssues,
     model,
     effort,
     signal,
     onEvent,
   } = options;
+  const signatureRefs = buildSignatureRefSet(semanticAnchors);
   const systemPrompt = buildVisionSystemPrompt();
   const userPrompt = buildVisionUserPrompt({
     imageSize,
     contentBounds,
+    semanticAnchors,
+    priorIssuesJson: priorIssues?.length
+      ? JSON.stringify(priorIssues, null, 2)
+      : null,
   });
 
   await emit(onEvent, {
@@ -411,24 +924,51 @@ async function callClaudeVision(
   });
 
   if (isMockClaudeModel(model)) {
-    const differences = [
-      "1. Mock difference: title font is too large compared to the original.",
-      "2. Mock difference: background gradient is missing from the replica.",
-    ].join(" ");
+    const issues = [
+      {
+        priority: 1,
+        category: "content",
+        ref: "title",
+        area: "title",
+        issue: "title font is too large",
+        fixType: "style_adjustment",
+        observed: "Replica title appears larger than the original.",
+        desired: "Original title should feel slightly smaller.",
+        confidence: 0.9,
+      },
+      {
+        priority: 2,
+        category: "signature_visual",
+        ref: "background-glow",
+        area: "background glow",
+        issue: "warm glow is missing",
+        fixType: "style_adjustment",
+        observed: "Replica background is flatter and darker.",
+        desired: "Original includes a visible warm glow.",
+        confidence: 0.84,
+      },
+    ] satisfies VisionIssue[];
+    const rankedIssues = applyCategoryCoverage(issues);
+    const issuesJson = serializeIssues(rankedIssues);
+    const editIssuesJson = serializeIssues(selectIssuesForEdit(rankedIssues));
     await emit(onEvent, {
       event: "refine:vision:thinking",
       data: {
-        text: "Mock Claude selected. Returning a deterministic local difference list.",
+        text: "Mock model selected. Returning a deterministic local structured issue list.",
       },
     });
     await emit(onEvent, {
       event: "refine:vision:text",
       data: {
-        text: differences,
+        text: issuesJson,
       },
     });
     return {
-      differences,
+      issues: rankedIssues,
+      issuesJson,
+      editIssuesJson,
+      resolvedRefs: [],
+      rawText: issuesJson,
       cost: 0,
       elapsed: 0,
     };
@@ -450,14 +990,25 @@ async function callClaudeVision(
     textEvent: "refine:vision:text",
   });
 
+  const parsed = parseVisionCritique(result.resultText, signatureRefs);
+  const stickyIssues = mergeStickySignatureIssues(
+    parsed.issues,
+    priorIssues ?? [],
+    parsed.resolvedRefs,
+  );
+  const rankedIssues = applyCategoryCoverage(stickyIssues);
   return {
-    differences: result.resultText,
+    issues: rankedIssues,
+    issuesJson: serializeIssues(rankedIssues),
+    editIssuesJson: serializeIssues(selectIssuesForEdit(rankedIssues)),
+    resolvedRefs: parsed.resolvedRefs,
+    rawText: result.resultText,
     cost: result.totalCost,
     elapsed: result.elapsed,
   };
 }
 
-async function callClaudeEdit(
+async function runProposalEdit(
   options: EditOptions,
 ): Promise<EditResult> {
   const {
@@ -466,7 +1017,7 @@ async function callClaudeEdit(
     referenceMediaType,
     replicaImage,
     imageSize,
-    differences,
+    issuesJson,
     proposals,
     contentBounds,
     geometryHints,
@@ -482,7 +1033,7 @@ async function callClaudeEdit(
     proposalSpace: slideProposal?.region
       ? { w: slideProposal.region.w, h: slideProposal.region.h }
       : null,
-    differences,
+    issuesJson,
     proposalsJson: JSON.stringify(proposals, null, 2),
     contentBounds,
     geometryHints,
@@ -504,13 +1055,13 @@ async function callClaudeEdit(
     await emit(onEvent, {
       event: "refine:edit:thinking",
       data: {
-        text: "Mock Claude selected. Returning a deterministic local refine patch.",
+        text: "Mock model selected. Returning a deterministic local refine patch.",
       },
     });
     await emit(onEvent, {
       event: "refine:edit:text",
       data: {
-        text: "Mock Claude response ready.",
+        text: "Mock model response ready.",
       },
     });
     return {
@@ -590,6 +1141,7 @@ export async function runRefinementLoop(
     baseAnalysis,
     contentBounds = baseAnalysis.source.contentBounds ?? null,
     geometryHints = null,
+    priorIssuesJson = null,
     visionModel,
     visionEffort,
     editModel,
@@ -604,9 +1156,14 @@ export async function runRefinementLoop(
   const dimensions = baseAnalysis.source.dimensions;
   const baseIteration = Math.max(0, Math.floor(iterationOffset));
   const targetIteration = baseIteration + maxIterations;
+  const semanticAnchors = buildVisionSemanticAnchors(baseAnalysis);
+  const signatureRefs = buildSignatureRefSet(semanticAnchors);
   let currentProposals = initialProposals;
   let lastMismatchRatio = 1;
   let lastCycle: RenderAndDiffResult | undefined;
+  let priorVisionIssues: VisionIssue[] = priorIssuesJson
+    ? parseVisionCritique(priorIssuesJson, signatureRefs).issues
+    : [];
   let totalCost: number | null = null;
   const loopStartedAt = Date.now();
 
@@ -690,25 +1247,32 @@ export async function runRefinementLoop(
       event: "refine:vision:start",
       data: { iteration: absoluteIteration },
     });
-    const visionResult = await callClaudeVision({
+    const visionResult = await runVisionCritique({
       iteration: absoluteIteration,
       referenceImage: prevDiff.referenceImage,
       referenceMediaType: imageMediaType,
       replicaImage: prevDiff.replicaImage,
       imageSize: { w: prevDiff.diff.width, h: prevDiff.diff.height },
       contentBounds,
+      semanticAnchors,
+      priorIssues: priorVisionIssues,
       model: visionModel,
       effort: visionEffort,
       signal,
       onEvent,
     });
+    priorVisionIssues = visionResult.issues;
     totalCost = accumulateCost(totalCost, visionResult.cost);
-    const visionEmpty =
-      visionResult.differences.trim().length < MIN_VISION_DIFFERENCE_LENGTH;
+    const visionEmpty = visionResult.issues.length === 0;
     await emit(onEvent, {
       event: "refine:vision:done",
       data: {
-        differences: visionResult.differences,
+        differences: visionResult.rawText,
+        issues: visionResult.issues,
+        issuesJson: visionResult.issuesJson,
+        editIssuesJson: visionResult.editIssuesJson,
+        resolvedRefs: visionResult.resolvedRefs,
+        issueCount: visionResult.issues.length,
         cost: visionResult.cost,
         elapsed: visionResult.elapsed,
         ...(visionEmpty ? { visionEmpty: true } : {}),
@@ -738,13 +1302,13 @@ export async function runRefinementLoop(
       event: "refine:edit:start",
       data: { iteration: absoluteIteration },
     });
-    const editResult = await callClaudeEdit({
+    const editResult = await runProposalEdit({
       iteration: absoluteIteration,
       referenceImage: prevDiff.referenceImage,
       referenceMediaType: imageMediaType,
       replicaImage: prevDiff.replicaImage,
       imageSize: { w: prevDiff.diff.width, h: prevDiff.diff.height },
-      differences: visionResult.differences,
+      issuesJson: visionResult.editIssuesJson,
       proposals: currentProposals,
       contentBounds,
       geometryHints,

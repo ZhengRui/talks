@@ -609,7 +609,12 @@ describe("ExtractCanvas", () => {
                   },
                   {
                     event: "refine:vision:done",
-                    data: { differences: "1. Title is too large.", cost: 0, elapsed: 0 },
+                    data: {
+                      differences: "1. Title is too large.",
+                      issuesJson: '[{"priority":1,"area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
+                      cost: 0,
+                      elapsed: 0,
+                    },
                   },
                   {
                     event: "refine:edit:start",
@@ -698,7 +703,12 @@ describe("ExtractCanvas", () => {
                   },
                   {
                     event: "refine:vision:done",
-                    data: { differences: "1. Title is too large.", cost: 0, elapsed: 0 },
+                    data: {
+                      differences: "1. Title is too large.",
+                      issuesJson: '[{"priority":1,"area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
+                      cost: 0,
+                      elapsed: 0,
+                    },
                   },
                   {
                     event: "refine:edit:start",
@@ -792,9 +802,13 @@ describe("ExtractCanvas", () => {
     expect(refineRequests[0].get("maxIterations")).toBe("1");
     expect(refineRequests[0].get("iterationOffset")).toBe("0");
     expect(refineRequests[0].get("forceIterations")).toBe("1");
+    expect(refineRequests[0].get("priorIssuesJson")).toBeNull();
     expect(refineRequests[1].get("maxIterations")).toBe("1");
     expect(refineRequests[1].get("iterationOffset")).toBe("1");
     expect(refineRequests[1].get("forceIterations")).toBe("1");
+    expect(refineRequests[1].get("priorIssuesJson")).toBe(
+      '[{"priority":1,"area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
+    );
   });
 
   it("sends raw proposals to refine while keeping baseAnalysis and contentBounds in normalized image space", async () => {

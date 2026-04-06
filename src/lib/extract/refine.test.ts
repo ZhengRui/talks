@@ -53,6 +53,52 @@ vi.mock("@/lib/render/screenshot", () => ({
 
 import { runRefinementLoop } from "./refine";
 
+function makeVisionIssuesJson(
+  overrides?: {
+    issues?: Array<Record<string, unknown>>;
+    resolvedRefs?: string[];
+  },
+): string {
+  return JSON.stringify({
+    issues: overrides?.issues ?? [
+      {
+        priority: 1,
+        category: "layout",
+        ref: "title",
+        area: "title",
+        issue: "title is too large",
+        fixType: "style_adjustment",
+        observed: "Replica title feels oversized.",
+        desired: "Original title should feel smaller.",
+        confidence: 0.9,
+      },
+      {
+        priority: 2,
+        category: "content",
+        ref: "proxy-cards",
+        area: "proxy card descriptions",
+        issue: "description text is truncated",
+        fixType: "content_fix",
+        observed: "Replica cuts off the final word in two cards.",
+        desired: "Original shows the full proxy descriptions.",
+        confidence: 0.88,
+      },
+      {
+        priority: 3,
+        category: "signature_visual",
+        ref: "connector-lines",
+        area: "background lines",
+        issue: "background line pattern is missing",
+        fixType: "structural_change",
+        observed: "Replica is missing the line pattern.",
+        desired: "Original includes the line pattern.",
+        confidence: 0.82,
+      },
+    ],
+    resolvedRefs: overrides?.resolvedRefs ?? [],
+  }, null, 2);
+}
+
 function makeProposals(): Proposal[] {
   return [
     {
@@ -83,6 +129,41 @@ function makeBaseAnalysis(proposals: Proposal[]) {
       dimensions: { w: 1920, h: 1080 },
       contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
     },
+    inventory: {
+      slideBounds: { x: 0, y: 0, w: 1920, h: 1080 },
+      background: {
+        summary: "dark slide",
+        base: "#000000",
+        palette: ["#000000"],
+        layers: [],
+      },
+      typography: [],
+      regions: [
+        {
+          id: "connector-lines",
+          kind: "decorative-lines",
+          bbox: { x: 600, y: 300, w: 700, h: 500 },
+          importance: "high",
+          description: "Diagonal connector X crossing through the center hub",
+        },
+      ],
+      repeatGroups: [],
+      signatureVisuals: [
+        {
+          text: "Orange hub circle with diagonal connector X",
+          ref: "connector-lines",
+          importance: "high",
+        },
+      ],
+      mustPreserve: [
+        {
+          text: "Title text: THE AXIS OF RESISTANCE",
+          ref: "title",
+        },
+      ],
+      uncertainties: [],
+      blockCandidates: [],
+    },
     proposals,
   };
 }
@@ -95,7 +176,7 @@ describe("runRefinementLoop", () => {
       .mockImplementationOnce(async function* () {
         yield {
           type: "result",
-          result: "1. Title is too large compared to the original.\n2. Background line pattern is missing.",
+          result: makeVisionIssuesJson(),
         };
       })
       .mockImplementationOnce(async function* () {
@@ -108,7 +189,7 @@ ${JSON.stringify(makePatchedProposals(), null, 2)}
       });
   });
 
-  it("vision call sends labeled comparison images and no proposals JSON", async () => {
+  it("vision call sends labeled comparison images and requests structured issues without proposals JSON", async () => {
     const proposals = makeProposals();
     const pngBuffer = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a0GQAAAAASUVORK5CYII=",
@@ -155,12 +236,362 @@ ${JSON.stringify(makePatchedProposals(), null, 2)}
 
     const userPrompt = (content[4] as { text: string }).text;
     expect(userPrompt).not.toContain("proposals");
-    expect(visionCall.options.systemPrompt).not.toContain("JSON");
+    expect(userPrompt).toContain("Signature visuals from extract");
+    expect(userPrompt).toContain("Orange hub circle with diagonal connector X");
+    expect(visionCall.options.systemPrompt).toContain("JSON object");
+    expect(visionCall.options.systemPrompt).toContain("\"resolvedRefs\"");
+    expect(visionCall.options.systemPrompt).toContain("\"category\"");
+    expect(visionCall.options.systemPrompt).toContain("\"ref\"");
+    expect(visionCall.options.systemPrompt).toContain("\"fixType\"");
     expect(visionCall.options.systemPrompt).toContain("ORIGINAL");
     expect(visionCall.options.systemPrompt).toContain("REPLICA");
   });
 
-  it("edit call sends labeled comparison images alongside differences and proposals JSON", async () => {
+  it("passes prior unresolved issues into the next vision prompt", async () => {
+    const proposals = makeProposals();
+    const patchedProposals = makePatchedProposals();
+
+    mockQuery
+      .mockReset()
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: makeVisionIssuesJson(),
+        };
+      })
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: `\`\`\`json
+${JSON.stringify(patchedProposals, null, 2)}
+\`\`\``,
+        };
+      })
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: makeVisionIssuesJson(),
+        };
+      })
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: `\`\`\`json
+${JSON.stringify(patchedProposals, null, 2)}
+\`\`\``,
+        };
+      });
+
+    mockCompareImages
+      .mockResolvedValueOnce({
+        mismatchRatio: 0.2,
+        mismatchPixels: 20,
+        totalPixels: 100,
+        diffImage: Buffer.from("diff-initial"),
+        regions: [],
+        width: 100,
+        height: 100,
+      })
+      .mockResolvedValueOnce({
+        mismatchRatio: 0.18,
+        mismatchPixels: 18,
+        totalPixels: 100,
+        diffImage: Buffer.from("diff-iter-1"),
+        regions: [],
+        width: 100,
+        height: 100,
+      })
+      .mockResolvedValueOnce({
+        mismatchRatio: 0.16,
+        mismatchPixels: 16,
+        totalPixels: 100,
+        diffImage: Buffer.from("diff-iter-2"),
+        regions: [],
+        width: 100,
+        height: 100,
+      });
+
+    await runRefinementLoop({
+      image: Buffer.from("reference"),
+      imageMediaType: "image/png",
+      proposals,
+      baseAnalysis: makeBaseAnalysis(proposals),
+      maxIterations: 2,
+      mismatchThreshold: 0.05,
+      visionModel: "claude-opus-4-6",
+      visionEffort: "medium",
+      editModel: "claude-opus-4-6",
+      editEffort: "medium",
+    });
+
+    const secondVisionCall = mockQuery.mock.calls[2]?.[0] as {
+      prompt: AsyncGenerator<{
+        message: {
+          content: Array<Record<string, unknown>>;
+        };
+      }>;
+    };
+    const secondPrompt = await secondVisionCall.prompt.next();
+    const secondText = (secondPrompt.value?.message.content?.[4] as { text: string }).text;
+
+    expect(secondText).toContain("Previous unresolved issues from the prior iteration");
+    expect(secondText).toContain("\"issue\": \"title is too large\"");
+    expect(secondText).toContain("\"fixType\": \"structural_change\"");
+    expect(secondText).toContain("\"ref\": \"connector-lines\"");
+  });
+
+  it("seeds prior unresolved issues into the first vision prompt when provided in options", async () => {
+    const proposals = makeProposals();
+
+    await runRefinementLoop({
+      image: Buffer.from("reference"),
+      imageMediaType: "image/png",
+      proposals,
+      baseAnalysis: makeBaseAnalysis(proposals),
+      priorIssuesJson: JSON.stringify([
+        {
+          priority: 1,
+          category: "signature_visual",
+          ref: "connector-lines",
+          area: "connector lines",
+          issue: "line topology is wrong",
+          fixType: "structural_change",
+          observed: "Replica uses short spokes.",
+          desired: "Original uses a diagonal X.",
+          confidence: 0.9,
+        },
+      ]),
+      maxIterations: 1,
+      mismatchThreshold: 0.05,
+      visionModel: "claude-opus-4-6",
+      visionEffort: "medium",
+      editModel: "claude-opus-4-6",
+      editEffort: "medium",
+    });
+
+    const firstVisionCall = mockQuery.mock.calls[0]?.[0] as {
+      prompt: AsyncGenerator<{
+        message: {
+          content: Array<Record<string, unknown>>;
+        };
+      }>;
+    };
+    const firstPrompt = await firstVisionCall.prompt.next();
+    const firstText = (firstPrompt.value?.message.content?.[4] as { text: string }).text;
+
+    expect(firstText).toContain("Previous unresolved issues from the prior iteration");
+    expect(firstText).toContain("\"issue\": \"line topology is wrong\"");
+    expect(firstText).toContain("\"fixType\": \"structural_change\"");
+    expect(firstText).toContain("\"ref\": \"connector-lines\"");
+  });
+
+  it("diversifies top issues across signature visuals, content, and layout when all are present", async () => {
+    const proposals = makeProposals();
+    const patchedProposals = makePatchedProposals();
+    const events: Array<{ event: string; data: Record<string, unknown> }> = [];
+
+    mockQuery
+      .mockReset()
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: makeVisionIssuesJson({
+            issues: [
+              {
+                priority: 1,
+                category: "style",
+                ref: "title",
+                area: "title",
+                issue: "title is slightly too bold",
+                fixType: "style_adjustment",
+                observed: "Replica title feels slightly heavier.",
+                desired: "Original title is lighter.",
+                confidence: 0.8,
+              },
+              {
+                priority: 2,
+                category: "style",
+                ref: null,
+                area: "background",
+                issue: "background is slightly too flat",
+                fixType: "style_adjustment",
+                observed: "Replica background looks flatter.",
+                desired: "Original background has more atmosphere.",
+                confidence: 0.78,
+              },
+              {
+                priority: 3,
+                category: "content",
+                ref: "proxy-cards",
+                area: "proxy descriptions",
+                issue: "description text is truncated",
+                fixType: "content_fix",
+                observed: "Replica clips the last word.",
+                desired: "Original shows the full text.",
+                confidence: 0.91,
+              },
+              {
+                priority: 4,
+                category: "style",
+                ref: "connector-lines",
+                area: "connector lines",
+                issue: "connector pattern is wrong",
+                fixType: "structural_change",
+                observed: "Replica uses the wrong line topology.",
+                desired: "Original uses the full diagonal connector system.",
+                confidence: 0.93,
+              },
+              {
+                priority: 5,
+                category: "layout",
+                ref: null,
+                area: "diagram cluster",
+                issue: "diagram sits too high",
+                fixType: "layout_adjustment",
+                observed: "Replica compresses the title-to-diagram spacing.",
+                desired: "Original has more vertical breathing room.",
+                confidence: 0.86,
+              },
+            ],
+          }),
+        };
+      })
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: `\`\`\`json
+${JSON.stringify(patchedProposals, null, 2)}
+\`\`\``,
+        };
+      });
+
+    await runRefinementLoop({
+      image: Buffer.from("reference"),
+      imageMediaType: "image/png",
+      proposals,
+      baseAnalysis: makeBaseAnalysis(proposals),
+      maxIterations: 1,
+      mismatchThreshold: 0.05,
+      visionModel: "claude-opus-4-6",
+      visionEffort: "medium",
+      editModel: "claude-opus-4-6",
+      editEffort: "medium",
+      onEvent: (event) => {
+        events.push(event);
+      },
+    });
+
+    const issues = events.find((event) => event.event === "refine:vision:done")?.data.issues as
+      | Array<{ category: string; ref?: string | null }>
+      | undefined;
+
+    expect(issues?.slice(0, 3).map((issue) => issue.category)).toEqual([
+      "signature_visual",
+      "content",
+      "layout",
+    ]);
+    expect(issues?.[0]?.ref).toBe("connector-lines");
+  });
+
+  it("includes unresolved sticky signature visuals in the edit issue list even when they fall below the top 3", async () => {
+    const proposals = makeProposals();
+    const patchedProposals = makePatchedProposals();
+
+    mockQuery
+      .mockReset()
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: makeVisionIssuesJson({
+            issues: [
+              {
+                priority: 1,
+                category: "content",
+                ref: "proxy-cards",
+                area: "proxy descriptions",
+                issue: "description text is truncated",
+                fixType: "content_fix",
+                observed: "Replica clips the last word.",
+                desired: "Original shows the full text.",
+                confidence: 0.91,
+              },
+              {
+                priority: 2,
+                category: "layout",
+                ref: null,
+                area: "diagram cluster",
+                issue: "diagram sits too high",
+                fixType: "layout_adjustment",
+                observed: "Replica compresses the title-to-diagram spacing.",
+                desired: "Original has more vertical breathing room.",
+                confidence: 0.86,
+              },
+              {
+                priority: 3,
+                category: "style",
+                ref: "title",
+                area: "title",
+                issue: "title is too large",
+                fixType: "style_adjustment",
+                observed: "Replica title dominates the slide.",
+                desired: "Original title feels smaller.",
+                confidence: 0.82,
+              },
+            ],
+          }),
+        };
+      })
+      .mockImplementationOnce(async function* () {
+        yield {
+          type: "result",
+          result: `\`\`\`json
+${JSON.stringify(patchedProposals, null, 2)}
+\`\`\``,
+        };
+      });
+
+    await runRefinementLoop({
+      image: Buffer.from("reference"),
+      imageMediaType: "image/png",
+      proposals,
+      baseAnalysis: makeBaseAnalysis(proposals),
+      priorIssuesJson: JSON.stringify([
+        {
+          priority: 1,
+          category: "signature_visual",
+          ref: "connector-lines",
+          area: "connector lines",
+          issue: "connector pattern is wrong",
+          fixType: "structural_change",
+          observed: "Replica uses short spokes.",
+          desired: "Original uses the full diagonal connector system.",
+          confidence: 0.94,
+        },
+      ], null, 2),
+      maxIterations: 1,
+      mismatchThreshold: 0.05,
+      visionModel: "claude-opus-4-6",
+      visionEffort: "medium",
+      editModel: "claude-opus-4-6",
+      editEffort: "medium",
+    });
+
+    const editCall = mockQuery.mock.calls[1]?.[0] as {
+      prompt: AsyncGenerator<{
+        message: {
+          content: Array<Record<string, unknown>>;
+        };
+      }>;
+    };
+    const firstPrompt = await editCall.prompt.next();
+    const textContent = (firstPrompt.value?.message.content?.[4] as { text: string }).text;
+
+    expect(textContent).toContain("\"ref\": \"connector-lines\"");
+    expect(textContent).toContain("\"sticky\": true");
+    expect(textContent).toContain("\"fixType\": \"structural_change\"");
+  });
+
+  it("edit call sends labeled comparison images alongside structured issues and proposals JSON", async () => {
     const proposals = makeProposals();
     const pngBuffer = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a0GQAAAAASUVORK5CYII=",
@@ -203,7 +634,11 @@ ${JSON.stringify(makePatchedProposals(), null, 2)}
     expect((content[3] as { source: { media_type: string } }).source.media_type).toBe("image/png");
     expect(content[4]?.type).toBe("text");
     const textContent = (content[4] as { text: string }).text;
-    expect(textContent).toContain("Title is too large");
+    expect(textContent).toContain("Structured issues:");
+    expect(textContent).toContain("\"issue\": \"title is too large\"");
+    expect(textContent).toContain("\"category\": \"layout\"");
+    expect(textContent).toContain("\"ref\": \"connector-lines\"");
+    expect(textContent).toContain("\"fixType\": \"structural_change\"");
     expect(textContent).toContain('"scope": "slide"');
     expect(textContent).toContain("You will also receive two labeled images");
     expect(editCall.options.systemPrompt).toContain("proposals");
@@ -256,7 +691,7 @@ ${JSON.stringify(makePatchedProposals(), null, 2)}
       .mockImplementationOnce(async function* () {
         yield {
           type: "result",
-          result: "1. Title is too large.\n2. Accent rule is missing.",
+          result: makeVisionIssuesJson(),
         };
       })
       .mockImplementationOnce(async function* () {
@@ -441,7 +876,7 @@ ${JSON.stringify(patchedProposals, null, 2)}
       .mockImplementationOnce(async function* () {
         yield {
           type: "result",
-          result: "1. Title is too large.\n2. Accent rule is missing.",
+          result: makeVisionIssuesJson(),
         };
       })
       .mockImplementationOnce(async function* () {

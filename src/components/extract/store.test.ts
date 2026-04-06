@@ -799,6 +799,7 @@ describe("ExtractStore", () => {
     });
 
     it("startRefinement resets refine state and activates the refine stage", () => {
+      store.getState().setRefinePriorIssuesJson(id, '[{"priority":1}]');
       store.getState().startRefinement(id);
 
       const card = store.getState().cards.get(id)!;
@@ -808,6 +809,7 @@ describe("ExtractStore", () => {
       expect(card.refineResult).toBeNull();
       expect(card.refineHistory).toEqual([]);
       expect(card.diffObjectUrl).toBeNull();
+      expect(card.refinePriorIssuesJson).toBeNull();
     });
 
     it("updateRefinement stores refineAnalysis and history", () => {
@@ -851,6 +853,13 @@ describe("ExtractStore", () => {
       store.getState().startRefinement(id);
       store.getState().completeRefinement(id);
       expect(store.getState().cards.get(id)!.refineStatus).toBe("done");
+    });
+
+    it("setRefinePriorIssuesJson stores the latest vision issues for continuation", () => {
+      store.getState().setRefinePriorIssuesJson(id, '[{"priority":1,"issue":"title too large"}]');
+      expect(store.getState().cards.get(id)!.refinePriorIssuesJson).toBe(
+        '[{"priority":1,"issue":"title too large"}]',
+      );
     });
 
     it("failRefinement stores the error message", () => {

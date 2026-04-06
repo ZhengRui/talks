@@ -228,6 +228,7 @@ These are errors models frequently make. Follow reference.md's Pitfalls section,
 - Text nodes and shape nodes MUST have a \`style:\` object — never put fontFamily, fill, etc. directly on the node.
 - Presets MUST nest properties under \`style:\` — \`presets: { heading: { style: { ... } } }\`, not \`presets: { heading: { fontFamily: ... } }\`.
 - Background with Nunjucks MUST use the object form: \`background: { type: solid, color: "{{ style.bgColor }}" }\`.
+- The template body uses Nunjucks. Do NOT use filters like \`| min\`, \`| max\`, \`| abs\`, \`| round\` — they are not available. Pre-compute numeric values instead.
 - Grid layouts: always set \`rowHeight\` when children have known heights — without it, cells expand to fill the container.
 - Gradient stop \`position\` is 0–1 (NOT 0–100). Use \`position: 0\` and \`position: 1\`, not \`position: 100\`.
 - Do not flatten rich visuals into plain shapes with solid fills. Use the full Visual Features section in reference.md: gradients, shadows, opacity, borders, rounded corners, mixed inline text styles (TextRun[] or markdown bold/italic), shape variety (circle, pill, arrow, triangle — not just rect), effects (glow, softEdge), transforms (rotation). If the source has it, reproduce it.

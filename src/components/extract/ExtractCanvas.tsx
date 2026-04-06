@@ -148,6 +148,7 @@ export default function ExtractCanvas() {
   const setRefineMaxIterations = useExtractStore((s) => s.setRefineMaxIterations);
   const updateRefineDiff = useExtractStore((s) => s.updateRefineDiff);
   const updateRefinement = useExtractStore((s) => s.updateRefinement);
+  const setRefinePriorIssuesJson = useExtractStore((s) => s.setRefinePriorIssuesJson);
   const completeRefineIteration = useExtractStore((s) => s.completeRefineIteration);
   const setDiffObjectUrl = useExtractStore((s) => s.setDiffObjectUrl);
   const completeRefinement = useExtractStore((s) => s.completeRefinement);
@@ -234,6 +235,9 @@ export default function ExtractCanvas() {
       }
       if (card.geometryHints) {
         formData.append("geometryHints", JSON.stringify(card.geometryHints));
+      }
+      if (card.refinePriorIssuesJson) {
+        formData.append("priorIssuesJson", card.refinePriorIssuesJson);
       }
       formData.append("visionModel", refinePass.visionModel);
       formData.append("visionEffort", refinePass.visionEffort);
@@ -370,6 +374,10 @@ export default function ExtractCanvas() {
                 break;
               }
               case "refine:vision:done": {
+                setRefinePriorIssuesJson(
+                  cardId,
+                  typeof data.issuesJson === "string" ? data.issuesJson : null,
+                );
                 const visionMeta = [
                   typeof data.elapsed === "number" ? `${data.elapsed}s` : null,
                   typeof data.cost === "number" ? `$${data.cost.toFixed(2)}` : null,
@@ -569,6 +577,7 @@ export default function ExtractCanvas() {
       completeRefineIteration,
       failRefinement,
       setDiffObjectUrl,
+      setRefinePriorIssuesJson,
       startRefinement,
       continueRefinement,
       setRefineMaxIterations,

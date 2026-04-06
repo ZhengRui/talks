@@ -327,19 +327,29 @@ function ReplicaPreview({
   displayH: number;
   debugTextOverflow?: boolean;
 }) {
-  const layoutSlide = useMemo(() => {
+  const previewResult = useMemo(() => {
     try {
-      return compileProposalPreview(proposal, allProposals, canvasW, canvasH);
+      return {
+        layoutSlide: compileProposalPreview(proposal, allProposals, canvasW, canvasH),
+        error: null,
+      } as const;
     } catch (e) {
-      console.error("[ReplicaPreview] compile error:", e);
-      return null;
+      const error =
+        e instanceof Error ? e.message : "Unknown preview compile error";
+      return {
+        layoutSlide: null,
+        error,
+      } as const;
     }
   }, [proposal, allProposals, canvasW, canvasH]);
 
-  if (!layoutSlide) {
+  if (!previewResult.layoutSlide) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-gray-100 text-xs text-gray-400">
-        Compile error
+      <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-gray-100 px-4 text-center">
+        <div className="text-xs font-medium text-red-500">Compile error</div>
+        <div className="max-w-[90%] text-[11px] leading-snug text-gray-500">
+          {previewResult.error}
+        </div>
       </div>
     );
   }
@@ -356,7 +366,7 @@ function ReplicaPreview({
       }}
     >
       <LayoutSlideRenderer
-        slide={layoutSlide}
+        slide={previewResult.layoutSlide}
         animationNone
         debugTextOverflow={debugTextOverflow}
       />

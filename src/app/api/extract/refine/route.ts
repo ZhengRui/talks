@@ -23,6 +23,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   const baseAnalysisJson = formData.get("baseAnalysis") as string | null;
   const contentBoundsJson = formData.get("contentBounds") as string | null;
   const geometryHintsJson = formData.get("geometryHints") as string | null;
+  const priorIssuesJson = formData.get("priorIssuesJson") as string | null;
   const visionModel = (formData.get("visionModel") as string) || "claude-opus-4-6";
   const visionEffort = (formData.get("visionEffort") as string) || "medium";
   const editModel = (formData.get("editModel") as string) || "claude-opus-4-6";
@@ -75,6 +76,7 @@ export async function POST(request: NextRequest): Promise<Response> {
           baseAnalysis,
           contentBounds,
           geometryHints,
+          priorIssuesJson,
           visionModel,
           visionEffort,
           editModel,

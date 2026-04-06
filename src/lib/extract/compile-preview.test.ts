@@ -63,4 +63,22 @@ children:
     expect(bgElement!.rect.x).toBeCloseTo(240, 0);
     expect(bgElement!.rect.w).toBeCloseTo(1440, 0);
   });
+
+  it("rejects unsupported Nunjucks math filters with a clear error", () => {
+    const proposal = makeProposal({
+      body: `
+sourceSize: { w: 800, h: 600 }
+children:
+  - kind: text
+    id: bad
+    frame: { x: {{ [10, 20] | max }}, y: 0, w: 100, h: 20 }
+    text: "bad"
+    style: { fontFamily: body, fontSize: 16, color: "#fff" }
+`,
+    });
+
+    expect(() => compileProposalPreview(proposal, [proposal], 1920, 1080)).toThrow(
+      'uses unsupported Nunjucks filter(s): | max',
+    );
+  });
 });

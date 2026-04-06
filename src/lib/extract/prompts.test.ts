@@ -60,6 +60,7 @@ describe("ANALYSIS_SYSTEM_PROMPT", () => {
   it("preserves the common mistakes section", () => {
     expect(ANALYSIS_SYSTEM_PROMPT).toContain("## Common mistakes to avoid");
     expect(ANALYSIS_SYSTEM_PROMPT).toContain("Text nodes and shape nodes MUST have a `style:` object");
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain("Do NOT use filters like `| min`, `| max`, `| abs`, `| round`");
   });
 
   it("includes the scene authoring reference inline", () => {

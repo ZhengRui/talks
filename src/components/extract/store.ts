@@ -57,6 +57,7 @@ export interface SlideCard {
   refineElapsed: number;
   refineCost: number | null;
   refineStartMismatch: number | null;
+  refinePriorIssuesJson: string | null;
   autoRefine: boolean;
   normalizedImage: File | null;
   diffObjectUrl: string | null;
@@ -123,6 +124,7 @@ export interface ExtractState {
   continueRefinement: (id: string) => void;
   updateRefineDiff: (id: string, iteration: number, mismatchRatio: number, diffArtifactUrl: string) => void;
   updateRefinement: (id: string, result: RefineIterationResult) => void;
+  setRefinePriorIssuesJson: (id: string, issuesJson: string | null) => void;
   completeRefineIteration: (id: string, mismatchRatio: number) => void;
   setDiffObjectUrl: (id: string, url: string | null) => void;
   completeRefinement: (id: string, elapsed?: number, cost?: number | null) => void;
@@ -325,6 +327,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
         refineElapsed: 0,
         refineCost: null,
         refineStartMismatch: null,
+        refinePriorIssuesJson: null,
         autoRefine: get().autoRefine,
         normalizedImage: null,
         diffObjectUrl: null,
@@ -433,6 +436,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineElapsed: 0,
           refineCost: null,
           refineStartMismatch: null,
+          refinePriorIssuesJson: null,
           diffObjectUrl: null,
           promptHistory: [],
         }));
@@ -519,6 +523,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineElapsed: 0,
           refineCost: null,
           refineStartMismatch: null,
+          refinePriorIssuesJson: null,
           diffObjectUrl: null,
         }));
       });
@@ -603,6 +608,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineError: null,
           refineElapsed: 0,
           refineCost: null,
+          refinePriorIssuesJson: null,
           normalizedImage: null,
           diffObjectUrl: null,
           promptHistory: [],
@@ -682,6 +688,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineElapsed: 0,
           refineCost: null,
           refineStartMismatch: null,
+          refinePriorIssuesJson: null,
           diffObjectUrl: null,
           promptHistory: card?.promptHistory.filter((entry) => entry.stage !== "refine") ?? [],
           activeStage: "refine" as const,
@@ -699,6 +706,12 @@ export function createExtractStore(): StoreApi<ExtractState> {
           activeStage: "refine" as const,
         })),
       );
+    },
+
+    setRefinePriorIssuesJson(id: string, issuesJson: string | null) {
+      set((state) => updateCard(state, id, () => ({
+        refinePriorIssuesJson: issuesJson,
+      })));
     },
 
     updateRefineDiff(id: string, iteration: number, mismatchRatio: number, diffArtifactUrl: string) {

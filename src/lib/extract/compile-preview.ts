@@ -24,11 +24,25 @@ const minimalEnv = createMinimalEnvironment();
 // ---------------------------------------------------------------------------
 
 const UNSUPPORTED_PATTERN = /\{%\s*(import|include|from)\b/;
+const UNSUPPORTED_FILTER_PATTERN = /\|\s*(min|max|abs|round)\b/g;
 
 function validateBody(body: string, name: string): void {
   if (UNSUPPORTED_PATTERN.test(body)) {
     throw new Error(
       `[preview] Template "${name}" uses {% import %}, {% include %}, or {% from %} which are not supported in preview mode`,
+    );
+  }
+
+  const unsupportedFilters = new Set<string>();
+  for (const match of body.matchAll(UNSUPPORTED_FILTER_PATTERN)) {
+    if (match[1]) unsupportedFilters.add(match[1]);
+  }
+
+  if (unsupportedFilters.size > 0) {
+    throw new Error(
+      `[preview] Template "${name}" uses unsupported Nunjucks filter(s): ${Array.from(unsupportedFilters)
+        .map((filterName) => `| ${filterName}`)
+        .join(", ")}. Pre-compute those numeric values instead.`,
     );
   }
 }
