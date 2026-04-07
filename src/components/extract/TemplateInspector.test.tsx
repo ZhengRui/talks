@@ -12,10 +12,18 @@ let mockRefineVisionModel = "claude-opus-4-6";
 let mockRefineVisionEffort = "medium";
 let mockRefineEditModel = "claude-opus-4-6";
 let mockRefineEditEffort = "medium";
+const writeTextMock = vi.fn();
 const defaultPass: AnalysisProvenance = {
   model: "claude-opus-4-6",
   effort: "high",
 };
+
+Object.defineProperty(navigator, "clipboard", {
+  configurable: true,
+  value: {
+    writeText: writeTextMock,
+  },
+});
 
 vi.mock("react-markdown", () => ({
   default: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
@@ -127,6 +135,7 @@ function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  writeTextMock.mockReset();
   mockAutoRefine = true;
   mockRefineVisionModel = "claude-opus-4-6";
   mockRefineVisionEffort = "medium";
@@ -269,6 +278,38 @@ describe("TemplateInspector", () => {
     fireEvent.click(screen.getAllByText("Show")[0]);
     expect(screen.getByText("vision system")).toBeTruthy();
     expect(screen.queryByText("extract system")).toBeNull();
+  });
+
+  it("copies expanded prompt text from the prompt tab", () => {
+    const card = makeCard({
+      activeStage: "refine",
+      promptHistory: [
+        {
+          stage: "refine",
+          phase: "vision",
+          iteration: 1,
+          systemPrompt: "vision system",
+          userPrompt: "vision user",
+          timestamp: 1,
+        },
+      ],
+    });
+
+    writeTextMock.mockResolvedValue(undefined);
+
+    render(
+      <TemplateInspector
+        card={card}
+        onRefine={vi.fn()}
+        onCancelRefine={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Prompt"));
+    fireEvent.click(screen.getAllByText("Show")[0]);
+    fireEvent.click(screen.getByLabelText("Copy prompt"));
+
+    expect(writeTextMock).toHaveBeenCalledWith("vision system");
   });
 
   it("uses equal-width buttons for Result, Log, and Prompt", () => {

@@ -31,6 +31,26 @@ function CopyLogButton({ log }: { log: LogEntry[] }) {
   );
 }
 
+function CopyPromptButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+      className="absolute right-5 top-5 z-10 flex h-6 w-6 items-center justify-center rounded bg-white/80 text-gray-400 shadow-sm backdrop-blur transition-colors hover:bg-white hover:text-gray-600"
+      title={copied ? "Copied!" : "Copy prompt"}
+      aria-label={copied ? "Copied!" : "Copy prompt"}
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
+
 interface TemplateInspectorProps {
   card: SlideCard;
   onRefine: (cardId: string, maxIterations?: number) => void;
@@ -112,7 +132,8 @@ function PromptSection({ label, text }: { label: string; text: string }) {
         </span>
       </button>
       {open ? (
-        <div className="px-3 pb-3">
+        <div className="relative px-3 pb-3">
+          <CopyPromptButton text={text} />
           <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-gray-50 p-3 text-[11px] leading-5 text-gray-700">
             {text}
           </pre>
