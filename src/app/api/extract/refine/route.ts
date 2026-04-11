@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { runRefinementLoop, type RefineEvent } from "@/lib/extract/refine";
 import type { AnalysisResult, GeometryHints, Proposal } from "@/components/extract/types";
 import type { CropBounds } from "@/lib/render/crop";
+import { normalizeProviderSelection } from "@/lib/extract/providers/catalog";
 
 export const runtime = "nodejs";
 
@@ -23,11 +24,17 @@ export async function POST(request: NextRequest): Promise<Response> {
   const baseAnalysisJson = formData.get("baseAnalysis") as string | null;
   const contentBoundsJson = formData.get("contentBounds") as string | null;
   const geometryHintsJson = formData.get("geometryHints") as string | null;
-  const priorIssuesJson = formData.get("priorIssuesJson") as string | null;
-  const visionModel = (formData.get("visionModel") as string) || "claude-opus-4-6";
-  const visionEffort = (formData.get("visionEffort") as string) || "medium";
-  const editModel = (formData.get("editModel") as string) || "claude-opus-4-6";
-  const editEffort = (formData.get("editEffort") as string) || "medium";
+  const watchlistIssuesJson = formData.get("watchlistIssuesJson") as string | null;
+  const visionSelection = normalizeProviderSelection({
+    provider: formData.get("visionProvider") as string | null,
+    model: formData.get("visionModel") as string | null,
+    effort: formData.get("visionEffort") as string | null,
+  });
+  const editSelection = normalizeProviderSelection({
+    provider: formData.get("editProvider") as string | null,
+    model: formData.get("editModel") as string | null,
+    effort: formData.get("editEffort") as string | null,
+  });
   const maxIterations = parseInt((formData.get("maxIterations") as string) || "4", 10) || 4;
   const iterationOffset =
     parseInt((formData.get("iterationOffset") as string) || "0", 10) || 0;
@@ -76,11 +83,9 @@ export async function POST(request: NextRequest): Promise<Response> {
           baseAnalysis,
           contentBounds,
           geometryHints,
-          priorIssuesJson,
-          visionModel,
-          visionEffort,
-          editModel,
-          editEffort,
+          watchlistIssuesJson,
+          visionSelection,
+          editSelection,
           maxIterations,
           mismatchThreshold,
           iterationOffset,

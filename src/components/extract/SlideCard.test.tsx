@@ -107,7 +107,7 @@ describe("SlideCard", () => {
         dimensions: { w: 1920, h: 1080 },
       },
       provenance: {
-        pass1: { model: "claude-opus-4-6", effort: "low" },
+        pass1: { provider: "claude-code", model: "claude-opus-4-6", effort: "low" },
       },
       proposals: [
         {
@@ -136,7 +136,7 @@ describe("SlideCard", () => {
         dimensions: { w: 1280, h: 720 },
       },
       provenance: {
-        pass1: { model: "claude-opus-4-6", effort: "low" },
+        pass1: { provider: "claude-code", model: "claude-opus-4-6", effort: "low" },
       },
       proposals: [
         {
@@ -183,7 +183,7 @@ describe("SlideCard", () => {
         dimensions: { w: 1920, h: 1080 },
       },
       provenance: {
-        pass1: { model: "claude-opus-4-6", effort: "low" },
+        pass1: { provider: "claude-code", model: "claude-opus-4-6", effort: "low" },
       },
       proposals: [
         {
@@ -217,7 +217,7 @@ describe("SlideCard", () => {
         dimensions: { w: 1920, h: 1080 },
       },
       provenance: {
-        pass1: { model: "claude-opus-4-6", effort: "low" },
+        pass1: { provider: "claude-code", model: "claude-opus-4-6", effort: "low" },
       },
       proposals: [
         {
@@ -254,7 +254,7 @@ describe("SlideCard", () => {
         dimensions: { w: 1920, h: 1080 },
       },
       provenance: {
-        pass1: { model: "claude-opus-4-6", effort: "low" },
+        pass1: { provider: "claude-code", model: "claude-opus-4-6", effort: "low" },
       },
       proposals: [
         {

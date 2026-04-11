@@ -23,37 +23,86 @@ const mockSelectTemplate = vi.fn();
 const mockOpenYamlModal = vi.fn();
 const mockResetAnalysis = vi.fn();
 const mockSetActiveStage = vi.fn();
-const mockSetModel = vi.fn();
-const mockSetEffort = vi.fn();
+const mockSetAnalyzeProvider = vi.fn();
+const mockSetAnalyzeModel = vi.fn();
+const mockSetAnalyzeEffort = vi.fn();
 const mockSetAutoRefine = vi.fn();
+const mockSetCardAutoRefine = vi.fn();
+const mockSetRefineMaxIterations = vi.fn();
+const mockSetRefineMismatchThreshold = vi.fn();
+const mockSetRefineVisionProvider = vi.fn();
+const mockSetRefineVisionModel = vi.fn();
+const mockSetRefineVisionEffort = vi.fn();
+const mockSetRefineEditProvider = vi.fn();
+const mockSetRefineEditModel = vi.fn();
+const mockSetRefineEditEffort = vi.fn();
+const mockSetCardRefineVisionProvider = vi.fn();
+const mockSetCardRefineVisionModel = vi.fn();
+const mockSetCardRefineVisionEffort = vi.fn();
+const mockSetCardRefineEditProvider = vi.fn();
+const mockSetCardRefineEditModel = vi.fn();
+const mockSetCardRefineEditEffort = vi.fn();
 
 let mockCards = new Map<string, SlideCard>();
 let mockCardOrder: string[] = [];
 let mockSelectedCardId: string | null = null;
 
-vi.mock("./store", () => ({
-  useExtractStore: (selector?: (state: unknown) => unknown) => {
-    const state = {
-      cards: mockCards,
-      cardOrder: mockCardOrder,
-      selectedCardId: mockSelectedCardId,
-      selectCard: mockSelectCard,
-      updateDescription: mockUpdateDescription,
-      selectTemplate: mockSelectTemplate,
-      openYamlModal: mockOpenYamlModal,
-      resetAnalysis: mockResetAnalysis,
-      setActiveStage: mockSetActiveStage,
-      model: "claude-opus-4-6",
-      effort: "low",
-      autoRefine: true,
-      setModel: mockSetModel,
-      setEffort: mockSetEffort,
-      setAutoRefine: mockSetAutoRefine,
-      setPanelWidth: vi.fn(),
-    };
-    return selector ? selector(state) : state;
-  },
-}));
+vi.mock("./store", async () => {
+  const actual = await vi.importActual<typeof import("./store")>("./store");
+  return {
+    ...actual,
+    useExtractStore: (selector?: (state: unknown) => unknown) => {
+      const state = {
+        cards: mockCards,
+        cardOrder: mockCardOrder,
+        selectedCardId: mockSelectedCardId,
+        selectCard: mockSelectCard,
+        updateDescription: mockUpdateDescription,
+        selectTemplate: mockSelectTemplate,
+        openYamlModal: mockOpenYamlModal,
+        resetAnalysis: mockResetAnalysis,
+        setActiveStage: mockSetActiveStage,
+        analyzeSelection: {
+          provider: "claude-code",
+          model: "claude-opus-4-6",
+          effort: "low",
+        },
+        autoRefine: true,
+        refineVisionSelection: {
+          provider: "claude-code",
+          model: "claude-opus-4-6",
+          effort: "medium",
+        },
+        refineEditSelection: {
+          provider: "claude-code",
+          model: "claude-opus-4-6",
+          effort: "medium",
+        },
+        setAnalyzeProvider: mockSetAnalyzeProvider,
+        setAnalyzeModel: mockSetAnalyzeModel,
+        setAnalyzeEffort: mockSetAnalyzeEffort,
+        setAutoRefine: mockSetAutoRefine,
+        setCardAutoRefine: mockSetCardAutoRefine,
+        setRefineMaxIterations: mockSetRefineMaxIterations,
+        setRefineMismatchThreshold: mockSetRefineMismatchThreshold,
+        setRefineVisionProvider: mockSetRefineVisionProvider,
+        setRefineVisionModel: mockSetRefineVisionModel,
+        setRefineVisionEffort: mockSetRefineVisionEffort,
+        setRefineEditProvider: mockSetRefineEditProvider,
+        setRefineEditModel: mockSetRefineEditModel,
+        setRefineEditEffort: mockSetRefineEditEffort,
+        setCardRefineVisionProvider: mockSetCardRefineVisionProvider,
+        setCardRefineVisionModel: mockSetCardRefineVisionModel,
+        setCardRefineVisionEffort: mockSetCardRefineVisionEffort,
+        setCardRefineEditProvider: mockSetCardRefineEditProvider,
+        setCardRefineEditModel: mockSetCardRefineEditModel,
+        setCardRefineEditEffort: mockSetCardRefineEditEffort,
+        setPanelWidth: vi.fn(),
+      };
+      return selector ? selector(state) : state;
+    },
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -92,10 +141,16 @@ function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
     refineElapsed: 0,
     refineCost: null,
     refineStartMismatch: null,
+    refineWatchlistJson: null,
     autoRefine: true,
     normalizedImage: null,
     diffObjectUrl: null,
     promptHistory: [],
+    benchmarkGroupId: null,
+    benchmarkVariant: null,
+    benchmarkSlug: null,
+    benchmarkSlideIndex: null,
+    geometryHints: null,
     ...overrides,
   };
 }
@@ -215,11 +270,29 @@ describe("InspectorPanel", () => {
     expect(container.textContent).toContain("Log");
   });
 
-  it("shows error card with analyze form", () => {
+  it("shows error card in the inspector with retry and log context", () => {
     const card = makeCard({
       id: "card-4",
       status: "error",
       error: "API timeout",
+      pass1: { provider: "openai-codex", model: "gpt-5.4", effort: "none" },
+      log: [
+        { type: "status", content: "Starting analysis...", timestamp: 1, stage: "extract" },
+        { type: "error", content: "API timeout", timestamp: 2, stage: "extract" },
+      ],
+      promptHistory: [
+        {
+          stage: "extract",
+          phase: "extract",
+          systemPrompt: "system",
+          userPrompt: "user",
+          timestamp: 1,
+          provider: "openai-codex",
+          model: "gpt-5.4",
+          effort: "none",
+          iteration: null,
+        },
+      ],
     });
     mockCards.set("card-4", card);
     mockCardOrder = ["card-4"];
@@ -233,15 +306,11 @@ describe("InspectorPanel", () => {
       />,
     );
 
-    // Should show the error message
     expect(container.textContent).toContain("API timeout");
-
-    // Should show the Analyze button (retry)
-    const buttons = Array.from(container.querySelectorAll("button"));
-    const analyzeBtnFound = buttons.some(
-      (b) => b.textContent?.includes("Analyze"),
-    );
-    expect(analyzeBtnFound).toBe(true);
+    expect(container.textContent).toContain("Stage error");
+    expect(container.textContent).toContain("Retry");
+    expect(container.textContent).toContain("Log");
+    expect(container.querySelector("textarea")).toBeNull();
   });
 
   it("renders thumbnail strip with cards", () => {

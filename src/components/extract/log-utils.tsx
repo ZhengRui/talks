@@ -3,6 +3,7 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { extractJsonPayload } from "@/lib/extract/json-payload";
 import type { LogEntry } from "./store";
 import type { AnalysisStage } from "./types";
 
@@ -101,6 +102,69 @@ function ToolResultBlock({ content }: { content: string }) {
   );
 }
 
+function tryParseJsonContent(content: string): unknown | null {
+  const trimmed = content.trim();
+  if (!trimmed) return null;
+
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    // Codex can emit an earlier draft message followed by a final JSON message.
+    // The store merges text entries, so prefer the last blank-line-separated block
+    // before falling back to scanning for an embedded JSON payload.
+    const blocks = trimmed
+      .split(/\n{2,}/)
+      .map((block) => block.trim())
+      .filter(Boolean);
+
+    for (let index = blocks.length - 1; index >= 0; index -= 1) {
+      const block = blocks[index];
+      try {
+        return JSON.parse(block) as unknown;
+      } catch {
+        const payload = extractJsonPayload(block);
+        if (!payload) continue;
+        try {
+          return JSON.parse(payload) as unknown;
+        } catch {
+          continue;
+        }
+      }
+    }
+
+    const payload = extractJsonPayload(trimmed);
+    if (!payload) return null;
+
+    try {
+      return JSON.parse(payload) as unknown;
+    } catch {
+      return null;
+    }
+  }
+}
+
+function HighlightedJsonBlock({ data }: { data: unknown }) {
+  const json = JSON.stringify(data, null, 2);
+  const parts = json.split(/("(?:[^"\\]|\\.)*"|\b\d+\.?\d*\b|\btrue\b|\bfalse\b|\bnull\b)/g);
+
+  return (
+    <pre className="my-1.5 overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-3 text-[11px] leading-5">
+      {parts.map((part, i) => {
+        if (/^".*":?$/.test(part)) {
+          const next = parts[i + 1];
+          if (next && next.trimStart().startsWith(":")) {
+            return <span key={i} className="text-sky-700">{part}</span>;
+          }
+          return <span key={i} className="text-emerald-700">{part}</span>;
+        }
+        if (/^\d/.test(part)) return <span key={i} className="text-amber-700">{part}</span>;
+        if (/^(true|false|null)$/.test(part)) return <span key={i} className="text-violet-600">{part}</span>;
+        return <span key={i} className="text-gray-500">{part}</span>;
+      })}
+    </pre>
+  );
+}
+
 export function filterLogEntries(
   log: LogEntry[],
   stage: AnalysisStage,
@@ -136,6 +200,7 @@ const LOG_COLORS: Record<string, string> = {
 export function LogEntryRow({ entry }: { entry: LogEntry }) {
   const icon = LOG_ICONS[entry.type] ?? "?";
   const color = LOG_COLORS[entry.type] ?? "text-gray-400";
+  const parsedJson = entry.type === "text" ? tryParseJsonContent(entry.content) : null;
 
   return (
     <div className={`flex gap-2 ${entry.type === "status" || entry.type === "tool" ? "mt-2 first:mt-0" : "mt-0.5"}`}>
@@ -148,7 +213,11 @@ export function LogEntryRow({ entry }: { entry: LogEntry }) {
         )}
         {entry.type === "text" && (
           <div className="text-gray-700">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{entry.content}</ReactMarkdown>
+            {parsedJson ? (
+              <HighlightedJsonBlock data={parsedJson} />
+            ) : (
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{entry.content}</ReactMarkdown>
+            )}
           </div>
         )}
         {entry.type === "tool" && (

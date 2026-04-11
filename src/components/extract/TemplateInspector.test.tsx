@@ -14,6 +14,7 @@ let mockRefineEditModel = "claude-opus-4-6";
 let mockRefineEditEffort = "medium";
 const writeTextMock = vi.fn();
 const defaultPass: AnalysisProvenance = {
+  provider: "claude-code",
   model: "claude-opus-4-6",
   effort: "high",
 };
@@ -40,10 +41,16 @@ vi.mock("./store", async () => {
         resetAnalysis: mockResetAnalysis,
         setActiveStage: mockSetActiveStage,
         autoRefine: mockAutoRefine,
-        refineVisionModel: mockRefineVisionModel,
-        refineVisionEffort: mockRefineVisionEffort,
-        refineEditModel: mockRefineEditModel,
-        refineEditEffort: mockRefineEditEffort,
+        refineVisionSelection: {
+          provider: "claude-code",
+          model: mockRefineVisionModel,
+          effort: mockRefineVisionEffort,
+        },
+        refineEditSelection: {
+          provider: "claude-code",
+          model: mockRefineEditModel,
+          effort: mockRefineEditEffort,
+        },
       };
       return selector ? selector(state) : state;
     },
@@ -124,10 +131,16 @@ function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
     refineElapsed: 9,
     refineCost: 0.14,
     refineStartMismatch: null,
+    refineWatchlistJson: null,
     autoRefine: true,
     normalizedImage: null,
     diffObjectUrl: null,
     promptHistory: [],
+    benchmarkGroupId: null,
+    benchmarkVariant: null,
+    benchmarkSlug: null,
+    benchmarkSlideIndex: null,
+    geometryHints: null,
     ...overrides,
   };
 }
@@ -144,6 +157,36 @@ afterEach(() => {
 });
 
 describe("TemplateInspector", () => {
+  it("renders extract-stage errors in the inspector and allows retry", () => {
+    const onAnalyze = vi.fn();
+    const card = makeCard({
+      status: "error",
+      error: "Model returned JSON followed by extra text.",
+      analysis: null,
+      pass1Analysis: null,
+      log: [
+        { type: "status", content: "Starting analysis...", timestamp: 1, stage: "extract" },
+        { type: "error", content: "Model returned JSON followed by extra text.", timestamp: 2, stage: "extract" },
+      ],
+    });
+
+    render(
+      <TemplateInspector
+        card={card}
+        onAnalyze={onAnalyze}
+        onRefine={vi.fn()}
+        onCancelRefine={vi.fn()}
+        defaultTab="log"
+      />,
+    );
+
+    expect(screen.getByText("Stage error")).toBeTruthy();
+    expect(screen.getAllByText("Model returned JSON followed by extra text.").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByText("Retry"));
+    expect(onAnalyze).toHaveBeenCalledWith("card-1");
+  });
+
   it("renders inventory panel when analysis.inventory exists", () => {
     const card = makeCard({
       analysis: {
@@ -269,8 +312,8 @@ describe("TemplateInspector", () => {
 
     fireEvent.click(screen.getByText("Prompt"));
 
-    expect(screen.getByText("Iter 1 · Vision · opus-4-6 · medium")).toBeTruthy();
-    expect(screen.getByText("Iter 1 · Edit · sonnet-4-6 · high")).toBeTruthy();
+    expect(screen.getByText("Iter 1 · Vision · Opus 4.6 · medium")).toBeTruthy();
+    expect(screen.getByText("Iter 1 · Edit · Sonnet 4.6 · high")).toBeTruthy();
     expect(screen.getAllByText("System Prompt").length).toBeGreaterThan(0);
     expect(screen.queryByText("vision system")).toBeNull();
     expect(screen.queryByText("edit user")).toBeNull();
@@ -434,7 +477,7 @@ describe("TemplateInspector", () => {
     );
 
     expect(screen.getByText("Extract")).toBeTruthy();
-    expect(screen.getByText(/opus-4-6 · high · 12s · \$0.82/)).toBeTruthy();
+    expect(screen.getByText(/Opus 4.6 · high · 12s · \$0.82/)).toBeTruthy();
   });
 
   it("shows separate vision and edit provenance when refine settings differ", () => {
@@ -456,8 +499,8 @@ describe("TemplateInspector", () => {
       />,
     );
 
-    expect(screen.getByText(/vision: opus-4-6 · low/)).toBeTruthy();
-    expect(screen.getByText(/edit: sonnet-4-6 · high/)).toBeTruthy();
+    expect(screen.getByText(/vision: Opus 4.6 · low/)).toBeTruthy();
+    expect(screen.getByText(/edit: Sonnet 4.6 · high/)).toBeTruthy();
     expect(screen.getByText(/9s · \$0.14/)).toBeTruthy();
   });
 

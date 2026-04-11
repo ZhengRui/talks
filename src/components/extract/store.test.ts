@@ -30,7 +30,17 @@ describe("ExtractStore", () => {
       expect(card!.pass1).toBeNull();
       expect(card!.pass1Elapsed).toBe(0);
       expect(card!.pass1Cost).toBeNull();
-      expect(card!.refinePass).toEqual({
+      expect(card!.refinePass).toMatchObject({
+        vision: {
+          provider: "claude-code",
+          model: "claude-opus-4-6",
+          effort: "medium",
+        },
+        edit: {
+          provider: "claude-code",
+          model: "claude-opus-4-6",
+          effort: "medium",
+        },
         visionModel: "claude-opus-4-6",
         visionEffort: "medium",
         editModel: "claude-opus-4-6",
@@ -271,13 +281,24 @@ describe("ExtractStore", () => {
 
       const card = store.getState().cards.get(id)!;
       expect(card.pass1).toEqual({
+        provider: "claude-code",
         model: "claude-sonnet-4-6",
         effort: "max",
       });
       expect(card.activeStage).toBe("extract");
       expect(card.viewMode).toBe("original");
       expect(card.autoRefine).toBe(false);
-      expect(card.refinePass).toEqual({
+      expect(card.refinePass).toMatchObject({
+        vision: {
+          provider: "claude-code",
+          model: "claude-opus-4-6",
+          effort: "low",
+        },
+        edit: {
+          provider: "claude-code",
+          model: "claude-sonnet-4-6",
+          effort: "high",
+        },
         visionModel: "claude-opus-4-6",
         visionEffort: "low",
         editModel: "claude-sonnet-4-6",
@@ -294,6 +315,7 @@ describe("ExtractStore", () => {
         },
         provenance: {
           pass1: {
+            provider: "claude-code",
             model: "claude-opus-4-6",
             effort: "low",
             elapsed: 5,
@@ -326,6 +348,7 @@ describe("ExtractStore", () => {
         proposals: result.proposals,
       });
       expect(card.pass1).toEqual({
+        provider: "claude-code",
         model: "claude-opus-4-6",
         effort: "low",
         elapsed: 5,
@@ -348,6 +371,7 @@ describe("ExtractStore", () => {
         },
         provenance: {
           pass1: {
+            provider: "claude-code",
             model: "claude-opus-4-6",
             effort: "low",
           },
@@ -377,6 +401,7 @@ describe("ExtractStore", () => {
           },
           provenance: {
             pass1: {
+              provider: "claude-code",
               model: "claude-opus-4-6",
               effort: "low",
             },
@@ -429,6 +454,7 @@ describe("ExtractStore", () => {
         },
         provenance: {
           pass1: {
+            provider: "claude-code",
             model: "claude-opus-4-6",
             effort: "low",
             elapsed: 3,
@@ -563,6 +589,27 @@ describe("ExtractStore", () => {
       const card = store.getState().cards.get(id)!;
       expect(card.log).toHaveLength(2);
     });
+
+    it("does not merge streaming entries with different stream keys", () => {
+      store.getState().appendLog(id, {
+        type: "text",
+        content: "Draft message",
+        timestamp: 100,
+        stage: "extract",
+        streamKey: "agent_message:item_0",
+      });
+      store.getState().appendLog(id, {
+        type: "text",
+        content: "{\"ok\":true}",
+        timestamp: 101,
+        stage: "extract",
+        streamKey: "agent_message:item_1",
+      });
+      const card = store.getState().cards.get(id)!;
+      expect(card.log).toHaveLength(2);
+      expect(card.log[0].content).toBe("Draft message");
+      expect(card.log[1].content).toBe("{\"ok\":true}");
+    });
   });
 
   // --- selectTemplate ---
@@ -652,13 +699,33 @@ describe("ExtractStore", () => {
       store.getState().setRefineMaxIterations(id1, 7);
       store.getState().setRefineMismatchThreshold(id1, 0.12);
 
-      expect(store.getState().cards.get(id1)!.refinePass).toEqual({
+      expect(store.getState().cards.get(id1)!.refinePass).toMatchObject({
+        vision: {
+          provider: "claude-code",
+          model: "claude-sonnet-4-6",
+          effort: "high",
+        },
+        edit: {
+          provider: "claude-code",
+          model: "claude-opus-4-6",
+          effort: "low",
+        },
         visionModel: "claude-sonnet-4-6",
         visionEffort: "high",
         editModel: "claude-opus-4-6",
         editEffort: "low",
       });
-      expect(store.getState().cards.get(id2)!.refinePass).toEqual({
+      expect(store.getState().cards.get(id2)!.refinePass).toMatchObject({
+        vision: {
+          provider: "claude-code",
+          model: "claude-sonnet-4-6",
+          effort: "high",
+        },
+        edit: {
+          provider: "claude-code",
+          model: "claude-opus-4-6",
+          effort: "low",
+        },
         visionModel: "claude-sonnet-4-6",
         visionEffort: "high",
         editModel: "claude-opus-4-6",
@@ -690,7 +757,17 @@ describe("ExtractStore", () => {
       store.getState().setRefineMismatchThreshold(idleId, 0.2);
 
       const card = store.getState().cards.get(id)!;
-      expect(card.refinePass).toEqual({
+      expect(card.refinePass).toMatchObject({
+        vision: {
+          provider: "claude-code",
+          model: "claude-opus-4-6",
+          effort: "low",
+        },
+        edit: {
+          provider: "claude-code",
+          model: "claude-sonnet-4-6",
+          effort: "high",
+        },
         visionModel: "claude-opus-4-6",
         visionEffort: "low",
         editModel: "claude-sonnet-4-6",
@@ -727,7 +804,17 @@ describe("ExtractStore", () => {
 
       const card = store.getState().cards.get(id)!;
       expect(card.autoRefine).toBe(false);
-      expect(card.refinePass).toEqual({
+      expect(card.refinePass).toMatchObject({
+        vision: {
+          provider: "claude-code",
+          model: "claude-sonnet-4-6",
+          effort: "high",
+        },
+        edit: {
+          provider: "claude-code",
+          model: "claude-opus-4-6",
+          effort: "low",
+        },
         visionModel: "claude-sonnet-4-6",
         visionEffort: "high",
         editModel: "claude-opus-4-6",
@@ -750,7 +837,7 @@ describe("ExtractStore", () => {
           contentBounds: { x: 10, y: 20, w: 1800, h: 1000 },
         },
         provenance: {
-          pass1: { model: "claude-opus-4-6", effort: "low" },
+          pass1: { provider: "claude-code", model: "claude-opus-4-6", effort: "low" },
         },
         proposals: [
           {
@@ -799,7 +886,7 @@ describe("ExtractStore", () => {
     });
 
     it("startRefinement resets refine state and activates the refine stage", () => {
-      store.getState().setRefinePriorIssuesJson(id, '[{"priority":1}]');
+      store.getState().setRefineWatchlistJson(id, '{"fidelityWatchlist":[{"priority":1}],"designQualityWatchlist":[]}');
       store.getState().startRefinement(id);
 
       const card = store.getState().cards.get(id)!;
@@ -809,7 +896,7 @@ describe("ExtractStore", () => {
       expect(card.refineResult).toBeNull();
       expect(card.refineHistory).toEqual([]);
       expect(card.diffObjectUrl).toBeNull();
-      expect(card.refinePriorIssuesJson).toBeNull();
+      expect(card.refineWatchlistJson).toBeNull();
     });
 
     it("updateRefinement stores refineAnalysis and history", () => {
@@ -855,10 +942,10 @@ describe("ExtractStore", () => {
       expect(store.getState().cards.get(id)!.refineStatus).toBe("done");
     });
 
-    it("setRefinePriorIssuesJson stores the latest vision issues for continuation", () => {
-      store.getState().setRefinePriorIssuesJson(id, '[{"priority":1,"issue":"title too large"}]');
-      expect(store.getState().cards.get(id)!.refinePriorIssuesJson).toBe(
-        '[{"priority":1,"issue":"title too large"}]',
+    it("setRefineWatchlistJson stores the latest vision watchlist for continuation", () => {
+      store.getState().setRefineWatchlistJson(id, '{"fidelityWatchlist":[{"priority":1,"issue":"title too large"}],"designQualityWatchlist":[]}');
+      expect(store.getState().cards.get(id)!.refineWatchlistJson).toBe(
+        '{"fidelityWatchlist":[{"priority":1,"issue":"title too large"}],"designQualityWatchlist":[]}',
       );
     });
 

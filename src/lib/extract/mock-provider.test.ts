@@ -1,16 +1,28 @@
 import { describe, expect, it } from "vitest";
 import { parse as yamlParse } from "yaml";
 import {
-  MOCK_CLAUDE_MODEL,
+  MOCK_PROVIDER_MODEL,
   createMockAnalysisResult,
   createMockRefineProposals,
-  isMockClaudeModel,
-} from "./mock-claude";
+  isMockProviderSelection,
+} from "./mock-provider";
 
-describe("mock-claude helpers", () => {
-  it("identifies the mock Claude model", () => {
-    expect(isMockClaudeModel(MOCK_CLAUDE_MODEL)).toBe(true);
-    expect(isMockClaudeModel("claude-opus-4-6")).toBe(false);
+describe("mock-provider helpers", () => {
+  it("identifies the mock provider selection", () => {
+    expect(
+      isMockProviderSelection({
+        provider: "mock",
+        model: MOCK_PROVIDER_MODEL,
+        effort: "medium",
+      }),
+    ).toBe(true);
+    expect(
+      isMockProviderSelection({
+        provider: "claude-code",
+        model: "claude-opus-4-6",
+        effort: "medium",
+      }),
+    ).toBe(false);
   });
 
   it("builds a deterministic mock analysis result", () => {
@@ -21,7 +33,7 @@ describe("mock-claude helpers", () => {
     });
 
     expect(result.source.dimensions).toEqual({ w: 1280, h: 720 });
-    expect(result.source.image).toBe("mock://claude/extract");
+    expect(result.source.image).toBe("mock://provider/extract");
     expect(result.proposals).toHaveLength(1);
     expect(result.proposals[0]?.name).toBe("mock-slide");
     expect(result.inventory?.uncertainties).toContain(

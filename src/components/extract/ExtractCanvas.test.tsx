@@ -91,7 +91,7 @@ function seedAnalyzedCard(): string {
       dimensions: { w: 1280, h: 720 },
     },
     provenance: {
-      pass1: { model: "claude-opus-4-6", effort: "low" },
+      pass1: { provider: "claude-code", model: "claude-opus-4-6", effort: "low" },
     },
     proposals: [
       makeProposal("extract-preview", "mode: scene\nchildren: []"),
@@ -377,6 +377,7 @@ describe("ExtractCanvas", () => {
                 },
                 provenance: {
                   pass1: {
+                    provider: "claude-code",
                     model: "claude-opus-4-6",
                     effort: "medium",
                     elapsed: 1,
@@ -411,6 +412,115 @@ describe("ExtractCanvas", () => {
           timestamp: expect.any(Number),
         },
       ]);
+    });
+  });
+
+  it("surfaces an error when the analyze stream ends without a result event", async () => {
+    testStore.getState().setAutoRefine(false);
+
+    class MockImage {
+      naturalWidth = 1280;
+      naturalHeight = 720;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      _src = "";
+
+      get src() {
+        return this._src;
+      }
+
+      set src(value: string) {
+        this._src = value;
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+
+    vi.stubGlobal("Image", MockImage);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url === "/api/extract/analyze") {
+          return makeSseResponse([]);
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      }),
+    );
+
+    const { getByText } = render(<ExtractCanvas />);
+
+    fireEvent.click(getByText("Analyze"));
+
+    await waitFor(() => {
+      const card = testStore.getState().cards.get(testCardId)!;
+      expect(card.status).toBe("error");
+      expect(card.error).toBe("Analysis stream ended before a result or error was returned.");
+      expect(card.log).toContainEqual(
+        expect.objectContaining({
+          type: "error",
+          content: "Analysis stream ended before a result or error was returned.",
+          stage: "extract",
+        }),
+      );
+    });
+  });
+
+  it("keeps the visible analyze error short and logs raw model output separately", async () => {
+    testStore.getState().setAutoRefine(false);
+
+    class MockImage {
+      naturalWidth = 1280;
+      naturalHeight = 720;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      _src = "";
+
+      get src() {
+        return this._src;
+      }
+
+      set src(value: string) {
+        this._src = value;
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+
+    vi.stubGlobal("Image", MockImage);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url === "/api/extract/analyze") {
+          return makeSseResponse([
+            {
+              event: "error",
+              data: {
+                error: "Model returned invalid JSON.",
+                raw: "{\"ok\":true}\nTrailing explanation",
+                stage: "extract",
+              },
+            },
+          ]);
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      }),
+    );
+
+    const { getByText } = render(<ExtractCanvas />);
+
+    fireEvent.click(getByText("Analyze"));
+
+    await waitFor(() => {
+      const card = testStore.getState().cards.get(testCardId)!;
+      expect(card.status).toBe("error");
+      expect(card.error).toBe("Model returned invalid JSON.");
+      expect(card.log).toContainEqual(
+        expect.objectContaining({
+          type: "tool_result",
+          content: expect.stringContaining("Raw model output preview:"),
+          stage: "extract",
+        }),
+      );
     });
   });
 
@@ -611,8 +721,9 @@ describe("ExtractCanvas", () => {
                     event: "refine:vision:done",
                     data: {
                       differences: "1. Title is too large.",
-                      issuesJson: '[{"priority":1,"area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
-                      priorIssuesJson: '[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
+                      fidelityIssuesJson: '[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9,"salience":"important"}]',
+                      designQualityIssuesJson: "[]",
+                      watchlistIssuesJson: '{"fidelityWatchlist":[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9,"salience":"important"}],"designQualityWatchlist":[]}',
                       cost: 0,
                       elapsed: 0,
                     },
@@ -706,7 +817,8 @@ describe("ExtractCanvas", () => {
                     event: "refine:vision:done",
                     data: {
                       differences: "1. Title is too large.",
-                      issuesJson: '[{"priority":1,"area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
+                      fidelityIssuesJson: '[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9,"salience":"important"}]',
+                      designQualityIssuesJson: "[]",
                       cost: 0,
                       elapsed: 0,
                     },
@@ -803,12 +915,12 @@ describe("ExtractCanvas", () => {
     expect(refineRequests[0].get("maxIterations")).toBe("1");
     expect(refineRequests[0].get("iterationOffset")).toBe("0");
     expect(refineRequests[0].get("forceIterations")).toBe("1");
-    expect(refineRequests[0].get("priorIssuesJson")).toBeNull();
+    expect(refineRequests[0].get("watchlistIssuesJson")).toBeNull();
     expect(refineRequests[1].get("maxIterations")).toBe("1");
     expect(refineRequests[1].get("iterationOffset")).toBe("1");
     expect(refineRequests[1].get("forceIterations")).toBe("1");
-    expect(refineRequests[1].get("priorIssuesJson")).toBe(
-      '[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
+    expect(refineRequests[1].get("watchlistIssuesJson")).toBe(
+      '{"fidelityWatchlist":[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9,"salience":"important"}],"designQualityWatchlist":[]}',
     );
   });
 
@@ -821,7 +933,7 @@ describe("ExtractCanvas", () => {
         contentBounds: { x: 0, y: 0, w: 1456, h: 818 },
       },
       provenance: {
-        pass1: { model: "claude-opus-4-6", effort: "low" },
+        pass1: { provider: "claude-code", model: "claude-opus-4-6", effort: "low" },
       },
       proposals: [
         {
@@ -954,6 +1066,7 @@ describe("ExtractCanvas", () => {
       },
       provenance: {
         pass1: {
+          provider: "claude-code",
           model: "claude-opus-4-6",
           effort: "low",
           elapsed: 1,
@@ -965,7 +1078,17 @@ describe("ExtractCanvas", () => {
       ],
     });
 
-    expect(testStore.getState().cards.get(testCardId)?.refinePass).toEqual({
+    expect(testStore.getState().cards.get(testCardId)?.refinePass).toMatchObject({
+      vision: {
+        provider: "claude-code",
+        model: "claude-opus-4-6",
+        effort: "low",
+      },
+      edit: {
+        provider: "claude-code",
+        model: "claude-sonnet-4-6",
+        effort: "high",
+      },
       visionModel: "claude-opus-4-6",
       visionEffort: "low",
       editModel: "claude-sonnet-4-6",

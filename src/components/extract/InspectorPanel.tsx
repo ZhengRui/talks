@@ -75,10 +75,10 @@ export default function InspectorPanel({
 
   const getActiveScrollTarget = useCallback(() => {
     if (!card) return null;
-    if (card.status === "idle" || card.status === "error") {
+    if (card.status === "idle") {
       return analyzeScrollRef.current;
     }
-    if (card.status === "analyzing" || card.status === "analyzed") {
+    if (card.status === "analyzing" || card.status === "analyzed" || card.status === "error") {
       return templateScrollTargetRef.current;
     }
     return null;
@@ -150,22 +150,25 @@ export default function InspectorPanel({
             </div>
           )}
 
-          {card && (card.status === "idle" || card.status === "error") && (
+          {card && card.status === "idle" && (
             <div ref={analyzeScrollRef} className="overflow-y-auto min-h-0">
               <AnalyzeForm card={card} onAnalyze={onAnalyze} />
             </div>
           )}
 
-          {card && (card.status === "analyzing" || card.status === "analyzed") && (
+          {card && (card.status === "analyzing" || card.status === "analyzed" || card.status === "error") && (
             <TemplateInspector
               card={card}
+              onAnalyze={onAnalyze}
               onRefine={onRefine}
               onCancelRefine={onCancelRefine}
               onScrollTargetChange={setTemplateScrollTarget}
               defaultTab={
                 // Stay on log until the entire pipeline is done.
                 // Pipeline is done when: analyzed + refine is not running
-                card.status === "analyzed" && card.refineStatus !== "running"
+                card.status === "error" || card.status === "analyzing" || card.refineStatus === "running"
+                  ? "log"
+                  : card.status === "analyzed" && card.refineStatus !== "running"
                   ? "result"
                   : "log"
               }

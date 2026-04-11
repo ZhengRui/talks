@@ -121,7 +121,9 @@ export default function SlideCard({ cardId }: SlideCardProps) {
           </span>
         )}
         {card.status === "error" && (
-          <span className="text-[11px] text-red-500">Error</span>
+          <span className="rounded bg-red-50 px-1.5 py-px text-[10px] font-medium text-red-600" title={card.error ?? "Error"}>
+            Error
+          </span>
         )}
 
         {/* Right-side buttons */}

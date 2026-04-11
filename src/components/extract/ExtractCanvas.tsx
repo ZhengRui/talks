@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { formatModelLabel } from "@/lib/extract/providers/catalog";
+import type { ProviderSelection } from "@/lib/extract/providers/shared";
 import BenchmarkLauncher from "./BenchmarkLauncher";
 import CanvasViewport from "./CanvasViewport";
 import CanvasToolbar from "./CanvasToolbar";
 import InspectorPanel from "./InspectorPanel";
-import { useExtractStore, type LogEntry } from "./store";
+import { resolveCardRefinePass, useExtractStore, type LogEntry } from "./store";
 import type {
   AnalysisStage,
   AnalysisResultPayload,
@@ -65,21 +67,39 @@ async function downscaleImage(file: File): Promise<File> {
   });
 }
 
-function formatRefineModel(value: string): string {
-  return value.replace("claude-", "");
+function formatSelectionLabel(selection: ProviderSelection): string {
+  return `${formatModelLabel(selection.provider, selection.model)} · ${selection.effort}`;
 }
 
 function formatRefineConfig(data: Record<string, unknown>): string {
+  const visionProvider =
+    typeof data.visionProvider === "string" ? data.visionProvider : "claude-code";
   const visionModel = typeof data.visionModel === "string" ? data.visionModel : "?";
   const visionEffort = typeof data.visionEffort === "string" ? data.visionEffort : "?";
+  const editProvider =
+    typeof data.editProvider === "string" ? data.editProvider : "claude-code";
   const editModel = typeof data.editModel === "string" ? data.editModel : "?";
   const editEffort = typeof data.editEffort === "string" ? data.editEffort : "?";
+  const visionSelection: ProviderSelection = {
+    provider: visionProvider as ProviderSelection["provider"],
+    model: visionModel,
+    effort: visionEffort,
+  };
+  const editSelection: ProviderSelection = {
+    provider: editProvider as ProviderSelection["provider"],
+    model: editModel,
+    effort: editEffort,
+  };
 
-  if (visionModel === editModel && visionEffort === editEffort) {
-    return `${formatRefineModel(visionModel)} · ${visionEffort}`;
+  if (
+    visionSelection.provider === editSelection.provider &&
+    visionSelection.model === editSelection.model &&
+    visionSelection.effort === editSelection.effort
+  ) {
+    return formatSelectionLabel(visionSelection);
   }
 
-  return `vision: ${formatRefineModel(visionModel)} · ${visionEffort} / edit: ${formatRefineModel(editModel)} · ${editEffort}`;
+  return `vision: ${formatSelectionLabel(visionSelection)} / edit: ${formatSelectionLabel(editSelection)}`;
 }
 
 interface BenchmarkLoadResponse {
@@ -148,7 +168,7 @@ export default function ExtractCanvas() {
   const setRefineMaxIterations = useExtractStore((s) => s.setRefineMaxIterations);
   const updateRefineDiff = useExtractStore((s) => s.updateRefineDiff);
   const updateRefinement = useExtractStore((s) => s.updateRefinement);
-  const setRefinePriorIssuesJson = useExtractStore((s) => s.setRefinePriorIssuesJson);
+  const setRefineWatchlistJson = useExtractStore((s) => s.setRefineWatchlistJson);
   const completeRefineIteration = useExtractStore((s) => s.completeRefineIteration);
   const setDiffObjectUrl = useExtractStore((s) => s.setDiffObjectUrl);
   const completeRefinement = useExtractStore((s) => s.completeRefinement);
@@ -183,20 +203,16 @@ export default function ExtractCanvas() {
     async (cardId: string, overrideMaxIterations?: number) => {
       const {
         cards,
-        refineVisionModel,
-        refineVisionEffort,
-        refineEditModel,
-        refineEditEffort,
+        refineVisionSelection,
+        refineEditSelection,
       } = useExtractStore.getState();
       const card = cards.get(cardId);
       if (!card?.analysis) return;
       const renderAnalysis = card.pass1Analysis ?? card.analysis;
-      const refinePass = card.refinePass ?? {
-        visionModel: refineVisionModel,
-        visionEffort: refineVisionEffort,
-        editModel: refineEditModel,
-        editEffort: refineEditEffort,
-      };
+      const refinePass = resolveCardRefinePass(card, {
+        refineVisionSelection,
+        refineEditSelection,
+      });
       const isManualRefine = overrideMaxIterations != null;
       const iterationOffset =
         isManualRefine && card.refineIteration > 0 ? card.refineIteration : 0;
@@ -236,11 +252,13 @@ export default function ExtractCanvas() {
       if (card.geometryHints) {
         formData.append("geometryHints", JSON.stringify(card.geometryHints));
       }
-      if (card.refinePriorIssuesJson) {
-        formData.append("priorIssuesJson", card.refinePriorIssuesJson);
+      if (card.refineWatchlistJson) {
+        formData.append("watchlistIssuesJson", card.refineWatchlistJson);
       }
+      formData.append("visionProvider", refinePass.vision.provider);
       formData.append("visionModel", refinePass.visionModel);
       formData.append("visionEffort", refinePass.visionEffort);
+      formData.append("editProvider", refinePass.edit.provider);
       formData.append("editModel", refinePass.editModel);
       formData.append("editEffort", refinePass.editEffort);
       formData.append("maxIterations", String(requestMaxIterations));
@@ -346,6 +364,10 @@ export default function ExtractCanvas() {
                       typeof data.iteration === "number" ? data.iteration : null,
                     systemPrompt: data.systemPrompt,
                     userPrompt: data.userPrompt,
+                    provider:
+                      typeof data.provider === "string"
+                        ? (data.provider as ProviderSelection["provider"])
+                        : undefined,
                     model:
                       typeof data.model === "string" ? data.model : undefined,
                     effort:
@@ -374,13 +396,11 @@ export default function ExtractCanvas() {
                 break;
               }
               case "refine:vision:done": {
-                setRefinePriorIssuesJson(
+                setRefineWatchlistJson(
                   cardId,
-                  typeof data.priorIssuesJson === "string"
-                    ? data.priorIssuesJson
-                    : typeof data.issuesJson === "string"
-                      ? data.issuesJson
-                      : null,
+                  typeof data.watchlistIssuesJson === "string"
+                    ? data.watchlistIssuesJson
+                    : null,
                 );
                 const visionMeta = [
                   typeof data.elapsed === "number" ? `${data.elapsed}s` : null,
@@ -581,7 +601,7 @@ export default function ExtractCanvas() {
       completeRefineIteration,
       failRefinement,
       setDiffObjectUrl,
-      setRefinePriorIssuesJson,
+      setRefineWatchlistJson,
       startRefinement,
       continueRefinement,
       setRefineMaxIterations,
@@ -613,7 +633,7 @@ export default function ExtractCanvas() {
       const timer = setInterval(() => tickElapsed(cardId), 1000);
       timersRef.current.set(cardId, timer);
 
-      const { model, effort } = useExtractStore.getState();
+      const { analyzeSelection } = useExtractStore.getState();
       const normalizedImage = await downscaleImage(card.file);
       setNormalizedImage(cardId, normalizedImage);
       const formData = new FormData();
@@ -627,8 +647,9 @@ export default function ExtractCanvas() {
       if (card.geometryHints) {
         formData.append("geometryHints", JSON.stringify(card.geometryHints));
       }
-      formData.append("model", model);
-      formData.append("effort", effort);
+      formData.append("provider", analyzeSelection.provider);
+      formData.append("model", analyzeSelection.model);
+      formData.append("effort", analyzeSelection.effort);
 
       try {
         const response = await fetch("/api/extract/analyze", {
@@ -700,6 +721,10 @@ export default function ExtractCanvas() {
                         typeof data.iteration === "number" ? data.iteration : null,
                       systemPrompt: data.systemPrompt,
                       userPrompt: data.userPrompt,
+                      provider:
+                        typeof data.provider === "string"
+                          ? (data.provider as ProviderSelection["provider"])
+                          : undefined,
                       model:
                         typeof data.model === "string" ? data.model : undefined,
                       effort:
@@ -715,6 +740,8 @@ export default function ExtractCanvas() {
                     content: data.text,
                     timestamp: Date.now(),
                     stage,
+                    streamKey:
+                      typeof data.streamKey === "string" ? data.streamKey : undefined,
                   };
                   appendLog(cardId, thinkingEntry);
                   break;
@@ -725,6 +752,8 @@ export default function ExtractCanvas() {
                     content: data.text,
                     timestamp: Date.now(),
                     stage,
+                    streamKey:
+                      typeof data.streamKey === "string" ? data.streamKey : undefined,
                   };
                   appendLog(cardId, textEntry);
                   break;
@@ -750,14 +779,27 @@ export default function ExtractCanvas() {
                   break;
                 }
                 case "error": {
-                  const errorMsg =
-                    data.error + (data.raw ? `\nRaw: ${data.raw}` : "");
+                  const errorMsg = data.error;
+                  console.error("[extract/analyze] SSE error", {
+                    cardId,
+                    stage,
+                    error: data.error,
+                    raw: data.raw,
+                  });
                   appendLog(cardId, {
                     type: "error",
                     content: errorMsg,
                     timestamp: Date.now(),
                     stage,
                   });
+                  if (typeof data.raw === "string" && data.raw.trim()) {
+                    appendLog(cardId, {
+                      type: "tool_result",
+                      content: `Raw model output preview:\n${data.raw}`,
+                      timestamp: Date.now(),
+                      stage,
+                    });
+                  }
                   failAnalysis(cardId, errorMsg);
                   // Clear timer on error
                   const errorTimer = timersRef.current.get(cardId);
@@ -783,6 +825,10 @@ export default function ExtractCanvas() {
                           : null,
                       systemPrompt: data.prompt.systemPrompt,
                       userPrompt: data.prompt.userPrompt,
+                      provider:
+                        typeof data.prompt?.provider === "string"
+                          ? (data.prompt.provider as ProviderSelection["provider"])
+                          : undefined,
                       model:
                         typeof data.prompt?.model === "string"
                           ? data.prompt.model
@@ -811,6 +857,10 @@ export default function ExtractCanvas() {
           }
         }
 
+        if (!analysisCompleted) {
+          throw new Error("Analysis stream ended before a result or error was returned.");
+        }
+
         if (analysisCompleted) {
           const updatedCard = useExtractStore.getState().cards.get(cardId);
           if (updatedCard?.autoRefine) {
@@ -818,9 +868,20 @@ export default function ExtractCanvas() {
           }
         }
       } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        console.error("[extract/analyze] request failed", {
+          cardId,
+          error: errorMessage,
+        });
+        appendLog(cardId, {
+          type: "error",
+          content: errorMessage,
+          timestamp: Date.now(),
+          stage: "extract",
+        });
         failAnalysis(
           cardId,
-          err instanceof Error ? err.message : String(err),
+          errorMessage,
         );
       } finally {
         // Clear elapsed timer only if refine is NOT about to start.

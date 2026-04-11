@@ -2,7 +2,8 @@
 
 import { useRef, useState, useEffect } from "react";
 import { Check, Copy, RotateCcw, Sparkles } from "lucide-react";
-import { useExtractStore } from "./store";
+import { formatModelLabel } from "@/lib/extract/providers/catalog";
+import { resolveCardRefinePass, useExtractStore } from "./store";
 import type { SlideCard } from "./store";
 import { getStageAnalysis } from "./stage-utils";
 import TemplateTabs from "./TemplateTabs";
@@ -53,14 +54,15 @@ function CopyPromptButton({ text }: { text: string }) {
 
 interface TemplateInspectorProps {
   card: SlideCard;
+  onAnalyze?: (cardId: string) => void;
   onRefine: (cardId: string, maxIterations?: number) => void;
   onCancelRefine: (cardId: string) => void;
   defaultTab?: "result" | "log" | "prompt";
   onScrollTargetChange?: (element: HTMLDivElement | null) => void;
 }
 
-function formatModel(model: string): string {
-  return model.replace("claude-", "").replace("-20251001", "");
+function formatModel(model: string, provider: string = "claude-code"): string {
+  return formatModelLabel(provider as "claude-code" | "openai-codex" | "mock", model);
 }
 
 function formatStageMeta(parts: Array<string | null>): string {
@@ -74,7 +76,7 @@ function filterPromptEntries(promptHistory: PromptRecord[], stage: "extract" | "
 function formatPromptHeading(entry: PromptRecord): string {
   const modelMeta = entry.model
     ? formatStageMeta([
-        formatModel(entry.model),
+        formatModel(entry.model, entry.provider),
         entry.effort ?? null,
       ])
     : null;
@@ -325,6 +327,7 @@ function ResetConfirmPopover({ onConfirm, onCancel }: { onConfirm: () => void; o
 
 export default function TemplateInspector({
   card,
+  onAnalyze,
   onRefine,
   onCancelRefine,
   defaultTab = "result",
@@ -360,11 +363,12 @@ export default function TemplateInspector({
       ? `${card.refineIteration}/${card.refineMaxIterations}`
       : null;
 
-  const refineVisionModel = useExtractStore((s) => s.refineVisionModel);
-  const refineVisionEffort = useExtractStore((s) => s.refineVisionEffort);
-  const refineEditModel = useExtractStore((s) => s.refineEditModel);
-  const refineEditEffort = useExtractStore((s) => s.refineEditEffort);
-  const refinePass = card.refinePass;
+  const refineVisionSelection = useExtractStore((s) => s.refineVisionSelection);
+  const refineEditSelection = useExtractStore((s) => s.refineEditSelection);
+  const refinePass = resolveCardRefinePass(card, {
+    refineVisionSelection,
+    refineEditSelection,
+  });
   const [viewTab, setViewTab] = useState<"result" | "log" | "prompt">(defaultTab);
   // Sync when defaultTab changes (e.g. analyzing → analyzed)
   const prevDefaultTab = useRef(defaultTab);
@@ -394,16 +398,13 @@ export default function TemplateInspector({
 
   const activeLogEntries = filterLogEntries(card.log, card.activeStage);
   const activePromptEntries = filterPromptEntries(card.promptHistory ?? [], card.activeStage);
+  const activeStageError = card.activeStage === "extract" ? card.error : card.refineError;
+  const showRetryAnalyze = card.activeStage === "extract" && card.status === "error" && Boolean(onAnalyze);
 
   // Build stage meta string for the active stage
   const stageMetaLines = (() => {
     if (card.activeStage === "refine") {
-      const resolvedPass = refinePass ?? {
-        visionModel: refineVisionModel,
-        visionEffort: refineVisionEffort,
-        editModel: refineEditModel,
-        editEffort: refineEditEffort,
-      };
+      const resolvedPass = refinePass;
       const totals = formatStageMeta([
         card.refineElapsed > 0 ? `${card.refineElapsed}s` : null,
         card.refineCost != null ? `$${card.refineCost.toFixed(2)}` : null,
@@ -415,7 +416,7 @@ export default function TemplateInspector({
       ) {
         return [
           formatStageMeta([
-            formatModel(resolvedPass.visionModel),
+            formatModel(resolvedPass.visionModel, resolvedPass.vision.provider),
             resolvedPass.visionEffort,
             totals || null,
           ]),
@@ -424,11 +425,11 @@ export default function TemplateInspector({
 
       return [
         `vision: ${formatStageMeta([
-          formatModel(resolvedPass.visionModel),
+          formatModel(resolvedPass.visionModel, resolvedPass.vision.provider),
           resolvedPass.visionEffort,
         ])}`,
         `edit: ${formatStageMeta([
-          formatModel(resolvedPass.editModel),
+          formatModel(resolvedPass.editModel, resolvedPass.edit.provider),
           resolvedPass.editEffort,
         ])}`,
         ...(totals ? [totals] : []),
@@ -436,7 +437,7 @@ export default function TemplateInspector({
     }
     if (activeMeta?.pass) {
       return [formatStageMeta([
-        formatModel(activeMeta.pass.model),
+        formatModel(activeMeta.pass.model, activeMeta.pass.provider),
         activeMeta.pass.effort,
         activeMeta.elapsed > 0 ? `${activeMeta.elapsed}s` : null,
         activeMeta.cost != null ? `$${activeMeta.cost.toFixed(2)}` : null,
@@ -488,6 +489,17 @@ export default function TemplateInspector({
           >
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
             <span className="hidden @[22rem]:inline">Cancel</span>
+          </button>
+        )}
+        {showRetryAnalyze && onAnalyze && (
+          <button
+            type="button"
+            onClick={() => onAnalyze(card.id)}
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-100/60 hover:text-red-700"
+            title="Retry extract"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            <span className="hidden @[22rem]:inline">Retry</span>
           </button>
         )}
         {card.status === "analyzed" && card.refineStatus !== "running" && (
@@ -567,6 +579,16 @@ export default function TemplateInspector({
         ) : null}
       </div>
 
+      {activeStageError ? (
+        <div className="border-b border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <div className="font-medium">Stage error</div>
+          <div className="mt-1 leading-5">{activeStageError}</div>
+          {showRetryAnalyze ? (
+            <div className="mt-1 text-red-600/80">Use Retry to rerun current settings, or Reset to change them.</div>
+          ) : null}
+        </div>
+      ) : null}
+
       {viewTab === "log" ? (
         /* Log view — inline, filtered to active stage */
         <div
@@ -642,7 +664,7 @@ export default function TemplateInspector({
 
             {proposals.length === 0 ? (
               <div className="flex items-center justify-center p-6 text-sm text-gray-400">
-                No templates extracted.
+                {activeStageError ? "No parsed result for this stage. Check Log or Prompt." : "No templates extracted."}
               </div>
             ) : (
               <>

@@ -1,7 +1,9 @@
 import { parse as yamlParse, stringify as yamlStringify } from "yaml";
 import type { AnalysisResultPayload, Proposal } from "@/components/extract/types";
+import type { ExtractModelProvider } from "@/lib/extract/providers/types";
+import type { ProviderSelection } from "@/lib/extract/providers/shared";
 
-export const MOCK_CLAUDE_MODEL = "mock-claude";
+export const MOCK_PROVIDER_MODEL = "mock";
 
 function truncateText(value: string, maxLength: number): string {
   const trimmed = value.trim().replace(/\s+/g, " ");
@@ -42,7 +44,7 @@ function buildMockSlideBody(title: string, subtitle: string): string {
         kind: "text",
         id: "mock-footer",
         frame: { x: 112, y: 620, w: 1056, h: 28 },
-        text: "Mock Claude response for local UI testing",
+        text: "Mock provider response for local UI testing",
         style: {
           fontSize: 20,
           color: "#22d3ee",
@@ -65,8 +67,8 @@ function cloneProposal(proposal: Proposal): Proposal {
   };
 }
 
-export function isMockClaudeModel(model: string): boolean {
-  return model === MOCK_CLAUDE_MODEL;
+export function isMockProviderSelection(selection: ProviderSelection): boolean {
+  return selection.provider === "mock";
 }
 
 export function createMockAnalysisResult(options: {
@@ -79,11 +81,11 @@ export function createMockAnalysisResult(options: {
   const title = promptText || truncateText(slug ?? "", 48) || "Mock Extract";
   const subtitle = promptText
     ? "Deterministic local extract result"
-    : "No Claude call was made";
+    : "No model call was made";
 
   return {
     source: {
-      image: "mock://claude/extract",
+      image: "mock://provider/extract",
       dimensions,
       contentBounds: { x: 0, y: 0, w: dimensions.w, h: dimensions.h },
     },
@@ -113,7 +115,7 @@ export function createMockAnalysisResult(options: {
       repeatGroups: [],
       signatureVisuals: [
         {
-          text: "Mock Claude response",
+          text: "Mock provider response",
           importance: "medium",
         },
       ],
@@ -184,3 +186,23 @@ export function createMockRefineProposals(
 
   return nextProposals;
 }
+
+export const mockProvider: ExtractModelProvider = {
+  id: "mock",
+  async run(input) {
+    await input.onEvent?.({
+      type: "thinking",
+      text: "Mock provider selected. Returning deterministic local output.",
+    });
+    await input.onEvent?.({
+      type: "text",
+      text: "Mock provider response ready.",
+    });
+    return {
+      text: "Mock provider response ready.",
+      elapsed: 0,
+      cost: 0,
+      usage: null,
+    };
+  },
+};

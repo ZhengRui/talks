@@ -1,15 +1,22 @@
 import { NextRequest } from "next/server";
-import { query } from "@anthropic-ai/claude-agent-sdk";
 import {
   ANALYSIS_SYSTEM_PROMPT,
   buildAnalysisPrompt,
 } from "@/lib/extract/prompts";
 import {
   createMockAnalysisResult,
-  isMockClaudeModel,
-} from "@/lib/extract/mock-claude";
+  isMockProviderSelection,
+} from "@/lib/extract/mock-provider";
 import { normalizeAnalysisRegions } from "@/lib/extract/normalize-analysis";
+import {
+  getExtractModelProvider,
+} from "@/lib/extract/providers/registry";
+import {
+  normalizeProviderSelection,
+} from "@/lib/extract/providers/catalog";
 import type { AnalysisStage, GeometryHints } from "@/components/extract/types";
+import type { ProviderSelection } from "@/lib/extract/providers/shared";
+import { extractJsonPayload } from "@/lib/extract/json-payload";
 
 /** Infer media type from file extension. */
 function inferMediaType(fileName: string): string {
@@ -21,11 +28,9 @@ function inferMediaType(fileName: string): string {
 
 /** Read actual image dimensions from a PNG/JPEG/WebP buffer. */
 function readImageSize(buffer: Buffer): { w: number; h: number } | null {
-  // PNG: bytes 16-23 contain width (4 bytes) and height (4 bytes) in IHDR
   if (buffer[0] === 0x89 && buffer[1] === 0x50) {
     return { w: buffer.readUInt32BE(16), h: buffer.readUInt32BE(20) };
   }
-  // JPEG: scan for SOF0/SOF2 markers (0xFFC0/0xFFC2)
   if (buffer[0] === 0xff && buffer[1] === 0xd8) {
     let offset = 2;
     while (offset < buffer.length - 8) {
@@ -40,7 +45,6 @@ function readImageSize(buffer: Buffer): { w: number; h: number } | null {
       offset += 2 + buffer.readUInt16BE(offset + 2);
     }
   }
-  // WebP RIFF: VP8 chunk at offset 12
   if (
     buffer.toString("ascii", 0, 4) === "RIFF" &&
     buffer.toString("ascii", 8, 12) === "WEBP"
@@ -60,13 +64,42 @@ function readImageSize(buffer: Buffer): { w: number; h: number } | null {
   return null;
 }
 
+export const runtime = "nodejs";
 export const maxDuration = 120;
 
-function extractJsonPayload(resultText: string): string | null {
-  const jsonMatch =
-    resultText.match(/```json\s*([\s\S]*?)\s*```/) ??
-    resultText.match(/(\{[\s\S]*\})/);
-  return jsonMatch?.[1] ?? null;
+function logAnalyzeError(
+  message: string,
+  selection: { provider: string; model: string; effort: string },
+  extra?: Record<string, unknown>,
+): void {
+  console.error("[extract/analyze]", {
+    message,
+    provider: selection.provider,
+    model: selection.model,
+    effort: selection.effort,
+    ...extra,
+  });
+}
+
+function formatAnalysisJsonError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("Unexpected non-whitespace character after JSON")) {
+    return "Model returned JSON followed by extra text.";
+  }
+  return "Model returned invalid JSON.";
+}
+
+function extractJsonErrorContext(payload: string, error: unknown, radius: number = 220): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const match = message.match(/position (\d+)/);
+  const position = match ? Number.parseInt(match[1] ?? "", 10) : Number.NaN;
+  if (!Number.isFinite(position)) {
+    return payload.slice(0, Math.min(payload.length, radius * 2));
+  }
+
+  const start = Math.max(0, position - radius);
+  const end = Math.min(payload.length, position + radius);
+  return payload.slice(start, end);
 }
 
 export async function POST(request: NextRequest) {
@@ -75,8 +108,11 @@ export async function POST(request: NextRequest) {
   const text = formData.get("text") as string | null;
   const slug = formData.get("slug") as string | null;
   const geometryHintsJson = formData.get("geometryHints") as string | null;
-  const model = (formData.get("model") as string) || "claude-opus-4-6";
-  const effort = (formData.get("effort") as string) || "low";
+  const selection = normalizeProviderSelection({
+    provider: formData.get("provider") as string | null,
+    model: formData.get("model") as string | null,
+    effort: formData.get("effort") as string | null,
+  });
 
   if (!image) {
     return new Response(JSON.stringify({ error: "No image provided" }), {
@@ -101,29 +137,6 @@ export async function POST(request: NextRequest) {
   }
   const analysisPrompt = buildAnalysisPrompt(text, slug, geometryHints);
 
-  async function* makePrompt(promptText: string) {
-    yield {
-      type: "user" as const,
-      session_id: "",
-      message: {
-        role: "user" as const,
-        content: [
-          {
-            type: "image" as const,
-            source: {
-              type: "base64" as const,
-              media_type: mediaType,
-              data: imageBuffer.toString("base64"),
-            },
-          },
-          { type: "text" as const, text: promptText },
-        ],
-      },
-      parent_tool_use_id: null,
-    };
-  }
-
-  // Stream SSE events to the client
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
@@ -132,9 +145,7 @@ export async function POST(request: NextRequest) {
       function send(event: string, data: Record<string, unknown>, stage?: AnalysisStage | null) {
         const payload = stage ? { ...data, stage } : data;
         controller.enqueue(
-          encoder.encode(
-            `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`,
-          ),
+          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`),
         );
       }
 
@@ -143,11 +154,12 @@ export async function POST(request: NextRequest) {
           phase: "extract",
           systemPrompt: ANALYSIS_SYSTEM_PROMPT,
           userPrompt: analysisPrompt,
-          model,
-          effort,
+          provider: selection.provider,
+          model: selection.model,
+          effort: selection.effort,
         }, "extract");
 
-        if (isMockClaudeModel(model)) {
+        if (isMockProviderSelection(selection)) {
           const dimensions = actualSize ?? { w: 1280, h: 720 };
           const mockAnalysis = createMockAnalysisResult({
             description: text,
@@ -156,22 +168,32 @@ export async function POST(request: NextRequest) {
           });
 
           send("status", {
-            message: "Session started (extract) — Mock Claude · local stub",
+            message: "Session started (extract) — Mock · local stub",
           }, "extract");
           send("thinking", {
-            text: "Skipping Claude and returning a deterministic local extract result.",
+            text: "Skipping model execution and returning a deterministic local extract result.",
           }, "extract");
           send("text", {
-            text: "Mock Claude response ready.",
+            text: "Mock provider response ready.",
           }, "extract");
           send("result", {
             ...mockAnalysis,
+            prompt: {
+              phase: "extract",
+              systemPrompt: ANALYSIS_SYSTEM_PROMPT,
+              userPrompt: analysisPrompt,
+              provider: selection.provider,
+              model: selection.model,
+              effort: selection.effort,
+            },
             provenance: {
               pass1: {
-                model,
-                effort,
+                provider: selection.provider,
+                model: selection.model,
+                effort: selection.effort,
                 elapsed: 0,
                 cost: 0,
+                usage: null,
               },
             },
           }, "extract");
@@ -179,176 +201,86 @@ export async function POST(request: NextRequest) {
           return;
         }
 
-        function buildQueryOptions(
-          systemPrompt: string,
-          passModel: string = model,
-          passEffort: string = effort,
-        ): import("@anthropic-ai/claude-agent-sdk").Options {
-          const isAdaptive = passModel === "claude-opus-4-6" || passModel === "claude-sonnet-4-6";
-          const thinkingConfig = isAdaptive
-            ? { type: "adaptive" as const }
-            : { type: "enabled" as const, budget_tokens: parseInt(passEffort, 10) || 10000 };
-          const effortConfig = isAdaptive
-            ? (passEffort as "low" | "medium" | "high" | "max")
-            : undefined;
-          return {
-            cwd: process.cwd(),
-            settingSources: ["project"],
-            allowedTools: [],
-            maxTurns: 1,
-            model: passModel,
-            thinking: thinkingConfig,
-            ...(effortConfig ? { effort: effortConfig } : {}),
-            systemPrompt,
-            includePartialMessages: true,
-            persistSession: false,
-            // Use Claude Code subscription auth, not API key
-            pathToClaudeCodeExecutable: "/Users/zerry/.local/bin/claude",
-            env: { ...process.env, ANTHROPIC_API_KEY: "" },
-          };
-        }
-
-        async function runPass(
-          passLabel: string,
-          promptText: string,
-          systemPrompt: string,
-          stage: AnalysisStage,
-          passModel: string = model,
-          passEffort: string = effort,
-        ): Promise<{ text: string; elapsed: number; cost: number | null }> {
-          let resultText = "";
-          let totalCost: number | null = null;
-          let sawThinkingDeltaForAssistant = false;
-          const startedAt = Date.now();
-          const queryOptions = buildQueryOptions(systemPrompt, passModel, passEffort);
-
-          for await (const message of query({
-            prompt: makePrompt(promptText),
-            options: queryOptions,
-          })) {
-            const msg = message as Record<string, unknown>;
-
-            if (msg.type === "system" && msg.subtype === "init") {
-              const sessionModel = msg.model as string | undefined;
-              send("status", {
-                message: `Session started (${passLabel}) — ${(sessionModel ?? "unknown").replace("claude-", "")} · ${queryOptions.thinking?.type ?? "default"} · ${queryOptions.effort ?? effort}`,
-              }, stage);
-              continue;
+        send("status", { message: "Starting analysis..." }, "extract");
+        const provider = getExtractModelProvider(selection);
+        const pass1Result = await provider.run({
+          phase: "extract",
+          systemPrompt: ANALYSIS_SYSTEM_PROMPT,
+          userPrompt: analysisPrompt,
+          content: [
+            {
+              type: "image",
+              buffer: imageBuffer,
+              mediaType,
+              fileName: image.name,
+            },
+            {
+              type: "text",
+              text: analysisPrompt,
+            },
+          ],
+          selection,
+          signal: request.signal,
+          async onEvent(event) {
+            switch (event.type) {
+              case "status":
+                send("status", { message: event.message ?? "" }, "extract");
+                break;
+              case "thinking":
+                send("thinking", { text: event.text ?? "", streamKey: event.streamKey }, "extract");
+                break;
+              case "text":
+                send("text", { text: event.text ?? "", streamKey: event.streamKey }, "extract");
+                break;
+              case "tool":
+                send("tool", { name: event.name, input: event.input }, "extract");
+                break;
+              case "tool_result":
+                send("tool_result", { preview: event.preview ?? "(empty)" }, "extract");
+                break;
             }
-
-            if (msg.type === "stream_event") {
-              const event = msg.event as Record<string, unknown> | undefined;
-              if (event?.type === "content_block_delta") {
-                const delta = event.delta as Record<string, unknown> | undefined;
-                if (
-                  delta?.type === "text_delta" &&
-                  typeof delta.text === "string"
-                ) {
-                  resultText += delta.text;
-                  send("text", { text: delta.text }, stage);
-                } else if (
-                  delta?.type === "thinking_delta" &&
-                  typeof delta.thinking === "string"
-                ) {
-                  sawThinkingDeltaForAssistant = true;
-                  send("thinking", { text: delta.thinking }, stage);
-                }
-              }
-              continue;
-            }
-
-            if (msg.type === "assistant" && msg.message) {
-              const assistantMsg = msg.message as Record<string, unknown>;
-              if (Array.isArray(assistantMsg.content)) {
-                for (const block of assistantMsg.content) {
-                  const b = block as Record<string, unknown>;
-                  if (b.type === "tool_use") {
-                    send("tool", { name: b.name, input: b.input }, stage);
-                  } else if (
-                    b.type === "thinking" &&
-                    typeof b.thinking === "string"
-                  ) {
-                    if (!sawThinkingDeltaForAssistant) {
-                      send("thinking", { text: b.thinking }, stage);
-                    }
-                  }
-                }
-              }
-              sawThinkingDeltaForAssistant = false;
-            }
-
-            if (msg.type === "user") {
-              const userMsg = msg.message as Record<string, unknown> | undefined;
-              if (Array.isArray(userMsg?.content)) {
-                for (const block of userMsg.content) {
-                  const b = block as Record<string, unknown>;
-                  if (b.type === "tool_result") {
-                    const content = b.content as
-                      | string
-                      | Array<Record<string, unknown>>
-                      | undefined;
-                    let preview = "";
-                    if (typeof content === "string") {
-                      preview = content.slice(0, 200);
-                    } else if (Array.isArray(content)) {
-                      for (const c of content) {
-                        if (c.type === "text" && typeof c.text === "string") {
-                          preview = c.text.slice(0, 200);
-                          break;
-                        }
-                      }
-                    }
-                    send("tool_result", { preview: preview || "(empty)" }, stage);
-                  }
-                }
-              }
-            }
-
-            if (msg.type === "result") {
-              if (typeof msg.result === "string") {
-                resultText = msg.result;
-              }
-              const usage = msg.usage as Record<string, number> | undefined;
-              totalCost =
-                typeof msg.total_cost_usd === "number" ? msg.total_cost_usd : null;
-              send("status", {
-                message: `Done (${passLabel} / ${msg.subtype})`,
-                turns: msg.num_turns,
-                cost: msg.total_cost_usd,
-                inputTokens: usage?.input_tokens,
-                outputTokens: usage?.output_tokens,
-              }, stage);
-            }
-          }
-
-          return {
-            text: resultText,
-            elapsed: Math.round((Date.now() - startedAt) / 1000),
-            cost: totalCost,
-          };
-        }
+          },
+        });
 
         send("status", {
-          message: "Starting analysis...",
+          message: "Done (extract)",
+          cost: pass1Result.cost,
+          inputTokens: pass1Result.usage?.inputTokens,
+          outputTokens: pass1Result.usage?.outputTokens,
         }, "extract");
-        const pass1Result = await runPass(
-          "extract",
-          analysisPrompt,
-          ANALYSIS_SYSTEM_PROMPT,
-          "extract",
-        );
-        const pass1Text = pass1Result.text;
-        const pass1Json = extractJsonPayload(pass1Text);
+
+        const rawResultText = pass1Result.text || "(empty)";
+        const pass1Json = extractJsonPayload(rawResultText);
         if (!pass1Json) {
+          const rawPreview = rawResultText.slice(0, 4000);
+          logAnalyzeError("Model did not return a JSON payload", selection, {
+            rawPreview,
+          });
           send("error", {
-            error: "Failed to parse analysis response",
-            raw: pass1Text || "(empty)",
+            error: "Model did not return a JSON payload.",
+            raw: rawPreview,
           }, "extract");
           controller.close();
           return;
         }
 
-        const pass1Parsed = JSON.parse(pass1Json) as Record<string, unknown>;
+        let pass1Parsed: Record<string, unknown>;
+        try {
+          pass1Parsed = JSON.parse(pass1Json) as Record<string, unknown>;
+        } catch (error) {
+          const rawPreview = extractJsonErrorContext(pass1Json, error);
+          logAnalyzeError("Model returned invalid JSON payload", selection, {
+            parseError: error instanceof Error ? error.message : String(error),
+            rawPreview,
+          });
+          send("error", {
+            error: formatAnalysisJsonError(error),
+            raw: rawPreview,
+          }, "extract");
+          controller.close();
+          return;
+        }
+
         const analysis = normalizeAnalysisRegions(pass1Parsed, actualSize);
 
         send("result", {
@@ -358,22 +290,27 @@ export async function POST(request: NextRequest) {
             phase: "extract",
             systemPrompt: ANALYSIS_SYSTEM_PROMPT,
             userPrompt: analysisPrompt,
-            model,
-            effort,
+            provider: selection.provider,
+            model: selection.model,
+            effort: selection.effort,
           },
           provenance: {
             pass1: {
-              model,
-              effort,
+              provider: selection.provider,
+              model: selection.model,
+              effort: selection.effort,
               elapsed: pass1Result.elapsed,
               cost: pass1Result.cost,
+              usage: pass1Result.usage,
             },
           },
         }, "extract");
         controller.close();
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logAnalyzeError(errorMessage, selection);
         send("error", {
-          error: `Analysis failed: ${error instanceof Error ? error.message : String(error)}`,
+          error: `Analysis failed: ${errorMessage}`,
         }, currentStage);
         controller.close();
       }

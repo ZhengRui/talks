@@ -1,7 +1,13 @@
 "use client";
 
 import { Sparkles } from "lucide-react";
-import { useExtractStore } from "./store";
+import {
+  getCatalogEntriesForProvider,
+  getModelCatalogEntry,
+  getProviderOptions,
+} from "@/lib/extract/providers/catalog";
+import type { ProviderSelection } from "@/lib/extract/providers/shared";
+import { resolveCardRefinePass, useExtractStore } from "./store";
 import type { SlideCard } from "./store";
 
 interface AnalyzeFormProps {
@@ -9,62 +15,34 @@ interface AnalyzeFormProps {
   onAnalyze: (cardId: string) => void;
 }
 
-const MODELS = [
-  { value: "claude-opus-4-6", label: "Opus 4.6" },
-  { value: "claude-sonnet-4-6", label: "Sonnet 4.6" },
-  { value: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
-  { value: "mock-claude", label: "Mock Claude" },
-];
-
-// Opus 4.6 & Sonnet 4.6: adaptive thinking with effort levels
-// Haiku 4.5: manual thinking with budget_tokens (no effort parameter)
-const EFFORT_OPTIONS: Record<string, { value: string; label: string }[]> = {
-  "claude-opus-4-6": [
-    { value: "low", label: "Low" },
-    { value: "medium", label: "Medium" },
-    { value: "high", label: "High" },
-    { value: "max", label: "Max" },
-  ],
-  "claude-sonnet-4-6": [
-    { value: "low", label: "Low" },
-    { value: "medium", label: "Medium" },
-    { value: "high", label: "High" },
-    { value: "max", label: "Max" },
-  ],
-  "claude-haiku-4-5-20251001": [
-    { value: "10000", label: "10k tokens" },
-    { value: "30000", label: "30k tokens" },
-    { value: "60000", label: "60k tokens" },
-  ],
-  "mock-claude": [
-    { value: "low", label: "Low" },
-    { value: "medium", label: "Medium" },
-    { value: "high", label: "High" },
-  ],
-};
-
-function isAdaptiveModel(model: string): boolean {
-  return model === "claude-opus-4-6" || model === "claude-sonnet-4-6";
+function effortPrefix(selection: ProviderSelection): string {
+  const entry = getModelCatalogEntry(selection.provider, selection.model);
+  return entry?.effortMode === "budget" ? "Think" : "Effort";
 }
 
 function PassRow({
   label,
-  model,
+  selection,
+  onProviderChange,
   onModelChange,
-  effort,
   onEffortChange,
   disabled,
   sub,
 }: {
   label: string;
-  model: string;
-  onModelChange: (v: string) => void;
-  effort: string;
-  onEffortChange: (v: string) => void;
+  selection: ProviderSelection;
+  onProviderChange: (provider: ProviderSelection["provider"]) => void;
+  onModelChange: (model: string) => void;
+  onEffortChange: (effort: string) => void;
   disabled?: boolean;
   sub?: boolean;
 }) {
-  const effortOptions = EFFORT_OPTIONS[model] ?? EFFORT_OPTIONS["claude-opus-4-6"];
+  const providerOptions = getProviderOptions();
+  const modelOptions = getCatalogEntriesForProvider(selection.provider);
+  const currentEntry = getModelCatalogEntry(selection.provider, selection.model) ?? modelOptions[0];
+  const effortOptions = currentEntry?.effortOptions ?? [];
+  const effortLabel = effortPrefix(selection);
+
   return (
     <div className={`flex items-center gap-2${sub ? " pl-5" : ""}`}>
       <span className={`flex shrink-0 items-center gap-1 text-xs font-medium ${sub ? "text-gray-400 w-[52px]" : "text-gray-600 w-[72px]"}`}>
@@ -72,24 +50,34 @@ function PassRow({
         {label}
       </span>
       <select
-        value={model}
+        value={selection.provider}
+        onChange={(e) => onProviderChange(e.target.value as ProviderSelection["provider"])}
+        disabled={disabled}
+        className={`flex-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 focus:outline-none ${disabled ? "opacity-40 pointer-events-none" : ""}`}
+      >
+        {providerOptions.map((provider) => (
+          <option key={provider.value} value={provider.value}>{provider.label}</option>
+        ))}
+      </select>
+      <select
+        value={selection.model}
         onChange={(e) => onModelChange(e.target.value)}
         disabled={disabled}
         className={`flex-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 focus:outline-none ${disabled ? "opacity-40 pointer-events-none" : ""}`}
       >
-        {MODELS.map((m) => (
-          <option key={m.value} value={m.value}>{m.label}</option>
+        {modelOptions.map((model) => (
+          <option key={model.model} value={model.model}>{model.label}</option>
         ))}
       </select>
       <select
-        value={effort}
+        value={selection.effort}
         onChange={(e) => onEffortChange(e.target.value)}
         disabled={disabled}
         className={`flex-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 focus:outline-none ${disabled ? "opacity-40 pointer-events-none" : ""}`}
       >
-        {effortOptions.map((e) => (
-          <option key={e.value} value={e.value}>
-            {isAdaptiveModel(model) ? `Effort: ${e.label}` : `Think: ${e.label}`}
+        {effortOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {`${effortLabel}: ${option.label}`}
           </option>
         ))}
       </select>
@@ -99,93 +87,42 @@ function PassRow({
 
 export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
   const updateDescription = useExtractStore((s) => s.updateDescription);
-  const model = useExtractStore((s) => s.model);
-  const effort = useExtractStore((s) => s.effort);
+  const analyzeSelection = useExtractStore((s) => s.analyzeSelection);
+  const setAnalyzeProvider = useExtractStore((s) => s.setAnalyzeProvider);
+  const setAnalyzeModel = useExtractStore((s) => s.setAnalyzeModel);
+  const setAnalyzeEffort = useExtractStore((s) => s.setAnalyzeEffort);
   const setAutoRefine = useExtractStore((s) => s.setAutoRefine);
   const setCardAutoRefine = useExtractStore((s) => s.setCardAutoRefine);
   const setRefineMaxIterations = useExtractStore((s) => s.setRefineMaxIterations);
   const setRefineMismatchThreshold = useExtractStore((s) => s.setRefineMismatchThreshold);
-  const refineVisionModel = useExtractStore((s) => s.refineVisionModel);
-  const refineVisionEffort = useExtractStore((s) => s.refineVisionEffort);
-  const refineEditModel = useExtractStore((s) => s.refineEditModel);
-  const refineEditEffort = useExtractStore((s) => s.refineEditEffort);
+  const refineVisionSelection = useExtractStore((s) => s.refineVisionSelection);
+  const refineEditSelection = useExtractStore((s) => s.refineEditSelection);
+  const setRefineVisionProvider = useExtractStore((s) => s.setRefineVisionProvider);
   const setRefineVisionModel = useExtractStore((s) => s.setRefineVisionModel);
   const setRefineVisionEffort = useExtractStore((s) => s.setRefineVisionEffort);
+  const setRefineEditProvider = useExtractStore((s) => s.setRefineEditProvider);
   const setRefineEditModel = useExtractStore((s) => s.setRefineEditModel);
   const setRefineEditEffort = useExtractStore((s) => s.setRefineEditEffort);
+  const setCardRefineVisionProvider = useExtractStore((s) => s.setCardRefineVisionProvider);
   const setCardRefineVisionModel = useExtractStore((s) => s.setCardRefineVisionModel);
   const setCardRefineVisionEffort = useExtractStore((s) => s.setCardRefineVisionEffort);
+  const setCardRefineEditProvider = useExtractStore((s) => s.setCardRefineEditProvider);
   const setCardRefineEditModel = useExtractStore((s) => s.setCardRefineEditModel);
   const setCardRefineEditEffort = useExtractStore((s) => s.setCardRefineEditEffort);
-  const setModel = useExtractStore((s) => s.setModel);
-  const setEffort = useExtractStore((s) => s.setEffort);
   const refineSettingsLocked = card.refineSettingsLocked === true;
   const effectiveAutoRefine = card.autoRefine;
-  const effectiveRefineVisionModel = card.refinePass?.visionModel ?? refineVisionModel;
-  const effectiveRefineVisionEffort = card.refinePass?.visionEffort ?? refineVisionEffort;
-  const effectiveRefineEditModel = card.refinePass?.editModel ?? refineEditModel;
-  const effectiveRefineEditEffort = card.refinePass?.editEffort ?? refineEditEffort;
-
-  const handleModelChange = (newModel: string) => {
-    setModel(newModel);
-    const opts = EFFORT_OPTIONS[newModel];
-    if (opts && !opts.some((o) => o.value === effort)) {
-      setEffort(opts[0].value);
-    }
-  };
-
-  const handleRefineModelChange = (
-    step: "vision" | "edit",
-    newModel: string,
-    currentEffort: string,
-  ) => {
-    if (step === "vision") {
-      if (refineSettingsLocked) {
-        setCardRefineVisionModel(card.id, newModel);
-      } else {
-        setRefineVisionModel(newModel);
-      }
-    } else if (refineSettingsLocked) {
-      setCardRefineEditModel(card.id, newModel);
-    } else {
-      setRefineEditModel(newModel);
-    }
-
-    const opts = EFFORT_OPTIONS[newModel];
-    if (opts && !opts.some((o) => o.value === currentEffort)) {
-      if (step === "vision") {
-        if (refineSettingsLocked) {
-          setCardRefineVisionEffort(card.id, opts[0].value);
-        } else {
-          setRefineVisionEffort(opts[0].value);
-        }
-      } else if (refineSettingsLocked) {
-        setCardRefineEditEffort(card.id, opts[0].value);
-      } else {
-        setRefineEditEffort(opts[0].value);
-      }
-    }
-  };
+  const effectiveRefinePass = resolveCardRefinePass(card, {
+    refineVisionSelection,
+    refineEditSelection,
+  });
+  const effectiveRefineVisionSelection = effectiveRefinePass.vision!;
+  const effectiveRefineEditSelection = effectiveRefinePass.edit!;
 
   const handleRefineToggle = (enabled: boolean) => {
     if (refineSettingsLocked) {
       setCardAutoRefine(card.id, enabled);
     } else {
       setAutoRefine(enabled);
-    }
-  };
-
-  const handleRefineEffortChange = (step: "vision" | "edit", value: string) => {
-    if (step === "vision") {
-      if (refineSettingsLocked) {
-        setCardRefineVisionEffort(card.id, value);
-      } else {
-        setRefineVisionEffort(value);
-      }
-    } else if (refineSettingsLocked) {
-      setCardRefineEditEffort(card.id, value);
-    } else {
-      setRefineEditEffort(value);
     }
   };
 
@@ -202,10 +139,10 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
       <div className="flex flex-col gap-1.5">
         <PassRow
           label="Extract"
-          model={model}
-          onModelChange={handleModelChange}
-          effort={effort}
-          onEffortChange={setEffort}
+          selection={analyzeSelection}
+          onProviderChange={setAnalyzeProvider}
+          onModelChange={setAnalyzeModel}
+          onEffortChange={setAnalyzeEffort}
         />
         <label className="flex items-center gap-1 text-xs font-medium text-gray-600 cursor-pointer">
           <input
@@ -219,23 +156,55 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
         <PassRow
           label="Vision"
           sub
-          model={effectiveRefineVisionModel}
-          onModelChange={(value) => {
-            handleRefineModelChange("vision", value, effectiveRefineVisionEffort);
+          selection={effectiveRefineVisionSelection}
+          onProviderChange={(provider) => {
+            if (refineSettingsLocked) {
+              setCardRefineVisionProvider(card.id, provider);
+            } else {
+              setRefineVisionProvider(provider);
+            }
           }}
-          effort={effectiveRefineVisionEffort}
-          onEffortChange={(value) => handleRefineEffortChange("vision", value)}
+          onModelChange={(model) => {
+            if (refineSettingsLocked) {
+              setCardRefineVisionModel(card.id, model);
+            } else {
+              setRefineVisionModel(model);
+            }
+          }}
+          onEffortChange={(effort) => {
+            if (refineSettingsLocked) {
+              setCardRefineVisionEffort(card.id, effort);
+            } else {
+              setRefineVisionEffort(effort);
+            }
+          }}
           disabled={!effectiveAutoRefine}
         />
         <PassRow
           label="Edit"
           sub
-          model={effectiveRefineEditModel}
-          onModelChange={(value) => {
-            handleRefineModelChange("edit", value, effectiveRefineEditEffort);
+          selection={effectiveRefineEditSelection}
+          onProviderChange={(provider) => {
+            if (refineSettingsLocked) {
+              setCardRefineEditProvider(card.id, provider);
+            } else {
+              setRefineEditProvider(provider);
+            }
           }}
-          effort={effectiveRefineEditEffort}
-          onEffortChange={(value) => handleRefineEffortChange("edit", value)}
+          onModelChange={(model) => {
+            if (refineSettingsLocked) {
+              setCardRefineEditModel(card.id, model);
+            } else {
+              setRefineEditModel(model);
+            }
+          }}
+          onEffortChange={(effort) => {
+            if (refineSettingsLocked) {
+              setCardRefineEditEffort(card.id, effort);
+            } else {
+              setRefineEditEffort(effort);
+            }
+          }}
           disabled={!effectiveAutoRefine}
         />
         <div className={`flex items-center gap-2${!effectiveAutoRefine ? " opacity-40 pointer-events-none" : ""}`}>
@@ -260,13 +229,15 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
             <span className="text-gray-500 whitespace-nowrap">Target:</span>
             <input
               type="number"
-              min={1}
-              max={99}
+              min={0}
+              max={100}
               step={1}
               value={Math.round(card.refineMismatchThreshold * 100)}
               onChange={(e) => {
                 const v = parseInt(e.target.value, 10);
-                if (Number.isFinite(v) && v >= 1 && v <= 99) setRefineMismatchThreshold(card.id, v / 100);
+                if (Number.isFinite(v) && v >= 0 && v <= 100) {
+                  setRefineMismatchThreshold(card.id, v / 100);
+                }
               }}
               disabled={!effectiveAutoRefine}
               className="flex-1 min-w-0 bg-transparent text-xs text-gray-700 focus:outline-none"
@@ -276,17 +247,14 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
         </div>
       </div>
 
-      {card.error && (
-        <p className="text-sm text-red-500">{card.error}</p>
-      )}
-
       <button
         type="button"
         onClick={() => onAnalyze(card.id)}
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-blue-700 hover:shadow active:scale-[0.98]"
+        disabled={card.status === "analyzing"}
+        className="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Sparkles className="h-4 w-4" />
-        Analyze
+        {card.status === "analyzing" ? "Analyzing..." : "Analyze"}
       </button>
     </div>
   );

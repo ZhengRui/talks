@@ -1,4 +1,3 @@
-import { query } from "@anthropic-ai/claude-agent-sdk";
 import { compileProposalPreview } from "@/lib/extract/compile-preview";
 import {
   buildEditSystemPrompt,
@@ -9,14 +8,19 @@ import {
 } from "@/lib/extract/refine-prompt";
 import {
   createMockRefineProposals,
-  isMockClaudeModel,
-} from "@/lib/extract/mock-claude";
+  isMockProviderSelection,
+} from "@/lib/extract/mock-provider";
 import { putRefineArtifact } from "@/lib/extract/refine-artifacts";
 import type {
   AnalysisResult,
   GeometryHints,
   Proposal,
 } from "@/components/extract/types";
+import { normalizeProviderSelection } from "@/lib/extract/providers/catalog";
+import { getExtractModelProvider } from "@/lib/extract/providers/registry";
+import type { ProviderContentPart } from "@/lib/extract/providers/types";
+import type { ExtractProviderId, ProviderSelection } from "@/lib/extract/providers/shared";
+import { extractJsonPayload } from "@/lib/extract/json-payload";
 import { annotateDiffImage } from "@/lib/render/annotate";
 import { compareImages } from "@/lib/render/compare";
 import type { CropBounds } from "@/lib/render/crop";
@@ -53,11 +57,15 @@ export interface RefineLoopOptions {
   baseAnalysis: AnalysisResult;
   contentBounds?: CropBounds | null;
   geometryHints?: GeometryHints | null;
-  priorIssuesJson?: string | null;
-  visionModel: string;
-  visionEffort: string;
-  editModel: string;
-  editEffort: string;
+  watchlistIssuesJson?: string | null;
+  visionSelection?: ProviderSelection;
+  editSelection?: ProviderSelection;
+  visionProvider?: ExtractProviderId;
+  visionModel?: string;
+  visionEffort?: string;
+  editProvider?: ExtractProviderId;
+  editModel?: string;
+  editEffort?: string;
   maxIterations: number;
   mismatchThreshold: number;
   iterationOffset?: number;
@@ -90,9 +98,8 @@ interface VisionOptions {
   imageSize: { w: number; h: number };
   contentBounds?: CropBounds | null;
   semanticAnchors?: VisionSemanticAnchors | null;
-  priorIssues?: VisionIssue[] | null;
-  model: string;
-  effort: string;
+  watchlist?: VisionWatchlist | null;
+  selection: ProviderSelection;
   signal?: AbortSignal;
   onEvent?: (event: RefineEvent) => Promise<void> | void;
 }
@@ -109,10 +116,10 @@ type VisionIssueCategory =
   | "layout"
   | "style";
 
-type VisionPriorIssueStatus =
-  | "resolved"
-  | "still_wrong"
-  | "unclear";
+type IssueSalience =
+  | "critical"
+  | "important"
+  | "polish";
 
 interface VisionIssue {
   priority: number;
@@ -125,22 +132,26 @@ interface VisionIssue {
   observed: string;
   desired: string;
   confidence: number;
-  sticky?: boolean;
+  salience?: IssueSalience;
+  salienceReason?: string;
+  persistenceCount?: number;
 }
 
-interface VisionPriorIssueCheck {
-  issueId: string;
-  status: VisionPriorIssueStatus;
-  note?: string;
+interface VisionCritique {
+  fidelityIssues: VisionIssue[];
+  designQualityIssues: VisionIssue[];
 }
 
-interface VisionResult {
-  issues: VisionIssue[];
-  issuesJson: string;
-  editIssuesJson: string;
-  priorIssuesJson: string;
-  priorIssueChecks: VisionPriorIssueCheck[];
-  resolvedIssueIds: string[];
+interface VisionWatchlist {
+  fidelityWatchlist: VisionIssue[];
+  designQualityWatchlist: VisionIssue[];
+}
+
+interface VisionResult extends VisionCritique {
+  watchlist: VisionWatchlist;
+  fidelityIssuesJson: string;
+  designQualityIssuesJson: string;
+  watchlistIssuesJson: string;
   rawText: string;
   cost: number | null;
   elapsed: number;
@@ -152,12 +163,12 @@ interface EditOptions {
   referenceMediaType: string;
   replicaImage: Buffer;
   imageSize: { w: number; h: number };
-  issuesJson: string;
+  fidelityIssuesJson: string;
+  designQualityIssuesJson: string;
   proposals: Proposal[];
   contentBounds?: CropBounds | null;
   geometryHints?: GeometryHints | null;
-  model: string;
-  effort: string;
+  selection: ProviderSelection;
   signal?: AbortSignal;
   onEvent?: (event: RefineEvent) => Promise<void> | void;
 }
@@ -175,17 +186,6 @@ interface EditResult {
   elapsed: number;
 }
 
-interface StreamClaudeTextOptions {
-  prompt: Parameters<typeof query>[0]["prompt"];
-  systemPrompt: string;
-  model: string;
-  effort: string;
-  signal?: AbortSignal;
-  onEvent?: (event: RefineEvent) => Promise<void> | void;
-  thinkingEvent: RefineEventType;
-  textEvent: RefineEventType;
-}
-
 const MIN_VISION_DIFFERENCE_LENGTH = 20;
 const VALID_VISION_FIX_TYPES = new Set<VisionIssueFixType>([
   "structural_change",
@@ -199,16 +199,6 @@ const VALID_VISION_CATEGORIES = new Set<VisionIssueCategory>([
   "layout",
   "style",
 ]);
-const VALID_PRIOR_ISSUE_STATUSES = new Set<VisionPriorIssueStatus>([
-  "resolved",
-  "still_wrong",
-  "unclear",
-]);
-const CORE_VISION_CATEGORIES: VisionIssueCategory[] = [
-  "signature_visual",
-  "content",
-  "layout",
-];
 
 function checkAborted(signal?: AbortSignal): void {
   if (signal?.aborted) {
@@ -239,41 +229,6 @@ async function emitDiffEvent(
       regions: cycle.diff.regions,
     },
   });
-}
-
-function extractJsonPayload(resultText: string): string | null {
-  const fenced = resultText.match(/```json\s*([\s\S]*?)\s*```/i)
-    ?? resultText.match(/```\s*([\s\S]*?)\s*```/);
-  if (fenced?.[1]) return fenced[1];
-
-  const trimmed = resultText.trim();
-  if (
-    (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-    (trimmed.startsWith("[") && trimmed.endsWith("]"))
-  ) {
-    return trimmed;
-  }
-
-  const firstObject = trimmed.indexOf("{");
-  const firstArray = trimmed.indexOf("[");
-  const startCandidates = [firstObject, firstArray].filter((index) => index >= 0);
-  if (startCandidates.length === 0) return null;
-
-  const start = Math.min(...startCandidates);
-  const opener = trimmed[start];
-  const closer = opener === "{" ? "}" : "]";
-  let depth = 0;
-
-  for (let index = start; index < trimmed.length; index += 1) {
-    const char = trimmed[index];
-    if (char === opener) depth += 1;
-    if (char === closer) depth -= 1;
-    if (depth === 0) {
-      return trimmed.slice(start, index + 1);
-    }
-  }
-
-  return null;
 }
 
 function clampConfidence(value: unknown): number {
@@ -350,6 +305,72 @@ function normalizeCategory(
 
 function normalizeWhitespace(value: string): string {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function issueNarrative(
+  issue: Pick<VisionIssue, "area" | "issue" | "observed" | "desired">,
+): string {
+  return normalizeWhitespace([
+    issue.area,
+    issue.issue,
+    issue.observed,
+    issue.desired,
+  ].join(" "));
+}
+
+function inferFallbackSalience(
+  issue: Pick<VisionIssue, "category" | "fixType" | "area" | "issue" | "observed" | "desired">,
+): IssueSalience {
+  const text = issueNarrative(issue);
+
+  if (issue.category === "content" || issue.fixType === "content_fix") {
+    return "critical";
+  }
+
+  if (
+    /(clipped|cut off|cropped|truncated|missing|omitted|extra element|wrong count|count is wrong|too many|too few|escaped newline|literal backslash|broken line handling|detached|disconnected|continuous composite|one composite|attachment|attached|topology|structure|interlock|interlocked|overlap|overlapping|separate box|separate boxes|split into detached|order is wrong|reversed|swapped)/.test(
+      text,
+    )
+  ) {
+    return "critical";
+  }
+
+  if (issue.fixType === "structural_change" && issue.category === "signature_visual") {
+    return "critical";
+  }
+
+  if (
+    issue.category === "signature_visual" ||
+    issue.fixType === "structural_change" ||
+    /(proportion|proportions|too tall|too short|too wide|too narrow|height|width|scale|sizing|size|spacing|margin|padding|breathing room|crowd|crowding|centered|alignment|position|too high|too low)/.test(
+      text,
+    )
+  ) {
+    return "important";
+  }
+
+  return "polish";
+}
+
+function normalizeIssueSalience(
+  value: unknown,
+  fallbackIssue: Pick<VisionIssue, "category" | "fixType" | "area" | "issue" | "observed" | "desired">,
+): IssueSalience {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (
+      normalized === "critical" ||
+      normalized === "important" ||
+      normalized === "polish"
+    ) {
+      return normalized;
+    }
+    if (normalized === "minor") {
+      return "polish";
+    }
+  }
+
+  return inferFallbackSalience(fallbackIssue);
 }
 
 function slugifyIdentifier(value: string): string {
@@ -452,36 +473,43 @@ function reindexIssues(issues: VisionIssue[]): VisionIssue[] {
   return issues.map((issue, index) => ({ ...issue, priority: index + 1 }));
 }
 
-function sortAndReindexIssues(issues: VisionIssue[]): VisionIssue[] {
-  return reindexIssues(
-    issues
-      .slice()
-      .sort((a, b) => a.priority - b.priority),
-  );
-}
-
-function dedupeIssues(issues: VisionIssue[]): VisionIssue[] {
+function dedupeIssuesPreserveOrder(issues: VisionIssue[]): VisionIssue[] {
   const deduped = new Map<string, VisionIssue>();
-  for (const issue of sortAndReindexIssues(issues)) {
+  for (const issue of issues) {
     const key = issueKey(issue);
     if (!deduped.has(key)) {
       deduped.set(key, issue);
     }
   }
-  return sortAndReindexIssues([...deduped.values()]);
+  return reindexIssues([...deduped.values()]);
 }
 
 function serializeIssues(issues: VisionIssue[]): string {
   return JSON.stringify(reindexIssues(issues), null, 2);
 }
 
+function serializeCritique(critique: VisionCritique): string {
+  return JSON.stringify({
+    fidelityIssues: reindexIssues(critique.fidelityIssues),
+    designQualityIssues: reindexIssues(critique.designQualityIssues),
+  }, null, 2);
+}
+
+function serializeWatchlist(watchlist: VisionWatchlist): string {
+  return JSON.stringify({
+    fidelityWatchlist: reindexIssues(watchlist.fidelityWatchlist),
+    designQualityWatchlist: reindexIssues(watchlist.designQualityWatchlist),
+  }, null, 2);
+}
+
 function makeFallbackIssue(text: string, priority: number): VisionIssue {
   const fixType = normalizeFixType(undefined);
+  const category = normalizeCategory(undefined, fixType, null, new Set<string>(), text);
   const issueId = normalizeIssueId(undefined, null, "slide", text, text, "", fixType);
-  return {
+  const issue = {
     priority,
     issueId,
-    category: normalizeCategory(undefined, fixType, null, new Set<string>(), text),
+    category,
     ref: null,
     area: "slide",
     issue: text,
@@ -489,6 +517,11 @@ function makeFallbackIssue(text: string, priority: number): VisionIssue {
     observed: text,
     desired: "",
     confidence: 0.5,
+  } satisfies Omit<VisionIssue, "salience">;
+
+  return {
+    ...issue,
+    salience: inferFallbackSalience(issue),
   };
 }
 
@@ -510,6 +543,12 @@ function fallbackIssuesFromText(resultText: string): VisionIssue[] {
   }
 
   return lines.slice(0, 5).map((line, index) => makeFallbackIssue(line, index + 1));
+}
+
+function normalizeIssueBucket(
+  issues: VisionIssue[],
+): VisionIssue[] {
+  return reindexIssues(dedupeIssuesPreserveOrder(issues));
 }
 
 function normalizeVisionIssue(
@@ -537,18 +576,22 @@ function normalizeVisionIssue(
     : "slide";
   const ref = normalizeRef(raw.ref);
   const fixType = normalizeFixType(raw.fixType);
-  const priorityValue = typeof raw.priority === "number" && Number.isFinite(raw.priority)
-    ? Math.max(1, Math.round(raw.priority))
-    : priority;
 
   if (!issueText && !observed && !desired) {
     return null;
   }
 
   const normalizedIssue = issueText || observed || desired;
+  const category = normalizeCategory(
+    raw.category,
+    fixType,
+    ref,
+    signatureRefs,
+    `${area} ${issueText} ${observed} ${desired}`,
+  );
 
-  return {
-    priority: priorityValue,
+  const issue = {
+    priority,
     issueId: normalizeIssueId(
       raw.issueId,
       ref,
@@ -558,13 +601,7 @@ function normalizeVisionIssue(
       desired,
       fixType,
     ),
-    category: normalizeCategory(
-      raw.category,
-      fixType,
-      ref,
-      signatureRefs,
-      `${area} ${issueText} ${observed} ${desired}`,
-    ),
+    category,
     ref,
     area,
     issue: normalizedIssue,
@@ -572,61 +609,20 @@ function normalizeVisionIssue(
     observed,
     desired,
     confidence: clampConfidence(raw.confidence),
-    ...(typeof raw.sticky === "boolean" ? { sticky: raw.sticky } : {}),
+    salienceReason:
+      typeof raw.salienceReason === "string" && raw.salienceReason.trim()
+        ? raw.salienceReason.trim()
+        : undefined,
+    persistenceCount:
+      typeof raw.persistenceCount === "number" && Number.isFinite(raw.persistenceCount)
+        ? Math.max(1, Math.round(raw.persistenceCount))
+        : undefined,
+  } satisfies Omit<VisionIssue, "salience">;
+
+  return {
+    ...issue,
+    salience: normalizeIssueSalience(raw.salience, issue),
   };
-}
-
-function normalizeResolvedIssueIds(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-
-  const ids = new Set<string>();
-  for (const entry of value) {
-    if (typeof entry !== "string") continue;
-    const normalized = entry
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9._-]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .replace(/-{2,}/g, "-");
-    if (normalized) {
-      ids.add(normalized);
-    }
-  }
-  return [...ids];
-}
-
-function normalizePriorIssueStatus(value: unknown): VisionPriorIssueStatus | null {
-  if (
-    typeof value === "string" &&
-    VALID_PRIOR_ISSUE_STATUSES.has(value as VisionPriorIssueStatus)
-  ) {
-    return value as VisionPriorIssueStatus;
-  }
-  return null;
-}
-
-function normalizePriorIssueChecks(value: unknown): VisionPriorIssueCheck[] {
-  if (!Array.isArray(value)) return [];
-
-  const checks = new Map<string, VisionPriorIssueCheck>();
-  for (const entry of value) {
-    if (!entry || typeof entry !== "object") continue;
-    const raw = entry as Record<string, unknown>;
-    const issueIds = normalizeResolvedIssueIds([raw.issueId]);
-    const issueId = issueIds[0];
-    const status = normalizePriorIssueStatus(raw.status);
-    if (!issueId || !status) continue;
-
-    checks.set(issueId, {
-      issueId,
-      status,
-      ...(typeof raw.note === "string" && raw.note.trim()
-        ? { note: raw.note.trim() }
-        : {}),
-    });
-  }
-
-  return [...checks.values()];
 }
 
 function buildSignatureRefSet(
@@ -646,24 +642,15 @@ function buildSignatureRefSet(
   return refs;
 }
 
-
 function parseVisionCritique(
   resultText: string,
   signatureRefs: Set<string>,
-): {
-  issues: VisionIssue[];
-  priorIssueChecks: VisionPriorIssueCheck[];
-  resolvedIssueIds: string[];
-  issuesJson: string;
-} {
+): VisionCritique {
   const jsonPayload = extractJsonPayload(resultText);
   if (!jsonPayload) {
-    const issues = fallbackIssuesFromText(resultText);
     return {
-      issues,
-      priorIssueChecks: [],
-      resolvedIssueIds: [],
-      issuesJson: serializeIssues(issues),
+      fidelityIssues: fallbackIssuesFromText(resultText),
+      designQualityIssues: [],
     };
   }
 
@@ -671,245 +658,131 @@ function parseVisionCritique(
   try {
     parsed = JSON.parse(jsonPayload) as unknown;
   } catch {
-    const issues = fallbackIssuesFromText(resultText);
     return {
-      issues,
-      priorIssueChecks: [],
-      resolvedIssueIds: [],
-      issuesJson: serializeIssues(issues),
+      fidelityIssues: fallbackIssuesFromText(resultText),
+      designQualityIssues: [],
     };
   }
 
-  let issueEntries: unknown[] | null = null;
-  let priorIssueChecks: VisionPriorIssueCheck[] = [];
-  let resolvedIssueIds: string[] = [];
+  let fidelityEntries: unknown[] | null = null;
+  let designQualityEntries: unknown[] = [];
 
   if (Array.isArray(parsed)) {
-    issueEntries = parsed;
+    fidelityEntries = parsed;
   } else if (parsed && typeof parsed === "object") {
-    const object = parsed as Record<string, unknown>;
-    issueEntries = Array.isArray(object.issues) ? object.issues : null;
-    priorIssueChecks = normalizePriorIssueChecks(object.priorIssueChecks);
-    resolvedIssueIds = normalizeResolvedIssueIds(
-      object.resolvedIssueIds ?? object.resolvedRefs,
-    );
+    const raw = parsed as Record<string, unknown>;
+    if (Array.isArray(raw.fidelityIssues)) {
+      fidelityEntries = raw.fidelityIssues as unknown[];
+      if (Array.isArray(raw.designQualityIssues)) {
+        designQualityEntries = raw.designQualityIssues as unknown[];
+      }
+    } else if (Array.isArray(raw.issues)) {
+      fidelityEntries = raw.issues as unknown[];
+    }
   }
 
-  if (!issueEntries) {
-    const issues = fallbackIssuesFromText(resultText);
+  if (!fidelityEntries) {
     return {
-      issues,
-      priorIssueChecks,
-      resolvedIssueIds: [],
-      issuesJson: serializeIssues(issues),
+      fidelityIssues: fallbackIssuesFromText(resultText),
+      designQualityIssues: [],
     };
   }
 
-  const issues = issueEntries
+  const fidelityIssues = normalizeIssueBucket(fidelityEntries
+    .map((entry, index) => normalizeVisionIssue(entry, index, signatureRefs))
+    .filter((issue): issue is VisionIssue => Boolean(issue)));
+  const fidelityIds = new Set(fidelityIssues.map((issue) => issue.issueId));
+  const designQualityIssues = normalizeIssueBucket(designQualityEntries
     .map((entry, index) => normalizeVisionIssue(entry, index, signatureRefs))
     .filter((issue): issue is VisionIssue => Boolean(issue))
-    .sort((a, b) => a.priority - b.priority);
-
-  const unresolvedIssueIds = new Set(issues.map((issue) => issue.issueId));
-  const filteredResolvedIssueIds = resolvedIssueIds.filter(
-    (issueId) => !unresolvedIssueIds.has(issueId),
-  );
-  const normalizedPriorIssueChecks = priorIssueChecks.map((check) => (
-    unresolvedIssueIds.has(check.issueId)
-      ? { ...check, status: "still_wrong" as const }
-      : check
-  ));
+    .filter((issue) => !fidelityIds.has(issue.issueId)));
 
   return {
-    issues: sortAndReindexIssues(issues),
-    priorIssueChecks: normalizedPriorIssueChecks,
-    resolvedIssueIds: filteredResolvedIssueIds,
-    issuesJson: serializeIssues(issues),
+    fidelityIssues,
+    designQualityIssues,
   };
 }
 
-function coalescePriorIssueChecks(
-  priorIssues: VisionIssue[],
+function applyPersistenceCounts(
   currentIssues: VisionIssue[],
-  parsedPriorIssueChecks: VisionPriorIssueCheck[],
-  resolvedIssueIds: string[],
-): VisionPriorIssueCheck[] {
-  if (priorIssues.length === 0) return [];
-
-  const currentIssueIdSet = new Set(currentIssues.map((issue) => issue.issueId));
-  const resolvedIssueIdSet = new Set(resolvedIssueIds);
-  const explicitChecks = new Map(
-    parsedPriorIssueChecks.map((check) => [check.issueId, check] as const),
+  previousWatchlist: VisionIssue[],
+): VisionIssue[] {
+  const previousCounts = new Map(
+    previousWatchlist.map((issue) => [issue.issueId, issue.persistenceCount ?? 1] as const),
   );
 
-  return priorIssues.map((priorIssue) => {
-    const explicit = explicitChecks.get(priorIssue.issueId);
-    if (explicit) {
-      if (currentIssueIdSet.has(priorIssue.issueId)) {
-        return { ...explicit, status: "still_wrong" };
-      }
-      return explicit;
-    }
-    if (currentIssueIdSet.has(priorIssue.issueId)) {
-      return {
-        issueId: priorIssue.issueId,
-        status: "still_wrong",
-      };
-    }
-    if (resolvedIssueIdSet.has(priorIssue.issueId)) {
-      return {
-        issueId: priorIssue.issueId,
-        status: "resolved",
-      };
-    }
+  return reindexIssues(currentIssues.map((issue) => {
+    const previousCount = previousCounts.get(issue.issueId);
+    return previousCount
+      ? { ...issue, persistenceCount: Math.max(previousCount, issue.persistenceCount ?? 1) + 1 }
+      : { ...issue, persistenceCount: issue.persistenceCount ?? 1 };
+  }));
+}
+
+function buildWatchlist(critique: VisionCritique): VisionWatchlist {
+  const fidelityWatchlist = reindexIssues(critique.fidelityIssues.slice(0, 2));
+  const fidelityIds = new Set(fidelityWatchlist.map((issue) => issue.issueId));
+  const designQualityWatchlist = reindexIssues(
+    critique.designQualityIssues
+      .filter((issue) => !fidelityIds.has(issue.issueId))
+      .slice(0, 1),
+  );
+
+  return {
+    fidelityWatchlist,
+    designQualityWatchlist,
+  };
+}
+
+function parseVisionWatchlist(
+  watchlistIssuesJson: string,
+  signatureRefs: Set<string>,
+): VisionWatchlist {
+  const jsonPayload = extractJsonPayload(watchlistIssuesJson) ?? watchlistIssuesJson;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonPayload) as unknown;
+  } catch {
+    return { fidelityWatchlist: [], designQualityWatchlist: [] };
+  }
+
+  if (Array.isArray(parsed)) {
+    return buildWatchlist({
+      fidelityIssues: normalizeIssueBucket(
+        parsed
+          .map((entry, index) => normalizeVisionIssue(entry, index, signatureRefs))
+          .filter((issue): issue is VisionIssue => Boolean(issue)),
+      ),
+      designQualityIssues: [],
+    });
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    return { fidelityWatchlist: [], designQualityWatchlist: [] };
+  }
+
+  const raw = parsed as Record<string, unknown>;
+  if (Array.isArray(raw.fidelityWatchlist) || Array.isArray(raw.designQualityWatchlist)) {
+    const fidelityWatchlist = normalizeIssueBucket(
+      (Array.isArray(raw.fidelityWatchlist) ? raw.fidelityWatchlist : [])
+        .map((entry, index) => normalizeVisionIssue(entry, index, signatureRefs))
+        .filter((issue): issue is VisionIssue => Boolean(issue)),
+    ).slice(0, 2);
+    const fidelityIds = new Set(fidelityWatchlist.map((issue) => issue.issueId));
+    const designQualityWatchlist = normalizeIssueBucket(
+      (Array.isArray(raw.designQualityWatchlist) ? raw.designQualityWatchlist : [])
+        .map((entry, index) => normalizeVisionIssue(entry, index, signatureRefs))
+        .filter((issue): issue is VisionIssue => Boolean(issue))
+        .filter((issue) => !fidelityIds.has(issue.issueId)),
+    ).slice(0, 1);
     return {
-      issueId: priorIssue.issueId,
-      status: "unclear",
+      fidelityWatchlist: reindexIssues(fidelityWatchlist),
+      designQualityWatchlist: reindexIssues(designQualityWatchlist),
     };
-  });
-}
-
-function applyCategoryCoverage(issues: VisionIssue[]): VisionIssue[] {
-  const normalized = dedupeIssues(issues);
-  if (normalized.length <= 1) return normalized;
-
-  const selected: VisionIssue[] = [];
-  const seenKeys = new Set<string>();
-  const availableCoreCategories = CORE_VISION_CATEGORIES.filter((category) =>
-    normalized.some((issue) => issue.category === category),
-  );
-
-  const take = (issue: VisionIssue | undefined): void => {
-    if (!issue) return;
-    const key = issueKey(issue);
-    if (seenKeys.has(key)) return;
-    seenKeys.add(key);
-    selected.push(issue);
-  };
-
-  if (availableCoreCategories.length >= 3) {
-    for (const category of CORE_VISION_CATEGORIES) {
-      take(normalized.find((issue) => issue.category === category));
-    }
-  } else {
-    take(normalized[0]);
-
-    for (const category of CORE_VISION_CATEGORIES) {
-      if (selected.length >= Math.min(3, normalized.length)) break;
-      if (selected.some((issue) => issue.category === category)) continue;
-      take(normalized.find((issue) => issue.category === category));
-    }
-
-    for (const issue of normalized) {
-      if (selected.length >= Math.min(3, normalized.length)) break;
-      take(issue);
-    }
   }
 
-  for (const issue of normalized) {
-    take(issue);
-  }
-
-  return reindexIssues(selected);
-}
-
-function mergeStickySignatureIssues(
-  currentIssues: VisionIssue[],
-  priorIssues: VisionIssue[],
-  priorIssueChecks: VisionPriorIssueCheck[],
-): VisionIssue[] {
-  const merged = dedupeIssues(currentIssues);
-  const statusByIssueId = new Map(
-    priorIssueChecks.map((check) => [check.issueId, check.status] as const),
-  );
-  const indexByKey = new Map<string, number>();
-
-  merged.forEach((issue, index) => {
-    indexByKey.set(issueKey(issue), index);
-  });
-
-  for (const priorIssue of priorIssues) {
-    if (priorIssue.category !== "signature_visual") continue;
-    const status = statusByIssueId.get(priorIssue.issueId);
-    if (status === "resolved" || status === "unclear") continue;
-
-    const key = issueKey(priorIssue);
-    const existingIndex = indexByKey.get(key);
-    if (existingIndex != null) {
-      merged[existingIndex] = {
-        ...merged[existingIndex],
-        category: "signature_visual",
-        issueId: priorIssue.issueId,
-        ref: priorIssue.ref,
-        sticky: true,
-      };
-      continue;
-    }
-
-    merged.push({
-      ...priorIssue,
-      category: "signature_visual",
-      sticky: true,
-    });
-    indexByKey.set(key, merged.length - 1);
-  }
-
-  return sortAndReindexIssues(merged);
-}
-
-function buildPriorIssuesForRecheck(
-  currentIssues: VisionIssue[],
-  priorIssues: VisionIssue[],
-  priorIssueChecks: VisionPriorIssueCheck[],
-): VisionIssue[] {
-  const carry = new Map<string, VisionIssue>();
-  const statusByIssueId = new Map(
-    priorIssueChecks.map((check) => [check.issueId, check.status] as const),
-  );
-
-  for (const issue of currentIssues) {
-    carry.set(issue.issueId, issue);
-  }
-
-  for (const priorIssue of priorIssues) {
-    const status = statusByIssueId.get(priorIssue.issueId);
-    if (status === "resolved") continue;
-    if (carry.has(priorIssue.issueId)) continue;
-    if (status !== "still_wrong" && status !== "unclear") continue;
-
-    carry.set(priorIssue.issueId, {
-      ...priorIssue,
-      sticky: status === "still_wrong" && priorIssue.category === "signature_visual"
-        ? true
-        : priorIssue.sticky,
-      confidence: status === "unclear"
-        ? Math.min(priorIssue.confidence, 0.5)
-        : priorIssue.confidence,
-    });
-  }
-
-  return sortAndReindexIssues([...carry.values()]);
-}
-
-function selectIssuesForEdit(issues: VisionIssue[]): VisionIssue[] {
-  const normalized = sortAndReindexIssues(issues);
-  const selected: VisionIssue[] = [];
-  const seenKeys = new Set<string>();
-
-  const take = (issue: VisionIssue | undefined): void => {
-    if (!issue) return;
-    const key = issueKey(issue);
-    if (seenKeys.has(key)) return;
-    seenKeys.add(key);
-    selected.push(issue);
-  };
-
-  normalized.slice(0, 3).forEach((issue) => take(issue));
-  normalized
-    .filter((issue) => issue.category === "signature_visual" && issue.sticky)
-    .forEach((issue) => take(issue));
-
-  return reindexIssues(selected);
+  return buildWatchlist(parseVisionCritique(watchlistIssuesJson, signatureRefs));
 }
 
 function buildVisionSemanticAnchors(
@@ -920,6 +793,19 @@ function buildVisionSemanticAnchors(
 
   const signatureVisuals = inventory.signatureVisuals?.slice(0, 3) ?? [];
   const mustPreserve = inventory.mustPreserve?.slice(0, 5) ?? [];
+  const repeatGroups = (inventory.repeatGroups ?? [])
+    .slice(0, 3)
+    .map((group) => ({
+      id: group.id,
+      description: group.description,
+      count: group.count,
+      orientation: group.orientation,
+      ...(group.itemSize ? { itemSize: group.itemSize } : {}),
+      ...(typeof group.gap === "number" ? { gap: group.gap } : {}),
+      ...(typeof group.gapX === "number" ? { gapX: group.gapX } : {}),
+      ...(typeof group.gapY === "number" ? { gapY: group.gapY } : {}),
+      ...(group.variationPoints?.length ? { variationPoints: group.variationPoints } : {}),
+    }));
   const regions = (inventory.regions ?? [])
     .filter((region) => region.importance === "high" || region.importance === "medium")
     .slice(0, 5)
@@ -933,6 +819,7 @@ function buildVisionSemanticAnchors(
   if (
     signatureVisuals.length === 0 &&
     mustPreserve.length === 0 &&
+    repeatGroups.length === 0 &&
     regions.length === 0
   ) {
     return null;
@@ -941,202 +828,115 @@ function buildVisionSemanticAnchors(
   return {
     ...(signatureVisuals.length ? { signatureVisuals } : {}),
     ...(mustPreserve.length ? { mustPreserve } : {}),
+    ...(repeatGroups.length ? { repeatGroups } : {}),
     ...(regions.length ? { regions } : {}),
   };
 }
 
-function buildQueryOptions(
-  systemPrompt: string,
-  model: string,
-  effort: string,
-): import("@anthropic-ai/claude-agent-sdk").Options {
-  const isAdaptive = model === "claude-opus-4-6" || model === "claude-sonnet-4-6";
-  const thinkingConfig = isAdaptive
-    ? { type: "adaptive" as const }
-    : { type: "enabled" as const, budget_tokens: parseInt(effort, 10) || 10000 };
-  const effortConfig = isAdaptive
-    ? (effort as "low" | "medium" | "high" | "max")
-    : undefined;
-
-  return {
-    cwd: process.cwd(),
-    settingSources: ["project"],
-    allowedTools: [],
-    maxTurns: 1,
-    model,
-    thinking: thinkingConfig,
-    ...(effortConfig ? { effort: effortConfig } : {}),
-    systemPrompt,
-    includePartialMessages: true,
-    persistSession: false,
-    pathToClaudeCodeExecutable: "/Users/zerry/.local/bin/claude",
-    env: { ...process.env, ANTHROPIC_API_KEY: "" },
-  };
-}
-
-async function* makeVisionPrompt(
+function buildVisionContent(
   referenceImage: Buffer,
   referenceMediaType: string,
   replicaImage: Buffer,
   userPrompt: string,
-) {
-  const content: Array<Record<string, unknown>> = [
-    { type: "text" as const, text: "ORIGINAL slide:" },
+): ProviderContentPart[] {
+  return [
+    { type: "text", text: "ORIGINAL slide:" },
     {
-      type: "image" as const,
-      source: {
-        type: "base64" as const,
-        media_type: referenceMediaType,
-        data: referenceImage.toString("base64"),
-      },
+      type: "image",
+      buffer: referenceImage,
+      mediaType: referenceMediaType,
+      fileName: "original.png",
     },
-    { type: "text" as const, text: "REPLICA slide:" },
+    { type: "text", text: "REPLICA slide:" },
     {
-      type: "image" as const,
-      source: {
-        type: "base64" as const,
-        media_type: "image/png" as const,
-        data: replicaImage.toString("base64"),
-      },
+      type: "image",
+      buffer: replicaImage,
+      mediaType: "image/png",
+      fileName: "replica.png",
     },
-    { type: "text" as const, text: userPrompt },
+    { type: "text", text: userPrompt },
   ];
-
-  yield {
-    type: "user" as const,
-    session_id: "",
-    message: {
-      role: "user" as const,
-      content,
-    },
-    parent_tool_use_id: null,
-  };
 }
 
-async function* makeComparisonEditPrompt(
+function buildEditContent(
   referenceImage: Buffer,
   referenceMediaType: string,
   replicaImage: Buffer,
   userPrompt: string,
-) {
-  const content: Array<Record<string, unknown>> = [
-    { type: "text" as const, text: "ORIGINAL slide:" },
-    {
-      type: "image" as const,
-      source: {
-        type: "base64" as const,
-        media_type: referenceMediaType,
-        data: referenceImage.toString("base64"),
-      },
-    },
-    { type: "text" as const, text: "REPLICA slide:" },
-    {
-      type: "image" as const,
-      source: {
-        type: "base64" as const,
-        media_type: "image/png" as const,
-        data: replicaImage.toString("base64"),
-      },
-    },
-    { type: "text" as const, text: userPrompt },
-  ];
-
-  yield {
-    type: "user" as const,
-    session_id: "",
-    message: {
-      role: "user" as const,
-      content,
-    },
-    parent_tool_use_id: null,
-  };
+): ProviderContentPart[] {
+  return buildVisionContent(
+    referenceImage,
+    referenceMediaType,
+    replicaImage,
+    userPrompt,
+  );
 }
 
-async function streamClaudeText(
-  options: StreamClaudeTextOptions,
-): Promise<{ resultText: string; totalCost: number | null; elapsed: number }> {
-  const {
-    prompt,
-    systemPrompt,
-    model,
-    effort,
-    signal,
-    onEvent,
-    thinkingEvent,
-    textEvent,
-  } = options;
-  const queryOptions = buildQueryOptions(systemPrompt, model, effort);
-  let resultText = "";
-  let sawThinkingDeltaForAssistant = false;
-  let sawTextDelta = false;
-  let totalCost: number | null = null;
-  const startedAt = Date.now();
+function normalizeInterpolatedTextBlocks(body: string): string {
+  return body.replace(
+    /^([ \t]*)text:\s*\|[-+]?\s*\n([ \t]*)\{\{\s*([^}]+?)\s*\}\}[ \t]*$/gm,
+    (_match, indent: string, _contentIndent: string, expression: string) => {
+      const trimmedExpression = expression.trim();
+      const normalizedExpression = /\|\s*yaml_string\b/.test(trimmedExpression)
+        ? trimmedExpression
+        : `${trimmedExpression} | yaml_string`;
+      return `${indent}text: "{{ ${normalizedExpression} }}"`;
+    },
+  );
+}
 
-  for await (const message of query({
-    prompt,
-    options: queryOptions,
-  })) {
-    checkAborted(signal);
-    const msg = message as Record<string, unknown>;
-
-    if (msg.type === "stream_event") {
-      const event = msg.event as Record<string, unknown> | undefined;
-      if (event?.type === "content_block_delta") {
-        const delta = event.delta as Record<string, unknown> | undefined;
-        if (delta?.type === "text_delta" && typeof delta.text === "string") {
-          sawTextDelta = true;
-          resultText += delta.text;
-          await emit(onEvent, { event: textEvent, data: { text: delta.text } });
-        } else if (
-          delta?.type === "thinking_delta" &&
-          typeof delta.thinking === "string"
-        ) {
-          sawThinkingDeltaForAssistant = true;
-          await emit(onEvent, { event: thinkingEvent, data: { text: delta.thinking } });
-        }
-      }
-      continue;
+function normalizeProposalBodies(proposals: Proposal[]): Proposal[] {
+  return proposals.map((proposal) => {
+    const normalizedBody = normalizeInterpolatedTextBlocks(proposal.body);
+    if (normalizedBody === proposal.body) {
+      return proposal;
     }
+    return {
+      ...proposal,
+      body: normalizedBody,
+    };
+  });
+}
 
-    if (msg.type === "assistant" && msg.message) {
-      const assistantMsg = msg.message as Record<string, unknown>;
-      if (Array.isArray(assistantMsg.content)) {
-        for (const block of assistantMsg.content) {
-          const contentBlock = block as Record<string, unknown>;
-          if (
-            contentBlock.type === "thinking" &&
-            typeof contentBlock.thinking === "string" &&
-            !sawThinkingDeltaForAssistant
-          ) {
-            await emit(onEvent, {
-              event: thinkingEvent,
-              data: { text: contentBlock.thinking },
-            });
-          }
-        }
+async function runProviderTurn(options: {
+  selection: ProviderSelection;
+  systemPrompt: string;
+  userPrompt: string;
+  content: ProviderContentPart[];
+  phase: "vision" | "edit";
+  signal?: AbortSignal;
+  onEvent?: (event: RefineEvent) => Promise<void> | void;
+  thinkingEvent: RefineEventType;
+  textEvent: RefineEventType;
+}): Promise<{ resultText: string; totalCost: number | null; elapsed: number }> {
+  const provider = getExtractModelProvider(options.selection);
+  const result = await provider.run({
+    phase: options.phase,
+    systemPrompt: options.systemPrompt,
+    userPrompt: options.userPrompt,
+    content: options.content,
+    selection: options.selection,
+    signal: options.signal,
+    async onEvent(event) {
+      checkAborted(options.signal);
+      if (event.type === "thinking" && typeof event.text === "string") {
+        await emit(options.onEvent, {
+          event: options.thinkingEvent,
+          data: { text: event.text },
+        });
+      } else if (event.type === "text" && typeof event.text === "string") {
+        await emit(options.onEvent, {
+          event: options.textEvent,
+          data: { text: event.text },
+        });
       }
-      sawThinkingDeltaForAssistant = false;
-      continue;
-    }
-
-    if (msg.type === "result") {
-      if (typeof msg.result === "string") {
-        resultText = msg.result;
-      }
-      if (typeof msg.total_cost_usd === "number") {
-        totalCost = msg.total_cost_usd;
-      }
-    }
-  }
-
-  if (!sawTextDelta && resultText) {
-    await emit(onEvent, { event: textEvent, data: { text: resultText } });
-  }
+    },
+  });
 
   return {
-    resultText,
-    totalCost,
-    elapsed: Math.round((Date.now() - startedAt) / 1000),
+    resultText: result.text,
+    totalCost: result.cost,
+    elapsed: result.elapsed,
   };
 }
 
@@ -1151,22 +951,20 @@ async function runVisionCritique(
     imageSize,
     contentBounds,
     semanticAnchors,
-    priorIssues,
-    model,
-    effort,
+    watchlist,
+    selection,
     signal,
     onEvent,
   } = options;
   const signatureRefs = buildSignatureRefSet(semanticAnchors);
-  const systemPrompt = buildVisionSystemPrompt({
-    hasPriorIssues: Boolean(priorIssues?.length),
-  });
+  const systemPrompt = buildVisionSystemPrompt();
   const userPrompt = buildVisionUserPrompt({
     imageSize,
     contentBounds,
     semanticAnchors,
-    priorIssuesJson: priorIssues?.length
-      ? JSON.stringify(priorIssues, null, 2)
+    watchlistIssuesJson: watchlist &&
+      (watchlist.fidelityWatchlist.length > 0 || watchlist.designQualityWatchlist.length > 0)
+      ? serializeWatchlist(watchlist)
       : null,
   });
 
@@ -1177,76 +975,95 @@ async function runVisionCritique(
       phase: "vision",
       systemPrompt,
       userPrompt,
-      model,
-      effort,
+      provider: selection.provider,
+      model: selection.model,
+      effort: selection.effort,
     },
   });
 
-  if (isMockClaudeModel(model)) {
-    const issues = [
-      {
-        priority: 1,
-        issueId: "title.scale",
-        category: "content",
-        ref: "title",
-        area: "title",
-        issue: "title font is too large",
-        fixType: "style_adjustment",
-        observed: "Replica title appears larger than the original.",
-        desired: "Original title should feel slightly smaller.",
-        confidence: 0.9,
-      },
-      {
-        priority: 2,
-        issueId: "background-glow.background-style",
-        category: "signature_visual",
-        ref: "background-glow",
-        area: "background glow",
-        issue: "warm glow is missing",
-        fixType: "style_adjustment",
-        observed: "Replica background is flatter and darker.",
-        desired: "Original includes a visible warm glow.",
-        confidence: 0.84,
-      },
-    ] satisfies VisionIssue[];
-    const rankedIssues = applyCategoryCoverage(issues);
-    const issuesJson = serializeIssues(rankedIssues);
-    const editIssuesJson = serializeIssues(selectIssuesForEdit(rankedIssues));
+  if (isMockProviderSelection(selection)) {
+    const critique: VisionCritique = {
+      fidelityIssues: [
+        {
+          priority: 1,
+          issueId: "title.scale",
+          category: "content",
+          ref: "title",
+          area: "title",
+          issue: "title font is too large",
+          fixType: "style_adjustment",
+          observed: "Replica title appears larger than the original.",
+          desired: "Original title should feel slightly smaller.",
+          confidence: 0.9,
+          salience: "important",
+        },
+        {
+          priority: 2,
+          issueId: "background-glow.background-style",
+          category: "signature_visual",
+          ref: "background-glow",
+          area: "background glow",
+          issue: "warm glow is missing",
+          fixType: "style_adjustment",
+          observed: "Replica background is flatter and darker.",
+          desired: "Original includes a visible warm glow.",
+          confidence: 0.84,
+          salience: "important",
+        },
+      ],
+      designQualityIssues: [
+        {
+          priority: 1,
+          issueId: "badge.optical-centering",
+          category: "style",
+          ref: "badge",
+          area: "icon badge balance",
+          issue: "icon feels optically low inside the badge",
+          fixType: "style_adjustment",
+          observed: "Replica badge feels visually bottom-heavy.",
+          desired: "Original badge feels calmer and more centered.",
+          confidence: 0.8,
+          salience: "important",
+        },
+      ],
+    };
+    const nextWatchlist = buildWatchlist(critique);
+    const critiqueJson = serializeCritique(critique);
     await emit(onEvent, {
       event: "refine:vision:thinking",
       data: {
-        text: "Mock model selected. Returning a deterministic local structured issue list.",
+        text: "Mock model selected. Returning a deterministic local bucketed issue list.",
       },
     });
     await emit(onEvent, {
       event: "refine:vision:text",
       data: {
-        text: issuesJson,
+        text: critiqueJson,
       },
     });
     return {
-      issues: rankedIssues,
-      issuesJson,
-      editIssuesJson,
-      priorIssuesJson: issuesJson,
-      priorIssueChecks: [],
-      resolvedIssueIds: [],
-      rawText: issuesJson,
+      ...critique,
+      watchlist: nextWatchlist,
+      fidelityIssuesJson: serializeIssues(critique.fidelityIssues),
+      designQualityIssuesJson: serializeIssues(critique.designQualityIssues),
+      watchlistIssuesJson: serializeWatchlist(nextWatchlist),
+      rawText: critiqueJson,
       cost: 0,
       elapsed: 0,
     };
   }
 
-  const result = await streamClaudeText({
-    prompt: makeVisionPrompt(
+  const result = await runProviderTurn({
+    content: buildVisionContent(
       referenceImage,
       referenceMediaType,
       replicaImage,
       userPrompt,
     ),
     systemPrompt,
-    model,
-    effort,
+    userPrompt,
+    selection,
+    phase: "vision",
     signal,
     onEvent,
     thinkingEvent: "refine:vision:thinking",
@@ -1254,32 +1071,21 @@ async function runVisionCritique(
   });
 
   const parsed = parseVisionCritique(result.resultText, signatureRefs);
-  const priorIssueChecks = coalescePriorIssueChecks(
-    priorIssues ?? [],
-    parsed.issues,
-    parsed.priorIssueChecks,
-    parsed.resolvedIssueIds,
-  );
-  const stickyIssues = mergeStickySignatureIssues(
-    parsed.issues,
-    priorIssues ?? [],
-    priorIssueChecks,
-  );
-  const rankedIssues = applyCategoryCoverage(stickyIssues);
-  const priorIssuesForRecheck = buildPriorIssuesForRecheck(
-    rankedIssues,
-    priorIssues ?? [],
-    priorIssueChecks,
-  );
+  const critique: VisionCritique = {
+    fidelityIssues: normalizeIssueBucket(
+      applyPersistenceCounts(parsed.fidelityIssues, watchlist?.fidelityWatchlist ?? []),
+    ),
+    designQualityIssues: normalizeIssueBucket(
+      applyPersistenceCounts(parsed.designQualityIssues, watchlist?.designQualityWatchlist ?? []),
+    ),
+  };
+  const nextWatchlist = buildWatchlist(critique);
   return {
-    issues: rankedIssues,
-    issuesJson: serializeIssues(rankedIssues),
-    editIssuesJson: serializeIssues(selectIssuesForEdit(rankedIssues)),
-    priorIssuesJson: serializeIssues(priorIssuesForRecheck),
-    priorIssueChecks,
-    resolvedIssueIds: priorIssueChecks
-      .filter((check) => check.status === "resolved")
-      .map((check) => check.issueId),
+    ...critique,
+    watchlist: nextWatchlist,
+    fidelityIssuesJson: serializeIssues(critique.fidelityIssues),
+    designQualityIssuesJson: serializeIssues(critique.designQualityIssues),
+    watchlistIssuesJson: serializeWatchlist(nextWatchlist),
     rawText: result.resultText,
     cost: result.totalCost,
     elapsed: result.elapsed,
@@ -1295,12 +1101,12 @@ async function runProposalEdit(
     referenceMediaType,
     replicaImage,
     imageSize,
-    issuesJson,
+    fidelityIssuesJson,
+    designQualityIssuesJson,
     proposals,
     contentBounds,
     geometryHints,
-    model,
-    effort,
+    selection,
     signal,
     onEvent,
   } = options;
@@ -1311,7 +1117,8 @@ async function runProposalEdit(
     proposalSpace: slideProposal?.region
       ? { w: slideProposal.region.w, h: slideProposal.region.h }
       : null,
-    issuesJson,
+    fidelityIssuesJson,
+    designQualityIssuesJson,
     proposalsJson: JSON.stringify(proposals, null, 2),
     contentBounds,
     geometryHints,
@@ -1324,12 +1131,13 @@ async function runProposalEdit(
       phase: "edit",
       systemPrompt,
       userPrompt,
-      model,
-      effort,
+      provider: selection.provider,
+      model: selection.model,
+      effort: selection.effort,
     },
   });
 
-  if (isMockClaudeModel(model)) {
+  if (isMockProviderSelection(selection)) {
     await emit(onEvent, {
       event: "refine:edit:thinking",
       data: {
@@ -1350,16 +1158,17 @@ async function runProposalEdit(
     };
   }
 
-  const result = await streamClaudeText({
-    prompt: makeComparisonEditPrompt(
+  const result = await runProviderTurn({
+    content: buildEditContent(
       referenceImage,
       referenceMediaType,
       replicaImage,
       userPrompt,
     ),
     systemPrompt,
-    model,
-    effort,
+    userPrompt,
+    selection,
+    phase: "edit",
     signal,
     onEvent,
     thinkingEvent: "refine:edit:thinking",
@@ -1397,7 +1206,7 @@ async function runProposalEdit(
   }
 
   return {
-    proposals: parsed as Proposal[],
+    proposals: normalizeProposalBodies(parsed as Proposal[]),
     status: "ok",
     cost: result.totalCost,
     elapsed: result.elapsed,
@@ -1419,11 +1228,7 @@ export async function runRefinementLoop(
     baseAnalysis,
     contentBounds = baseAnalysis.source.contentBounds ?? null,
     geometryHints = null,
-    priorIssuesJson = null,
-    visionModel,
-    visionEffort,
-    editModel,
-    editEffort,
+    watchlistIssuesJson = null,
     maxIterations,
     mismatchThreshold,
     iterationOffset = 0,
@@ -1431,6 +1236,16 @@ export async function runRefinementLoop(
     signal,
     onEvent,
   } = options;
+  const visionSelection = options.visionSelection ?? normalizeProviderSelection({
+    provider: options.visionProvider,
+    model: options.visionModel,
+    effort: options.visionEffort,
+  });
+  const editSelection = options.editSelection ?? normalizeProviderSelection({
+    provider: options.editProvider,
+    model: options.editModel,
+    effort: options.editEffort,
+  });
   const dimensions = baseAnalysis.source.dimensions;
   const baseIteration = Math.max(0, Math.floor(iterationOffset));
   const targetIteration = baseIteration + maxIterations;
@@ -1439,9 +1254,9 @@ export async function runRefinementLoop(
   let currentProposals = initialProposals;
   let lastMismatchRatio = 1;
   let lastCycle: RenderAndDiffResult | undefined;
-  let priorVisionIssues: VisionIssue[] = priorIssuesJson
-    ? parseVisionCritique(priorIssuesJson, signatureRefs).issues
-    : [];
+  let watchlist: VisionWatchlist = watchlistIssuesJson
+    ? parseVisionWatchlist(watchlistIssuesJson, signatureRefs)
+    : { fidelityWatchlist: [], designQualityWatchlist: [] };
   let totalCost: number | null = null;
   const loopStartedAt = Date.now();
 
@@ -1450,10 +1265,12 @@ export async function runRefinementLoop(
     data: {
       iteration: baseIteration,
       maxIterations: targetIteration,
-      visionModel,
-      visionEffort,
-      editModel,
-      editEffort,
+      visionProvider: visionSelection.provider,
+      visionModel: visionSelection.model,
+      visionEffort: visionSelection.effort,
+      editProvider: editSelection.provider,
+      editModel: editSelection.model,
+      editEffort: editSelection.effort,
       mismatchThreshold,
     },
   });
@@ -1533,29 +1350,26 @@ export async function runRefinementLoop(
       imageSize: { w: prevDiff.diff.width, h: prevDiff.diff.height },
       contentBounds,
       semanticAnchors,
-      priorIssues: priorVisionIssues,
-      model: visionModel,
-      effort: visionEffort,
+      watchlist,
+      selection: visionSelection,
       signal,
       onEvent,
     });
-    priorVisionIssues = parseVisionCritique(
-      visionResult.priorIssuesJson,
-      signatureRefs,
-    ).issues;
+    watchlist = visionResult.watchlist;
     totalCost = accumulateCost(totalCost, visionResult.cost);
-    const visionEmpty = visionResult.issues.length === 0;
+    const issueCount =
+      visionResult.fidelityIssues.length + visionResult.designQualityIssues.length;
+    const visionEmpty = issueCount === 0;
     await emit(onEvent, {
       event: "refine:vision:done",
       data: {
         differences: visionResult.rawText,
-        issues: visionResult.issues,
-        issuesJson: visionResult.issuesJson,
-        editIssuesJson: visionResult.editIssuesJson,
-        priorIssuesJson: visionResult.priorIssuesJson,
-        priorIssueChecks: visionResult.priorIssueChecks,
-        resolvedIssueIds: visionResult.resolvedIssueIds,
-        issueCount: visionResult.issues.length,
+        fidelityIssues: visionResult.fidelityIssues,
+        designQualityIssues: visionResult.designQualityIssues,
+        fidelityIssuesJson: visionResult.fidelityIssuesJson,
+        designQualityIssuesJson: visionResult.designQualityIssuesJson,
+        watchlistIssuesJson: visionResult.watchlistIssuesJson,
+        issueCount,
         cost: visionResult.cost,
         elapsed: visionResult.elapsed,
         ...(visionEmpty ? { visionEmpty: true } : {}),
@@ -1591,12 +1405,12 @@ export async function runRefinementLoop(
       referenceMediaType: imageMediaType,
       replicaImage: prevDiff.replicaImage,
       imageSize: { w: prevDiff.diff.width, h: prevDiff.diff.height },
-      issuesJson: visionResult.editIssuesJson,
+      fidelityIssuesJson: visionResult.fidelityIssuesJson,
+      designQualityIssuesJson: visionResult.designQualityIssuesJson,
       proposals: currentProposals,
       contentBounds,
       geometryHints,
-      model: editModel,
-      effort: editEffort,
+      selection: editSelection,
       signal,
       onEvent,
     });

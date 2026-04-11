@@ -4,16 +4,21 @@ import AnalyzeForm from "./AnalyzeForm";
 import type { SlideCard } from "./store";
 
 const mockUpdateDescription = vi.fn();
-const mockSetModel = vi.fn();
-const mockSetEffort = vi.fn();
+const mockSetAnalyzeProvider = vi.fn();
+const mockSetAnalyzeModel = vi.fn();
+const mockSetAnalyzeEffort = vi.fn();
 const mockSetAutoRefine = vi.fn();
 const mockSetCardAutoRefine = vi.fn();
+const mockSetRefineVisionProvider = vi.fn();
 const mockSetRefineVisionModel = vi.fn();
 const mockSetRefineVisionEffort = vi.fn();
+const mockSetRefineEditProvider = vi.fn();
 const mockSetRefineEditModel = vi.fn();
 const mockSetRefineEditEffort = vi.fn();
+const mockSetCardRefineVisionProvider = vi.fn();
 const mockSetCardRefineVisionModel = vi.fn();
 const mockSetCardRefineVisionEffort = vi.fn();
+const mockSetCardRefineEditProvider = vi.fn();
 const mockSetCardRefineEditModel = vi.fn();
 const mockSetCardRefineEditEffort = vi.fn();
 
@@ -24,23 +29,37 @@ vi.mock("./store", async () => {
     useExtractStore: (selector?: (state: unknown) => unknown) => {
       const state = {
         updateDescription: mockUpdateDescription,
-        model: "claude-opus-4-6",
-        effort: "low",
+        analyzeSelection: {
+          provider: "claude-code",
+          model: "claude-opus-4-6",
+          effort: "low",
+        },
         autoRefine: true,
-        setModel: mockSetModel,
-        setEffort: mockSetEffort,
+        setAnalyzeProvider: mockSetAnalyzeProvider,
+        setAnalyzeModel: mockSetAnalyzeModel,
+        setAnalyzeEffort: mockSetAnalyzeEffort,
         setAutoRefine: mockSetAutoRefine,
         setCardAutoRefine: mockSetCardAutoRefine,
-        refineVisionModel: "claude-opus-4-6",
-        refineVisionEffort: "medium",
-        refineEditModel: "claude-sonnet-4-6",
-        refineEditEffort: "high",
+        refineVisionSelection: {
+          provider: "claude-code",
+          model: "claude-opus-4-6",
+          effort: "medium",
+        },
+        refineEditSelection: {
+          provider: "claude-code",
+          model: "claude-sonnet-4-6",
+          effort: "high",
+        },
+        setRefineVisionProvider: mockSetRefineVisionProvider,
         setRefineVisionModel: mockSetRefineVisionModel,
         setRefineVisionEffort: mockSetRefineVisionEffort,
+        setRefineEditProvider: mockSetRefineEditProvider,
         setRefineEditModel: mockSetRefineEditModel,
         setRefineEditEffort: mockSetRefineEditEffort,
+        setCardRefineVisionProvider: mockSetCardRefineVisionProvider,
         setCardRefineVisionModel: mockSetCardRefineVisionModel,
         setCardRefineVisionEffort: mockSetCardRefineVisionEffort,
+        setCardRefineEditProvider: mockSetCardRefineEditProvider,
         setCardRefineEditModel: mockSetCardRefineEditModel,
         setCardRefineEditEffort: mockSetCardRefineEditEffort,
         setRefineMaxIterations: vi.fn(),
@@ -91,10 +110,16 @@ function makeCard(): SlideCard {
     refineElapsed: 0,
     refineCost: null,
     refineStartMismatch: null,
+    refineWatchlistJson: null,
     autoRefine: true,
     normalizedImage: null,
     diffObjectUrl: null,
     promptHistory: [],
+    benchmarkGroupId: null,
+    benchmarkVariant: null,
+    benchmarkSlug: null,
+    benchmarkSlideIndex: null,
+    geometryHints: null,
   };
 }
 
@@ -111,6 +136,6 @@ describe("AnalyzeForm", () => {
     expect(screen.getByLabelText("Refine")).toBeTruthy();
     expect(screen.getByText("Vision")).toBeTruthy();
     expect(screen.getByText("Edit")).toBeTruthy();
-    expect(screen.getAllByText("Mock Claude").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Opus 4.6").length).toBeGreaterThan(0);
   });
 });

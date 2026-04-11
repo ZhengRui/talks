@@ -1,4 +1,5 @@
 import type { DiffRegion } from "@/lib/render/compare";
+import type { ExtractProviderId, ProviderSelection } from "@/lib/extract/providers/shared";
 
 // Shared types and utilities for extract workbench components.
 
@@ -19,6 +20,7 @@ export interface PromptRecord {
   iteration: number | null;
   systemPrompt: string;
   userPrompt: string;
+  provider?: ExtractProviderId;
   model?: string;
   effort?: string;
   timestamp: number;
@@ -151,6 +153,7 @@ export interface Inventory {
 }
 
 export interface AnalysisProvenance {
+  provider: ExtractProviderId;
   model: string;
   effort: string;
 }
@@ -158,9 +161,16 @@ export interface AnalysisProvenance {
 export interface StageAnalysisProvenance extends AnalysisProvenance {
   elapsed?: number;
   cost?: number | null;
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    cachedInputTokens?: number;
+  } | null;
 }
 
 export interface RefineProvenance {
+  vision?: ProviderSelection;
+  edit?: ProviderSelection;
   visionModel: string;
   visionEffort: string;
   editModel: string;

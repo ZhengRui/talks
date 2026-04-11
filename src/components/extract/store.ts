@@ -11,6 +11,11 @@ import type {
   RefineIterationResult,
   StageAnalysisProvenance,
 } from "./types";
+import type { ExtractProviderId, ProviderSelection } from "@/lib/extract/providers/shared";
+import {
+  getDefaultProviderSelection,
+  normalizeProviderSelection,
+} from "@/lib/extract/providers/catalog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -21,6 +26,7 @@ export interface LogEntry {
   content: string;
   timestamp: number;
   stage?: AnalysisStage;
+  streamKey?: string;
 }
 
 export interface SlideCard {
@@ -57,7 +63,7 @@ export interface SlideCard {
   refineElapsed: number;
   refineCost: number | null;
   refineStartMismatch: number | null;
-  refinePriorIssuesJson: string | null;
+  refineWatchlistJson: string | null;
   autoRefine: boolean;
   normalizedImage: File | null;
   diffObjectUrl: string | null;
@@ -89,11 +95,14 @@ export interface ExtractState {
   yamlModal: { open: boolean; cardId: string; templateIndex: number };
   panelWidth: number; // 0 when collapsed
   layoutKey: string; // "row" | "1" | "2" | "3" | "custom-N"
+  analyzeSelection: ProviderSelection;
   model: string;
   effort: string;
   autoRefine: boolean;
+  refineVisionSelection: ProviderSelection;
   refineVisionModel: string;
   refineVisionEffort: string;
+  refineEditSelection: ProviderSelection;
   refineEditModel: string;
   refineEditEffort: string;
   refineDefaultMaxIterations: number;
@@ -124,7 +133,7 @@ export interface ExtractState {
   continueRefinement: (id: string) => void;
   updateRefineDiff: (id: string, iteration: number, mismatchRatio: number, diffArtifactUrl: string) => void;
   updateRefinement: (id: string, result: RefineIterationResult) => void;
-  setRefinePriorIssuesJson: (id: string, issuesJson: string | null) => void;
+  setRefineWatchlistJson: (id: string, issuesJson: string | null) => void;
   completeRefineIteration: (id: string, mismatchRatio: number) => void;
   setDiffObjectUrl: (id: string, url: string | null) => void;
   completeRefinement: (id: string, elapsed?: number, cost?: number | null) => void;
@@ -138,14 +147,21 @@ export interface ExtractState {
   setPanelWidth: (width: number) => void;
   openYamlModal: (cardId: string, templateIndex: number) => void;
   closeYamlModal: () => void;
+  setAnalyzeProvider: (provider: ExtractProviderId) => void;
+  setAnalyzeModel: (model: string) => void;
+  setAnalyzeEffort: (effort: string) => void;
   setModel: (model: string) => void;
   setEffort: (effort: string) => void;
+  setRefineVisionProvider: (provider: ExtractProviderId) => void;
   setRefineVisionModel: (model: string) => void;
   setRefineVisionEffort: (effort: string) => void;
+  setRefineEditProvider: (provider: ExtractProviderId) => void;
   setRefineEditModel: (model: string) => void;
   setRefineEditEffort: (effort: string) => void;
+  setCardRefineVisionProvider: (id: string, provider: ExtractProviderId) => void;
   setCardRefineVisionModel: (id: string, model: string) => void;
   setCardRefineVisionEffort: (id: string, effort: string) => void;
+  setCardRefineEditProvider: (id: string, provider: ExtractProviderId) => void;
   setCardRefineEditModel: (id: string, model: string) => void;
   setCardRefineEditEffort: (id: string, effort: string) => void;
   setPreviewDebugTextBoxes: (enabled: boolean) => void;
@@ -206,6 +222,16 @@ function updateCard(
 
 /** Types that should merge by appending content to the last entry. */
 const STREAMING_TYPES = new Set<LogEntry["type"]>(["text", "thinking"]);
+const DEFAULT_ANALYZE_SELECTION = normalizeProviderSelection({
+  provider: "claude-code",
+  model: "claude-opus-4-6",
+  effort: "medium",
+});
+const DEFAULT_REFINE_SELECTION = normalizeProviderSelection({
+  provider: "claude-code",
+  model: "claude-opus-4-6",
+  effort: "medium",
+});
 
 function createSelectedTemplateIndex(): Record<AnalysisStage, number> {
   return { extract: 0, refine: 0 };
@@ -224,6 +250,45 @@ function sortAnalysisResult(analysis: AnalysisResult | null | undefined): Analys
 function revokeObjectUrl(url: string | null | undefined): void {
   if (!url) return;
   URL.revokeObjectURL(url);
+}
+
+function withAliases(selection: ProviderSelection): Pick<ExtractState, "model" | "effort"> {
+  return {
+    model: selection.model,
+    effort: selection.effort,
+  };
+}
+
+function withRefineVisionAliases(
+  selection: ProviderSelection,
+): Pick<ExtractState, "refineVisionModel" | "refineVisionEffort"> {
+  return {
+    refineVisionModel: selection.model,
+    refineVisionEffort: selection.effort,
+  };
+}
+
+function withRefineEditAliases(
+  selection: ProviderSelection,
+): Pick<ExtractState, "refineEditModel" | "refineEditEffort"> {
+  return {
+    refineEditModel: selection.model,
+    refineEditEffort: selection.effort,
+  };
+}
+
+function buildRefinePass(
+  vision: ProviderSelection,
+  edit: ProviderSelection,
+): RefineProvenance {
+  return {
+    vision,
+    edit,
+    visionModel: vision.model,
+    visionEffort: vision.effort,
+    editModel: edit.model,
+    editEffort: edit.effort,
+  };
 }
 
 function updateUnlockedCards(
@@ -245,15 +310,33 @@ function updateUnlockedCards(
 function currentRefinePass(
   state: Pick<
     ExtractState,
-    "refineVisionModel" | "refineVisionEffort" | "refineEditModel" | "refineEditEffort"
+    "refineVisionSelection" | "refineEditSelection"
   >,
 ): RefineProvenance {
-  return {
-    visionModel: state.refineVisionModel,
-    visionEffort: state.refineVisionEffort,
-    editModel: state.refineEditModel,
-    editEffort: state.refineEditEffort,
-  };
+  return buildRefinePass(state.refineVisionSelection, state.refineEditSelection);
+}
+
+export function resolveCardRefinePass(
+  card: Pick<SlideCard, "refinePass"> | null | undefined,
+  state: Pick<ExtractState, "refineVisionSelection" | "refineEditSelection">,
+): RefineProvenance {
+  const pass = card?.refinePass;
+  if (pass?.vision && pass?.edit) {
+    return buildRefinePass(pass.vision, pass.edit);
+  }
+
+  const vision = normalizeProviderSelection({
+    provider: state.refineVisionSelection.provider,
+    model: pass?.visionModel ?? state.refineVisionSelection.model,
+    effort: pass?.visionEffort ?? state.refineVisionSelection.effort,
+  });
+  const edit = normalizeProviderSelection({
+    provider: state.refineEditSelection.provider,
+    model: pass?.editModel ?? state.refineEditSelection.model,
+    effort: pass?.editEffort ?? state.refineEditSelection.effort,
+  });
+
+  return buildRefinePass(vision, edit);
 }
 
 // ---------------------------------------------------------------------------
@@ -271,13 +354,13 @@ export function createExtractStore(): StoreApi<ExtractState> {
     yamlModal: { open: false, cardId: "", templateIndex: 0 },
     panelWidth: 380,
     layoutKey: "3", // default: 3-column grid
-    model: "claude-opus-4-6",
-    effort: "medium",
+    analyzeSelection: DEFAULT_ANALYZE_SELECTION,
+    ...withAliases(DEFAULT_ANALYZE_SELECTION),
     autoRefine: true,
-    refineVisionModel: "claude-opus-4-6",
-    refineVisionEffort: "medium",
-    refineEditModel: "claude-opus-4-6",
-    refineEditEffort: "medium",
+    refineVisionSelection: DEFAULT_REFINE_SELECTION,
+    ...withRefineVisionAliases(DEFAULT_REFINE_SELECTION),
+    refineEditSelection: DEFAULT_REFINE_SELECTION,
+    ...withRefineEditAliases(DEFAULT_REFINE_SELECTION),
     refineDefaultMaxIterations: 4,
     refineDefaultMismatchThreshold: 0.05,
     previewDebugTextBoxes: false,
@@ -327,7 +410,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
         refineElapsed: 0,
         refineCost: null,
         refineStartMismatch: null,
-        refinePriorIssuesJson: null,
+        refineWatchlistJson: null,
         autoRefine: get().autoRefine,
         normalizedImage: null,
         diffObjectUrl: null,
@@ -381,13 +464,10 @@ export function createExtractStore(): StoreApi<ExtractState> {
 
     startAnalysis(id: string) {
       const {
-        model,
-        effort,
+        analyzeSelection,
         autoRefine,
-        refineVisionModel,
-        refineVisionEffort,
-        refineEditModel,
-        refineEditEffort,
+        refineVisionSelection,
+        refineEditSelection,
         refineDefaultMaxIterations,
         refineDefaultMismatchThreshold,
       } = get();
@@ -396,24 +476,24 @@ export function createExtractStore(): StoreApi<ExtractState> {
         revokeObjectUrl(card?.diffObjectUrl);
         const lockedRefineSettings = card?.refineSettingsLocked === true;
         const nextRefinePass = lockedRefineSettings
-          ? (card?.refinePass ?? {
-              visionModel: refineVisionModel,
-              visionEffort: refineVisionEffort,
-              editModel: refineEditModel,
-              editEffort: refineEditEffort,
+          ? resolveCardRefinePass(card, {
+              refineVisionSelection,
+              refineEditSelection,
             })
-          : {
-              visionModel: refineVisionModel,
-              visionEffort: refineVisionEffort,
-              editModel: refineEditModel,
-              editEffort: refineEditEffort,
-            };
+          : currentRefinePass({
+              refineVisionSelection,
+              refineEditSelection,
+            });
         return updateCard(state, id, () => ({
           status: "analyzing" as const,
           log: [],
           error: null,
           elapsed: 0,
-          pass1: { model, effort },
+          pass1: {
+            provider: analyzeSelection.provider,
+            model: analyzeSelection.model,
+            effort: analyzeSelection.effort,
+          },
           pass1Elapsed: 0,
           pass1Cost: null,
           refinePass: nextRefinePass,
@@ -436,7 +516,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineElapsed: 0,
           refineCost: null,
           refineStartMismatch: null,
-          refinePriorIssuesJson: null,
+          refineWatchlistJson: null,
           diffObjectUrl: null,
           promptHistory: [],
         }));
@@ -452,13 +532,15 @@ export function createExtractStore(): StoreApi<ExtractState> {
             last &&
             STREAMING_TYPES.has(entry.type) &&
             last.type === entry.type &&
-            last.stage === entry.stage
+            last.stage === entry.stage &&
+            last.streamKey === entry.streamKey
           ) {
             // Merge: append content to last entry of same streaming type
             log[log.length - 1] = {
               ...last,
               content: last.content + entry.content,
               timestamp: entry.timestamp,
+              streamKey: entry.streamKey,
             };
           } else {
             log.push(entry);
@@ -475,6 +557,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
             existing.stage === entry.stage &&
             existing.phase === entry.phase &&
             existing.iteration === entry.iteration &&
+            existing.provider === entry.provider &&
             existing.systemPrompt === entry.systemPrompt &&
             existing.userPrompt === entry.userPrompt,
           );
@@ -503,14 +586,20 @@ export function createExtractStore(): StoreApi<ExtractState> {
       );
       set((state) => {
         const card = state.cards.get(id);
+        const pass1 = provenance?.pass1
+          ? {
+              ...(card?.pass1 ?? {}),
+              ...provenance.pass1,
+            }
+          : null;
         revokeObjectUrl(card?.diffObjectUrl);
         return updateCard(state, id, () => ({
           status: "analyzed" as const,
           analysis,
           pass1Analysis: normalizedAnalysis,
-          pass1: provenance?.pass1 ?? null,
-          pass1Elapsed: provenance?.pass1?.elapsed ?? 0,
-          pass1Cost: provenance?.pass1?.cost ?? null,
+          pass1,
+          pass1Elapsed: pass1?.elapsed ?? 0,
+          pass1Cost: pass1?.cost ?? null,
           activeStage: "extract" as const,
           selectedTemplateIndex: createSelectedTemplateIndex(),
           viewMode: "original" as const,
@@ -523,7 +612,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineElapsed: 0,
           refineCost: null,
           refineStartMismatch: null,
-          refinePriorIssuesJson: null,
+          refineWatchlistJson: null,
           diffObjectUrl: null,
         }));
       });
@@ -567,10 +656,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
     resetAnalysis(id: string) {
       const {
         autoRefine,
-        refineVisionModel,
-        refineVisionEffort,
-        refineEditModel,
-        refineEditEffort,
+        refineVisionSelection,
+        refineEditSelection,
         refineDefaultMaxIterations,
         refineDefaultMismatchThreshold,
       } = get();
@@ -586,12 +673,10 @@ export function createExtractStore(): StoreApi<ExtractState> {
           pass1: null,
           pass1Elapsed: 0,
           pass1Cost: null,
-          refinePass: {
-            visionModel: refineVisionModel,
-            visionEffort: refineVisionEffort,
-            editModel: refineEditModel,
-            editEffort: refineEditEffort,
-          },
+          refinePass: currentRefinePass({
+            refineVisionSelection,
+            refineEditSelection,
+          }),
           refineSettingsLocked: false,
           error: null,
           activeStage: "extract" as const,
@@ -608,7 +693,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineError: null,
           refineElapsed: 0,
           refineCost: null,
-          refinePriorIssuesJson: null,
+          refineWatchlistJson: null,
           normalizedImage: null,
           diffObjectUrl: null,
           promptHistory: [],
@@ -688,7 +773,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineElapsed: 0,
           refineCost: null,
           refineStartMismatch: null,
-          refinePriorIssuesJson: null,
+          refineWatchlistJson: null,
           diffObjectUrl: null,
           promptHistory: card?.promptHistory.filter((entry) => entry.stage !== "refine") ?? [],
           activeStage: "refine" as const,
@@ -708,9 +793,9 @@ export function createExtractStore(): StoreApi<ExtractState> {
       );
     },
 
-    setRefinePriorIssuesJson(id: string, issuesJson: string | null) {
+    setRefineWatchlistJson(id: string, issuesJson: string | null) {
       set((state) => updateCard(state, id, () => ({
-        refinePriorIssuesJson: issuesJson,
+        refineWatchlistJson: issuesJson,
       })));
     },
 
@@ -882,107 +967,251 @@ export function createExtractStore(): StoreApi<ExtractState> {
       }));
     },
 
+    setAnalyzeProvider(provider: ExtractProviderId) {
+      const analyzeSelection = getDefaultProviderSelection(provider);
+      set({
+        analyzeSelection,
+        ...withAliases(analyzeSelection),
+      });
+    },
+
+    setAnalyzeModel(model: string) {
+      set((state) => {
+        const analyzeSelection = normalizeProviderSelection({
+          provider: state.analyzeSelection.provider,
+          model,
+          effort: state.analyzeSelection.effort,
+        });
+        return {
+          analyzeSelection,
+          ...withAliases(analyzeSelection),
+        };
+      });
+    },
+
+    setAnalyzeEffort(effort: string) {
+      set((state) => {
+        const analyzeSelection = normalizeProviderSelection({
+          provider: state.analyzeSelection.provider,
+          model: state.analyzeSelection.model,
+          effort,
+        });
+        return {
+          analyzeSelection,
+          ...withAliases(analyzeSelection),
+        };
+      });
+    },
+
     setModel(model: string) {
-      set({ model });
+      get().setAnalyzeModel(model);
     },
 
     setEffort(effort: string) {
-      set({ effort });
+      get().setAnalyzeEffort(effort);
+    },
+
+    setRefineVisionProvider(provider: ExtractProviderId) {
+      set((state) => {
+        const refineVisionSelection = getDefaultProviderSelection(provider);
+        const cards = updateUnlockedCards(state, (card) => {
+          const pass = resolveCardRefinePass(card, state);
+          return {
+            refinePass: buildRefinePass(refineVisionSelection, pass.edit),
+          };
+        });
+        return {
+          refineVisionSelection,
+          ...withRefineVisionAliases(refineVisionSelection),
+          ...(cards ? { cards } : {}),
+        };
+      });
     },
 
     setRefineVisionModel(refineVisionModel: string) {
       set((state) => {
+        const refineVisionSelection = normalizeProviderSelection({
+          provider: state.refineVisionSelection.provider,
+          model: refineVisionModel,
+          effort: state.refineVisionSelection.effort,
+        });
         const cards = updateUnlockedCards(state, (card) => ({
-          refinePass: {
-            ...(card.refinePass ?? currentRefinePass(state)),
-            visionModel: refineVisionModel,
-          },
+          refinePass: buildRefinePass(
+            refineVisionSelection,
+            resolveCardRefinePass(card, state).edit,
+          ),
         }));
-        return cards ? { refineVisionModel, cards } : { refineVisionModel };
+        return {
+          refineVisionSelection,
+          ...withRefineVisionAliases(refineVisionSelection),
+          ...(cards ? { cards } : {}),
+        };
       });
     },
 
     setRefineVisionEffort(refineVisionEffort: string) {
       set((state) => {
+        const refineVisionSelection = normalizeProviderSelection({
+          provider: state.refineVisionSelection.provider,
+          model: state.refineVisionSelection.model,
+          effort: refineVisionEffort,
+        });
         const cards = updateUnlockedCards(state, (card) => ({
-          refinePass: {
-            ...(card.refinePass ?? currentRefinePass(state)),
-            visionEffort: refineVisionEffort,
-          },
+          refinePass: buildRefinePass(
+            refineVisionSelection,
+            resolveCardRefinePass(card, state).edit,
+          ),
         }));
-        return cards
-          ? { refineVisionEffort, cards }
-          : { refineVisionEffort };
+        return {
+          refineVisionSelection,
+          ...withRefineVisionAliases(refineVisionSelection),
+          ...(cards ? { cards } : {}),
+        };
+      });
+    },
+
+    setRefineEditProvider(provider: ExtractProviderId) {
+      set((state) => {
+        const refineEditSelection = getDefaultProviderSelection(provider);
+        const cards = updateUnlockedCards(state, (card) => {
+          const pass = resolveCardRefinePass(card, state);
+          return {
+            refinePass: buildRefinePass(pass.vision, refineEditSelection),
+          };
+        });
+        return {
+          refineEditSelection,
+          ...withRefineEditAliases(refineEditSelection),
+          ...(cards ? { cards } : {}),
+        };
       });
     },
 
     setRefineEditModel(refineEditModel: string) {
       set((state) => {
+        const refineEditSelection = normalizeProviderSelection({
+          provider: state.refineEditSelection.provider,
+          model: refineEditModel,
+          effort: state.refineEditSelection.effort,
+        });
         const cards = updateUnlockedCards(state, (card) => ({
-          refinePass: {
-            ...(card.refinePass ?? currentRefinePass(state)),
-            editModel: refineEditModel,
-          },
+          refinePass: buildRefinePass(
+            resolveCardRefinePass(card, state).vision,
+            refineEditSelection,
+          ),
         }));
-        return cards ? { refineEditModel, cards } : { refineEditModel };
+        return {
+          refineEditSelection,
+          ...withRefineEditAliases(refineEditSelection),
+          ...(cards ? { cards } : {}),
+        };
       });
     },
 
     setRefineEditEffort(refineEditEffort: string) {
       set((state) => {
+        const refineEditSelection = normalizeProviderSelection({
+          provider: state.refineEditSelection.provider,
+          model: state.refineEditSelection.model,
+          effort: refineEditEffort,
+        });
         const cards = updateUnlockedCards(state, (card) => ({
-          refinePass: {
-            ...(card.refinePass ?? currentRefinePass(state)),
-            editEffort: refineEditEffort,
-          },
+          refinePass: buildRefinePass(
+            resolveCardRefinePass(card, state).vision,
+            refineEditSelection,
+          ),
         }));
-        return cards
-          ? { refineEditEffort, cards }
-          : { refineEditEffort };
+        return {
+          refineEditSelection,
+          ...withRefineEditAliases(refineEditSelection),
+          ...(cards ? { cards } : {}),
+        };
       });
+    },
+
+    setCardRefineVisionProvider(id: string, provider: ExtractProviderId) {
+      set((state) =>
+        updateCard(state, id, (card) => {
+          const pass = resolveCardRefinePass(card, state);
+          return {
+            refinePass: buildRefinePass(getDefaultProviderSelection(provider), pass.edit),
+          };
+        }),
+      );
     },
 
     setCardRefineVisionModel(id: string, model: string) {
       set((state) =>
-        updateCard(state, id, (card) => ({
-          refinePass: {
-            ...(card.refinePass ?? currentRefinePass(state)),
-            visionModel: model,
-          },
-        })),
+        updateCard(state, id, (card) => {
+          const pass = resolveCardRefinePass(card, state);
+          const vision = normalizeProviderSelection({
+            provider: pass.vision.provider,
+            model,
+            effort: pass.vision.effort,
+          });
+          return {
+            refinePass: buildRefinePass(vision, pass.edit),
+          };
+        }),
       );
     },
 
     setCardRefineVisionEffort(id: string, effort: string) {
       set((state) =>
-        updateCard(state, id, (card) => ({
-          refinePass: {
-            ...(card.refinePass ?? currentRefinePass(state)),
-            visionEffort: effort,
-          },
-        })),
+        updateCard(state, id, (card) => {
+          const pass = resolveCardRefinePass(card, state);
+          const vision = normalizeProviderSelection({
+            provider: pass.vision.provider,
+            model: pass.vision.model,
+            effort,
+          });
+          return {
+            refinePass: buildRefinePass(vision, pass.edit),
+          };
+        }),
+      );
+    },
+
+    setCardRefineEditProvider(id: string, provider: ExtractProviderId) {
+      set((state) =>
+        updateCard(state, id, (card) => {
+          const pass = resolveCardRefinePass(card, state);
+          return {
+            refinePass: buildRefinePass(pass.vision, getDefaultProviderSelection(provider)),
+          };
+        }),
       );
     },
 
     setCardRefineEditModel(id: string, model: string) {
       set((state) =>
-        updateCard(state, id, (card) => ({
-          refinePass: {
-            ...(card.refinePass ?? currentRefinePass(state)),
-            editModel: model,
-          },
-        })),
+        updateCard(state, id, (card) => {
+          const pass = resolveCardRefinePass(card, state);
+          const edit = normalizeProviderSelection({
+            provider: pass.edit.provider,
+            model,
+            effort: pass.edit.effort,
+          });
+          return {
+            refinePass: buildRefinePass(pass.vision, edit),
+          };
+        }),
       );
     },
 
     setCardRefineEditEffort(id: string, effort: string) {
       set((state) =>
-        updateCard(state, id, (card) => ({
-          refinePass: {
-            ...(card.refinePass ?? currentRefinePass(state)),
-            editEffort: effort,
-          },
-        })),
+        updateCard(state, id, (card) => {
+          const pass = resolveCardRefinePass(card, state);
+          const edit = normalizeProviderSelection({
+            provider: pass.edit.provider,
+            model: pass.edit.model,
+            effort,
+          });
+          return {
+            refinePass: buildRefinePass(pass.vision, edit),
+          };
+        }),
       );
     },
 
