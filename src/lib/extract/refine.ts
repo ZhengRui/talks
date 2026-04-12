@@ -106,6 +106,7 @@ interface VisionOptions {
   iterationHistory?: string | null;
   priorChecklist?: string | null;
   everSignatureVisualIds?: Set<string>;
+  persistenceCounts?: Map<string, number>;
   selection: ProviderSelection;
   signal?: AbortSignal;
   onEvent?: (event: RefineEvent) => Promise<void> | void;
@@ -412,6 +413,38 @@ function dedupeIssues(issues: VisionIssue[]): VisionIssue[] {
 
 function serializeIssues(issues: VisionIssue[]): string {
   return JSON.stringify(reindexIssues(issues), null, 2);
+}
+
+/** @internal exported for testing */
+export function computePersistenceCounts(records: IterationRecord[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const record of records) {
+    if (record.editApplied) {
+      for (const id of record.issuesEdited) {
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+      }
+    }
+    for (const id of record.issuesResolved) {
+      counts.delete(id);
+    }
+  }
+  return counts;
+}
+
+function serializeIssuesForEdit(
+  issues: VisionIssue[],
+  persistenceCounts: Map<string, number>,
+): string {
+  const annotated = reindexIssues(issues).map((issue) => {
+    const count = persistenceCounts.get(issue.issueId) ?? 0;
+    if (count < 2) return issue;
+    return {
+      ...issue,
+      _persistence: count,
+      _persistenceNote: `Edited ${count}x without resolution. Previous incremental adjustments are not working.`,
+    };
+  });
+  return JSON.stringify(annotated, null, 2);
 }
 
 function makeFallbackIssue(text: string, priority: number): VisionIssue {
@@ -877,7 +910,7 @@ async function runVisionCritique(
     ] satisfies VisionIssue[];
     const editIssues = selectIssuesForEdit(issues, options.everSignatureVisualIds ?? new Set());
     const issuesJson = serializeIssues(issues);
-    const editIssuesJson = serializeIssues(editIssues);
+    const editIssuesJson = serializeIssuesForEdit(editIssues, options.persistenceCounts ?? new Map());
     await emit(onEvent, {
       event: "refine:vision:thinking",
       data: {
@@ -930,7 +963,7 @@ async function runVisionCritique(
     rawIssueIds: new Set(parsed.issues.map(i => i.issueId)),
     issues: postProcessed.issues,
     issuesJson: serializeIssues(postProcessed.issues),
-    editIssuesJson: serializeIssues(editIssues),
+    editIssuesJson: serializeIssuesForEdit(editIssues, options.persistenceCounts ?? new Map()),
     rawText: result.resultText,
     cost: result.totalCost,
     elapsed: result.elapsed,
@@ -1191,9 +1224,11 @@ export async function runRefinementLoop(
     ]);
 
     // Format history and checklist for vision prompt
+    const persistenceCounts = computePersistenceCounts(records);
     const historyText = formatIterationHistory(records);
     const checklistText = formatPriorIssuesChecklist(
-      lastPostProcessedIssues.map(i => ({ issueId: i.issueId, category: i.category, issue: i.issue }))
+      lastPostProcessedIssues.map(i => ({ issueId: i.issueId, category: i.category, issue: i.issue })),
+      persistenceCounts,
     );
 
     await emit(onEvent, {
@@ -1212,6 +1247,7 @@ export async function runRefinementLoop(
       iterationHistory: historyText,
       priorChecklist: checklistText,
       everSignatureVisualIds,
+      persistenceCounts,
       selection: visionSelection,
       signal,
       onEvent,

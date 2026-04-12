@@ -119,6 +119,12 @@ If a checklist of prior issues is provided, you must account for each one:
   has changed.
 - Do not skip any prior issue. Every prior issueId must appear in either
   \`resolved\` or \`issues\`.
+- If a prior issue is marked as PERSISTENT (edited 3+ times without resolution),
+  your previous diagnosis may be inaccurate or too vague for the edit model to
+  act on. Before re-raising it, reconsider: is the issue actually what you
+  described? Could the fix be working but the effect is too subtle to see? Could
+  the root cause be different? If you re-raise, provide a more specific and
+  actionable diagnosis.
 
 ## Rules
 
@@ -207,11 +213,17 @@ export function formatIterationHistory(records: IterationRecord[]): string {
 
 export function formatPriorIssuesChecklist(
   issues: Array<{ issueId: string; category: string; issue: string }>,
+  persistenceCounts?: Map<string, number>,
 ): string {
   if (issues.length === 0) return "";
-  const lines = issues.map(
-    (i) => `- ${i.issueId} (${i.category}): ${i.issue}`,
-  );
+  const lines = issues.map((i) => {
+    const count = persistenceCounts?.get(i.issueId) ?? 0;
+    const base = `- ${i.issueId} (${i.category}): ${i.issue}`;
+    if (count >= 3) {
+      return `${base}\n  [PERSISTENT — edited ${count}x without resolution. Before re-raising: reconsider whether your diagnosis is accurate. Could the fix be partially working but too subtle? Could the root cause be different? If you re-raise, provide a more specific diagnosis than previous iterations.]`;
+    }
+    return base;
+  });
   return `\nIssues from the previous iteration to evaluate:\n${lines.join("\n")}`;
 }
 
@@ -272,13 +284,14 @@ ${SCENE_REFERENCE_CONTENT}
 - Fix the listed issues, prioritizing by priority rank.
 - Use the ORIGINAL and REPLICA images as the source of truth when deciding what to patch.
 - Use the structured issue list as guidance, but if it is incomplete or slightly wrong, resolve against the images.
-- Each issue may include: \`priority\`, \`issueId\`, \`category\`, \`ref\`, \`area\`, \`issue\`, \`fixType\`, \`observed\`, \`desired\`, \`confidence\`.
+- Each issue may include: \`priority\`, \`issueId\`, \`category\`, \`ref\`, \`area\`, \`issue\`, \`fixType\`, \`observed\`, \`desired\`, \`confidence\`, \`_persistence\`, \`_persistenceNote\`.
 - The provided contentBounds is in the pixel space of the ORIGINAL/REPLICA images. It is only for identifying the visible slide area in those images.
 - Treat image-space context and proposal-space context as separate. Do not mix them.
 - Patch the proposals JSON surgically.
 - Do NOT rewrite proposals from scratch.
 - Do NOT restructure, rename, or reorganize proposals.
 - If an issue has \`fixType: "structural_change"\`, you may replace the minimal relevant subsection of the proposal body required to fix it.
+- When an issue has \`_persistence >= 2\`, previous approaches have failed. Do not make another incremental adjustment of the same kind. Try a structurally different fix: different CSS approach, different node structure, different encoding strategy.
 - Treat the structured issue list as a diagnosis, not a literal patch recipe.
 - For high-reversal edits such as swapping direction/order, flipping layers, changing topology, or undoing an earlier structural fix: first verify that the current proposal does NOT already encode the desired structure. If it already does, do not blindly reverse it again.
 - When the proposal already encodes the requested structure but the replica still looks wrong, prefer lower-level fixes like proportions, clip bounds, band heights, opacity, contrast, color strength, spacing, or scale before applying another structural reversal.
@@ -287,7 +300,7 @@ ${SCENE_REFERENCE_CONTENT}
 - The proposals may be authored in a different internal coordinate space than the images. Preserve that proposal-space coordinate system unless a visual fix truly requires changing proposal geometry.
 - If geometry ground truth is provided in the user prompt, treat those rectangles as exact and patch toward them instead of re-guessing layout.
 - The template body uses Nunjucks. Do NOT use filters like \`| min\`, \`| max\`, \`| abs\`, \`| round\` — they are not available. Use pre-computed numeric values instead.
-- If the issue list is weak or unhelpful, keep the proposals unchanged.
+- If the issue list is weak or unhelpful, keep the proposals unchanged — but issues with \`_persistence >= 2\` must still be attempted with a different approach.
 - The coordinate origin is the top-left corner. x increases to the right. y increases downward.
 - Only the slide content inside contentBounds matters. Ignore presentation chrome.
 

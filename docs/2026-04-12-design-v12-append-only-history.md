@@ -81,7 +81,7 @@ const everSignatureVisualIds = new Set(
 - **Image grounding.** Both vision and edit receive ORIGINAL + REPLICA images.
 - **Provider abstraction.** `runProviderTurn` dispatches to Claude Code, OpenAI Codex, or mock. Unchanged.
 - **Mismatch threshold.** The pixel diff is still the loop's convergence signal. Unchanged. Mismatch ratio is **not** fed back to the model — it is dominated by background color differences and can be misleading. It stays as the loop's stop condition and a UI metric only.
-- **Edit prompt contract.** The edit system/user prompts are unchanged — they receive an issue list and proposals, return patched proposals. The only change is the edit step now receives up to 5 issues instead of 3.
+- **Edit prompt contract.** The edit system/user prompts receive an issue list and proposals, return patched proposals. Changes from v11: the edit step receives up to 5 issues instead of 3, and persistent issues are annotated with `_persistence` metadata + a system prompt rule to try structurally different fixes (see Persistence Escalation).
 - **Semantic anchors.** signatureVisuals, mustPreserve, regions from the extract inventory are still injected into the vision user prompt.
 
 ## Iteration History: Data Model
@@ -357,11 +357,12 @@ function formatPriorIssuesChecklist(issues: VisionIssue[]): string {
 
 ## Edit Prompt Contract
 
-The edit system prompt and user prompt are **unchanged** from v11, except:
-- The edit step now receives up to 5 issues instead of 3.
+The edit system prompt and user prompt change from v11 in three ways:
+- The edit step receives up to 5 issues instead of 3.
 - The edit system prompt instruction changes from "Fix the 3 highest-priority issues" to "Fix the listed issues, prioritizing by priority rank."
+- Persistent issues (edited 2+ times without resolution) are annotated with `_persistence` and `_persistenceNote` fields, and the system prompt includes a rule to try structurally different fixes for these issues (see Persistence Escalation).
 
-**Reasoning:** The edit step doesn't need iteration history. It receives a focused issue list and images — that's sufficient context for surgical patching. Adding history to the edit prompt would increase token cost without clear benefit, since the edit model's job is narrow: "fix these specific issues in this JSON."
+**Reasoning:** The edit step doesn't need full iteration history. It receives a focused issue list (with per-issue persistence annotations when relevant) and images — that's sufficient context for surgical patching. The persistence annotations are lightweight (~20 tokens per persistent issue) and targeted, avoiding the token cost of full history.
 
 ## Issue Selection for Edit
 
@@ -385,18 +386,19 @@ function selectIssuesForEdit(
   // Top 5 by priority
   sorted.slice(0, 5).forEach(take);
 
-  // History-based signature_visual promotion: if an issueId was ever
-  // signature_visual in any previous iteration and is in the current
-  // post-processed list but fell below the top-5 cut, swap it in for
-  // the lowest-priority non-signature issue.
+  // Signature visual swap-in: protect issues that are currently signature_visual
+  // OR were ever signature_visual in history. A brand-new signature_visual issue
+  // in the current output must not be evicted for an older historical one.
+  const isProtected = (issue: VisionIssue): boolean =>
+    issue.category === "signature_visual" || everSignatureVisualIds.has(issue.issueId);
+
   const signatureBelow = sorted
     .slice(5)
-    .filter((issue) => everSignatureVisualIds.has(issue.issueId));
+    .filter((issue) => isProtected(issue));
   for (const sigIssue of signatureBelow) {
-    // Find the lowest-priority selected issue that is NOT a signature_visual
     const swapIndex = [...selected]
       .reverse()
-      .findIndex((s) => !everSignatureVisualIds.has(s.issueId));
+      .findIndex((s) => !isProtected(s));
     if (swapIndex >= 0) {
       const actualIndex = selected.length - 1 - swapIndex;
       selected[actualIndex] = sigIssue;
@@ -497,7 +499,7 @@ runRefinementLoop()
        ├─ if no issues after post-processing → emit refine:complete, continue
        ├─ selectIssuesForEdit(issues, everSignatureVisualIds)
        ├─ runProposalEdit()
-       │    ├─ buildEditSystemPrompt()                  ← unchanged from v11
+       │    ├─ buildEditSystemPrompt()                  ← 5-issue budget + persistence rule
        │    ├─ buildEditUserPrompt()                    ← issues list now up to 5
        │    └─ stream provider → parse JSON proposals
        ├─ record.editApplied = (parse succeeded && proposals changed)
@@ -731,11 +733,149 @@ If `seedHistory` is provided, it is used as the initial `records` array. This su
 
 2. **Runtime changes** (`refine.ts`): Remove `coalescePriorIssueChecks`, `mergeStickySignatureIssues`, `buildPriorIssuesForRecheck`, `applyCategoryCoverage`, `VisionPriorIssueCheck`, `sticky` field. Add `IterationRecord`, `postProcessVision`, backfill logic. Simplify `parseVisionCritique` (always expects `{ resolved, issues }`). Update `selectIssuesForEdit` (all issues + history-based signature_visual promotion).
 
-3. **Store changes** (`store.ts`): `refinePriorIssuesJson` on `SlideCard` → `refineHistory: IterationRecord[]`. The "continue refinement" flow passes `seedHistory` instead of `priorIssuesJson`.
+3. **Store changes** (`store.ts`): `refinePriorIssuesJson` on `SlideCard` → `refineIterationRecords: IterationRecord[]` + `refineLastIssues: VisionIssue[]` (note: NOT `refineHistory`, which is already used for per-iteration mismatch/proposal results). The "continue refinement" flow passes `seedHistory` and `seedLastIssues` instead of `priorIssuesJson`.
 
 4. **UI changes**: Inspector panels show iteration history records instead of prior issue checks. Simpler to render — flat list of iteration summaries.
 
 5. **Test changes**: Remove all test cases for adjudication logic. Add tests for `postProcessVision` (Rule 1 + Rule 2), `formatIterationHistory`, `formatPriorIssuesChecklist`, and backfill logic.
+
+## Persistence Escalation
+
+### The Problem
+
+When the same issue is raised and edited across multiple iterations without resolution, both the vision and edit models can get stuck in a local minimum:
+
+1. **Vision anchoring:** The iteration history says "background lacks warm glow" three times. The vision model reads that context and is primed to confirm the same diagnosis, even if the gradient IS rendering but is too subtle to notice, or the root cause is different from what was described. History becomes confirmation bias.
+
+2. **Edit anchoring:** The edit model sees the same `style_adjustment` diagnosis and defaults to the same class of fix (e.g., tweaking CSS gradient rgba values by 0.1). Even knowing it's been tried before, it makes another incremental adjustment of the same kind rather than trying a fundamentally different encoding.
+
+Real-world example: `background.gradient` was edited 4 times with progressively stronger `rgba()` gradient values (0.55 → 0.7 → 0.8 → more layers), but the mismatch ratio never changed. The edit model was stuck nudging the same parameter while the vision model kept re-raising the same issue with nearly identical wording.
+
+### Design: Prompt-Only Escalation (Narrow Path)
+
+The runtime computes a **persistence count** per issue from the iteration history and uses it to change prompt wording at graduated thresholds. Escalation is prompt-only — it never authorizes the edit model to skip issues or leave proposals unchanged. The edit model must always attempt a fix.
+
+**Why prompt-only (not behavioral):** An earlier draft allowed the edit model to skip persistent issues ("leave proposals unchanged"). This creates a feedback loop: the skip counts as an edit attempt, which increments persistence, which triggers more skipping. The `IterationRecord` only tracks batch-level `editApplied` and a flat `issuesEdited` list — there is no per-issue edit outcome to distinguish "sent and changed" from "sent and deliberately skipped." Adding per-issue outcomes would require the edit model to report which issues it actually touched, which is hard to extract reliably from a JSON proposal diff. The narrow path avoids this entirely by keeping escalation as wording changes only.
+
+#### Computing persistence count
+
+```typescript
+function computePersistenceCounts(records: IterationRecord[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const record of records) {
+    // Only count iterations where the edit was actually applied.
+    // Parse failures (editApplied: false) don't represent real attempts.
+    if (!record.editApplied) continue;
+    for (const id of record.issuesEdited) {
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    for (const id of record.issuesResolved) {
+      counts.delete(id);
+    }
+  }
+  return counts;
+}
+```
+
+Key rules:
+- Only increment for iterations where `editApplied: true`. Parse failures don't count as real attempts.
+- Reset to 0 when resolved. If the issue reappears later (regression), counting starts fresh.
+
+#### Vision escalation (persistence >= 3)
+
+For issues in the prior checklist with persistence >= 3, the checklist format changes from:
+
+```
+- background.gradient (signature_visual): missing warm reddish-brown gradient
+```
+
+to:
+
+```
+- background.gradient (signature_visual): missing warm reddish-brown gradient
+  [PERSISTENT — edited 3x without resolution. Before re-raising: reconsider whether
+  your diagnosis is accurate. Could the fix be partially working but too subtle?
+  Could the root cause be different? If you re-raise, provide a more specific
+  diagnosis than previous iterations.]
+```
+
+**Reasoning:** The vision model's job is perception — but repeated identical perception that never leads to resolution suggests the perception itself may be wrong. The escalation asks the model to challenge its own framing rather than rubber-stamp the history. This counters the confirmation bias that history context can create.
+
+The prompt guidance in the system prompt's "How to evaluate prior issues" section adds:
+
+```
+- If an issue has been edited 3+ times without resolution, your previous
+  diagnosis may be inaccurate or too vague for the edit model to act on.
+  Before re-raising it, reconsider: is the issue actually what you described?
+  Could the fix be working but the effect is too subtle to see? Could the
+  root cause be different? If you re-raise, provide a more specific and
+  actionable diagnosis.
+```
+
+#### Edit escalation (persistence >= 2)
+
+Issues passed to the edit model are annotated with persistence metadata when the count reaches 2+:
+
+```json
+{
+  "priority": 1,
+  "issueId": "background.gradient",
+  "category": "signature_visual",
+  "issue": "Missing warm reddish-brown gradient",
+  "_persistence": 3,
+  "_persistenceNote": "Edited 3x without resolution. Previous incremental adjustments are not working."
+}
+```
+
+The `_persistence` and `_persistenceNote` fields are injected by the runtime before serializing the edit issue list. The vision model never sees them — they only appear in the edit prompt.
+
+The edit system prompt adds a rule for persistent issues:
+
+```
+- When an issue has `_persistence >= 2`, previous approaches have failed.
+  Do not make another incremental adjustment of the same kind.
+  Try a structurally different fix: different CSS approach, different node
+  structure, different encoding strategy.
+```
+
+**Note:** The edit model is NOT authorized to skip or leave proposals unchanged for persistent issues. It must always attempt a fix. The escalation only changes what kind of fix is expected (structural vs. incremental).
+
+**Reasoning:** The edit model needs a signal to break out of its incremental pattern, but not permission to give up. If it truly cannot find a different approach, it will make another incremental attempt — which is still better than a no-op that would feed back into the persistence counter.
+
+#### Escalation thresholds summary
+
+| Persistence | Vision behavior | Edit behavior |
+|---|---|---|
+| 0-1 | Normal checklist evaluation | Normal fix |
+| 2 | Normal | "Previous approaches failing, try structurally different" |
+| 3+ | "Reconsider your diagnosis" | "Try structurally different" (same as 2, stronger wording) |
+
+#### What this does NOT do
+
+- Does not authorize skipping issues. The edit model must always attempt a fix.
+- Does not remove the issue from the checklist. Persistent issues still get evaluated — they just get evaluated with more skepticism.
+- Does not change the `resolved`/`issues` response schema. The model still uses the same binary output format.
+- Does not require new data structures. Persistence count is computed on-the-fly from the existing `IterationRecord[]`.
+- Does not feed full iteration history to the edit model. Only a per-issue count and note are injected — ~20 tokens per persistent issue.
+- Does not count failed edit iterations (`editApplied: false`). Only successful edits increment persistence.
+
+#### Future: per-issue edit outcomes
+
+If the prompt-only approach proves insufficient — i.e., the edit model still makes the same incremental adjustment despite the "try different" wording — a future enhancement could add per-issue edit outcomes to `IterationRecord`:
+
+```typescript
+interface IssueEditOutcome {
+  issueId: string;
+  changed: boolean;  // whether the edit actually modified the proposal for this issue
+}
+```
+
+This would enable:
+- Accurate persistence counting (only count issues where `changed: true`)
+- The "skip" escape hatch (since we could distinguish deliberate skips from real attempts)
+- Richer history context ("edited background.gradient 3x with actual changes, 1x skipped")
+
+This is deferred because detecting per-issue changes requires diffing proposals before and after the edit, which adds complexity for uncertain benefit. The prompt-only approach should be tried first.
 
 ## Open Questions
 

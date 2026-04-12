@@ -96,6 +96,13 @@ describe("buildVisionSystemPrompt", () => {
     expect(prompt).toContain("Return ONLY a JSON object");
   });
 
+  it("contains PERSISTENT guidance for vision evaluation", () => {
+    const prompt = buildVisionSystemPrompt();
+    expect(prompt).toContain("PERSISTENT");
+    expect(prompt).toContain("edited 3+ times without resolution");
+    expect(prompt).toContain("more specific and\n  actionable diagnosis");
+  });
+
   it("preserves existing analysis rules", () => {
     const prompt = buildVisionSystemPrompt();
     expect(prompt).toContain("structural_change");
@@ -182,6 +189,39 @@ describe("formatPriorIssuesChecklist", () => {
     expect(result).toContain("- title.scale (layout): title too large");
     expect(result).toContain("- bg.color (style): wrong background color");
   });
+
+  it("without persistence counts formats normally", () => {
+    const result = formatPriorIssuesChecklist([
+      { issueId: "title.scale", category: "layout", issue: "title too large" },
+    ]);
+    expect(result).not.toContain("PERSISTENT");
+  });
+
+  it("with persistence count 2 formats normally (threshold is 3)", () => {
+    const counts = new Map([["title.scale", 2]]);
+    const result = formatPriorIssuesChecklist([
+      { issueId: "title.scale", category: "layout", issue: "title too large" },
+    ], counts);
+    expect(result).toContain("- title.scale (layout): title too large");
+    expect(result).not.toContain("PERSISTENT");
+  });
+
+  it("with persistence count 3+ includes PERSISTENT annotation", () => {
+    const counts = new Map([["title.scale", 3]]);
+    const result = formatPriorIssuesChecklist([
+      { issueId: "title.scale", category: "layout", issue: "title too large" },
+    ], counts);
+    expect(result).toContain("[PERSISTENT — edited 3x without resolution");
+    expect(result).toContain("reconsider whether your diagnosis is accurate");
+  });
+
+  it("with persistence count 5 shows the correct count", () => {
+    const counts = new Map([["bg.color", 5]]);
+    const result = formatPriorIssuesChecklist([
+      { issueId: "bg.color", category: "style", issue: "wrong color" },
+    ], counts);
+    expect(result).toContain("[PERSISTENT — edited 5x without resolution");
+  });
 });
 
 describe("buildVisionUserPrompt", () => {
@@ -260,6 +300,19 @@ describe("buildEditSystemPrompt", () => {
   it("instructs to fix listed issues by priority rank", () => {
     const prompt = buildEditSystemPrompt();
     expect(prompt).toContain("Fix the listed issues, prioritizing by priority rank.");
+  });
+
+  it("contains _persistence in the field list", () => {
+    const prompt = buildEditSystemPrompt();
+    expect(prompt).toContain("`_persistence`");
+    expect(prompt).toContain("`_persistenceNote`");
+  });
+
+  it("contains the persistence escalation rule", () => {
+    const prompt = buildEditSystemPrompt();
+    expect(prompt).toContain("previous approaches have failed");
+    expect(prompt).toContain("`_persistence >= 2`");
+    expect(prompt).toContain("structurally different fix");
   });
 
   it("does NOT contain sticky references", () => {

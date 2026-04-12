@@ -63,6 +63,7 @@ import {
   postProcessVision,
   selectIssuesForEdit,
   parseVisionCritique,
+  computePersistenceCounts,
   type VisionIssue,
 } from "./refine";
 
@@ -432,6 +433,97 @@ describe("parseVisionCritique", () => {
     const result = parseVisionCritique(json, signatureRefs);
 
     expect(result.resolved).toEqual(["valid-id", "another-valid"]);
+  });
+});
+
+/* ---------- computePersistenceCounts ---------- */
+
+describe("computePersistenceCounts", () => {
+  it("returns empty map for empty records", () => {
+    const result = computePersistenceCounts([]);
+    expect(result.size).toBe(0);
+  });
+
+  it("counts edits across records and skips editApplied: false", () => {
+    const result = computePersistenceCounts([
+      {
+        iteration: 1,
+        issuesFound: [{ issueId: "a", category: "layout", summary: "a" }],
+        issuesEdited: ["a"],
+        editApplied: true,
+        issuesResolved: [],
+        issuesUnresolved: [],
+      },
+      {
+        iteration: 2,
+        issuesFound: [{ issueId: "a", category: "layout", summary: "a" }],
+        issuesEdited: ["a"],
+        editApplied: false,
+        issuesResolved: [],
+        issuesUnresolved: [],
+      },
+      {
+        iteration: 3,
+        issuesFound: [{ issueId: "a", category: "layout", summary: "a" }],
+        issuesEdited: ["a"],
+        editApplied: true,
+        issuesResolved: [],
+        issuesUnresolved: [],
+      },
+    ]);
+    expect(result.get("a")).toBe(2);
+  });
+
+  it("resets count on resolution", () => {
+    const result = computePersistenceCounts([
+      {
+        iteration: 1,
+        issuesFound: [{ issueId: "a", category: "layout", summary: "a" }],
+        issuesEdited: ["a"],
+        editApplied: true,
+        issuesResolved: [],
+        issuesUnresolved: [],
+      },
+      {
+        iteration: 2,
+        issuesFound: [],
+        issuesEdited: [],
+        editApplied: true,
+        issuesResolved: ["a"],
+        issuesUnresolved: [],
+      },
+    ]);
+    expect(result.has("a")).toBe(false);
+  });
+
+  it("issue resolved then reappearing starts fresh", () => {
+    const result = computePersistenceCounts([
+      {
+        iteration: 1,
+        issuesFound: [{ issueId: "a", category: "layout", summary: "a" }],
+        issuesEdited: ["a"],
+        editApplied: true,
+        issuesResolved: [],
+        issuesUnresolved: [],
+      },
+      {
+        iteration: 2,
+        issuesFound: [],
+        issuesEdited: [],
+        editApplied: true,
+        issuesResolved: ["a"],
+        issuesUnresolved: [],
+      },
+      {
+        iteration: 3,
+        issuesFound: [{ issueId: "a", category: "layout", summary: "a" }],
+        issuesEdited: ["a"],
+        editApplied: true,
+        issuesResolved: [],
+        issuesUnresolved: [],
+      },
+    ]);
+    expect(result.get("a")).toBe(1);
   });
 });
 
