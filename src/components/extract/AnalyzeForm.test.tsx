@@ -110,7 +110,7 @@ function makeCard(): SlideCard {
     refineElapsed: 0,
     refineCost: null,
     refineStartMismatch: null,
-    refineWatchlistJson: null,
+    refinePriorIssuesJson: null,
     autoRefine: true,
     normalizedImage: null,
     diffObjectUrl: null,

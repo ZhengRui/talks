@@ -20,13 +20,18 @@ describe("provider catalog", () => {
   it("returns the default selection for a provider", () => {
     expect(getDefaultProviderSelection()).toEqual({
       provider: DEFAULT_PROVIDER,
-      model: "claude-opus-4-6",
-      effort: "medium",
+      model: "gpt-5.4",
+      effort: "low",
     });
     expect(getDefaultProviderSelection("openai-codex")).toEqual({
       provider: "openai-codex",
       model: "gpt-5.4",
-      effort: "medium",
+      effort: "low",
+    });
+    expect(getDefaultProviderSelection("claude-code")).toEqual({
+      provider: "claude-code",
+      model: "claude-opus-4-6",
+      effort: "low",
     });
   });
 
@@ -74,7 +79,7 @@ describe("provider catalog", () => {
   it("exposes effort mode and options for adaptive and budget models", () => {
     expect(getModelCatalogEntry("claude-code", "claude-sonnet-4-6")).toMatchObject({
       effortMode: "adaptive",
-      defaultEffort: "medium",
+      defaultEffort: "low",
       effortOptions: [
         { value: "low", label: "Low" },
         { value: "medium", label: "Medium" },
@@ -94,7 +99,7 @@ describe("provider catalog", () => {
     expect(getCatalogEntriesForProvider("mock")).toHaveLength(1);
     expect(getModelCatalogEntry("openai-codex", "gpt-5.4")).toMatchObject({
       effortMode: "adaptive",
-      defaultEffort: "medium",
+      defaultEffort: "low",
       effortOptions: [
         { value: "none", label: "None" },
         { value: "low", label: "Low" },

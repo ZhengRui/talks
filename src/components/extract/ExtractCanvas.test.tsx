@@ -721,9 +721,8 @@ describe("ExtractCanvas", () => {
                     event: "refine:vision:done",
                     data: {
                       differences: "1. Title is too large.",
-                      fidelityIssuesJson: '[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9,"salience":"important"}]',
-                      designQualityIssuesJson: "[]",
-                      watchlistIssuesJson: '{"fidelityWatchlist":[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9,"salience":"important"}],"designQualityWatchlist":[]}',
+                      issuesJson: '[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
+                      priorIssuesJson: '[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
                       cost: 0,
                       elapsed: 0,
                     },
@@ -817,8 +816,7 @@ describe("ExtractCanvas", () => {
                     event: "refine:vision:done",
                     data: {
                       differences: "1. Title is too large.",
-                      fidelityIssuesJson: '[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9,"salience":"important"}]',
-                      designQualityIssuesJson: "[]",
+                      issuesJson: '[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
                       cost: 0,
                       elapsed: 0,
                     },
@@ -915,12 +913,12 @@ describe("ExtractCanvas", () => {
     expect(refineRequests[0].get("maxIterations")).toBe("1");
     expect(refineRequests[0].get("iterationOffset")).toBe("0");
     expect(refineRequests[0].get("forceIterations")).toBe("1");
-    expect(refineRequests[0].get("watchlistIssuesJson")).toBeNull();
+    expect(refineRequests[0].get("priorIssuesJson")).toBeNull();
     expect(refineRequests[1].get("maxIterations")).toBe("1");
     expect(refineRequests[1].get("iterationOffset")).toBe("1");
     expect(refineRequests[1].get("forceIterations")).toBe("1");
-    expect(refineRequests[1].get("watchlistIssuesJson")).toBe(
-      '{"fidelityWatchlist":[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9,"salience":"important"}],"designQualityWatchlist":[]}',
+    expect(refineRequests[1].get("priorIssuesJson")).toBe(
+      '[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
     );
   });
 

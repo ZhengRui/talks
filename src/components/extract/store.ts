@@ -63,7 +63,7 @@ export interface SlideCard {
   refineElapsed: number;
   refineCost: number | null;
   refineStartMismatch: number | null;
-  refineWatchlistJson: string | null;
+  refinePriorIssuesJson: string | null;
   autoRefine: boolean;
   normalizedImage: File | null;
   diffObjectUrl: string | null;
@@ -133,7 +133,7 @@ export interface ExtractState {
   continueRefinement: (id: string) => void;
   updateRefineDiff: (id: string, iteration: number, mismatchRatio: number, diffArtifactUrl: string) => void;
   updateRefinement: (id: string, result: RefineIterationResult) => void;
-  setRefineWatchlistJson: (id: string, issuesJson: string | null) => void;
+  setRefinePriorIssuesJson: (id: string, issuesJson: string | null) => void;
   completeRefineIteration: (id: string, mismatchRatio: number) => void;
   setDiffObjectUrl: (id: string, url: string | null) => void;
   completeRefinement: (id: string, elapsed?: number, cost?: number | null) => void;
@@ -223,14 +223,14 @@ function updateCard(
 /** Types that should merge by appending content to the last entry. */
 const STREAMING_TYPES = new Set<LogEntry["type"]>(["text", "thinking"]);
 const DEFAULT_ANALYZE_SELECTION = normalizeProviderSelection({
-  provider: "claude-code",
-  model: "claude-opus-4-6",
-  effort: "medium",
+  provider: "openai-codex",
+  model: "gpt-5.4",
+  effort: "low",
 });
 const DEFAULT_REFINE_SELECTION = normalizeProviderSelection({
-  provider: "claude-code",
-  model: "claude-opus-4-6",
-  effort: "medium",
+  provider: "openai-codex",
+  model: "gpt-5.4",
+  effort: "low",
 });
 
 function createSelectedTemplateIndex(): Record<AnalysisStage, number> {
@@ -356,13 +356,13 @@ export function createExtractStore(): StoreApi<ExtractState> {
     layoutKey: "3", // default: 3-column grid
     analyzeSelection: DEFAULT_ANALYZE_SELECTION,
     ...withAliases(DEFAULT_ANALYZE_SELECTION),
-    autoRefine: true,
+    autoRefine: false,
     refineVisionSelection: DEFAULT_REFINE_SELECTION,
     ...withRefineVisionAliases(DEFAULT_REFINE_SELECTION),
     refineEditSelection: DEFAULT_REFINE_SELECTION,
     ...withRefineEditAliases(DEFAULT_REFINE_SELECTION),
-    refineDefaultMaxIterations: 4,
-    refineDefaultMismatchThreshold: 0.05,
+    refineDefaultMaxIterations: 2,
+    refineDefaultMismatchThreshold: 0.03,
     previewDebugTextBoxes: false,
 
     // Actions
@@ -410,7 +410,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
         refineElapsed: 0,
         refineCost: null,
         refineStartMismatch: null,
-        refineWatchlistJson: null,
+        refinePriorIssuesJson: null,
         autoRefine: get().autoRefine,
         normalizedImage: null,
         diffObjectUrl: null,
@@ -516,7 +516,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineElapsed: 0,
           refineCost: null,
           refineStartMismatch: null,
-          refineWatchlistJson: null,
+          refinePriorIssuesJson: null,
           diffObjectUrl: null,
           promptHistory: [],
         }));
@@ -612,7 +612,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineElapsed: 0,
           refineCost: null,
           refineStartMismatch: null,
-          refineWatchlistJson: null,
+          refinePriorIssuesJson: null,
           diffObjectUrl: null,
         }));
       });
@@ -693,7 +693,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineError: null,
           refineElapsed: 0,
           refineCost: null,
-          refineWatchlistJson: null,
+          refinePriorIssuesJson: null,
           normalizedImage: null,
           diffObjectUrl: null,
           promptHistory: [],
@@ -773,7 +773,7 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineElapsed: 0,
           refineCost: null,
           refineStartMismatch: null,
-          refineWatchlistJson: null,
+          refinePriorIssuesJson: null,
           diffObjectUrl: null,
           promptHistory: card?.promptHistory.filter((entry) => entry.stage !== "refine") ?? [],
           activeStage: "refine" as const,
@@ -793,9 +793,9 @@ export function createExtractStore(): StoreApi<ExtractState> {
       );
     },
 
-    setRefineWatchlistJson(id: string, issuesJson: string | null) {
+    setRefinePriorIssuesJson(id: string, issuesJson: string | null) {
       set((state) => updateCard(state, id, () => ({
-        refineWatchlistJson: issuesJson,
+        refinePriorIssuesJson: issuesJson,
       })));
     },
 

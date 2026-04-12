@@ -24,7 +24,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   const baseAnalysisJson = formData.get("baseAnalysis") as string | null;
   const contentBoundsJson = formData.get("contentBounds") as string | null;
   const geometryHintsJson = formData.get("geometryHints") as string | null;
-  const watchlistIssuesJson = formData.get("watchlistIssuesJson") as string | null;
+  const priorIssuesJson = formData.get("priorIssuesJson") as string | null;
   const visionSelection = normalizeProviderSelection({
     provider: formData.get("visionProvider") as string | null,
     model: formData.get("visionModel") as string | null,
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest): Promise<Response> {
           baseAnalysis,
           contentBounds,
           geometryHints,
-          watchlistIssuesJson,
+          priorIssuesJson,
           visionSelection,
           editSelection,
           maxIterations,

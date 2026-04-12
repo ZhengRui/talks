@@ -168,7 +168,7 @@ export default function ExtractCanvas() {
   const setRefineMaxIterations = useExtractStore((s) => s.setRefineMaxIterations);
   const updateRefineDiff = useExtractStore((s) => s.updateRefineDiff);
   const updateRefinement = useExtractStore((s) => s.updateRefinement);
-  const setRefineWatchlistJson = useExtractStore((s) => s.setRefineWatchlistJson);
+  const setRefinePriorIssuesJson = useExtractStore((s) => s.setRefinePriorIssuesJson);
   const completeRefineIteration = useExtractStore((s) => s.completeRefineIteration);
   const setDiffObjectUrl = useExtractStore((s) => s.setDiffObjectUrl);
   const completeRefinement = useExtractStore((s) => s.completeRefinement);
@@ -252,8 +252,8 @@ export default function ExtractCanvas() {
       if (card.geometryHints) {
         formData.append("geometryHints", JSON.stringify(card.geometryHints));
       }
-      if (card.refineWatchlistJson) {
-        formData.append("watchlistIssuesJson", card.refineWatchlistJson);
+      if (card.refinePriorIssuesJson) {
+        formData.append("priorIssuesJson", card.refinePriorIssuesJson);
       }
       formData.append("visionProvider", refinePass.vision.provider);
       formData.append("visionModel", refinePass.visionModel);
@@ -396,10 +396,12 @@ export default function ExtractCanvas() {
                 break;
               }
               case "refine:vision:done": {
-                setRefineWatchlistJson(
+                setRefinePriorIssuesJson(
                   cardId,
-                  typeof data.watchlistIssuesJson === "string"
-                    ? data.watchlistIssuesJson
+                  typeof data.priorIssuesJson === "string"
+                    ? data.priorIssuesJson
+                    : typeof data.issuesJson === "string"
+                      ? data.issuesJson
                     : null,
                 );
                 const visionMeta = [
@@ -601,7 +603,7 @@ export default function ExtractCanvas() {
       completeRefineIteration,
       failRefinement,
       setDiffObjectUrl,
-      setRefineWatchlistJson,
+      setRefinePriorIssuesJson,
       startRefinement,
       continueRefinement,
       setRefineMaxIterations,

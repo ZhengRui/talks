@@ -15,6 +15,8 @@ interface AnalyzeFormProps {
   onAnalyze: (cardId: string) => void;
 }
 
+const PASS_ROW_BREAKPOINT = 560;
+
 function effortPrefix(selection: ProviderSelection): string {
   const entry = getModelCatalogEntry(selection.provider, selection.model);
   return entry?.effortMode === "budget" ? "Think" : "Effort";
@@ -28,6 +30,7 @@ function PassRow({
   onEffortChange,
   disabled,
   sub,
+  wide,
 }: {
   label: string;
   selection: ProviderSelection;
@@ -36,6 +39,7 @@ function PassRow({
   onEffortChange: (effort: string) => void;
   disabled?: boolean;
   sub?: boolean;
+  wide: boolean;
 }) {
   const providerOptions = getProviderOptions();
   const modelOptions = getCatalogEntriesForProvider(selection.provider);
@@ -43,50 +47,96 @@ function PassRow({
   const effortOptions = currentEntry?.effortOptions ?? [];
   const effortLabel = effortPrefix(selection);
 
+  if (wide) {
+    return (
+      <div className={`flex items-center gap-2${sub ? " pl-5" : ""}`}>
+        <span className={`flex shrink-0 items-center gap-1 text-xs font-medium ${sub ? "text-gray-400 w-[52px]" : "text-gray-600 w-[72px]"}`}>
+          {!sub && <span className="inline-block h-3.5 w-3.5 rounded bg-blue-600" />}
+          {label}
+        </span>
+        <select
+          value={selection.provider}
+          onChange={(e) => onProviderChange(e.target.value as ProviderSelection["provider"])}
+          disabled={disabled}
+          className={`flex-1 min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 focus:outline-none ${disabled ? "opacity-40 pointer-events-none" : ""}`}
+        >
+          {providerOptions.map((provider) => (
+            <option key={provider.value} value={provider.value}>{provider.label}</option>
+          ))}
+        </select>
+        <select
+          value={selection.model}
+          onChange={(e) => onModelChange(e.target.value)}
+          disabled={disabled}
+          className={`flex-1 min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 focus:outline-none ${disabled ? "opacity-40 pointer-events-none" : ""}`}
+        >
+          {modelOptions.map((model) => (
+            <option key={model.model} value={model.model}>{model.label}</option>
+          ))}
+        </select>
+        <select
+          value={selection.effort}
+          onChange={(e) => onEffortChange(e.target.value)}
+          disabled={disabled}
+          className={`flex-1 min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 focus:outline-none ${disabled ? "opacity-40 pointer-events-none" : ""}`}
+        >
+          {effortOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {`${effortLabel}: ${option.label}`}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
   return (
-    <div className={`flex items-center gap-2${sub ? " pl-5" : ""}`}>
-      <span className={`flex shrink-0 items-center gap-1 text-xs font-medium ${sub ? "text-gray-400 w-[52px]" : "text-gray-600 w-[72px]"}`}>
+    <div className="flex flex-col gap-1.5">
+      <span className={`flex items-center gap-1 text-xs font-medium ${sub ? "pl-5 text-gray-400" : "text-gray-600"}`}>
         {!sub && <span className="inline-block h-3.5 w-3.5 rounded bg-blue-600" />}
         {label}
       </span>
-      <select
-        value={selection.provider}
-        onChange={(e) => onProviderChange(e.target.value as ProviderSelection["provider"])}
-        disabled={disabled}
-        className={`flex-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 focus:outline-none ${disabled ? "opacity-40 pointer-events-none" : ""}`}
-      >
-        {providerOptions.map((provider) => (
-          <option key={provider.value} value={provider.value}>{provider.label}</option>
-        ))}
-      </select>
-      <select
-        value={selection.model}
-        onChange={(e) => onModelChange(e.target.value)}
-        disabled={disabled}
-        className={`flex-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 focus:outline-none ${disabled ? "opacity-40 pointer-events-none" : ""}`}
-      >
-        {modelOptions.map((model) => (
-          <option key={model.model} value={model.model}>{model.label}</option>
-        ))}
-      </select>
-      <select
-        value={selection.effort}
-        onChange={(e) => onEffortChange(e.target.value)}
-        disabled={disabled}
-        className={`flex-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 focus:outline-none ${disabled ? "opacity-40 pointer-events-none" : ""}`}
-      >
-        {effortOptions.map((option) => (
-          <option key={option.value} value={option.value}>
-            {`${effortLabel}: ${option.label}`}
-          </option>
-        ))}
-      </select>
+      <div className="grid min-w-0 grid-cols-2 gap-2 pl-5">
+        <select
+          value={selection.provider}
+          onChange={(e) => onProviderChange(e.target.value as ProviderSelection["provider"])}
+          disabled={disabled}
+          className={`col-span-2 min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 focus:outline-none ${disabled ? "opacity-40 pointer-events-none" : ""}`}
+        >
+          {providerOptions.map((provider) => (
+            <option key={provider.value} value={provider.value}>{provider.label}</option>
+          ))}
+        </select>
+        <select
+          value={selection.model}
+          onChange={(e) => onModelChange(e.target.value)}
+          disabled={disabled}
+          className={`min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 focus:outline-none ${disabled ? "opacity-40 pointer-events-none" : ""}`}
+        >
+          {modelOptions.map((model) => (
+            <option key={model.model} value={model.model}>{model.label}</option>
+          ))}
+        </select>
+        <select
+          value={selection.effort}
+          onChange={(e) => onEffortChange(e.target.value)}
+          disabled={disabled}
+          className={`min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus:border-blue-400 focus:ring-1 focus:ring-blue-400/30 focus:outline-none ${disabled ? "opacity-40 pointer-events-none" : ""}`}
+        >
+          {effortOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {`${effortLabel}: ${option.label}`}
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
   );
 }
 
 export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
   const updateDescription = useExtractStore((s) => s.updateDescription);
+  const panelWidth = useExtractStore((s) => s.panelWidth);
   const analyzeSelection = useExtractStore((s) => s.analyzeSelection);
   const setAnalyzeProvider = useExtractStore((s) => s.setAnalyzeProvider);
   const setAnalyzeModel = useExtractStore((s) => s.setAnalyzeModel);
@@ -117,6 +167,7 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
   });
   const effectiveRefineVisionSelection = effectiveRefinePass.vision!;
   const effectiveRefineEditSelection = effectiveRefinePass.edit!;
+  const useWidePassLayout = panelWidth >= PASS_ROW_BREAKPOINT;
 
   const handleRefineToggle = (enabled: boolean) => {
     if (refineSettingsLocked) {
@@ -143,6 +194,7 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
           onProviderChange={setAnalyzeProvider}
           onModelChange={setAnalyzeModel}
           onEffortChange={setAnalyzeEffort}
+          wide={useWidePassLayout}
         />
         <label className="flex items-center gap-1 text-xs font-medium text-gray-600 cursor-pointer">
           <input
@@ -179,6 +231,7 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
             }
           }}
           disabled={!effectiveAutoRefine}
+          wide={useWidePassLayout}
         />
         <PassRow
           label="Edit"
@@ -206,45 +259,86 @@ export default function AnalyzeForm({ card, onAnalyze }: AnalyzeFormProps) {
             }
           }}
           disabled={!effectiveAutoRefine}
+          wide={useWidePassLayout}
         />
-        <div className={`flex items-center gap-2${!effectiveAutoRefine ? " opacity-40 pointer-events-none" : ""}`}>
-          <span className="shrink-0 w-[72px]" />
-          <div className="flex flex-1 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400/30">
-            <span className="text-gray-500 whitespace-nowrap">Iters:</span>
-            <input
-              type="number"
-              min={1}
-              max={30}
-              step={1}
-              value={card.refineMaxIterations}
-              onChange={(e) => {
-                const v = parseInt(e.target.value, 10);
-                if (Number.isFinite(v) && v >= 1 && v <= 30) setRefineMaxIterations(card.id, v);
-              }}
-              disabled={!effectiveAutoRefine}
-              className="flex-1 min-w-0 bg-transparent text-xs text-gray-700 focus:outline-none"
-            />
+        {useWidePassLayout ? (
+          <div className={`flex items-center gap-2 pl-5${!effectiveAutoRefine ? " opacity-40 pointer-events-none" : ""}`}>
+            <span className="shrink-0 w-[52px]" />
+            <div className="flex flex-1 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400/30">
+              <span className="text-gray-500 whitespace-nowrap">Iters:</span>
+              <input
+                type="number"
+                min={1}
+                max={30}
+                step={1}
+                value={card.refineMaxIterations}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  if (Number.isFinite(v) && v >= 1 && v <= 30) setRefineMaxIterations(card.id, v);
+                }}
+                disabled={!effectiveAutoRefine}
+                className="flex-1 min-w-0 bg-transparent text-xs text-gray-700 focus:outline-none"
+              />
+            </div>
+            <div className="flex flex-1 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400/30">
+              <span className="text-gray-500 whitespace-nowrap">Target:</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                value={Math.round(card.refineMismatchThreshold * 100)}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  if (Number.isFinite(v) && v >= 0 && v <= 100) {
+                    setRefineMismatchThreshold(card.id, v / 100);
+                  }
+                }}
+                disabled={!effectiveAutoRefine}
+                className="flex-1 min-w-0 bg-transparent text-xs text-gray-700 focus:outline-none"
+              />
+              <span className="text-gray-500">%</span>
+            </div>
           </div>
-          <div className="flex flex-1 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400/30">
-            <span className="text-gray-500 whitespace-nowrap">Target:</span>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step={1}
-              value={Math.round(card.refineMismatchThreshold * 100)}
-              onChange={(e) => {
-                const v = parseInt(e.target.value, 10);
-                if (Number.isFinite(v) && v >= 0 && v <= 100) {
-                  setRefineMismatchThreshold(card.id, v / 100);
-                }
-              }}
-              disabled={!effectiveAutoRefine}
-              className="flex-1 min-w-0 bg-transparent text-xs text-gray-700 focus:outline-none"
-            />
-            <span className="text-gray-500">%</span>
+        ) : (
+          <div className={`grid min-w-0 gap-2 pl-5 [grid-template-columns:repeat(auto-fit,minmax(8rem,1fr))]${!effectiveAutoRefine ? " opacity-40 pointer-events-none" : ""}`}>
+            <div className="flex flex-1 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400/30">
+              <span className="text-gray-500 whitespace-nowrap">Iters:</span>
+              <input
+                type="number"
+                min={1}
+                max={30}
+                step={1}
+                value={card.refineMaxIterations}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  if (Number.isFinite(v) && v >= 1 && v <= 30) setRefineMaxIterations(card.id, v);
+                }}
+                disabled={!effectiveAutoRefine}
+                className="flex-1 min-w-0 bg-transparent text-xs text-gray-700 focus:outline-none"
+              />
+            </div>
+            <div className="flex flex-1 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 focus-within:border-blue-400 focus-within:ring-1 focus:ring-blue-400/30">
+              <span className="text-gray-500 whitespace-nowrap">Target:</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                value={Math.round(card.refineMismatchThreshold * 100)}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  if (Number.isFinite(v) && v >= 0 && v <= 100) {
+                    setRefineMismatchThreshold(card.id, v / 100);
+                  }
+                }}
+                disabled={!effectiveAutoRefine}
+                className="flex-1 min-w-0 bg-transparent text-xs text-gray-700 focus:outline-none"
+              />
+              <span className="text-gray-500">%</span>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <button

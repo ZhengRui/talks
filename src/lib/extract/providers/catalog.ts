@@ -43,7 +43,7 @@ const MOCK_EFFORT_OPTIONS: EffortOption[] = [
   { value: "high", label: "High" },
 ];
 
-export const DEFAULT_PROVIDER: ExtractProviderId = "claude-code";
+export const DEFAULT_PROVIDER: ExtractProviderId = "openai-codex";
 
 const PROVIDER_LABELS: Record<ExtractProviderId, string> = {
   "claude-code": "Claude Code (subscription)",
@@ -59,7 +59,7 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
     auth: "subscription",
     effortMode: "adaptive",
     effortOptions: ADAPTIVE_EFFORT_OPTIONS,
-    defaultEffort: "medium",
+    defaultEffort: "low",
     supportsImages: true,
   },
   {
@@ -69,7 +69,7 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
     auth: "subscription",
     effortMode: "adaptive",
     effortOptions: ADAPTIVE_EFFORT_OPTIONS,
-    defaultEffort: "medium",
+    defaultEffort: "low",
     supportsImages: true,
   },
   {
@@ -90,7 +90,7 @@ export const MODEL_CATALOG: ModelCatalogEntry[] = [
     auth: "subscription",
     effortMode: "adaptive",
     effortOptions: CODEX_EFFORT_OPTIONS,
-    defaultEffort: "medium",
+    defaultEffort: "low",
     supportsImages: true,
   },
   {

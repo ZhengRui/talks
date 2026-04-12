@@ -131,7 +131,7 @@ function makeCard(overrides: Partial<SlideCard> = {}): SlideCard {
     refineElapsed: 9,
     refineCost: 0.14,
     refineStartMismatch: null,
-    refineWatchlistJson: null,
+    refinePriorIssuesJson: null,
     autoRefine: true,
     normalizedImage: null,
     diffObjectUrl: null,

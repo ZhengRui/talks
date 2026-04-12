@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AnalysisResult, Proposal } from "@/components/extract/types";
 import type { RefineEvent } from "./refine";
-import type { ProviderTurnInput, ProviderTurnResult } from "@/lib/extract/providers/types";
-import type { ExtractModelProvider } from "@/lib/extract/providers/types";
+import type { ProviderTurnInput, ProviderTurnResult, ExtractModelProvider } from "@/lib/extract/providers/types";
 import type { ProviderSelection } from "@/lib/extract/providers/shared";
 
 const {
@@ -75,11 +74,12 @@ function makeProposals(): Proposal[] {
   ];
 }
 
-function makePatchedProposals(): Proposal[] {
+function makePatchedProposals(name = "refined-preview"): Proposal[] {
   return [
     {
       ...makeProposals()[0],
-      body: "children:\n  - kind: text\n    text: changed",
+      name,
+      body: `children:\n  - kind: text\n    text: ${name}`,
     },
   ];
 }
@@ -100,7 +100,15 @@ function makeBaseAnalysis(proposals: Proposal[]): AnalysisResult {
         layers: [],
       },
       typography: [],
-      regions: [],
+      regions: [
+        {
+          id: "connector-lines",
+          kind: "decorative-lines",
+          bbox: { x: 600, y: 300, w: 700, h: 500 },
+          importance: "high",
+          description: "Diagonal connector X crossing through the center hub",
+        },
+      ],
       repeatGroups: [],
       signatureVisuals: [
         {
@@ -122,14 +130,13 @@ function makeBaseAnalysis(proposals: Proposal[]): AnalysisResult {
   };
 }
 
-function extractJsonSection(prompt: string, header: string): string {
-  const escaped = header.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = prompt.match(new RegExp(`${escaped}:\\n\`\`\`json\\n([\\s\\S]*?)\\n\`\`\``));
+function extractStructuredIssuesFromEditPrompt(prompt: string): string {
+  const match = prompt.match(/Structured issues:\n```json\n([\s\S]*?)\n```/);
   return match?.[1] ?? "";
 }
 
-function extractVisionWatchlist(prompt: string): string {
-  const match = prompt.match(/Tiny watchlist from the last iteration[\s\S]*?\`\`\`json\n([\s\S]*?)\n\`\`\`/);
+function extractPriorIssuesFromVisionPrompt(prompt: string): string {
+  const match = prompt.match(/Previous issues to re-check from the prior iteration:[\s\S]*?```json\n([\s\S]*?)\n```/);
   return match?.[1] ?? "";
 }
 
@@ -165,24 +172,20 @@ describe("runRefinementLoop provider integration", () => {
         await input.onEvent?.({ type: "thinking", text: "Vision provider thinking" });
         await input.onEvent?.({ type: "text", text: "Vision provider text" });
         return {
-          text: JSON.stringify({
-            fidelityIssues: [
-              {
-                priority: 1,
-                issueId: "title.scale",
-                category: "layout",
-                ref: "title",
-                area: "title",
-                issue: "title is too large",
-                fixType: "style_adjustment",
-                observed: "Replica title feels oversized.",
-                desired: "Original title should feel smaller.",
-                confidence: 0.9,
-                salience: "important",
-              },
-            ],
-            designQualityIssues: [],
-          }),
+          text: JSON.stringify([
+            {
+              priority: 1,
+              issueId: "title.scale",
+              category: "layout",
+              ref: "title",
+              area: "title",
+              issue: "title is too large",
+              fixType: "style_adjustment",
+              observed: "Replica title feels oversized.",
+              desired: "Original title should feel smaller.",
+              confidence: 0.9,
+            },
+          ]),
           elapsed: 1,
           cost: null,
           usage: null,
@@ -252,144 +255,8 @@ ${JSON.stringify(makePatchedProposals(), null, 2)}
     });
   });
 
-  it("passes separate buckets to edit and carries a tiny bucketed watchlist across rounds", async () => {
+  it("passes top structured issues to edit and carries prior issues into the next vision prompt", async () => {
     const proposals = makeProposals();
-    const referenceImage = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a0GQAAAAASUVORK5CYII=",
-      "base64",
-    );
-
-    mockProviderRun
-      .mockImplementationOnce(async () => ({
-        text: JSON.stringify({
-          fidelityIssues: [
-            {
-              priority: 1,
-              issueId: "cards.structure",
-              category: "signature_visual",
-              ref: "cards",
-              area: "card topology",
-              issue: "cards are detached boxes",
-              fixType: "structural_change",
-              observed: "Replica splits the chamber and body into detached pieces.",
-              desired: "Original reads as one composite card.",
-              confidence: 0.96,
-              salience: "critical",
-            },
-            {
-              priority: 2,
-              issueId: "body.copy",
-              category: "layout",
-              ref: "body",
-              area: "body copy",
-              issue: "body text is too large",
-              fixType: "layout_adjustment",
-              observed: "Replica text crowds the cards.",
-              desired: "Original text leaves more breathing room.",
-              confidence: 0.92,
-              salience: "important",
-            },
-            {
-              priority: 3,
-              issueId: "title.scale",
-              category: "layout",
-              ref: "title",
-              area: "title",
-              issue: "title is too large",
-              fixType: "layout_adjustment",
-              observed: "Replica title dominates the slide.",
-              desired: "Original title is calmer.",
-              confidence: 0.82,
-              salience: "important",
-            },
-          ],
-          designQualityIssues: [
-            {
-              priority: 1,
-              issueId: "icons.centering",
-              category: "style",
-              ref: "icons",
-              area: "icon badges",
-              issue: "icons are not optically centered",
-              fixType: "style_adjustment",
-              observed: "Replica icons feel low and inconsistent.",
-              desired: "Original icons feel centered and calm.",
-              confidence: 0.9,
-              salience: "important",
-            },
-            {
-              priority: 2,
-              issueId: "icons.symbols",
-              category: "style",
-              ref: "icons",
-              area: "icon language",
-              issue: "icon symbols are inconsistent",
-              fixType: "style_adjustment",
-              observed: "Replica mixes awkward symbols.",
-              desired: "Original uses a coherent icon language.",
-              confidence: 0.88,
-              salience: "important",
-            },
-          ],
-        }),
-        elapsed: 1,
-        cost: null,
-        usage: null,
-      }))
-      .mockImplementationOnce(async () => ({
-        text: `\`\`\`json
-${JSON.stringify(proposals, null, 2)}
-\`\`\``,
-        elapsed: 1,
-        cost: null,
-        usage: null,
-      }))
-      .mockImplementationOnce(async () => ({
-        text: JSON.stringify({ fidelityIssues: [], designQualityIssues: [] }),
-        elapsed: 1,
-        cost: null,
-        usage: null,
-      }));
-
-    await runRefinementLoop({
-      image: referenceImage,
-      imageMediaType: "image/png",
-      proposals,
-      baseAnalysis: makeBaseAnalysis(proposals),
-      maxIterations: 2,
-      mismatchThreshold: 0.05,
-      visionSelection: { provider: "openai-codex", model: "gpt-5.4", effort: "low" },
-      editSelection: { provider: "openai-codex", model: "gpt-5.4", effort: "low" },
-    });
-
-    const firstEditInput = mockProviderRun.mock.calls[1]?.[0] as ProviderTurnInput;
-    const fidelityJson = extractJsonSection(firstEditInput.userPrompt, "Fidelity issues");
-    const designJson = extractJsonSection(firstEditInput.userPrompt, "Design quality issues");
-
-    expect(fidelityJson).toContain("\"issueId\": \"cards.structure\"");
-    expect(fidelityJson).toContain("\"issueId\": \"body.copy\"");
-    expect(fidelityJson).toContain("\"issueId\": \"title.scale\"");
-    expect(designJson).toContain("\"issueId\": \"icons.centering\"");
-    expect(designJson).toContain("\"issueId\": \"icons.symbols\"");
-
-    const secondVisionInput = mockProviderRun.mock.calls[2]?.[0] as ProviderTurnInput;
-    const watchlistJson = extractVisionWatchlist(secondVisionInput.userPrompt);
-
-    expect(watchlistJson).toContain("\"fidelityWatchlist\"");
-    expect(watchlistJson).toContain("\"designQualityWatchlist\"");
-    expect(watchlistJson).toContain("\"issueId\": \"cards.structure\"");
-    expect(watchlistJson).toContain("\"issueId\": \"body.copy\"");
-    expect(watchlistJson).toContain("\"issueId\": \"icons.centering\"");
-    expect(watchlistJson).not.toContain("\"issueId\": \"title.scale\"");
-    expect(watchlistJson).not.toContain("\"issueId\": \"icons.symbols\"");
-  });
-
-  it("uses legacy flat-array vision output as fidelity-only fallback", async () => {
-    const proposals = makeProposals();
-    const referenceImage = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a0GQAAAAASUVORK5CYII=",
-      "base64",
-    );
 
     mockProviderRun
       .mockImplementationOnce(async () => ({
@@ -402,180 +269,164 @@ ${JSON.stringify(proposals, null, 2)}
             area: "title",
             issue: "title is too large",
             fixType: "layout_adjustment",
-            observed: "Replica title is oversized.",
-            desired: "Original title is smaller.",
-            confidence: 0.9,
-            salience: "important",
+            observed: "Replica title dominates the slide.",
+            desired: "Original title is calmer.",
+            confidence: 0.82,
           },
-        ]),
+          {
+            priority: 2,
+            issueId: "proxy-cards.content",
+            category: "content",
+            ref: "proxy-cards",
+            area: "proxy card descriptions",
+            issue: "description text is truncated",
+            fixType: "content_fix",
+            observed: "Replica cuts off the final word in two cards.",
+            desired: "Original shows the full proxy descriptions.",
+            confidence: 0.88,
+          },
+          {
+            priority: 3,
+            issueId: "connector-lines.graphic-structure",
+            category: "signature_visual",
+            ref: "connector-lines",
+            area: "background lines",
+            issue: "background line pattern is missing",
+            fixType: "structural_change",
+            observed: "Replica is missing the line pattern.",
+            desired: "Original includes the line pattern.",
+            confidence: 0.82,
+          },
+          {
+            priority: 4,
+            issueId: "badge-pill.border-style",
+            category: "style",
+            ref: "badge-pill",
+            area: "pill badges",
+            issue: "pill borders are too heavy",
+            fixType: "style_adjustment",
+            observed: "Replica badges feel heavier.",
+            desired: "Original badges are lighter.",
+            confidence: 0.75,
+          },
+        ], null, 2),
         elapsed: 1,
         cost: null,
         usage: null,
       }))
       .mockImplementationOnce(async () => ({
         text: `\`\`\`json
-${JSON.stringify(proposals, null, 2)}
+${JSON.stringify(makePatchedProposals("refined-1"), null, 2)}
 \`\`\``,
+        elapsed: 1,
+        cost: null,
+        usage: null,
+      }))
+      .mockImplementationOnce(async () => ({
+        text: JSON.stringify([]),
         elapsed: 1,
         cost: null,
         usage: null,
       }));
 
     await runRefinementLoop({
-      image: referenceImage,
+      image: Buffer.from("ref"),
       imageMediaType: "image/png",
       proposals,
       baseAnalysis: makeBaseAnalysis(proposals),
-      maxIterations: 1,
+      maxIterations: 2,
       mismatchThreshold: 0.05,
       visionSelection: { provider: "openai-codex", model: "gpt-5.4", effort: "low" },
       editSelection: { provider: "openai-codex", model: "gpt-5.4", effort: "low" },
     });
 
-    const editInput = mockProviderRun.mock.calls[1]?.[0] as ProviderTurnInput;
-    const fidelityJson = extractJsonSection(editInput.userPrompt, "Fidelity issues");
-    const designJson = extractJsonSection(editInput.userPrompt, "Design quality issues");
+    const firstEditInput = mockProviderRun.mock.calls[1]?.[0] as ProviderTurnInput;
+    const structuredIssuesJson = extractStructuredIssuesFromEditPrompt(firstEditInput.userPrompt);
+    expect(structuredIssuesJson).toContain("\"issueId\": \"title.scale\"");
+    expect(structuredIssuesJson).toContain("\"issueId\": \"proxy-cards.content\"");
+    expect(structuredIssuesJson).toContain("\"issueId\": \"connector-lines.graphic-structure\"");
+    expect(structuredIssuesJson).not.toContain("\"issueId\": \"badge-pill.border-style\"");
 
-    expect(fidelityJson).toContain("\"issueId\": \"title.scale\"");
-    expect(designJson).toBe("[]");
+    const secondVisionInput = mockProviderRun.mock.calls[2]?.[0] as ProviderTurnInput;
+    const priorIssuesJson = extractPriorIssuesFromVisionPrompt(secondVisionInput.userPrompt);
+    expect(priorIssuesJson).toContain("\"issueId\": \"title.scale\"");
+    expect(priorIssuesJson).toContain("\"issueId\": \"proxy-cards.content\"");
+    expect(priorIssuesJson).toContain("\"issueId\": \"connector-lines.graphic-structure\"");
+    expect(priorIssuesJson).toContain("\"issueId\": \"badge-pill.border-style\"");
   });
 
-  it("increments persistenceCount from the bucketed watchlist carry-over", async () => {
+  it("accepts prior issues JSON as the continuation seed", async () => {
     const proposals = makeProposals();
-    const referenceImage = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a0GQAAAAASUVORK5CYII=",
-      "base64",
-    );
 
-    mockProviderRun
-      .mockImplementationOnce(async () => ({
-        text: JSON.stringify({
-          fidelityIssues: [
-            {
-              priority: 1,
-              issueId: "title.scale",
-              category: "layout",
-              ref: "title",
-              area: "title",
-              issue: "title is too large",
-              fixType: "layout_adjustment",
-              observed: "Replica title is oversized.",
-              desired: "Original title is smaller.",
-              confidence: 0.9,
-              salience: "important",
-            },
-          ],
-          designQualityIssues: [
-            {
-              priority: 1,
-              issueId: "badges.centering",
-              category: "style",
-              ref: "badges",
-              area: "badge icons",
-              issue: "icons feel low",
-              fixType: "style_adjustment",
-              observed: "Replica icons are optically low.",
-              desired: "Original icons feel centered.",
-              confidence: 0.84,
-              salience: "important",
-            },
-          ],
-        }),
-        elapsed: 1,
-        cost: null,
-        usage: null,
-      }))
-      .mockImplementationOnce(async () => ({
-        text: `\`\`\`json
-${JSON.stringify(proposals, null, 2)}
-\`\`\``,
-        elapsed: 1,
-        cost: null,
-        usage: null,
-      }));
+    mockProviderRun.mockImplementationOnce(async () => ({
+      text: JSON.stringify([]),
+      elapsed: 1,
+      cost: null,
+      usage: null,
+    }));
 
     await runRefinementLoop({
-      image: referenceImage,
+      image: Buffer.from("ref"),
       imageMediaType: "image/png",
       proposals,
       baseAnalysis: makeBaseAnalysis(proposals),
-      watchlistIssuesJson: JSON.stringify({
-        fidelityWatchlist: [
-          {
-            priority: 1,
-            issueId: "title.scale",
-            category: "layout",
-            ref: "title",
-            area: "title",
-            issue: "title is too large",
-            fixType: "layout_adjustment",
-            observed: "Replica title is oversized.",
-            desired: "Original title is smaller.",
-            confidence: 0.9,
-            salience: "important",
-            persistenceCount: 2,
-          },
-        ],
-        designQualityWatchlist: [
-          {
-            priority: 1,
-            issueId: "badges.centering",
-            category: "style",
-            ref: "badges",
-            area: "badge icons",
-            issue: "icons feel low",
-            fixType: "style_adjustment",
-            observed: "Replica icons are optically low.",
-            desired: "Original icons feel centered.",
-            confidence: 0.84,
-            salience: "important",
-            persistenceCount: 1,
-          },
-        ],
-      }),
+      priorIssuesJson: JSON.stringify([
+        {
+          priority: 1,
+          issueId: "title.scale",
+          category: "layout",
+          ref: "title",
+          area: "title",
+          issue: "title is too large",
+          fixType: "layout_adjustment",
+          observed: "Replica title is oversized.",
+          desired: "Original title is smaller.",
+          confidence: 0.9,
+        },
+        {
+          priority: 2,
+          issueId: "badges.centering",
+          category: "style",
+          ref: "badges",
+          area: "badge icons",
+          issue: "icons feel low",
+          fixType: "style_adjustment",
+          observed: "Replica icons are optically low.",
+          desired: "Original icons feel centered.",
+          confidence: 0.84,
+        },
+      ]),
       maxIterations: 1,
       mismatchThreshold: 0.05,
       visionSelection: { provider: "openai-codex", model: "gpt-5.4", effort: "low" },
       editSelection: { provider: "openai-codex", model: "gpt-5.4", effort: "low" },
     });
 
-    const editInput = mockProviderRun.mock.calls[1]?.[0] as ProviderTurnInput;
-    const fidelityJson = extractJsonSection(editInput.userPrompt, "Fidelity issues");
-    const designJson = extractJsonSection(editInput.userPrompt, "Design quality issues");
-
-    expect(fidelityJson).toContain("\"issueId\": \"title.scale\"");
-    expect(fidelityJson).toContain("\"persistenceCount\": 3");
-    expect(designJson).toContain("\"issueId\": \"badges.centering\"");
-    expect(designJson).toContain("\"persistenceCount\": 2");
+    const firstVisionInput = mockProviderRun.mock.calls[0]?.[0] as ProviderTurnInput;
+    const priorIssuesJson = extractPriorIssuesFromVisionPrompt(firstVisionInput.userPrompt);
+    expect(priorIssuesJson).toContain("\"issueId\": \"title.scale\"");
+    expect(priorIssuesJson).toContain("\"issueId\": \"badges.centering\"");
   });
 
   it("normalizes text block scalars with interpolated multiline values before compile", async () => {
     const proposals = makeProposals();
-    const referenceImage = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a0GQAAAAASUVORK5CYII=",
-      "base64",
-    );
 
     mockProviderRun
       .mockImplementationOnce(async () => ({
-        text: JSON.stringify({
-          fidelityIssues: [
-            {
-              priority: 1,
-              issueId: "body.copy",
-              category: "content",
-              ref: "body",
-              area: "body copy",
-              issue: "newlines render literally",
-              fixType: "content_fix",
-              observed: "Replica shows escaped newline text.",
-              desired: "Original renders paragraphs correctly.",
-              confidence: 0.95,
-              salience: "critical",
-            },
-          ],
-          designQualityIssues: [],
-        }),
+        text: JSON.stringify([
+          {
+            priority: 1,
+            issueId: "body.copy",
+            category: "content",
+            ref: "body",
+            area: "body copy",
+            issue: "newlines render literally",
+            fixType: "content_fix",
+            observed: "Replica shows escaped newline text.",
+            desired: "Original renders paragraphs correctly.",
+            confidence: 0.95,
+          },
+        ]),
         elapsed: 1,
         cost: null,
         usage: null,
@@ -600,7 +451,7 @@ ${JSON.stringify(proposals, null, 2)}
       }));
 
     const result = await runRefinementLoop({
-      image: referenceImage,
+      image: Buffer.from("ref"),
       imageMediaType: "image/png",
       proposals,
       baseAnalysis: makeBaseAnalysis(proposals),

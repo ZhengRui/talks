@@ -32,19 +32,19 @@ describe("ExtractStore", () => {
       expect(card!.pass1Cost).toBeNull();
       expect(card!.refinePass).toMatchObject({
         vision: {
-          provider: "claude-code",
-          model: "claude-opus-4-6",
-          effort: "medium",
+          provider: "openai-codex",
+          model: "gpt-5.4",
+          effort: "low",
         },
         edit: {
-          provider: "claude-code",
-          model: "claude-opus-4-6",
-          effort: "medium",
+          provider: "openai-codex",
+          model: "gpt-5.4",
+          effort: "low",
         },
-        visionModel: "claude-opus-4-6",
-        visionEffort: "medium",
-        editModel: "claude-opus-4-6",
-        editEffort: "medium",
+        visionModel: "gpt-5.4",
+        visionEffort: "low",
+        editModel: "gpt-5.4",
+        editEffort: "low",
       });
       expect(card!.refineSettingsLocked).toBe(false);
       expect(card!.error).toBeNull();
@@ -60,7 +60,7 @@ describe("ExtractStore", () => {
       expect(card!.refineResult).toBeNull();
       expect(card!.refineHistory).toEqual([]);
       expect(card!.refineError).toBeNull();
-      expect(card!.autoRefine).toBe(true);
+      expect(card!.autoRefine).toBe(false);
       expect(card!.normalizedImage).toBeNull();
       expect(card!.diffObjectUrl).toBeNull();
       expect(card!.promptHistory).toEqual([]);
@@ -659,14 +659,14 @@ describe("ExtractStore", () => {
   });
 
   describe("autoRefine global setting", () => {
-    it("defaults to true and can be toggled", () => {
-      expect(store.getState().autoRefine).toBe(true);
-
-      store.getState().setAutoRefine(false);
+    it("defaults to false and can be toggled", () => {
       expect(store.getState().autoRefine).toBe(false);
 
       store.getState().setAutoRefine(true);
       expect(store.getState().autoRefine).toBe(true);
+
+      store.getState().setAutoRefine(false);
+      expect(store.getState().autoRefine).toBe(false);
     });
 
     it("is captured on card at startAnalysis time", () => {
@@ -886,7 +886,7 @@ describe("ExtractStore", () => {
     });
 
     it("startRefinement resets refine state and activates the refine stage", () => {
-      store.getState().setRefineWatchlistJson(id, '{"fidelityWatchlist":[{"priority":1}],"designQualityWatchlist":[]}');
+      store.getState().setRefinePriorIssuesJson(id, '[{"priority":1}]');
       store.getState().startRefinement(id);
 
       const card = store.getState().cards.get(id)!;
@@ -896,7 +896,7 @@ describe("ExtractStore", () => {
       expect(card.refineResult).toBeNull();
       expect(card.refineHistory).toEqual([]);
       expect(card.diffObjectUrl).toBeNull();
-      expect(card.refineWatchlistJson).toBeNull();
+      expect(card.refinePriorIssuesJson).toBeNull();
     });
 
     it("updateRefinement stores refineAnalysis and history", () => {
@@ -942,10 +942,10 @@ describe("ExtractStore", () => {
       expect(store.getState().cards.get(id)!.refineStatus).toBe("done");
     });
 
-    it("setRefineWatchlistJson stores the latest vision watchlist for continuation", () => {
-      store.getState().setRefineWatchlistJson(id, '{"fidelityWatchlist":[{"priority":1,"issue":"title too large"}],"designQualityWatchlist":[]}');
-      expect(store.getState().cards.get(id)!.refineWatchlistJson).toBe(
-        '{"fidelityWatchlist":[{"priority":1,"issue":"title too large"}],"designQualityWatchlist":[]}',
+    it("setRefinePriorIssuesJson stores the latest vision issues for continuation", () => {
+      store.getState().setRefinePriorIssuesJson(id, '[{"priority":1,"issue":"title too large"}]');
+      expect(store.getState().cards.get(id)!.refinePriorIssuesJson).toBe(
+        '[{"priority":1,"issue":"title too large"}]',
       );
     });
 
