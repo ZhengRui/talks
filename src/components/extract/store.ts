@@ -12,6 +12,7 @@ import type {
   StageAnalysisProvenance,
 } from "./types";
 import type { ExtractProviderId, ProviderSelection } from "@/lib/extract/providers/shared";
+import type { IterationRecord } from "@/lib/extract/refine-prompt";
 import {
   getDefaultProviderSelection,
   normalizeProviderSelection,
@@ -20,6 +21,19 @@ import {
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+export interface RefineIssueSnapshot {
+  priority: number;
+  issueId: string;
+  category: string;
+  ref?: string | null;
+  area: string;
+  issue: string;
+  fixType: string;
+  observed: string;
+  desired: string;
+  confidence: number;
+}
 
 export interface LogEntry {
   type: "status" | "thinking" | "text" | "tool" | "tool_result" | "error";
@@ -63,7 +77,8 @@ export interface SlideCard {
   refineElapsed: number;
   refineCost: number | null;
   refineStartMismatch: number | null;
-  refinePriorIssuesJson: string | null;
+  refineIterationRecords: IterationRecord[];
+  refineLastIssues: RefineIssueSnapshot[];
   autoRefine: boolean;
   normalizedImage: File | null;
   diffObjectUrl: string | null;
@@ -133,7 +148,7 @@ export interface ExtractState {
   continueRefinement: (id: string) => void;
   updateRefineDiff: (id: string, iteration: number, mismatchRatio: number, diffArtifactUrl: string) => void;
   updateRefinement: (id: string, result: RefineIterationResult) => void;
-  setRefinePriorIssuesJson: (id: string, issuesJson: string | null) => void;
+  setRefineIterationRecords: (id: string, records: IterationRecord[], lastIssues: RefineIssueSnapshot[]) => void;
   completeRefineIteration: (id: string, mismatchRatio: number) => void;
   setDiffObjectUrl: (id: string, url: string | null) => void;
   completeRefinement: (id: string, elapsed?: number, cost?: number | null) => void;
@@ -277,10 +292,19 @@ function withRefineEditAliases(
   };
 }
 
+/**
+ * A {@link RefineProvenance} whose `vision` and `edit` selections are
+ * guaranteed to be present.  Returned by `buildRefinePass` /
+ * `resolveCardRefinePass` — callers can access `.vision` / `.edit` without
+ * narrowing.
+ */
+type ResolvedRefinePass = RefineProvenance &
+  Required<Pick<RefineProvenance, "vision" | "edit">>;
+
 function buildRefinePass(
   vision: ProviderSelection,
   edit: ProviderSelection,
-): RefineProvenance {
+): ResolvedRefinePass {
   return {
     vision,
     edit,
@@ -312,14 +336,14 @@ function currentRefinePass(
     ExtractState,
     "refineVisionSelection" | "refineEditSelection"
   >,
-): RefineProvenance {
+): ResolvedRefinePass {
   return buildRefinePass(state.refineVisionSelection, state.refineEditSelection);
 }
 
 export function resolveCardRefinePass(
   card: Pick<SlideCard, "refinePass"> | null | undefined,
   state: Pick<ExtractState, "refineVisionSelection" | "refineEditSelection">,
-): RefineProvenance {
+): ResolvedRefinePass {
   const pass = card?.refinePass;
   if (pass?.vision && pass?.edit) {
     return buildRefinePass(pass.vision, pass.edit);
@@ -410,7 +434,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
         refineElapsed: 0,
         refineCost: null,
         refineStartMismatch: null,
-        refinePriorIssuesJson: null,
+        refineIterationRecords: [],
+        refineLastIssues: [],
         autoRefine: get().autoRefine,
         normalizedImage: null,
         diffObjectUrl: null,
@@ -516,7 +541,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineElapsed: 0,
           refineCost: null,
           refineStartMismatch: null,
-          refinePriorIssuesJson: null,
+          refineIterationRecords: [],
+        refineLastIssues: [],
           diffObjectUrl: null,
           promptHistory: [],
         }));
@@ -612,7 +638,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineElapsed: 0,
           refineCost: null,
           refineStartMismatch: null,
-          refinePriorIssuesJson: null,
+          refineIterationRecords: [],
+        refineLastIssues: [],
           diffObjectUrl: null,
         }));
       });
@@ -693,7 +720,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineError: null,
           refineElapsed: 0,
           refineCost: null,
-          refinePriorIssuesJson: null,
+          refineIterationRecords: [],
+        refineLastIssues: [],
           normalizedImage: null,
           diffObjectUrl: null,
           promptHistory: [],
@@ -773,7 +801,8 @@ export function createExtractStore(): StoreApi<ExtractState> {
           refineElapsed: 0,
           refineCost: null,
           refineStartMismatch: null,
-          refinePriorIssuesJson: null,
+          refineIterationRecords: [],
+        refineLastIssues: [],
           diffObjectUrl: null,
           promptHistory: card?.promptHistory.filter((entry) => entry.stage !== "refine") ?? [],
           activeStage: "refine" as const,
@@ -793,9 +822,10 @@ export function createExtractStore(): StoreApi<ExtractState> {
       );
     },
 
-    setRefinePriorIssuesJson(id: string, issuesJson: string | null) {
+    setRefineIterationRecords(id, records, lastIssues) {
       set((state) => updateCard(state, id, () => ({
-        refinePriorIssuesJson: issuesJson,
+        refineIterationRecords: records,
+        refineLastIssues: lastIssues,
       })));
     },
 

@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
-import { runRefinementLoop, type RefineEvent } from "@/lib/extract/refine";
+import { runRefinementLoop, type RefineEvent, type VisionIssue } from "@/lib/extract/refine";
 import type { AnalysisResult, GeometryHints, Proposal } from "@/components/extract/types";
 import type { CropBounds } from "@/lib/render/crop";
+import type { IterationRecord } from "@/lib/extract/refine-prompt";
 import { normalizeProviderSelection } from "@/lib/extract/providers/catalog";
 
 export const runtime = "nodejs";
@@ -24,7 +25,8 @@ export async function POST(request: NextRequest): Promise<Response> {
   const baseAnalysisJson = formData.get("baseAnalysis") as string | null;
   const contentBoundsJson = formData.get("contentBounds") as string | null;
   const geometryHintsJson = formData.get("geometryHints") as string | null;
-  const priorIssuesJson = formData.get("priorIssuesJson") as string | null;
+  const seedHistoryRaw = formData.get("seedHistory") as string | null;
+  const seedLastIssuesRaw = formData.get("seedLastIssues") as string | null;
   const visionSelection = normalizeProviderSelection({
     provider: formData.get("visionProvider") as string | null,
     model: formData.get("visionModel") as string | null,
@@ -53,6 +55,8 @@ export async function POST(request: NextRequest): Promise<Response> {
   let baseAnalysis: AnalysisResult;
   let contentBounds: CropBounds | null = null;
   let geometryHints: GeometryHints | null = null;
+  let seedHistory: IterationRecord[] | undefined;
+  let seedLastIssues: VisionIssue[] | undefined;
   try {
     proposals = JSON.parse(proposalsJson) as Proposal[];
     baseAnalysis = JSON.parse(baseAnalysisJson) as AnalysisResult;
@@ -62,6 +66,12 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
     if (geometryHintsJson) {
       geometryHints = JSON.parse(geometryHintsJson) as GeometryHints;
+    }
+    if (seedHistoryRaw) {
+      seedHistory = JSON.parse(seedHistoryRaw) as IterationRecord[];
+    }
+    if (seedLastIssuesRaw) {
+      seedLastIssues = JSON.parse(seedLastIssuesRaw) as VisionIssue[];
     }
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON payload" }), {
@@ -83,7 +93,8 @@ export async function POST(request: NextRequest): Promise<Response> {
           baseAnalysis,
           contentBounds,
           geometryHints,
-          priorIssuesJson,
+          seedHistory,
+          seedLastIssues,
           visionSelection,
           editSelection,
           maxIterations,

@@ -46,8 +46,8 @@ const MOCK_EFFORT_OPTIONS: EffortOption[] = [
 export const DEFAULT_PROVIDER: ExtractProviderId = "openai-codex";
 
 const PROVIDER_LABELS: Record<ExtractProviderId, string> = {
-  "claude-code": "Claude Code (subscription)",
-  "openai-codex": "OpenAI Codex (ChatGPT login)",
+  "claude-code": "Claude Code",
+  "openai-codex": "OpenAI Codex",
   mock: "Mock",
 };
 

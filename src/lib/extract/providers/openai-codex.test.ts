@@ -68,8 +68,8 @@ describe("OpenAI Codex provider", () => {
     mockRunStreamed.mockReset();
     mockWithCodexTempImages.mockReset();
 
-    mockWithCodexTempImages.mockImplementation(async (images, fn) =>
-      fn(images.map((_, index) => `/tmp/talks-codex-${index + 1}.png`)),
+    mockWithCodexTempImages.mockImplementation(async (images: unknown[], fn: (paths: string[]) => Promise<unknown>) =>
+      fn(images.map((_: unknown, index: number) => `/tmp/talks-codex-${index + 1}.png`)),
     );
     mockStartThread.mockReturnValue({
       runStreamed: mockRunStreamed,
@@ -125,7 +125,7 @@ describe("OpenAI Codex provider", () => {
     const result = await runOpenAICodexTurn({
       ...makeInput(),
       async onEvent(event) {
-        events.push(event as Record<string, unknown>);
+        events.push(event as unknown as Record<string, unknown>);
       },
     });
 
@@ -257,7 +257,7 @@ describe("OpenAI Codex provider", () => {
     const result = await runOpenAICodexTurn({
       ...makeInput(),
       async onEvent(event) {
-        events.push(event as Record<string, unknown>);
+        events.push(event as unknown as Record<string, unknown>);
       },
     });
 

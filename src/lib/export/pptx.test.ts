@@ -71,8 +71,8 @@ describe("exportPptx", () => {
               rect: { x: 100, y: 200, w: 800, h: 100 },
               style: {
                 fill: "#ffffff",
-                borderRadius: 12,
               },
+              borderRadius: 12,
               border: { width: 3, color: "#4f6df5", sides: ["left"] },
               children: [
                 {
@@ -322,7 +322,8 @@ describe("exportPptx", () => {
               id: "glow-circle",
               rect: { x: 100, y: 100, w: 400, h: 400 },
               shape: "circle",
-              style: { fill: "#00ffcc", opacity: 0.18 },
+              style: { fill: "#00ffcc" },
+              opacity: 0.18,
               effects: {
                 glow: { color: "#00ffcc", radius: 100, opacity: 0.7 },
                 softEdge: 20,
@@ -719,7 +720,8 @@ describe("exportPptx", () => {
               kind: "group",
               id: "card",
               rect: { x: 100, y: 200, w: 800, h: 100 },
-              style: { fill: "#ffffff", borderRadius: 12 },
+              style: { fill: "#ffffff" },
+              borderRadius: 12,
               children: [
                 {
                   kind: "text",

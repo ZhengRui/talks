@@ -315,7 +315,7 @@ describe("ExtractStore", () => {
         },
         provenance: {
           pass1: {
-            provider: "claude-code",
+            provider: "claude-code" as const,
             model: "claude-opus-4-6",
             effort: "low",
             elapsed: 5,
@@ -371,7 +371,7 @@ describe("ExtractStore", () => {
         },
         provenance: {
           pass1: {
-            provider: "claude-code",
+            provider: "claude-code" as const,
             model: "claude-opus-4-6",
             effort: "low",
           },
@@ -401,7 +401,7 @@ describe("ExtractStore", () => {
           },
           provenance: {
             pass1: {
-              provider: "claude-code",
+              provider: "claude-code" as const,
               model: "claude-opus-4-6",
               effort: "low",
             },
@@ -886,7 +886,11 @@ describe("ExtractStore", () => {
     });
 
     it("startRefinement resets refine state and activates the refine stage", () => {
-      store.getState().setRefinePriorIssuesJson(id, '[{"priority":1}]');
+      store.getState().setRefineIterationRecords(
+        id,
+        [{ iteration: 1, issuesFound: [{ issueId: "i1", category: "text", summary: "too big" }], issuesEdited: ["i1"], editApplied: true, issuesResolved: [], issuesUnresolved: [] }],
+        [{ priority: 1, issueId: "i1", category: "text", area: "title", issue: "too big", fixType: "nudge", observed: "big", desired: "small", confidence: 0.9 }],
+      );
       store.getState().startRefinement(id);
 
       const card = store.getState().cards.get(id)!;
@@ -896,7 +900,8 @@ describe("ExtractStore", () => {
       expect(card.refineResult).toBeNull();
       expect(card.refineHistory).toEqual([]);
       expect(card.diffObjectUrl).toBeNull();
-      expect(card.refinePriorIssuesJson).toBeNull();
+      expect(card.refineIterationRecords).toEqual([]);
+      expect(card.refineLastIssues).toEqual([]);
     });
 
     it("updateRefinement stores refineAnalysis and history", () => {
@@ -942,11 +947,17 @@ describe("ExtractStore", () => {
       expect(store.getState().cards.get(id)!.refineStatus).toBe("done");
     });
 
-    it("setRefinePriorIssuesJson stores the latest vision issues for continuation", () => {
-      store.getState().setRefinePriorIssuesJson(id, '[{"priority":1,"issue":"title too large"}]');
-      expect(store.getState().cards.get(id)!.refinePriorIssuesJson).toBe(
-        '[{"priority":1,"issue":"title too large"}]',
-      );
+    it("setRefineIterationRecords stores iteration history and last issues for continuation", () => {
+      const records = [
+        { iteration: 1, issuesFound: [{ issueId: "i1", category: "text", summary: "title too large" }], issuesEdited: ["i1"], editApplied: true, issuesResolved: [], issuesUnresolved: [] },
+      ];
+      const lastIssues = [
+        { priority: 1, issueId: "i1", category: "text", area: "title", issue: "title too large", fixType: "nudge", observed: "big", desired: "small", confidence: 0.9 },
+      ];
+      store.getState().setRefineIterationRecords(id, records, lastIssues);
+      const card = store.getState().cards.get(id)!;
+      expect(card.refineIterationRecords).toEqual(records);
+      expect(card.refineLastIssues).toEqual(lastIssues);
     });
 
     it("failRefinement stores the error message", () => {

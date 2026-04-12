@@ -33,14 +33,14 @@ describe("CanvasToolbar", () => {
   });
 
   it("toggles preview text box guides from the toolbar button", () => {
-    const { getByTitle, rerender } = render(<CanvasToolbar />);
+    const { getByTitle, rerender } = render(<CanvasToolbar onOpenBenchmark={() => {}} />);
 
     const button = getByTitle("Toggle preview text box guides");
     fireEvent.click(button);
 
     expect(mockSetPreviewDebugTextBoxes).toHaveBeenCalledWith(true);
 
-    rerender(<CanvasToolbar />);
+    rerender(<CanvasToolbar onOpenBenchmark={() => {}} />);
     fireEvent.click(getByTitle("Toggle preview text box guides"));
 
     expect(mockSetPreviewDebugTextBoxes).toHaveBeenCalledWith(false);

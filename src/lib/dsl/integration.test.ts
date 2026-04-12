@@ -3,6 +3,7 @@ import { findTemplate, clearTemplateCache } from "./loader";
 import { expandDslTemplate } from "./engine";
 import { layoutSlide } from "@/lib/layout";
 import type { SlideData, SceneSlideData, ThemeName } from "@/lib/types";
+import type { SceneNode } from "@/lib/scene/types";
 import type { DslTemplateDef } from "./types";
 
 beforeEach(() => {
@@ -23,7 +24,7 @@ function expandDsl(
   ) as unknown as SlideData;
 }
 
-function sceneChildren(slide: SlideData): unknown[] {
+function sceneChildren(slide: SlideData): SceneNode[] {
   const scene = slide as SceneSlideData;
   expect(scene.mode).toBe("scene");
   return scene.children;
@@ -1545,11 +1546,12 @@ describe("DSL integration: template expansion + layout", () => {
     });
 
     const children = sceneChildren(slide);
-    const columns = children[0] as { children: Array<{ id: string; children?: Array<{ id: string; text?: string }> }> };
+    type NestedNode = { id: string; text?: string; children?: NestedNode[] };
+    const columns = children[0] as unknown as { children: NestedNode[] };
     const sidebarColumn = columns.children[0];
-    const panel = sidebarColumn.children?.find((child) => child.id === "sidebar-panel");
+    const panel = sidebarColumn.children?.find((child: NestedNode) => child.id === "sidebar-panel");
     expect(panel).toBeDefined();
-    const body = panel?.children?.find((child) => child.id === "sidebar-panel-body");
+    const body = panel?.children?.find((child: NestedNode) => child.id === "sidebar-panel-body");
     expect(body).toBeDefined();
     expect(body!.text).toContain("\n");
     expect(body!.text).toContain("• Components");

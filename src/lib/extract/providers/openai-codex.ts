@@ -118,13 +118,13 @@ export async function runOpenAICodexTurn(input: ProviderTurnInput): Promise<Prov
       networkAccessEnabled: false,
       webSearchEnabled: false,
       webSearchMode: "disabled",
-      modelReasoningEffort: input.selection.effort,
+      modelReasoningEffort: input.selection.effort as import("@openai/codex-sdk").ModelReasoningEffort,
     });
 
     const streamed = await thread.runStreamed(
       [
-        { type: "text", text: prompt },
-        ...paths.map((path) => ({ type: "local_image", path })),
+        { type: "text" as const, text: prompt },
+        ...paths.map((path) => ({ type: "local_image" as const, path })),
       ],
     );
 

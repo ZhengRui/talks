@@ -7,6 +7,9 @@ import {
   type VisionSemanticAnchors,
   buildVisionSystemPrompt,
   buildVisionUserPrompt,
+  formatIterationHistory,
+  formatPriorIssuesChecklist,
+  type IterationRecord,
 } from "./refine-prompt";
 import type { GeometryHints } from "@/components/extract/types";
 
@@ -49,45 +52,135 @@ const semanticAnchors: VisionSemanticAnchors = {
 };
 
 describe("buildVisionSystemPrompt", () => {
-  it("returns a simple issue-array schema when no adjudication context is provided", () => {
+  it("takes no arguments", () => {
+    // Should be callable with zero args and return a string
     const prompt = buildVisionSystemPrompt();
-    expect(prompt).toContain("visually impactful differences");
-    expect(prompt).toContain("original");
-    expect(prompt).toContain("replica");
-    expect(prompt).toContain("JSON array");
-    expect(prompt).not.toContain("\"referenceFactChecks\"");
-    expect(prompt).not.toContain("\"priorIssueChecks\"");
-    expect(prompt).not.toContain("\"issues\"");
-    expect(prompt).toContain("\"issueId\"");
-    expect(prompt).toContain("\"category\"");
-    expect(prompt).toContain("\"ref\"");
-    expect(prompt).toContain("\"fixType\"");
-    expect(prompt).toContain("structural_change");
-    expect(prompt).toContain("diversify the top 3");
-    expect(prompt).toContain("distinguish a true reversal from a visibility problem");
-    expect(prompt).toContain("less destructive diagnosis");
-    expect(prompt).not.toContain("proposals");
+    expect(typeof prompt).toBe("string");
+    expect(prompt.length).toBeGreaterThan(0);
   });
 
-  it("returns an object schema with adjudication fields when prior issues exist", () => {
-    const prompt = buildVisionSystemPrompt({
-      hasPriorIssues: true,
-    });
+  it("always uses the object schema with resolved and issues", () => {
+    const prompt = buildVisionSystemPrompt();
+    expect(prompt).toContain('"resolved"');
+    expect(prompt).toContain('"issues"');
+  });
 
-    expect(prompt).toContain("JSON object");
-    expect(prompt).toContain("\"priorIssueChecks\"");
-    expect(prompt).toContain("\"issues\"");
-    expect(prompt).toContain("\"status\"");
-    expect(prompt).toContain("resolved");
-    expect(prompt).toContain("still_wrong");
-    expect(prompt).toContain("unclear");
-    expect(prompt).not.toContain("\"referenceFactChecks\"");
+  it("contains 'How to evaluate prior issues' section", () => {
+    const prompt = buildVisionSystemPrompt();
+    expect(prompt).toContain("How to evaluate prior issues");
+  });
+
+  it("contains 'How to use iteration history' section", () => {
+    const prompt = buildVisionSystemPrompt();
+    expect(prompt).toContain("How to use iteration history");
+  });
+
+  it("does NOT contain v11 adjudication artifacts", () => {
+    const prompt = buildVisionSystemPrompt();
+    expect(prompt).not.toContain("priorIssueChecks");
+    expect(prompt).not.toContain("still_wrong");
+    expect(prompt).not.toContain("unclear");
   });
 
   it("lists unfixable items", () => {
     const prompt = buildVisionSystemPrompt();
     expect(prompt).toContain("unfixable");
     expect(prompt).toContain("Emoji");
+  });
+
+  it("instructs to return only a JSON object", () => {
+    const prompt = buildVisionSystemPrompt();
+    expect(prompt).toContain("Return ONLY the JSON object.");
+    // "JSON array" may appear when describing the issues field, but the
+    // top-level return instruction must say "JSON object"
+    expect(prompt).toContain("Return ONLY a JSON object");
+  });
+
+  it("preserves existing analysis rules", () => {
+    const prompt = buildVisionSystemPrompt();
+    expect(prompt).toContain("structural_change");
+    expect(prompt).toContain("less destructive diagnosis");
+    expect(prompt).toContain("contentBounds");
+    expect(prompt).toContain("distinguish a true\n  reversal from a visibility problem");
+  });
+});
+
+describe("formatIterationHistory", () => {
+  it("returns empty string for empty array", () => {
+    expect(formatIterationHistory([])).toBe("");
+  });
+
+  it("formats a single iteration record", () => {
+    const records: IterationRecord[] = [
+      {
+        iteration: 1,
+        issuesFound: [
+          { issueId: "title.scale", category: "layout", summary: "title too large" },
+          { issueId: "bg.color", category: "style", summary: "wrong background" },
+        ],
+        issuesEdited: ["title.scale", "bg.color"],
+        editApplied: true,
+        issuesResolved: ["bg.color"],
+        issuesUnresolved: ["title.scale"],
+      },
+    ];
+    const result = formatIterationHistory(records);
+    expect(result).toContain("Iteration history:");
+    expect(result).toContain("Iter 1");
+    expect(result).toContain("title.scale");
+    expect(result).toContain("bg.color");
+    expect(result).toContain("resolved:");
+    expect(result).toContain("unresolved:");
+  });
+
+  it("shows 'all' when all found issues are edited", () => {
+    const records: IterationRecord[] = [
+      {
+        iteration: 1,
+        issuesFound: [
+          { issueId: "a", category: "layout", summary: "issue a" },
+        ],
+        issuesEdited: ["a"],
+        editApplied: true,
+        issuesResolved: [],
+        issuesUnresolved: ["a"],
+      },
+    ];
+    const result = formatIterationHistory(records);
+    expect(result).toContain("all");
+  });
+
+  it("shows (edit failed) when editApplied is false", () => {
+    const records: IterationRecord[] = [
+      {
+        iteration: 2,
+        issuesFound: [
+          { issueId: "x", category: "style", summary: "issue x" },
+        ],
+        issuesEdited: ["x"],
+        editApplied: false,
+        issuesResolved: [],
+        issuesUnresolved: ["x"],
+      },
+    ];
+    const result = formatIterationHistory(records);
+    expect(result).toContain("(edit failed)");
+  });
+});
+
+describe("formatPriorIssuesChecklist", () => {
+  it("returns empty string for empty array", () => {
+    expect(formatPriorIssuesChecklist([])).toBe("");
+  });
+
+  it("formats issues as a checklist", () => {
+    const result = formatPriorIssuesChecklist([
+      { issueId: "title.scale", category: "layout", issue: "title too large" },
+      { issueId: "bg.color", category: "style", issue: "wrong background color" },
+    ]);
+    expect(result).toContain("Issues from the previous iteration to evaluate:");
+    expect(result).toContain("- title.scale (layout): title too large");
+    expect(result).toContain("- bg.color (style): wrong background color");
   });
 });
 
@@ -103,39 +196,40 @@ describe("buildVisionUserPrompt", () => {
     expect(prompt).not.toContain("proposals");
   });
 
-  it("includes semantic anchors and prior issues when provided", () => {
+  it("includes iterationHistory and priorChecklist when provided", () => {
+    const prompt = buildVisionUserPrompt({
+      imageSize: { w: 1920, h: 1080 },
+      contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
+      iterationHistory: "\nIteration history:\n- Iter 1: found title.scale (layout)\n",
+      priorChecklist: "\nIssues from the previous iteration to evaluate:\n- title.scale (layout): title too large\n",
+    });
+
+    expect(prompt).toContain("Iteration history:");
+    expect(prompt).toContain("Iter 1");
+    expect(prompt).toContain("Issues from the previous iteration to evaluate:");
+    expect(prompt).toContain("title.scale (layout): title too large");
+  });
+
+  it("includes semantic anchors when provided", () => {
     const prompt = buildVisionUserPrompt({
       imageSize: { w: 1920, h: 1080 },
       contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
       semanticAnchors,
-      priorIssuesJson: JSON.stringify([
-        {
-          priority: 1,
-          issueId: "connector-lines.graphic-structure",
-          category: "signature_visual",
-          ref: "connector-lines",
-          area: "connector lines",
-          issue: "line topology is wrong",
-          fixType: "structural_change",
-          observed: "Replica uses short spokes.",
-          desired: "Original uses a diagonal X.",
-          confidence: 0.9,
-          sticky: true,
-        },
-      ], null, 2),
     });
 
     expect(prompt).toContain("Signature visuals from extract");
     expect(prompt).toContain("Orange hub circle with diagonal connector X");
     expect(prompt).toContain("Must-preserve content from extract");
     expect(prompt).toContain("Important extracted regions");
-    expect(prompt).toContain("Previous issues to re-check from the prior iteration");
-    expect(prompt).toContain("\"issueId\": \"connector-lines.graphic-structure\"");
-    expect(prompt).toContain("\"ref\": \"connector-lines\"");
-    expect(prompt).toContain("\"fixType\": \"structural_change\"");
-    expect(prompt).toContain("priorIssueChecks");
-    expect(prompt).toContain("resolved, still_wrong, or unclear");
-    expect(prompt).not.toContain("Canonical reference facts");
+  });
+
+  it("uses the updated closing line", () => {
+    const prompt = buildVisionUserPrompt({
+      imageSize: { w: 1920, h: 1080 },
+      contentBounds: { x: 0, y: 0, w: 1920, h: 1080 },
+    });
+
+    expect(prompt).toContain("Evaluate any prior issues, then list every visible difference.");
   });
 });
 
@@ -152,9 +246,7 @@ describe("buildEditSystemPrompt", () => {
     expect(prompt).toContain("issueId");
     expect(prompt).toContain("category");
     expect(prompt).toContain("ref");
-    expect(prompt).toContain("sticky");
     expect(prompt).toContain("structural_change");
-    expect(prompt).toContain("unresolved sticky `signature_visual` issues");
     expect(prompt).toContain("diagnosis, not a literal patch recipe");
     expect(prompt).toContain("If it already does, do not blindly reverse it again");
     expect(prompt).toContain("proportions, clip bounds, band heights, opacity, contrast, color strength, spacing, or scale");
@@ -163,6 +255,21 @@ describe("buildEditSystemPrompt", () => {
     expect(prompt).toContain("Preserve that proposal-space coordinate system");
     expect(prompt).not.toContain("Image 1");
     expect(prompt).not.toContain("Image 2");
+  });
+
+  it("instructs to fix listed issues by priority rank", () => {
+    const prompt = buildEditSystemPrompt();
+    expect(prompt).toContain("Fix the listed issues, prioritizing by priority rank.");
+  });
+
+  it("does NOT contain sticky references", () => {
+    const prompt = buildEditSystemPrompt();
+    expect(prompt).not.toContain("sticky");
+  });
+
+  it("does NOT contain 'Fix the 3 highest'", () => {
+    const prompt = buildEditSystemPrompt();
+    expect(prompt).not.toContain("Fix the 3 highest");
   });
 });
 

@@ -416,7 +416,7 @@ export default function TemplateInspector({
       ) {
         return [
           formatStageMeta([
-            formatModel(resolvedPass.visionModel, resolvedPass.vision.provider),
+            formatModel(resolvedPass.visionModel, resolvedPass.vision?.provider),
             resolvedPass.visionEffort,
             totals || null,
           ]),
@@ -425,11 +425,11 @@ export default function TemplateInspector({
 
       return [
         `vision: ${formatStageMeta([
-          formatModel(resolvedPass.visionModel, resolvedPass.vision.provider),
+          formatModel(resolvedPass.visionModel, resolvedPass.vision?.provider),
           resolvedPass.visionEffort,
         ])}`,
         `edit: ${formatStageMeta([
-          formatModel(resolvedPass.editModel, resolvedPass.edit.provider),
+          formatModel(resolvedPass.editModel, resolvedPass.edit?.provider),
           resolvedPass.editEffort,
         ])}`,
         ...(totals ? [totals] : []),

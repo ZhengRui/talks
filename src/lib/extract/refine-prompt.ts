@@ -29,7 +29,17 @@ export interface VisionPromptContext {
   imageSize: { w: number; h: number };
   contentBounds?: { x: number; y: number; w: number; h: number } | null;
   semanticAnchors?: VisionSemanticAnchors | null;
-  priorIssuesJson?: string | null;
+  iterationHistory?: string | null;
+  priorChecklist?: string | null;
+}
+
+export interface IterationRecord {
+  iteration: number;
+  issuesFound: Array<{ issueId: string; category: string; summary: string }>;
+  issuesEdited: string[];
+  editApplied: boolean;
+  issuesResolved: string[];
+  issuesUnresolved: string[];
 }
 
 export interface EditPromptContext {
@@ -39,10 +49,6 @@ export interface EditPromptContext {
   proposalsJson: string;
   contentBounds?: { x: number; y: number; w: number; h: number } | null;
   geometryHints?: GeometryHints | null;
-}
-
-export interface VisionSystemPromptOptions {
-  hasPriorIssues?: boolean;
 }
 
 function isFullImageBounds(
@@ -59,89 +65,18 @@ function isFullImageBounds(
   );
 }
 
-function buildVisionResponseSchema(options: VisionSystemPromptOptions): string {
-  const { hasPriorIssues = false } = options;
-
-  if (!hasPriorIssues) {
-    return `\`\`\`json
-[
-  {
-    "priority": 1,
-    "issueId": "hero-graphic.structure",
-    "category": "signature_visual",
-    "ref": "hero-graphic",
-    "area": "primary graphic group",
-    "issue": "structure is wrong",
-    "fixType": "structural_change",
-    "observed": "Replica uses the wrong arrangement and relationships between parts.",
-    "desired": "Original uses a different structure that changes the overall visual identity.",
-    "confidence": 0.92
-  }
-]
-\`\`\``;
-  }
-
-  const lines = ["{"] as string[];
-  if (hasPriorIssues) {
-    lines.push(`  "priorIssueChecks": [`);
-    lines.push("    {");
-    lines.push('      "issueId": "hero-graphic.structure",');
-    lines.push('      "status": "still_wrong",');
-    lines.push('      "note": "The same structural mismatch is still clearly visible."');
-    lines.push("    }");
-    lines.push("  ],");
-  }
-  lines.push('  "issues": [');
-  lines.push("    {");
-  lines.push('      "priority": 1,');
-  lines.push('      "issueId": "hero-graphic.structure",');
-  lines.push('      "category": "signature_visual",');
-  lines.push('      "ref": "hero-graphic",');
-  lines.push('      "area": "primary graphic group",');
-  lines.push('      "issue": "structure is wrong",');
-  lines.push('      "fixType": "structural_change",');
-  lines.push('      "observed": "Replica uses the wrong arrangement and relationships between parts.",');
-  lines.push('      "desired": "Original uses a different structure that changes the overall visual identity.",');
-  lines.push('      "confidence": 0.92');
-  lines.push("    }");
-  lines.push("  ]");
-  lines.push("}");
-
-  return `\`\`\`json\n${lines.join("\n")}\n\`\`\``;
-}
-
-export function buildVisionSystemPrompt(options: VisionSystemPromptOptions = {}): string {
-  const { hasPriorIssues = false } = options;
-  const needsObject = hasPriorIssues;
-  const optionalFieldInstructions = [
-    hasPriorIssues
-      ? "- Include one `priorIssueChecks` entry for each provided prior issue."
-      : null,
-  ]
-    .filter(Boolean)
-    .join("\n");
-  const priorIssueRules = hasPriorIssues
-    ? `
-- \`status\` in \`priorIssueChecks\` must be one of: \`resolved\`, \`still_wrong\`, \`unclear\`.
-- Use \`resolved\` only when that exact prior issue now clearly matches in the CURRENT REPLICA image.
-- Use \`still_wrong\` when that exact prior issue is still visibly present.
-- Use \`unclear\` when the evidence is ambiguous or mixed. Do not force a binary decision when the image does not support it confidently.
-- \`note\` should briefly explain the adjudication when helpful.
-- If prior issues to re-check are provided, judge each one against the CURRENT REPLICA image before generating the final issue list. Use \`priorIssueChecks\` to classify each one as \`resolved\`, \`still_wrong\`, or \`unclear\`.
-- Treat prior issues as hypotheses to re-check, not as truth. The CURRENT REPLICA image wins if a prior issue no longer matches.
-- Do not mark an entire element as resolved because one issue on that element changed. One \`ref\` can have multiple simultaneous issue ids.
-- Do not silently downgrade a prior structural signature-visual issue to a style issue unless the structure now clearly matches.`
-    : "";
-
+export function buildVisionSystemPrompt(): string {
   return `You are visually comparing a slide replica against the original screenshot.
 
 You will receive two images, each labeled:
-- ORIGINAL: the unchanging reference screenshot. This is the ground truth — what the slide should look like.
-- REPLICA: the current rendered version we are trying to improve. This is what needs fixing.
+- ORIGINAL: the unchanging reference screenshot. This is the ground truth.
+- REPLICA: the current rendered version we are trying to improve.
 
 ## How to analyze
 
-Look at the ORIGINAL carefully — this is the target. Then look at the REPLICA — this is what we built. Describe what the REPLICA does wrong compared to the ORIGINAL. Do not rush, do not skip areas. Scan top-to-bottom, left-to-right.
+Look at the ORIGINAL carefully — this is the target. Then look at the REPLICA —
+this is what we built. Describe what the REPLICA does wrong compared to the
+ORIGINAL. Do not rush, do not skip areas. Scan top-to-bottom, left-to-right.
 
 Common things people miss:
 - Decorative elements: wrong number of lines, wrong line pattern, wrong visual weight
@@ -157,32 +92,127 @@ Common things people miss:
 
 Everything else is fixable. "Hard to implement" is not unfixable.
 
+## How to use iteration history
+
+If iteration history is provided, use it as lightweight context:
+- If an issue was edited in the prior iteration and the result is close enough
+  that a designer would sign off and move on, treat it as resolved. Do not
+  re-raise minor residual imperfections from a recently-fixed issue.
+- Be self-consistent: do not mark an issue resolved and also raise it
+  in the issues array.
+- Issues resolved in older iterations should stay resolved. Only re-raise
+  a previously resolved issue if there is an obvious regression — a prior
+  fix visibly undone by a later edit. Do not hunt for old problems.
+- If an issue has been edited multiple times without being resolved, describe
+  the problem more precisely or suggest a different approach rather than
+  repeating the same generic wording.
+- Focus your attention on genuinely unresolved issues and new problems visible
+  in the CURRENT REPLICA.
+
+## How to evaluate prior issues
+
+If a checklist of prior issues is provided, you must account for each one:
+- If the issue is fixed in the CURRENT REPLICA (applying designer tolerance —
+  close enough counts), include its issueId in the \`resolved\` array.
+- If the issue is still visible, re-raise it in the \`issues\` array with the
+  same issueId. You may update the description if the nature of the problem
+  has changed.
+- Do not skip any prior issue. Every prior issueId must appear in either
+  \`resolved\` or \`issues\`.
+
 ## Rules
 
-- Return ONLY a ${needsObject ? "JSON object" : "JSON array"}.
-- Focus on the 3 most visually impactful differences first, but you may return up to 5 issues total.
+- Return ONLY a JSON object with \`resolved\` and \`issues\` fields.
+- \`resolved\` is an array of issueIds from the prior issues checklist that are
+  now fixed. Empty array \`[]\` when there are no prior issues or none are fixed.
+- \`issues\` is a JSON array of current issues (re-raised priors + new issues).
+- Focus on the most visually impactful differences first.
 - Use this schema exactly:
-${buildVisionResponseSchema(options)}
+
+\`\`\`json
+{
+  "resolved": ["title.scale", "card-row.position"],
+  "issues": [
+    {
+      "priority": 1,
+      "issueId": "hero-graphic.structure",
+      "category": "signature_visual",
+      "ref": "hero-graphic",
+      "area": "primary graphic group",
+      "issue": "structure is wrong",
+      "fixType": "structural_change",
+      "observed": "Replica uses the wrong arrangement.",
+      "desired": "Original uses a different structure.",
+      "confidence": 0.92
+    }
+  ]
+}
+\`\`\`
+
 - \`priority\` must be an integer rank starting at 1.
-- \`issueId\` must identify the specific underlying issue, not just the element. Reuse the same \`issueId\` if the same issue is still visible. Examples: \`title.content\`, \`title.tricolor-direction\`, \`badge-pill.border-style\`.
-${optionalFieldInstructions}
+- \`issueId\` must identify the specific underlying issue, not just the element.
+  Reuse the same \`issueId\` if the same issue is still visible.
 - \`category\` must be one of: \`content\`, \`signature_visual\`, \`layout\`, \`style\`.
-- \`ref\` should match an extract inventory id when possible (for example a typography id, region id, or repeatGroup id). Use \`null\` when you cannot map confidently.
-- \`fixType\` must be one of: \`structural_change\`, \`layout_adjustment\`, \`style_adjustment\`, \`content_fix\`.
-- Use \`structural_change\` when the current encoding likely needs a local section rewrite instead of numeric nudges.
-- \`area\` should name the concrete visual target or group being fixed.
+- \`ref\` should match an extract inventory id when possible. Use \`null\` otherwise.
+- \`fixType\` must be one of: \`structural_change\`, \`layout_adjustment\`,
+  \`style_adjustment\`, \`content_fix\`.
 - \`observed\` should describe what the REPLICA currently shows.
 - \`desired\` should describe what the ORIGINAL shows.
-- If semantic anchors are provided, treat \`signatureVisuals\` as top-priority identity constraints. If one is still visibly wrong, rank it above local text clipping or minor polish.
-- For diagrams, decorative systems, repeating structures, and multi-part graphics: judge structure, topology, count, and attachment pattern before weight, opacity, or color.
-- For ordered bands, layered graphics, repeated stripes, directional gradients, connector systems, and other directional/structural visuals: distinguish a true reversal from a visibility problem. If the structure/order is roughly present but one side dominates visually, report the residual issue as prominence, weighting, proportions, clipping, contrast, or color strength rather than claiming the direction/order is inverted.
-- Only call something reversed, swapped, or structurally inverted when that conclusion is visually unambiguous in the CURRENT REPLICA image. If the evidence is mixed, use lower confidence and prefer the less destructive diagnosis.
-- If multiple issue categories are visibly present, diversify the top 3 so they cover different classes when possible: \`content\`, \`signature_visual\`, and \`layout\` before second-order duplicates.
-${priorIssueRules}
-- **Do not chase pixel alignment.** If an element is roughly in the right place, leave it. Only fix things that are visibly wrong at a glance.
-- Only the slide content inside contentBounds matters. Ignore pixels outside contentBounds — they are presentation chrome.
+- If semantic anchors are provided, treat \`signatureVisuals\` as top-priority
+  identity constraints. If one is still visibly wrong, rank it above local
+  text clipping or minor polish.
+- For diagrams, decorative systems, repeating structures, and multi-part graphics:
+  judge structure, topology, count, and attachment pattern before weight,
+  opacity, or color.
+- For ordered bands, layered graphics, repeated stripes, directional gradients,
+  connector systems, and other directional/structural visuals: distinguish a true
+  reversal from a visibility problem.
+- Only call something reversed or structurally inverted when that conclusion is
+  visually unambiguous. If evidence is mixed, use lower confidence and prefer
+  the less destructive diagnosis.
+- **Do not chase pixel alignment.** Only fix things visibly wrong at a glance.
+- Only the slide content inside contentBounds matters. Ignore presentation chrome.
 
-Return ONLY the ${needsObject ? "JSON object" : "JSON array"}.`;
+Return ONLY the JSON object.`;
+}
+
+export function formatIterationHistory(records: IterationRecord[]): string {
+  if (records.length === 0) return "";
+  const lines = records.map((r) => {
+    // Vision-empty iteration: no issues found, no edit attempted
+    if (r.issuesFound.length === 0) {
+      return `- Iter ${r.iteration}: no issues found`;
+    }
+    const found = r.issuesFound
+      .map((i) => `${i.issueId} (${i.category})`)
+      .join(", ");
+    const allEdited =
+      r.issuesEdited.length > 0 &&
+      r.issuesFound.every((i) => r.issuesEdited.includes(i.issueId));
+    const editedPart = allEdited
+      ? "all"
+      : r.issuesEdited.join(", ");
+    const editSuffix = !r.editApplied ? " (edit failed)" : "";
+    let line = `- Iter ${r.iteration}: found ${found}\n        ; edited ${editedPart}${editSuffix}`;
+    if (r.issuesResolved.length > 0) {
+      line += `\n        → resolved: ${r.issuesResolved.join(", ")}`;
+    }
+    if (r.issuesUnresolved.length > 0) {
+      line += `\n        → unresolved: ${r.issuesUnresolved.join(", ")}`;
+    }
+    return line;
+  });
+  return `\nIteration history:\n${lines.join("\n")}`;
+}
+
+export function formatPriorIssuesChecklist(
+  issues: Array<{ issueId: string; category: string; issue: string }>,
+): string {
+  if (issues.length === 0) return "";
+  const lines = issues.map(
+    (i) => `- ${i.issueId} (${i.category}): ${i.issue}`,
+  );
+  return `\nIssues from the previous iteration to evaluate:\n${lines.join("\n")}`;
 }
 
 export function buildVisionUserPrompt(context: VisionPromptContext): string {
@@ -207,16 +237,15 @@ export function buildVisionUserPrompt(context: VisionPromptContext): string {
       .map((region) => `- [${region.importance}] ${region.id} (${region.kind}): ${region.description}`)
       .join("\n")}`
     : "";
-  const priorIssuesSection = context.priorIssuesJson
-    ? `\nPrevious issues to re-check from the prior iteration:\n\`\`\`json\n${context.priorIssuesJson}\n\`\`\`\nBefore producing the final issue list, classify each prior issue under priorIssueChecks as resolved, still_wrong, or unclear. Keep the same issueId when the same issue is still visible. Do not treat one change on a shared ref like "title" as resolving every other issue on that ref.`
-    : "";
+  const iterationHistorySection = context.iterationHistory ?? "";
+  const priorChecklistSection = context.priorChecklist ?? "";
 
   return `Image size: ${context.imageSize.w}x${context.imageSize.h}
 Visible slide area (contentBounds): ${contentBounds}
 ${boundsMode}
-${signatureVisualsSection}${mustPreserveSection}${regionsSection}${priorIssuesSection}
+${signatureVisualsSection}${mustPreserveSection}${regionsSection}${iterationHistorySection}${priorChecklistSection}
 
-Compare the ORIGINAL against the REPLICA and list every visible difference.`;
+Compare the ORIGINAL against the REPLICA. Evaluate any prior issues, then list every visible difference.`;
 }
 
 export function buildEditSystemPrompt(): string {
@@ -240,11 +269,10 @@ ${SCENE_REFERENCE_CONTENT}
 
 ## Rules
 
-- Fix the 3 highest-priority issues from the list, plus any unresolved sticky \`signature_visual\` issues.
+- Fix the listed issues, prioritizing by priority rank.
 - Use the ORIGINAL and REPLICA images as the source of truth when deciding what to patch.
 - Use the structured issue list as guidance, but if it is incomplete or slightly wrong, resolve against the images.
-- Each issue may include: \`priority\`, \`issueId\`, \`category\`, \`ref\`, \`area\`, \`issue\`, \`fixType\`, \`observed\`, \`desired\`, \`confidence\`, \`sticky\`.
-- Treat \`sticky: true\` on a \`signature_visual\` issue as mandatory even if its priority falls below 3.
+- Each issue may include: \`priority\`, \`issueId\`, \`category\`, \`ref\`, \`area\`, \`issue\`, \`fixType\`, \`observed\`, \`desired\`, \`confidence\`.
 - The provided contentBounds is in the pixel space of the ORIGINAL/REPLICA images. It is only for identifying the visible slide area in those images.
 - Treat image-space context and proposal-space context as separate. Do not mix them.
 - Patch the proposals JSON surgically.

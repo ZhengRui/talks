@@ -72,7 +72,7 @@ describe("ClaudeCode provider", () => {
         resolveClaudeCodeExecutable({
           CLAUDE_CODE_EXECUTABLE: executablePath,
           PATH: "",
-        }),
+        } as unknown as NodeJS.ProcessEnv),
       ).toBe(executablePath);
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -88,7 +88,7 @@ describe("ClaudeCode provider", () => {
       expect(
         resolveClaudeCodeExecutable({
           PATH: dir,
-        }),
+        } as unknown as NodeJS.ProcessEnv),
       ).toBe(executablePath);
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -110,7 +110,7 @@ describe("ClaudeCode provider", () => {
       });
 
       const { resolveClaudeCodeExecutable } = await importClaudeModule();
-      expect(resolveClaudeCodeExecutable({ PATH: "" })).toBe(executablePath);
+      expect(resolveClaudeCodeExecutable({ PATH: "" } as unknown as NodeJS.ProcessEnv)).toBe(executablePath);
     } finally {
       await rm(homeDirectory, { recursive: true, force: true });
     }
@@ -198,7 +198,7 @@ describe("ClaudeCode provider", () => {
     const result = await runClaudeCodeTurn({
       ...makeInput(),
       async onEvent(event) {
-        events.push(event as Record<string, unknown>);
+        events.push(event as unknown as Record<string, unknown>);
       },
     });
 

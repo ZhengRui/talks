@@ -163,7 +163,7 @@ export default function CanvasViewport({
           e.clientX,
           e.clientY,
           e.deltaY,
-          el.getBoundingClientRect(),
+          el!.getBoundingClientRect(),
         );
       }
 

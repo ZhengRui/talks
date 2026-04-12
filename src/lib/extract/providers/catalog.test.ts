@@ -11,8 +11,8 @@ import {
 describe("provider catalog", () => {
   it("lists the configured providers", () => {
     expect(getProviderOptions()).toEqual([
-      { value: "claude-code", label: "Claude Code (subscription)" },
-      { value: "openai-codex", label: "OpenAI Codex (ChatGPT login)" },
+      { value: "claude-code", label: "Claude Code" },
+      { value: "openai-codex", label: "OpenAI Codex" },
       { value: "mock", label: "Mock" },
     ]);
   });

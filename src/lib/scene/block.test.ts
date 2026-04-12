@@ -202,7 +202,7 @@ children:
     };
 
     const result = expandBlockTemplate(blockNode, def, minimalEnv);
-    const rule = (result.node as SceneGroupNode).children[1] as Record<string, unknown>;
+    const rule = (result.node as SceneGroupNode).children[1] as unknown as Record<string, unknown>;
     const frame = rule.frame as Record<string, unknown>;
     const top = frame.top as { ref: string; offset: number };
     expect(top.ref).toBe("@card__title.bottom");
@@ -307,7 +307,7 @@ children:
     };
 
     const result = expandBlockTemplate(blockNode, def, minimalEnv);
-    const divider = (result.node as SceneGroupNode).children[1] as Record<string, unknown>;
+    const divider = (result.node as SceneGroupNode).children[1] as unknown as Record<string, unknown>;
     const frame = divider.frame as Record<string, unknown>;
     // @x.content is a guide ref (content is not an anchor property) — NOT rewritten
     expect(frame.left).toBe("@x.content");

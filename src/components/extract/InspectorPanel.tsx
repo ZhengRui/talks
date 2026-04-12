@@ -168,7 +168,7 @@ export default function InspectorPanel({
                 // Pipeline is done when: analyzed + refine is not running
                 card.status === "error" || card.status === "analyzing" || card.refineStatus === "running"
                   ? "log"
-                  : card.status === "analyzed" && card.refineStatus !== "running"
+                  : card.status === "analyzed"
                   ? "result"
                   : "log"
               }

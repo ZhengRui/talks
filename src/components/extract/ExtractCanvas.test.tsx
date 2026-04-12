@@ -721,8 +721,6 @@ describe("ExtractCanvas", () => {
                     event: "refine:vision:done",
                     data: {
                       differences: "1. Title is too large.",
-                      issuesJson: '[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
-                      priorIssuesJson: '[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
                       cost: 0,
                       elapsed: 0,
                     },
@@ -765,6 +763,12 @@ describe("ExtractCanvas", () => {
                     data: {
                       iteration: 1,
                       mismatchRatio: 0.67,
+                      iterationHistory: [
+                        { iteration: 1, issuesFound: [{ issueId: "title.scale", category: "layout", summary: "title is too large" }], issuesEdited: ["title.scale"], editApplied: true, issuesResolved: [], issuesUnresolved: [] },
+                      ],
+                      lastIssues: [
+                        { priority: 1, issueId: "title.scale", category: "layout", ref: "title", area: "title", issue: "title is too large", fixType: "style_adjustment", observed: "Replica title feels oversized.", desired: "Original title should feel smaller.", confidence: 0.9 },
+                      ],
                     },
                   },
                   {
@@ -778,6 +782,12 @@ describe("ExtractCanvas", () => {
                           "refined-preview-1",
                           "mode: scene\nchildren:\n  - kind: text\n    text: changed once",
                         ),
+                      ],
+                      iterationHistory: [
+                        { iteration: 1, issuesFound: [{ issueId: "title.scale", category: "layout", summary: "title is too large" }], issuesEdited: ["title.scale"], editApplied: true, issuesResolved: [], issuesUnresolved: [] },
+                      ],
+                      lastIssues: [
+                        { priority: 1, issueId: "title.scale", category: "layout", ref: "title", area: "title", issue: "title is too large", fixType: "style_adjustment", observed: "Replica title feels oversized.", desired: "Original title should feel smaller.", confidence: 0.9 },
                       ],
                     },
                   },
@@ -816,7 +826,6 @@ describe("ExtractCanvas", () => {
                     event: "refine:vision:done",
                     data: {
                       differences: "1. Title is too large.",
-                      issuesJson: '[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
                       cost: 0,
                       elapsed: 0,
                     },
@@ -913,13 +922,19 @@ describe("ExtractCanvas", () => {
     expect(refineRequests[0].get("maxIterations")).toBe("1");
     expect(refineRequests[0].get("iterationOffset")).toBe("0");
     expect(refineRequests[0].get("forceIterations")).toBe("1");
-    expect(refineRequests[0].get("priorIssuesJson")).toBeNull();
+    expect(refineRequests[0].get("seedHistory")).toBeNull();
+    expect(refineRequests[0].get("seedLastIssues")).toBeNull();
     expect(refineRequests[1].get("maxIterations")).toBe("1");
     expect(refineRequests[1].get("iterationOffset")).toBe("1");
     expect(refineRequests[1].get("forceIterations")).toBe("1");
-    expect(refineRequests[1].get("priorIssuesJson")).toBe(
-      '[{"priority":1,"issueId":"title.scale","category":"layout","ref":"title","area":"title","issue":"title is too large","fixType":"style_adjustment","observed":"Replica title feels oversized.","desired":"Original title should feel smaller.","confidence":0.9}]',
-    );
+    const seedHistory = JSON.parse(refineRequests[1].get("seedHistory") as string);
+    expect(seedHistory).toEqual([
+      { iteration: 1, issuesFound: [{ issueId: "title.scale", category: "layout", summary: "title is too large" }], issuesEdited: ["title.scale"], editApplied: true, issuesResolved: [], issuesUnresolved: [] },
+    ]);
+    const seedLastIssues = JSON.parse(refineRequests[1].get("seedLastIssues") as string);
+    expect(seedLastIssues).toEqual([
+      { priority: 1, issueId: "title.scale", category: "layout", ref: "title", area: "title", issue: "title is too large", fixType: "style_adjustment", observed: "Replica title feels oversized.", desired: "Original title should feel smaller.", confidence: 0.9 },
+    ]);
   });
 
   it("sends raw proposals to refine while keeping baseAnalysis and contentBounds in normalized image space", async () => {

@@ -7,7 +7,8 @@ import BenchmarkLauncher from "./BenchmarkLauncher";
 import CanvasViewport from "./CanvasViewport";
 import CanvasToolbar from "./CanvasToolbar";
 import InspectorPanel from "./InspectorPanel";
-import { resolveCardRefinePass, useExtractStore, type LogEntry } from "./store";
+import { resolveCardRefinePass, useExtractStore, type LogEntry, type RefineIssueSnapshot } from "./store";
+import type { IterationRecord } from "@/lib/extract/refine-prompt";
 import type {
   AnalysisStage,
   AnalysisResultPayload,
@@ -168,7 +169,7 @@ export default function ExtractCanvas() {
   const setRefineMaxIterations = useExtractStore((s) => s.setRefineMaxIterations);
   const updateRefineDiff = useExtractStore((s) => s.updateRefineDiff);
   const updateRefinement = useExtractStore((s) => s.updateRefinement);
-  const setRefinePriorIssuesJson = useExtractStore((s) => s.setRefinePriorIssuesJson);
+  const setRefineIterationRecords = useExtractStore((s) => s.setRefineIterationRecords);
   const completeRefineIteration = useExtractStore((s) => s.completeRefineIteration);
   const setDiffObjectUrl = useExtractStore((s) => s.setDiffObjectUrl);
   const completeRefinement = useExtractStore((s) => s.completeRefinement);
@@ -252,13 +253,16 @@ export default function ExtractCanvas() {
       if (card.geometryHints) {
         formData.append("geometryHints", JSON.stringify(card.geometryHints));
       }
-      if (card.refinePriorIssuesJson) {
-        formData.append("priorIssuesJson", card.refinePriorIssuesJson);
+      if (card.refineIterationRecords.length > 0) {
+        formData.append("seedHistory", JSON.stringify(card.refineIterationRecords));
       }
-      formData.append("visionProvider", refinePass.vision.provider);
+      if (card.refineLastIssues.length > 0) {
+        formData.append("seedLastIssues", JSON.stringify(card.refineLastIssues));
+      }
+      formData.append("visionProvider", refinePass.vision?.provider ?? "");
       formData.append("visionModel", refinePass.visionModel);
       formData.append("visionEffort", refinePass.visionEffort);
-      formData.append("editProvider", refinePass.edit.provider);
+      formData.append("editProvider", refinePass.edit?.provider ?? "");
       formData.append("editModel", refinePass.editModel);
       formData.append("editEffort", refinePass.editEffort);
       formData.append("maxIterations", String(requestMaxIterations));
@@ -396,14 +400,6 @@ export default function ExtractCanvas() {
                 break;
               }
               case "refine:vision:done": {
-                setRefinePriorIssuesJson(
-                  cardId,
-                  typeof data.priorIssuesJson === "string"
-                    ? data.priorIssuesJson
-                    : typeof data.issuesJson === "string"
-                      ? data.issuesJson
-                    : null,
-                );
                 const visionMeta = [
                   typeof data.elapsed === "number" ? `${data.elapsed}s` : null,
                   typeof data.cost === "number" ? `$${data.cost.toFixed(2)}` : null,
@@ -518,6 +514,13 @@ export default function ExtractCanvas() {
                 const iterCost = typeof data.iterCost === "number" ? data.iterCost : null;
                 const visionEmpty = data.visionEmpty === true;
                 completeRefineIteration(cardId, mismatchRatio);
+                if (Array.isArray(data.iterationHistory)) {
+                  setRefineIterationRecords(
+                    cardId,
+                    data.iterationHistory as IterationRecord[],
+                    Array.isArray(data.lastIssues) ? data.lastIssues as RefineIssueSnapshot[] : [],
+                  );
+                }
                 const metaParts = [
                   `${Math.round(mismatchRatio * 100)}%`,
                   iterElapsed != null ? `${iterElapsed}s` : null,
@@ -542,6 +545,13 @@ export default function ExtractCanvas() {
                 const totalElapsed = typeof data.totalElapsed === "number" ? data.totalElapsed : undefined;
                 const totalCost = typeof data.totalCost === "number" ? data.totalCost : undefined;
                 completeRefinement(cardId, totalElapsed, totalCost);
+                if (Array.isArray(data.iterationHistory)) {
+                  setRefineIterationRecords(
+                    cardId,
+                    data.iterationHistory as IterationRecord[],
+                    Array.isArray(data.lastIssues) ? data.lastIssues as RefineIssueSnapshot[] : [],
+                  );
+                }
                 appendLog(cardId, {
                   type: "status",
                   content: converged
@@ -603,7 +613,7 @@ export default function ExtractCanvas() {
       completeRefineIteration,
       failRefinement,
       setDiffObjectUrl,
-      setRefinePriorIssuesJson,
+      setRefineIterationRecords,
       startRefinement,
       continueRefinement,
       setRefineMaxIterations,

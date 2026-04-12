@@ -5,6 +5,9 @@ import {
   type VisionSemanticAnchors,
   buildVisionSystemPrompt,
   buildVisionUserPrompt,
+  formatIterationHistory,
+  formatPriorIssuesChecklist,
+  type IterationRecord,
 } from "@/lib/extract/refine-prompt";
 import {
   createMockRefineProposals,
@@ -57,7 +60,8 @@ export interface RefineLoopOptions {
   baseAnalysis: AnalysisResult;
   contentBounds?: CropBounds | null;
   geometryHints?: GeometryHints | null;
-  priorIssuesJson?: string | null;
+  seedHistory?: IterationRecord[];
+  seedLastIssues?: VisionIssue[];
   visionSelection?: ProviderSelection;
   editSelection?: ProviderSelection;
   visionProvider?: ExtractProviderId;
@@ -99,29 +103,27 @@ interface VisionOptions {
   contentBounds?: CropBounds | null;
   semanticAnchors?: VisionSemanticAnchors | null;
   priorIssues?: VisionIssue[] | null;
+  iterationHistory?: string | null;
+  priorChecklist?: string | null;
+  everSignatureVisualIds?: Set<string>;
   selection: ProviderSelection;
   signal?: AbortSignal;
   onEvent?: (event: RefineEvent) => Promise<void> | void;
 }
 
-type VisionIssueFixType =
+export type VisionIssueFixType =
   | "structural_change"
   | "layout_adjustment"
   | "style_adjustment"
   | "content_fix";
 
-type VisionIssueCategory =
+export type VisionIssueCategory =
   | "content"
   | "signature_visual"
   | "layout"
   | "style";
 
-type VisionPriorIssueStatus =
-  | "resolved"
-  | "still_wrong"
-  | "unclear";
-
-interface VisionIssue {
+export interface VisionIssue {
   priority: number;
   issueId: string;
   category: VisionIssueCategory;
@@ -132,22 +134,15 @@ interface VisionIssue {
   observed: string;
   desired: string;
   confidence: number;
-  sticky?: boolean;
-}
-
-interface VisionPriorIssueCheck {
-  issueId: string;
-  status: VisionPriorIssueStatus;
-  note?: string;
 }
 
 interface VisionResult {
+  resolved: string[];
+  rawResolved: string[];
+  rawIssueIds: Set<string>;
   issues: VisionIssue[];
   issuesJson: string;
   editIssuesJson: string;
-  priorIssuesJson: string;
-  priorIssueChecks: VisionPriorIssueCheck[];
-  resolvedIssueIds: string[];
   rawText: string;
   cost: number | null;
   elapsed: number;
@@ -194,17 +189,6 @@ const VALID_VISION_CATEGORIES = new Set<VisionIssueCategory>([
   "layout",
   "style",
 ]);
-const VALID_PRIOR_ISSUE_STATUSES = new Set<VisionPriorIssueStatus>([
-  "resolved",
-  "still_wrong",
-  "unclear",
-]);
-const CORE_VISION_CATEGORIES: VisionIssueCategory[] = [
-  "signature_visual",
-  "content",
-  "layout",
-];
-
 function checkAborted(signal?: AbortSignal): void {
   if (signal?.aborted) {
     throw new Error("REFINE_ABORTED");
@@ -382,12 +366,7 @@ function normalizeIssueId(
   fixType: VisionIssueFixType,
 ): string {
   if (typeof value === "string" && value.trim()) {
-    const normalized = value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9._-]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .replace(/-{2,}/g, "-");
+    const normalized = canonicalizeIssueId(value);
     if (normalized) {
       return normalized;
     }
@@ -533,61 +512,7 @@ function normalizeVisionIssue(
     observed,
     desired,
     confidence: clampConfidence(raw.confidence),
-    ...(typeof raw.sticky === "boolean" ? { sticky: raw.sticky } : {}),
   };
-}
-
-function normalizeResolvedIssueIds(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-
-  const ids = new Set<string>();
-  for (const entry of value) {
-    if (typeof entry !== "string") continue;
-    const normalized = entry
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9._-]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .replace(/-{2,}/g, "-");
-    if (normalized) {
-      ids.add(normalized);
-    }
-  }
-  return [...ids];
-}
-
-function normalizePriorIssueStatus(value: unknown): VisionPriorIssueStatus | null {
-  if (
-    typeof value === "string" &&
-    VALID_PRIOR_ISSUE_STATUSES.has(value as VisionPriorIssueStatus)
-  ) {
-    return value as VisionPriorIssueStatus;
-  }
-  return null;
-}
-
-function normalizePriorIssueChecks(value: unknown): VisionPriorIssueCheck[] {
-  if (!Array.isArray(value)) return [];
-
-  const checks = new Map<string, VisionPriorIssueCheck>();
-  for (const entry of value) {
-    if (!entry || typeof entry !== "object") continue;
-    const raw = entry as Record<string, unknown>;
-    const issueIds = normalizeResolvedIssueIds([raw.issueId]);
-    const issueId = issueIds[0];
-    const status = normalizePriorIssueStatus(raw.status);
-    if (!issueId || !status) continue;
-
-    checks.set(issueId, {
-      issueId,
-      status,
-      ...(typeof raw.note === "string" && raw.note.trim()
-        ? { note: raw.note.trim() }
-        : {}),
-    });
-  }
-
-  return [...checks.values()];
 }
 
 function buildSignatureRefSet(
@@ -607,24 +532,38 @@ function buildSignatureRefSet(
   return refs;
 }
 
-function parseVisionCritique(
+/** Canonicalize an issue id: lowercase, keep [a-z0-9._-], collapse separators. */
+function canonicalizeIssueId(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
+function normalizeResolved(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((entry): entry is string =>
+      typeof entry === "string" && entry.trim().length > 0,
+    )
+    .map((entry) => canonicalizeIssueId(entry))
+    .filter((id) => id.length > 0);
+}
+
+/** @internal exported for testing */
+export function parseVisionCritique(
   resultText: string,
   signatureRefs: Set<string>,
 ): {
+  resolved: string[];
   issues: VisionIssue[];
-  priorIssueChecks: VisionPriorIssueCheck[];
-  resolvedIssueIds: string[];
-  issuesJson: string;
 } {
   const jsonPayload = extractJsonPayload(resultText);
   if (!jsonPayload) {
     const issues = fallbackIssuesFromText(resultText);
-    return {
-      issues,
-      priorIssueChecks: [],
-      resolvedIssueIds: [],
-      issuesJson: serializeIssues(issues),
-    };
+    return { resolved: [], issues };
   }
 
   let parsed: unknown;
@@ -632,227 +571,68 @@ function parseVisionCritique(
     parsed = JSON.parse(jsonPayload) as unknown;
   } catch {
     const issues = fallbackIssuesFromText(resultText);
-    return {
-      issues,
-      priorIssueChecks: [],
-      resolvedIssueIds: [],
-      issuesJson: serializeIssues(issues),
-    };
+    return { resolved: [], issues };
   }
-
-  let issueEntries: unknown[] | null = null;
-  let priorIssueChecks: VisionPriorIssueCheck[] = [];
-  let resolvedIssueIds: string[] = [];
 
   if (Array.isArray(parsed)) {
-    issueEntries = parsed;
-  } else if (parsed && typeof parsed === "object") {
-    const object = parsed as Record<string, unknown>;
-    issueEntries = Array.isArray(object.issues) ? object.issues : null;
-    priorIssueChecks = normalizePriorIssueChecks(object.priorIssueChecks);
-    resolvedIssueIds = normalizeResolvedIssueIds(
-      object.resolvedIssueIds ?? object.resolvedRefs,
-    );
+    const issues = parsed
+      .map((entry, index) => normalizeVisionIssue(entry, index, signatureRefs))
+      .filter((issue): issue is VisionIssue => Boolean(issue));
+    return { resolved: [], issues: sortAndReindexIssues(issues) };
   }
 
-  if (!issueEntries) {
-    const issues = fallbackIssuesFromText(resultText);
+  if (parsed && typeof parsed === "object") {
+    const object = parsed as Record<string, unknown>;
+    const issueEntries = Array.isArray(object.issues) ? object.issues : null;
+    if (!issueEntries) {
+      const issues = fallbackIssuesFromText(resultText);
+      return { resolved: normalizeResolved(object.resolved), issues };
+    }
+    const issues = issueEntries
+      .map((entry, index) => normalizeVisionIssue(entry, index, signatureRefs))
+      .filter((issue): issue is VisionIssue => Boolean(issue));
     return {
-      issues,
-      priorIssueChecks,
-      resolvedIssueIds: [],
-      issuesJson: serializeIssues(issues),
+      resolved: normalizeResolved(object.resolved),
+      issues: sortAndReindexIssues(issues),
     };
   }
 
-  const issues = issueEntries
-    .map((entry, index) => normalizeVisionIssue(entry, index, signatureRefs))
-    .filter((issue): issue is VisionIssue => Boolean(issue))
-    .sort((a, b) => a.priority - b.priority);
+  const issues = fallbackIssuesFromText(resultText);
+  return { resolved: [], issues };
+}
 
-  const unresolvedIssueIds = new Set(issues.map((issue) => issue.issueId));
-  const filteredResolvedIssueIds = resolvedIssueIds.filter(
-    (issueId) => !unresolvedIssueIds.has(issueId),
-  );
-  const normalizedPriorIssueChecks = priorIssueChecks.map((check) => (
-    unresolvedIssueIds.has(check.issueId)
-      ? { ...check, status: "still_wrong" as const }
-      : check
-  ));
+/** @internal exported for testing */
+export function postProcessVision(
+  resolved: string[],
+  issues: VisionIssue[],
+  priorIssues: VisionIssue[],
+): { resolved: string[]; issues: VisionIssue[] } {
+  const currentIds = new Set(issues.map(i => i.issueId));
+
+  // Rule 2: conflict -> unresolved wins
+  const cleanResolved = resolved.filter(id => !currentIds.has(id));
+  const cleanResolvedSet = new Set(cleanResolved);
+
+  // Rule 1: missing priors -> add back to issues
+  const augmentedIssues = [...issues];
+  for (const prior of priorIssues) {
+    if (!cleanResolvedSet.has(prior.issueId) && !currentIds.has(prior.issueId)) {
+      augmentedIssues.push(prior);
+    }
+  }
 
   return {
-    issues: sortAndReindexIssues(issues),
-    priorIssueChecks: normalizedPriorIssueChecks,
-    resolvedIssueIds: filteredResolvedIssueIds,
-    issuesJson: serializeIssues(issues),
+    resolved: cleanResolved,
+    issues: sortAndReindexIssues(dedupeIssues(augmentedIssues)),
   };
 }
 
-function coalescePriorIssueChecks(
-  priorIssues: VisionIssue[],
-  currentIssues: VisionIssue[],
-  parsedPriorIssueChecks: VisionPriorIssueCheck[],
-  resolvedIssueIds: string[],
-): VisionPriorIssueCheck[] {
-  if (priorIssues.length === 0) return [];
-
-  const currentIssueIdSet = new Set(currentIssues.map((issue) => issue.issueId));
-  const resolvedIssueIdSet = new Set(resolvedIssueIds);
-  const explicitChecks = new Map(
-    parsedPriorIssueChecks.map((check) => [check.issueId, check] as const),
-  );
-
-  return priorIssues.map((priorIssue) => {
-    const explicit = explicitChecks.get(priorIssue.issueId);
-    if (explicit) {
-      if (currentIssueIdSet.has(priorIssue.issueId)) {
-        return { ...explicit, status: "still_wrong" };
-      }
-      return explicit;
-    }
-    if (currentIssueIdSet.has(priorIssue.issueId)) {
-      return {
-        issueId: priorIssue.issueId,
-        status: "still_wrong",
-      };
-    }
-    if (resolvedIssueIdSet.has(priorIssue.issueId)) {
-      return {
-        issueId: priorIssue.issueId,
-        status: "resolved",
-      };
-    }
-    return {
-      issueId: priorIssue.issueId,
-      status: "unclear",
-    };
-  });
-}
-
-function applyCategoryCoverage(issues: VisionIssue[]): VisionIssue[] {
-  const normalized = dedupeIssues(issues);
-  if (normalized.length <= 1) return normalized;
-
-  const selected: VisionIssue[] = [];
-  const seenKeys = new Set<string>();
-  const availableCoreCategories = CORE_VISION_CATEGORIES.filter((category) =>
-    normalized.some((issue) => issue.category === category),
-  );
-
-  const take = (issue: VisionIssue | undefined): void => {
-    if (!issue) return;
-    const key = issueKey(issue);
-    if (seenKeys.has(key)) return;
-    seenKeys.add(key);
-    selected.push(issue);
-  };
-
-  if (availableCoreCategories.length >= 3) {
-    for (const category of CORE_VISION_CATEGORIES) {
-      take(normalized.find((issue) => issue.category === category));
-    }
-  } else {
-    take(normalized[0]);
-
-    for (const category of CORE_VISION_CATEGORIES) {
-      if (selected.length >= Math.min(3, normalized.length)) break;
-      if (selected.some((issue) => issue.category === category)) continue;
-      take(normalized.find((issue) => issue.category === category));
-    }
-
-    for (const issue of normalized) {
-      if (selected.length >= Math.min(3, normalized.length)) break;
-      take(issue);
-    }
-  }
-
-  for (const issue of normalized) {
-    take(issue);
-  }
-
-  return reindexIssues(selected);
-}
-
-function mergeStickySignatureIssues(
-  currentIssues: VisionIssue[],
-  priorIssues: VisionIssue[],
-  priorIssueChecks: VisionPriorIssueCheck[],
+/** @internal exported for testing */
+export function selectIssuesForEdit(
+  issues: VisionIssue[],
+  everSignatureVisualIds: Set<string>,
 ): VisionIssue[] {
-  const merged = dedupeIssues(currentIssues);
-  const statusByIssueId = new Map(
-    priorIssueChecks.map((check) => [check.issueId, check.status] as const),
-  );
-  const indexByKey = new Map<string, number>();
-
-  merged.forEach((issue, index) => {
-    indexByKey.set(issueKey(issue), index);
-  });
-
-  for (const priorIssue of priorIssues) {
-    if (priorIssue.category !== "signature_visual") continue;
-    const status = statusByIssueId.get(priorIssue.issueId);
-    if (status === "resolved" || status === "unclear") continue;
-
-    const key = issueKey(priorIssue);
-    const existingIndex = indexByKey.get(key);
-    if (existingIndex != null) {
-      merged[existingIndex] = {
-        ...merged[existingIndex],
-        category: "signature_visual",
-        issueId: priorIssue.issueId,
-        ref: priorIssue.ref,
-        sticky: true,
-      };
-      continue;
-    }
-
-    merged.push({
-      ...priorIssue,
-      category: "signature_visual",
-      sticky: true,
-    });
-    indexByKey.set(key, merged.length - 1);
-  }
-
-  return sortAndReindexIssues(merged);
-}
-
-function buildPriorIssuesForRecheck(
-  currentIssues: VisionIssue[],
-  priorIssues: VisionIssue[],
-  priorIssueChecks: VisionPriorIssueCheck[],
-): VisionIssue[] {
-  const carry = new Map<string, VisionIssue>();
-  const statusByIssueId = new Map(
-    priorIssueChecks.map((check) => [check.issueId, check.status] as const),
-  );
-
-  for (const issue of currentIssues) {
-    carry.set(issue.issueId, issue);
-  }
-
-  for (const priorIssue of priorIssues) {
-    const status = statusByIssueId.get(priorIssue.issueId);
-    if (status === "resolved") continue;
-    if (carry.has(priorIssue.issueId)) continue;
-    if (status !== "still_wrong" && status !== "unclear") continue;
-
-    carry.set(priorIssue.issueId, {
-      ...priorIssue,
-      sticky: status === "still_wrong" && priorIssue.category === "signature_visual"
-        ? true
-        : priorIssue.sticky,
-      confidence: status === "unclear"
-        ? Math.min(priorIssue.confidence, 0.5)
-        : priorIssue.confidence,
-    });
-  }
-
-  return sortAndReindexIssues([...carry.values()]);
-}
-
-function selectIssuesForEdit(issues: VisionIssue[]): VisionIssue[] {
-  const normalized = sortAndReindexIssues(issues);
+  const sorted = sortAndReindexIssues(issues);
   const selected: VisionIssue[] = [];
   const seenKeys = new Set<string>();
 
@@ -864,10 +644,25 @@ function selectIssuesForEdit(issues: VisionIssue[]): VisionIssue[] {
     selected.push(issue);
   };
 
-  normalized.slice(0, 3).forEach((issue) => take(issue));
-  normalized
-    .filter((issue) => issue.category === "signature_visual" && issue.sticky)
-    .forEach((issue) => take(issue));
+  // Top 5 by priority
+  sorted.slice(0, 5).forEach(take);
+
+  // Signature visual swap-in
+  const isProtected = (issue: VisionIssue): boolean =>
+    issue.category === "signature_visual" || everSignatureVisualIds.has(issue.issueId);
+
+  const signatureBelow = sorted
+    .slice(5)
+    .filter((issue) => isProtected(issue));
+  for (const sigIssue of signatureBelow) {
+    const swapIndex = [...selected]
+      .reverse()
+      .findIndex((s) => !isProtected(s));
+    if (swapIndex >= 0) {
+      const actualIndex = selected.length - 1 - swapIndex;
+      selected[actualIndex] = sigIssue;
+    }
+  }
 
   return reindexIssues(selected);
 }
@@ -903,13 +698,6 @@ function buildVisionSemanticAnchors(
     ...(mustPreserve.length ? { mustPreserve } : {}),
     ...(regions.length ? { regions } : {}),
   };
-}
-
-function parsePriorIssuesSeedJson(
-  issuesJson: string,
-  signatureRefs: Set<string>,
-): VisionIssue[] {
-  return parseVisionCritique(issuesJson, signatureRefs).issues;
 }
 
 function buildVisionContent(
@@ -1031,21 +819,20 @@ async function runVisionCritique(
     contentBounds,
     semanticAnchors,
     priorIssues,
+    iterationHistory,
+    priorChecklist,
     selection,
     signal,
     onEvent,
   } = options;
   const signatureRefs = buildSignatureRefSet(semanticAnchors);
-  const systemPrompt = buildVisionSystemPrompt({
-    hasPriorIssues: Boolean(priorIssues?.length),
-  });
+  const systemPrompt = buildVisionSystemPrompt();
   const userPrompt = buildVisionUserPrompt({
     imageSize,
     contentBounds,
     semanticAnchors,
-    priorIssuesJson: priorIssues?.length
-      ? JSON.stringify(priorIssues, null, 2)
-      : null,
+    iterationHistory,
+    priorChecklist,
   });
 
   await emit(onEvent, {
@@ -1088,9 +875,9 @@ async function runVisionCritique(
         confidence: 0.84,
       },
     ] satisfies VisionIssue[];
-    const rankedIssues = applyCategoryCoverage(issues);
-    const issuesJson = serializeIssues(rankedIssues);
-    const editIssuesJson = serializeIssues(selectIssuesForEdit(rankedIssues));
+    const editIssues = selectIssuesForEdit(issues, options.everSignatureVisualIds ?? new Set());
+    const issuesJson = serializeIssues(issues);
+    const editIssuesJson = serializeIssues(editIssues);
     await emit(onEvent, {
       event: "refine:vision:thinking",
       data: {
@@ -1104,12 +891,12 @@ async function runVisionCritique(
       },
     });
     return {
-      issues: rankedIssues,
+      resolved: [],
+      rawResolved: [],
+      rawIssueIds: new Set(issues.map(i => i.issueId)),
+      issues,
       issuesJson,
       editIssuesJson,
-      priorIssuesJson: issuesJson,
-      priorIssueChecks: [],
-      resolvedIssueIds: [],
       rawText: issuesJson,
       cost: 0,
       elapsed: 0,
@@ -1134,32 +921,16 @@ async function runVisionCritique(
   });
 
   const parsed = parseVisionCritique(result.resultText, signatureRefs);
-  const priorIssueChecks = coalescePriorIssueChecks(
-    priorIssues ?? [],
-    parsed.issues,
-    parsed.priorIssueChecks,
-    parsed.resolvedIssueIds,
-  );
-  const stickyIssues = mergeStickySignatureIssues(
-    parsed.issues,
-    priorIssues ?? [],
-    priorIssueChecks,
-  );
-  const rankedIssues = applyCategoryCoverage(stickyIssues);
-  const priorIssuesForRecheck = buildPriorIssuesForRecheck(
-    rankedIssues,
-    priorIssues ?? [],
-    priorIssueChecks,
-  );
+  const postProcessed = postProcessVision(parsed.resolved, parsed.issues, priorIssues ?? []);
+  const editIssues = selectIssuesForEdit(postProcessed.issues, options.everSignatureVisualIds ?? new Set());
+
   return {
-    issues: rankedIssues,
-    issuesJson: serializeIssues(rankedIssues),
-    editIssuesJson: serializeIssues(selectIssuesForEdit(rankedIssues)),
-    priorIssuesJson: serializeIssues(priorIssuesForRecheck),
-    priorIssueChecks,
-    resolvedIssueIds: priorIssueChecks
-      .filter((check) => check.status === "resolved")
-      .map((check) => check.issueId),
+    resolved: postProcessed.resolved,
+    rawResolved: parsed.resolved,
+    rawIssueIds: new Set(parsed.issues.map(i => i.issueId)),
+    issues: postProcessed.issues,
+    issuesJson: serializeIssues(postProcessed.issues),
+    editIssuesJson: serializeIssues(editIssues),
     rawText: result.resultText,
     cost: result.totalCost,
     elapsed: result.elapsed,
@@ -1300,7 +1071,6 @@ export async function runRefinementLoop(
     baseAnalysis,
     contentBounds = baseAnalysis.source.contentBounds ?? null,
     geometryHints = null,
-    priorIssuesJson = null,
     maxIterations,
     mismatchThreshold,
     iterationOffset = 0,
@@ -1322,13 +1092,11 @@ export async function runRefinementLoop(
   const baseIteration = Math.max(0, Math.floor(iterationOffset));
   const targetIteration = baseIteration + maxIterations;
   const semanticAnchors = buildVisionSemanticAnchors(baseAnalysis);
-  const signatureRefs = buildSignatureRefSet(semanticAnchors);
   let currentProposals = initialProposals;
   let lastMismatchRatio = 1;
   let lastCycle: RenderAndDiffResult | undefined;
-  let priorVisionIssues: VisionIssue[] = priorIssuesJson
-    ? parsePriorIssuesSeedJson(priorIssuesJson, signatureRefs)
-    : [];
+  const records: IterationRecord[] = options.seedHistory ? [...options.seedHistory] : [];
+  let lastPostProcessedIssues: VisionIssue[] = options.seedLastIssues ?? [];
   let totalCost: number | null = null;
   const loopStartedAt = Date.now();
 
@@ -1393,6 +1161,8 @@ export async function runRefinementLoop(
         proposals: currentProposals,
         totalCost,
         totalElapsed,
+        iterationHistory: records,
+        lastIssues: lastPostProcessedIssues,
       },
     });
     return {
@@ -1410,6 +1180,22 @@ export async function runRefinementLoop(
     const prevDiff = lastCycle ?? initial;
     const absoluteIteration = baseIteration + iteration;
 
+    // Build everSignatureVisualIds from all records + lastPostProcessedIssues
+    const everSignatureVisualIds = new Set([
+      ...records.flatMap(r => r.issuesFound
+        .filter(i => i.category === "signature_visual")
+        .map(i => i.issueId)),
+      ...lastPostProcessedIssues
+        .filter(i => i.category === "signature_visual")
+        .map(i => i.issueId),
+    ]);
+
+    // Format history and checklist for vision prompt
+    const historyText = formatIterationHistory(records);
+    const checklistText = formatPriorIssuesChecklist(
+      lastPostProcessedIssues.map(i => ({ issueId: i.issueId, category: i.category, issue: i.issue }))
+    );
+
     await emit(onEvent, {
       event: "refine:vision:start",
       data: { iteration: absoluteIteration },
@@ -1422,27 +1208,39 @@ export async function runRefinementLoop(
       imageSize: { w: prevDiff.diff.width, h: prevDiff.diff.height },
       contentBounds,
       semanticAnchors,
-      priorIssues: priorVisionIssues,
+      priorIssues: lastPostProcessedIssues,
+      iterationHistory: historyText,
+      priorChecklist: checklistText,
+      everSignatureVisualIds,
       selection: visionSelection,
       signal,
       onEvent,
     });
-    priorVisionIssues = parsePriorIssuesSeedJson(
-      visionResult.priorIssuesJson,
-      signatureRefs,
-    );
+
+    // Backfill previous record. Use raw issue ids (before Rule 1 carry-forward)
+    // to detect which priors the model actually skipped. But use post-Rule-2
+    // resolved (conflicts removed) so history never says "resolved" for an
+    // issue that is still active.
+    if (records.length > 0) {
+      const prevRecord = records[records.length - 1];
+      const prevIds = new Set(prevRecord.issuesFound.map(i => i.issueId));
+      const cleanResolvedIds = new Set(visionResult.resolved);
+      const rawCurrentIds = visionResult.rawIssueIds;
+      prevRecord.issuesResolved = [...prevIds].filter(id => cleanResolvedIds.has(id));
+      prevRecord.issuesUnresolved = [...prevIds].filter(id =>
+        !cleanResolvedIds.has(id) && !rawCurrentIds.has(id)
+      );
+    }
+
     totalCost = accumulateCost(totalCost, visionResult.cost);
     const visionEmpty = visionResult.issues.length === 0;
     await emit(onEvent, {
       event: "refine:vision:done",
       data: {
         differences: visionResult.rawText,
-        issues: visionResult.issues,
+        resolved: visionResult.resolved,
         issuesJson: visionResult.issuesJson,
         editIssuesJson: visionResult.editIssuesJson,
-        priorIssuesJson: visionResult.priorIssuesJson,
-        priorIssueChecks: visionResult.priorIssueChecks,
-        resolvedIssueIds: visionResult.resolvedIssueIds,
         issueCount: visionResult.issues.length,
         cost: visionResult.cost,
         elapsed: visionResult.elapsed,
@@ -1451,6 +1249,15 @@ export async function runRefinementLoop(
     });
 
     if (visionEmpty) {
+      lastPostProcessedIssues = [];
+      records.push({
+        iteration: absoluteIteration,
+        issuesFound: [],
+        issuesEdited: [],
+        editApplied: false,
+        issuesResolved: [],
+        issuesUnresolved: [],
+      });
       await emit(onEvent, {
         event: "refine:patch",
         data: { iteration: absoluteIteration, proposals: currentProposals },
@@ -1463,6 +1270,8 @@ export async function runRefinementLoop(
           iterElapsed: visionResult.elapsed,
           iterCost: visionResult.cost,
           visionEmpty: true,
+          iterationHistory: records,
+          lastIssues: lastPostProcessedIssues,
         },
       });
       lastMismatchRatio = prevDiff.diff.mismatchRatio;
@@ -1505,6 +1314,20 @@ export async function runRefinementLoop(
     lastMismatchRatio = candidateCycle.diff.mismatchRatio;
     await emitDiffEvent(onEvent, absoluteIteration, candidateCycle);
 
+    // Push record and update lastPostProcessedIssues
+    const editIssueIds = JSON.parse(visionResult.editIssuesJson).map((i: VisionIssue) => i.issueId);
+    records.push({
+      iteration: absoluteIteration,
+      issuesFound: visionResult.issues.map(i => ({
+        issueId: i.issueId, category: i.category, summary: i.issue,
+      })),
+      issuesEdited: editIssueIds,
+      editApplied: editResult.status === "ok" && editResult.proposals !== null,
+      issuesResolved: [],
+      issuesUnresolved: [],
+    });
+    lastPostProcessedIssues = visionResult.issues;
+
     await emit(onEvent, {
       event: "refine:patch",
       data: { iteration: absoluteIteration, proposals: currentProposals },
@@ -1519,6 +1342,8 @@ export async function runRefinementLoop(
           visionResult.cost != null || editResult.cost != null
             ? (visionResult.cost ?? 0) + (editResult.cost ?? 0)
             : null,
+        iterationHistory: records,
+        lastIssues: lastPostProcessedIssues,
       },
     });
 
@@ -1533,6 +1358,8 @@ export async function runRefinementLoop(
           proposals: currentProposals,
           totalCost,
           totalElapsed,
+          iterationHistory: records,
+          lastIssues: lastPostProcessedIssues,
         },
       });
       return {
@@ -1556,6 +1383,8 @@ export async function runRefinementLoop(
       proposals: currentProposals,
       totalCost,
       totalElapsed,
+      iterationHistory: records,
+      lastIssues: lastPostProcessedIssues,
     },
   });
   return {

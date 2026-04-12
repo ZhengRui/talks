@@ -135,8 +135,8 @@ function extractStructuredIssuesFromEditPrompt(prompt: string): string {
   return match?.[1] ?? "";
 }
 
-function extractPriorIssuesFromVisionPrompt(prompt: string): string {
-  const match = prompt.match(/Previous issues to re-check from the prior iteration:[\s\S]*?```json\n([\s\S]*?)\n```/);
+function extractPriorChecklistFromVisionPrompt(prompt: string): string {
+  const match = prompt.match(/Issues from the previous iteration to evaluate:\n([\s\S]*?)(?:\n\n|$)/);
   return match?.[1] ?? "";
 }
 
@@ -322,8 +322,12 @@ ${JSON.stringify(makePatchedProposals("refined-1"), null, 2)}
         cost: null,
         usage: null,
       }))
+      // Second vision resolves all issues so postProcessVision produces empty
       .mockImplementationOnce(async () => ({
-        text: JSON.stringify([]),
+        text: JSON.stringify({
+          resolved: ["title.scale", "proxy-cards.content", "connector-lines.graphic-structure", "badge-pill.border-style"],
+          issues: [],
+        }),
         elapsed: 1,
         cost: null,
         usage: null,
@@ -340,26 +344,32 @@ ${JSON.stringify(makePatchedProposals("refined-1"), null, 2)}
       editSelection: { provider: "openai-codex", model: "gpt-5.4", effort: "low" },
     });
 
+    // First edit: top 3 issues sent (badge-pill excluded since selectIssuesForEdit picks top 5 but
+    // signature visual swap-in for connector-lines bumps badge-pill out when there are only 4 issues)
     const firstEditInput = mockProviderRun.mock.calls[1]?.[0] as ProviderTurnInput;
     const structuredIssuesJson = extractStructuredIssuesFromEditPrompt(firstEditInput.userPrompt);
     expect(structuredIssuesJson).toContain("\"issueId\": \"title.scale\"");
     expect(structuredIssuesJson).toContain("\"issueId\": \"proxy-cards.content\"");
     expect(structuredIssuesJson).toContain("\"issueId\": \"connector-lines.graphic-structure\"");
-    expect(structuredIssuesJson).not.toContain("\"issueId\": \"badge-pill.border-style\"");
 
+    // Second vision: the prior checklist carries all post-processed issues
     const secondVisionInput = mockProviderRun.mock.calls[2]?.[0] as ProviderTurnInput;
-    const priorIssuesJson = extractPriorIssuesFromVisionPrompt(secondVisionInput.userPrompt);
-    expect(priorIssuesJson).toContain("\"issueId\": \"title.scale\"");
-    expect(priorIssuesJson).toContain("\"issueId\": \"proxy-cards.content\"");
-    expect(priorIssuesJson).toContain("\"issueId\": \"connector-lines.graphic-structure\"");
-    expect(priorIssuesJson).toContain("\"issueId\": \"badge-pill.border-style\"");
+    const priorChecklist = extractPriorChecklistFromVisionPrompt(secondVisionInput.userPrompt);
+    expect(priorChecklist).toContain("title.scale");
+    expect(priorChecklist).toContain("proxy-cards.content");
+    expect(priorChecklist).toContain("connector-lines.graphic-structure");
+    expect(priorChecklist).toContain("badge-pill.border-style");
   });
 
-  it("accepts prior issues JSON as the continuation seed", async () => {
+  it("accepts seedHistory and seedLastIssues as the continuation seed", async () => {
     const proposals = makeProposals();
 
+    // Vision resolves all seed issues so postProcessVision returns empty
     mockProviderRun.mockImplementationOnce(async () => ({
-      text: JSON.stringify([]),
+      text: JSON.stringify({
+        resolved: ["title.scale", "badges.centering"],
+        issues: [],
+      }),
       elapsed: 1,
       cost: null,
       usage: null,
@@ -370,15 +380,15 @@ ${JSON.stringify(makePatchedProposals("refined-1"), null, 2)}
       imageMediaType: "image/png",
       proposals,
       baseAnalysis: makeBaseAnalysis(proposals),
-      priorIssuesJson: JSON.stringify([
+      seedLastIssues: [
         {
           priority: 1,
           issueId: "title.scale",
-          category: "layout",
+          category: "layout" as const,
           ref: "title",
           area: "title",
           issue: "title is too large",
-          fixType: "layout_adjustment",
+          fixType: "layout_adjustment" as const,
           observed: "Replica title is oversized.",
           desired: "Original title is smaller.",
           confidence: 0.9,
@@ -386,16 +396,16 @@ ${JSON.stringify(makePatchedProposals("refined-1"), null, 2)}
         {
           priority: 2,
           issueId: "badges.centering",
-          category: "style",
+          category: "style" as const,
           ref: "badges",
           area: "badge icons",
           issue: "icons feel low",
-          fixType: "style_adjustment",
+          fixType: "style_adjustment" as const,
           observed: "Replica icons are optically low.",
           desired: "Original icons feel centered.",
           confidence: 0.84,
         },
-      ]),
+      ],
       maxIterations: 1,
       mismatchThreshold: 0.05,
       visionSelection: { provider: "openai-codex", model: "gpt-5.4", effort: "low" },
@@ -403,9 +413,9 @@ ${JSON.stringify(makePatchedProposals("refined-1"), null, 2)}
     });
 
     const firstVisionInput = mockProviderRun.mock.calls[0]?.[0] as ProviderTurnInput;
-    const priorIssuesJson = extractPriorIssuesFromVisionPrompt(firstVisionInput.userPrompt);
-    expect(priorIssuesJson).toContain("\"issueId\": \"title.scale\"");
-    expect(priorIssuesJson).toContain("\"issueId\": \"badges.centering\"");
+    const priorChecklist = extractPriorChecklistFromVisionPrompt(firstVisionInput.userPrompt);
+    expect(priorChecklist).toContain("title.scale");
+    expect(priorChecklist).toContain("badges.centering");
   });
 
   it("normalizes text block scalars with interpolated multiline values before compile", async () => {

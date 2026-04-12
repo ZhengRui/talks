@@ -76,7 +76,7 @@ children:
     );
     const children = (result as unknown as { children: Record<string, unknown>[] }).children;
     expect(children[0]).toMatchObject({ kind: "ir", id: "bullets" });
-    expect(children[0].element.items).toEqual(["First", "Second", "Third"]);
+    expect((children[0] as { element: { items: unknown } }).element.items).toEqual(["First", "Second", "Third"]);
   });
 
   it("expands conditional block when value is present", () => {
@@ -288,7 +288,7 @@ children:
 
     const result = expandDslTemplate({ template: "test", params: { title: "Test" } }, def);
     const children = (result as unknown as { children: Record<string, unknown>[] }).children;
-    expect(children[0].style.fontSize).toBe(56);
+    expect((children[0] as { style: { fontSize: number } }).style.fontSize).toBe(56);
   });
 
   it("merges style overrides with defaults", () => {
@@ -315,7 +315,7 @@ children:
       def,
     );
     const children = (result as unknown as { children: Record<string, unknown>[] }).children;
-    expect(children[0].style.fontSize).toBe(72);
+    expect((children[0] as { style: { fontSize: number } }).style.fontSize).toBe(72);
   });
 
   it("throws on missing required param", () => {
@@ -513,7 +513,7 @@ children:
         },
       },
       def,
-    ) as { mode: string; presets: Record<string, unknown>; children: Record<string, unknown>[] };
+    ) as unknown as { mode: string; presets: Record<string, unknown>; children: Record<string, unknown>[] };
 
     expect(result.mode).toBe("scene");
     expect(result.presets.card).toMatchObject({
@@ -553,7 +553,7 @@ children:
 `,
     });
 
-    const result = expandDslTemplate({ template: "test" }, def) as {
+    const result = expandDslTemplate({ template: "test" }, def) as unknown as {
       mode: string;
       children: Array<Record<string, unknown>>;
     };
@@ -596,7 +596,7 @@ children:
     });
 
     try {
-      const result = expandDslTemplate({ template: "test" }, def) as {
+      const result = expandDslTemplate({ template: "test" }, def) as unknown as {
         mode: string;
         children: Array<Record<string, unknown>>;
       };
