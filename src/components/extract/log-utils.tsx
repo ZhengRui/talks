@@ -102,6 +102,41 @@ function ToolResultBlock({ content }: { content: string }) {
   );
 }
 
+function splitTextAndJson(content: string): { prose: string; json: unknown | null } {
+  const trimmed = content.trim();
+  if (!trimmed) return { prose: "", json: null };
+
+  // Try parsing the entire content as JSON first
+  try {
+    return { prose: "", json: JSON.parse(trimmed) };
+  } catch {
+    // not pure JSON
+  }
+
+  // Look for a fenced ```json block or a bare JSON payload at the end
+  const fenceMatch = trimmed.match(/^([\s\S]*?)```(?:json)?\s*\n([\s\S]*?)```\s*$/);
+  if (fenceMatch) {
+    try {
+      return { prose: fenceMatch[1].trim(), json: JSON.parse(fenceMatch[2].trim()) };
+    } catch {
+      // invalid JSON inside fence
+    }
+  }
+
+  // Look for a JSON array/object starting after prose
+  const jsonStart = trimmed.search(/\n\s*[\[{]/);
+  if (jsonStart >= 0) {
+    const candidate = trimmed.slice(jsonStart).trim();
+    try {
+      return { prose: trimmed.slice(0, jsonStart).trim(), json: JSON.parse(candidate) };
+    } catch {
+      // not valid JSON
+    }
+  }
+
+  return { prose: "", json: tryParseJsonContent(trimmed) };
+}
+
 function tryParseJsonContent(content: string): unknown | null {
   const trimmed = content.trim();
   if (!trimmed) return null;
@@ -200,7 +235,7 @@ const LOG_COLORS: Record<string, string> = {
 export function LogEntryRow({ entry }: { entry: LogEntry }) {
   const icon = LOG_ICONS[entry.type] ?? "?";
   const color = LOG_COLORS[entry.type] ?? "text-gray-400";
-  const parsedJson = entry.type === "text" ? tryParseJsonContent(entry.content) : null;
+  const textParts = entry.type === "text" ? splitTextAndJson(entry.content) : null;
 
   return (
     <div className={`flex gap-2 ${entry.type === "status" || entry.type === "tool" ? "mt-2 first:mt-0" : "mt-0.5"}`}>
@@ -213,11 +248,14 @@ export function LogEntryRow({ entry }: { entry: LogEntry }) {
         )}
         {entry.type === "text" && (
           <div className="text-gray-700">
-            {parsedJson ? (
-              <HighlightedJsonBlock data={parsedJson} />
-            ) : (
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{entry.content}</ReactMarkdown>
+            {textParts?.prose && (
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{textParts.prose}</ReactMarkdown>
             )}
+            {textParts?.json ? (
+              <HighlightedJsonBlock data={textParts.json} />
+            ) : !textParts?.prose ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>{entry.content}</ReactMarkdown>
+            ) : null}
           </div>
         )}
         {entry.type === "tool" && (
