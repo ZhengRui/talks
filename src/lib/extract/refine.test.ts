@@ -374,6 +374,48 @@ describe("parseVisionCritique", () => {
     expect(result.issues[0].issueId).toBe("title.scale");
   });
 
+  it("flattens doubly-nested issues array (observed from Opus 4.7)", () => {
+    const json = JSON.stringify({
+      resolved: [],
+      issues: [
+        [
+          {
+            priority: 1,
+            issueId: "connectors.missing",
+            category: "signature_visual",
+            ref: "benefit-items",
+            area: "connecting curves",
+            issue: "curves missing",
+            fixType: "structural_change",
+            observed: "no lines",
+            desired: "white curves",
+            confidence: 0.95,
+          },
+          {
+            priority: 2,
+            issueId: "icons.style",
+            category: "style",
+            ref: "benefit-items",
+            area: "icons",
+            issue: "wrong style",
+            fixType: "style_adjustment",
+            observed: "emoji",
+            desired: "line-art",
+            confidence: 0.6,
+          },
+        ],
+      ],
+    });
+
+    const result = parseVisionCritique(json, signatureRefs);
+
+    expect(result.issues).toHaveLength(2);
+    expect(result.issues.map((i) => i.issueId)).toEqual([
+      "connectors.missing",
+      "icons.style",
+    ]);
+  });
+
   it("parses bare array (backward compat) with resolved: []", () => {
     const json = JSON.stringify([
       {

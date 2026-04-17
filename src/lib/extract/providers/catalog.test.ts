@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_PROVIDER,
+  MODEL_CATALOG,
+  findCatalogEntryByModel,
   getCatalogEntriesForProvider,
+  getDefaultCatalogEntry,
   getDefaultProviderSelection,
   getModelCatalogEntry,
   getProviderOptions,
@@ -13,6 +16,7 @@ describe("provider catalog", () => {
     expect(getProviderOptions()).toEqual([
       { value: "claude-code", label: "Claude Code" },
       { value: "openai-codex", label: "OpenAI Codex" },
+      { value: "google", label: "Google" },
       { value: "mock", label: "Mock" },
     ]);
   });
@@ -30,7 +34,7 @@ describe("provider catalog", () => {
     });
     expect(getDefaultProviderSelection("claude-code")).toEqual({
       provider: "claude-code",
-      model: "claude-opus-4-6",
+      model: "claude-opus-4-7",
       effort: "low",
     });
   });
@@ -108,5 +112,114 @@ describe("provider catalog", () => {
         { value: "xhigh", label: "XHigh" },
       ],
     });
+  });
+
+  it("exposes Opus 4.7 with xhigh effort option and ga status", () => {
+    const entry = getModelCatalogEntry("claude-code", "claude-opus-4-7");
+    expect(entry).not.toBeNull();
+    expect(entry?.label).toBe("Opus 4.7");
+    expect(entry?.status).toBe("ga");
+    expect(entry?.defaultEffort).toBe("low");
+    const values = entry?.effortOptions.map((o) => o.value);
+    expect(values).toEqual(["low", "medium", "high", "xhigh", "max"]);
+  });
+
+  it("keeps Opus 4.6 available as a fallback option", () => {
+    const entry = getModelCatalogEntry("claude-code", "claude-opus-4-6");
+    expect(entry).not.toBeNull();
+    const values = entry?.effortOptions.map((o) => o.value);
+    // 4.6's options stay low/medium/high/max (no xhigh).
+    expect(values).toEqual(["low", "medium", "high", "max"]);
+  });
+});
+
+describe("google provider catalog", () => {
+  it("has all 7 Google entries", () => {
+    const googleEntries = MODEL_CATALOG.filter((e) => e.provider === "google");
+    expect(googleEntries).toHaveLength(7);
+    const ids = googleEntries.map((e) => e.model);
+    expect(ids).toEqual([
+      "gemini-2.5-flash",
+      "gemini-2.5-pro",
+      "gemini-3.1-flash-lite-preview",
+      "gemini-3-flash-preview",
+      "gemini-3.1-pro-preview",
+      "gemma-4-31b-it",
+      "gemma-4-26b-a4b-it",
+    ]);
+  });
+
+  it("uses gemini-2.5-flash as the default google model", () => {
+    const entry = getDefaultCatalogEntry("google");
+    expect(entry.model).toBe("gemini-2.5-flash");
+  });
+
+  it("assigns status to each google entry", () => {
+    expect(getModelCatalogEntry("google", "gemini-2.5-flash")?.status).toBe("ga");
+    expect(getModelCatalogEntry("google", "gemini-2.5-pro")?.status).toBe("ga");
+    expect(getModelCatalogEntry("google", "gemini-3.1-pro-preview")?.status).toBe("preview");
+    expect(getModelCatalogEntry("google", "gemini-3-flash-preview")?.status).toBe("preview");
+    expect(getModelCatalogEntry("google", "gemini-3.1-flash-lite-preview")?.status).toBe("preview");
+    expect(getModelCatalogEntry("google", "gemma-4-31b-it")?.status).toBe("free-only");
+    expect(getModelCatalogEntry("google", "gemma-4-26b-a4b-it")?.status).toBe("free-only");
+  });
+
+  it("marks google entries as api-key auth and image-capable", () => {
+    const googleEntries = MODEL_CATALOG.filter((e) => e.provider === "google");
+    for (const entry of googleEntries) {
+      expect(entry.auth).toBe("api-key");
+      expect(entry.supportsImages).toBe(true);
+    }
+  });
+
+  it("uses budget effort for gemini and none for gemma", () => {
+    expect(getModelCatalogEntry("google", "gemini-2.5-flash")?.effortMode).toBe("budget");
+    expect(getModelCatalogEntry("google", "gemini-2.5-pro")?.effortMode).toBe("budget");
+    expect(getModelCatalogEntry("google", "gemini-3.1-pro-preview")?.effortMode).toBe("budget");
+    expect(getModelCatalogEntry("google", "gemma-4-31b-it")?.effortMode).toBe("none");
+  });
+
+  it("lists Google as a selectable provider", () => {
+    const options = getProviderOptions();
+    expect(options).toContainEqual({ value: "google", label: "Google" });
+  });
+
+  it("can find new Google models by id", () => {
+    expect(findCatalogEntryByModel("gemini-3.1-pro-preview")?.provider).toBe("google");
+  });
+
+  it("gives gemini-2.5-pro a 32k thinking budget option", () => {
+    const entry = getModelCatalogEntry("google", "gemini-2.5-pro");
+    expect(entry?.effortOptions.map((o) => o.value)).toContain("32000");
+  });
+
+  it("does not give gemini-2.5-flash a 32k thinking budget option", () => {
+    const entry = getModelCatalogEntry("google", "gemini-2.5-flash");
+    expect(entry?.effortOptions.map((o) => o.value)).not.toContain("32000");
+  });
+
+  it("does not give gemini-2.5-pro a 0 thinking budget option", () => {
+    const entry = getModelCatalogEntry("google", "gemini-2.5-pro");
+    const values = entry?.effortOptions.map((o) => o.value) ?? [];
+    expect(values).not.toContain("0");
+    expect(values).toContain("-1");
+  });
+
+  it("gives gemini-3.1-pro-preview LOW/MEDIUM/HIGH thinking levels", () => {
+    const entry = getModelCatalogEntry("google", "gemini-3.1-pro-preview");
+    expect(entry?.effortOptions.map((o) => o.value)).toEqual(["LOW", "MEDIUM", "HIGH"]);
+  });
+
+  it("gives gemini-3-flash-preview LOW/MEDIUM/HIGH thinking levels", () => {
+    const entry = getModelCatalogEntry("google", "gemini-3-flash-preview");
+    expect(entry?.effortOptions.map((o) => o.value)).toEqual(["LOW", "MEDIUM", "HIGH"]);
+  });
+
+  it("uses -1 as the default effort for gemini-2.5-pro", () => {
+    expect(getModelCatalogEntry("google", "gemini-2.5-pro")?.defaultEffort).toBe("-1");
+  });
+
+  it("uses LOW as the default effort for gemini-3.1-pro-preview", () => {
+    expect(getModelCatalogEntry("google", "gemini-3.1-pro-preview")?.defaultEffort).toBe("LOW");
   });
 });

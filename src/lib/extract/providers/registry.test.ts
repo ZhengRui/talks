@@ -30,3 +30,24 @@ describe("provider registry", () => {
     ).toThrow("Model gpt-5.4 is not available for provider mock");
   });
 });
+
+describe("google provider registration", () => {
+  it("returns googleProvider for the google selection", () => {
+    const provider = getExtractModelProvider({
+      provider: "google",
+      model: "gemini-2.5-flash",
+      effort: "0",
+    });
+    expect(provider.id).toBe("google");
+  });
+
+  it("throws helpful error for unknown google model", () => {
+    expect(() =>
+      getExtractModelProvider({
+        provider: "google",
+        model: "does-not-exist",
+        effort: "0",
+      }),
+    ).toThrow(/does-not-exist.*google/);
+  });
+});

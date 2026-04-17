@@ -616,11 +616,15 @@ export function parseVisionCritique(
 
   if (parsed && typeof parsed === "object") {
     const object = parsed as Record<string, unknown>;
-    const issueEntries = Array.isArray(object.issues) ? object.issues : null;
-    if (!issueEntries) {
+    const rawEntries = Array.isArray(object.issues) ? object.issues : null;
+    if (!rawEntries) {
       const issues = fallbackIssuesFromText(resultText);
       return { resolved: normalizeResolved(object.resolved), issues };
     }
+    // Defensive: some models (observed on Opus 4.7) emit a doubly-nested
+    // array like `"issues": [[ {...}, {...} ]]`. Flatten one level so each
+    // entry passed to normalizeVisionIssue is an object, not an array.
+    const issueEntries = rawEntries.flat();
     const issues = issueEntries
       .map((entry, index) => normalizeVisionIssue(entry, index, signatureRefs))
       .filter((issue): issue is VisionIssue => Boolean(issue));

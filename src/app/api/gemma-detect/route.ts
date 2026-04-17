@@ -4,17 +4,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import sharp from "sharp";
-import { setGlobalDispatcher, ProxyAgent } from "undici";
 import { box2dToPixelBbox, type BBox } from "@/lib/extract/gemma-bbox";
+import { installProxyDispatcherOnce } from "@/lib/extract/providers/shared";
+import { resizeForGoogle } from "@/lib/extract/google-image-prep";
 
-const proxyUrl =
-  process.env.HTTPS_PROXY ??
-  process.env.https_proxy ??
-  process.env.HTTP_PROXY ??
-  process.env.http_proxy;
-if (proxyUrl) {
-  setGlobalDispatcher(new ProxyAgent(proxyUrl));
-}
+installProxyDispatcherOnce();
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -103,19 +97,12 @@ export async function POST(req: NextRequest) {
   // Downscale to max 1920px on the longer edge before sending.
   // Gemma's vision encoder doesn't benefit past ~1536px, and smaller payloads
   // dramatically reduce round-trip time through proxies.
-  const MAX_EDGE = 1920;
-  const longerEdge = Math.max(imageWidth, imageHeight);
-  const sentBuffer =
-    longerEdge > MAX_EDGE
-      ? await sharp(buffer)
-          .resize({
-            width: imageWidth >= imageHeight ? MAX_EDGE : undefined,
-            height: imageHeight > imageWidth ? MAX_EDGE : undefined,
-            fit: "inside",
-          })
-          .png()
-          .toBuffer()
-      : buffer;
+  const prepared = await resizeForGoogle(
+    buffer,
+    imageWidth,
+    imageHeight,
+    file.type || "image/png",
+  );
 
   const client = new GoogleGenAI({ apiKey });
   const encoder = new TextEncoder();
@@ -132,7 +119,7 @@ export async function POST(req: NextRequest) {
             {
               role: "user",
               parts: [
-                { inlineData: { data: sentBuffer.toString("base64"), mimeType: "image/png" } },
+                { inlineData: { data: prepared.buffer.toString("base64"), mimeType: prepared.mediaType } },
                 { text: prompt },
               ],
             },

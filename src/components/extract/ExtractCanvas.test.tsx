@@ -119,6 +119,19 @@ function makeSseResponse(
   return new Response(stream, { status: 200 });
 }
 
+function makeChunkedResponse(chunks: string[]): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      for (const chunk of chunks) {
+        controller.enqueue(encoder.encode(chunk));
+      }
+      controller.close();
+    },
+  });
+  return new Response(stream, { status: 200 });
+}
+
 describe("ExtractCanvas", () => {
   beforeEach(() => {
     testStore = createExtractStore();
@@ -412,6 +425,103 @@ describe("ExtractCanvas", () => {
           timestamp: expect.any(Number),
         },
       ]);
+    });
+  });
+
+  it("preserves split analyze prompt and thinking events across stream chunks", async () => {
+    testStore.getState().setAutoRefine(false);
+
+    class MockImage {
+      naturalWidth = 1280;
+      naturalHeight = 720;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      _src = "";
+
+      get src() {
+        return this._src;
+      }
+
+      set src(value: string) {
+        this._src = value;
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+
+    vi.stubGlobal("Image", MockImage);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url === "/api/extract/analyze") {
+          return makeChunkedResponse([
+            "event: prompt\n",
+            `data: ${JSON.stringify({
+              phase: "extract",
+              systemPrompt: "extract system prompt",
+              userPrompt: "extract user prompt",
+              provider: "claude-code",
+              model: "claude-opus-4-6",
+              effort: "medium",
+              stage: "extract",
+            })}\n\n`,
+            "event: thinking\n",
+            `data: ${JSON.stringify({
+              text: "Looking at the screenshot to generate the output.",
+              stage: "extract",
+            })}\n\n`,
+            "event: result\n",
+            `data: ${JSON.stringify({
+              source: {
+                image: "data:image/png;base64,abc",
+                dimensions: { w: 1280, h: 720 },
+              },
+              provenance: {
+                pass1: {
+                  provider: "claude-code",
+                  model: "claude-opus-4-6",
+                  effort: "medium",
+                  elapsed: 1,
+                  cost: 0.01,
+                },
+              },
+              proposals: [
+                makeProposal("extract-preview", "mode: scene\nchildren: []"),
+              ],
+              stage: "extract",
+            })}\n\n`,
+          ]);
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      }),
+    );
+
+    const { getByText } = render(<ExtractCanvas />);
+
+    fireEvent.click(getByText("Analyze"));
+
+    await waitFor(() => {
+      const card = testStore.getState().cards.get(testCardId)!;
+      expect(card.promptHistory).toEqual([
+        {
+          stage: "extract",
+          phase: "extract",
+          iteration: null,
+          systemPrompt: "extract system prompt",
+          userPrompt: "extract user prompt",
+          provider: "claude-code",
+          model: "claude-opus-4-6",
+          effort: "medium",
+          timestamp: expect.any(Number),
+        },
+      ]);
+      expect(card.log).toContainEqual(
+        expect.objectContaining({
+          type: "thinking",
+          content: "Looking at the screenshot to generate the output.",
+          stage: "extract",
+        }),
+      );
     });
   });
 

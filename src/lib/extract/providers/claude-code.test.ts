@@ -129,7 +129,7 @@ describe("ClaudeCode provider", () => {
     );
     expect(adaptive.model).toBe("claude-sonnet-4-6");
     expect(adaptive.systemPrompt).toBe("Adaptive system prompt");
-    expect(adaptive.thinking).toEqual({ type: "adaptive" });
+    expect(adaptive.thinking).toEqual({ type: "adaptive", display: "summarized" });
     expect(adaptive.effort).toBe("high");
     expect(adaptive.pathToClaudeCodeExecutable).toBe(process.execPath);
 
@@ -143,6 +143,22 @@ describe("ClaudeCode provider", () => {
     );
     expect(budget.thinking).toEqual({ type: "enabled", budget_tokens: 30000 });
     expect("effort" in budget ? budget.effort : undefined).toBeUndefined();
+  });
+
+  it("enables summarized thinking for Opus 4.7 at low effort", async () => {
+    const { buildClaudeQueryOptions } = await importClaudeModule();
+    const opts = buildClaudeQueryOptions(
+      {
+        provider: "claude-code",
+        model: "claude-opus-4-7",
+        effort: "low",
+      },
+      "Opus 4.7 system prompt",
+    );
+    expect(opts.model).toBe("claude-opus-4-7");
+    // Without display: "summarized", Opus 4.7 defaults to "omitted" — no thinking deltas.
+    expect(opts.thinking).toEqual({ type: "adaptive", display: "summarized" });
+    expect(opts.effort).toBe("low");
   });
 
   it("maps Claude SDK events into provider stream events", async () => {

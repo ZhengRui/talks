@@ -7,6 +7,7 @@ import BenchmarkLauncher from "./BenchmarkLauncher";
 import CanvasViewport from "./CanvasViewport";
 import CanvasToolbar from "./CanvasToolbar";
 import InspectorPanel from "./InspectorPanel";
+import { consumeSseChunk, createSseParserState } from "./sse";
 import { resolveCardRefinePass, useExtractStore, type LogEntry, type RefineIssueSnapshot } from "./store";
 import type { IterationRecord } from "@/lib/extract/refine-prompt";
 import type {
@@ -292,8 +293,7 @@ export default function ExtractCanvas() {
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        let buffer = "";
-        let currentEvent = "";
+        const parserState = createSseParserState();
 
         // Latest diff metrics — used by refine:patch to fill updateRefinement
         let latestDiff: {
@@ -312,24 +312,18 @@ export default function ExtractCanvas() {
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          const chunk = done
+            ? decoder.decode()
+            : decoder.decode(value, { stream: true });
+          const events = consumeSseChunk(parserState, chunk, done);
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-
-          for (const line of lines) {
-            if (line.startsWith("event: ")) {
-              currentEvent = line.slice(7);
-              continue;
-            }
-            if (!line.startsWith("data: ")) continue;
+          for (const eventRecord of events) {
+            const currentEvent = eventRecord.event;
 
             let data: Record<string, unknown>;
             try {
-              data = JSON.parse(line.slice(6)) as Record<string, unknown>;
+              data = JSON.parse(eventRecord.data) as Record<string, unknown>;
             } catch {
-              currentEvent = "";
               continue;
             }
 
@@ -575,9 +569,9 @@ export default function ExtractCanvas() {
                 return;
               }
             }
-
-            currentEvent = "";
           }
+
+          if (done) break;
         }
       } catch (err) {
         if (abortController.signal.aborted) {
@@ -678,7 +672,7 @@ export default function ExtractCanvas() {
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        let buffer = "";
+        const parserState = createSseParserState();
         let analysisCompleted = false;
 
         const getStage = (value: unknown): AnalysisStage | undefined =>
@@ -686,187 +680,182 @@ export default function ExtractCanvas() {
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          const chunk = done
+            ? decoder.decode()
+            : decoder.decode(value, { stream: true });
+          const events = consumeSseChunk(parserState, chunk, done);
 
-          buffer += decoder.decode(value, { stream: true });
+          for (const eventRecord of events) {
+            const currentEvent = eventRecord.event;
+            const data = JSON.parse(eventRecord.data);
+            const stage = getStage(data.stage);
 
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-
-          let currentEvent = "";
-          for (const line of lines) {
-            if (line.startsWith("event: ")) {
-              currentEvent = line.slice(7);
-            } else if (line.startsWith("data: ")) {
-              const data = JSON.parse(line.slice(6));
-              const stage = getStage(data.stage);
-
-              switch (currentEvent) {
-                case "status": {
-                  let msg = data.message ?? "";
-                  if (data.inputTokens || data.outputTokens) {
-                    msg += ` (${data.inputTokens ?? 0} in / ${data.outputTokens ?? 0} out)`;
-                  }
-                  if (data.cost != null) {
-                    msg += ` $${Number(data.cost).toFixed(4)}`;
-                  }
-                  const statusEntry: LogEntry = {
-                    type: "status",
-                    content: msg,
-                    timestamp: Date.now(),
-                    stage,
-                  };
-                  appendLog(cardId, statusEntry);
-                  break;
+            switch (currentEvent) {
+              case "status": {
+                let msg = data.message ?? "";
+                if (data.inputTokens || data.outputTokens) {
+                  msg += ` (${data.inputTokens ?? 0} in / ${data.outputTokens ?? 0} out)`;
                 }
-                case "prompt": {
-                  const phase = parsePromptPhase(data.phase);
-                  if (
-                    phase &&
-                    typeof data.systemPrompt === "string" &&
-                    typeof data.userPrompt === "string"
-                  ) {
-                    appendPrompt(cardId, {
-                      stage: stage ?? "extract",
-                      phase,
-                      iteration:
-                        typeof data.iteration === "number" ? data.iteration : null,
-                      systemPrompt: data.systemPrompt,
-                      userPrompt: data.userPrompt,
-                      provider:
-                        typeof data.provider === "string"
-                          ? (data.provider as ProviderSelection["provider"])
-                          : undefined,
-                      model:
-                        typeof data.model === "string" ? data.model : undefined,
-                      effort:
-                        typeof data.effort === "string" ? data.effort : undefined,
-                      timestamp: Date.now(),
-                    });
-                  }
-                  break;
+                if (data.cost != null) {
+                  msg += ` $${Number(data.cost).toFixed(4)}`;
                 }
-                case "thinking": {
-                  const thinkingEntry: LogEntry = {
-                    type: "thinking",
-                    content: data.text,
-                    timestamp: Date.now(),
-                    stage,
-                    streamKey:
-                      typeof data.streamKey === "string" ? data.streamKey : undefined,
-                  };
-                  appendLog(cardId, thinkingEntry);
-                  break;
-                }
-                case "text": {
-                  const textEntry: LogEntry = {
-                    type: "text",
-                    content: data.text,
-                    timestamp: Date.now(),
-                    stage,
-                    streamKey:
-                      typeof data.streamKey === "string" ? data.streamKey : undefined,
-                  };
-                  appendLog(cardId, textEntry);
-                  break;
-                }
-                case "tool": {
-                  const toolEntry: LogEntry = {
-                    type: "tool",
-                    content: `${data.name}(${typeof data.input === "string" ? data.input : JSON.stringify(data.input).slice(0, 200)})`,
-                    timestamp: Date.now(),
-                    stage,
-                  };
-                  appendLog(cardId, toolEntry);
-                  break;
-                }
-                case "tool_result": {
-                  const toolResultEntry: LogEntry = {
-                    type: "tool_result",
-                    content: data.preview,
-                    timestamp: Date.now(),
-                    stage,
-                  };
-                  appendLog(cardId, toolResultEntry);
-                  break;
-                }
-                case "error": {
-                  const errorMsg = data.error;
-                  console.error("[extract/analyze] SSE error", {
-                    cardId,
-                    stage,
-                    error: data.error,
-                    raw: data.raw,
-                  });
-                  appendLog(cardId, {
-                    type: "error",
-                    content: errorMsg,
-                    timestamp: Date.now(),
-                    stage,
-                  });
-                  if (typeof data.raw === "string" && data.raw.trim()) {
-                    appendLog(cardId, {
-                      type: "tool_result",
-                      content: `Raw model output preview:\n${data.raw}`,
-                      timestamp: Date.now(),
-                      stage,
-                    });
-                  }
-                  failAnalysis(cardId, errorMsg);
-                  // Clear timer on error
-                  const errorTimer = timersRef.current.get(cardId);
-                  if (errorTimer) {
-                    clearInterval(errorTimer);
-                    timersRef.current.delete(cardId);
-                  }
-                  return;
-                }
-                case "result": {
-                  const phase = parsePromptPhase(data.prompt?.phase);
-                  if (
-                    phase &&
-                    typeof data.prompt?.systemPrompt === "string" &&
-                    typeof data.prompt?.userPrompt === "string"
-                  ) {
-                    appendPrompt(cardId, {
-                      stage: stage ?? "extract",
-                      phase,
-                      iteration:
-                        typeof data.prompt?.iteration === "number"
-                          ? data.prompt.iteration
-                          : null,
-                      systemPrompt: data.prompt.systemPrompt,
-                      userPrompt: data.prompt.userPrompt,
-                      provider:
-                        typeof data.prompt?.provider === "string"
-                          ? (data.prompt.provider as ProviderSelection["provider"])
-                          : undefined,
-                      model:
-                        typeof data.prompt?.model === "string"
-                          ? data.prompt.model
-                          : undefined,
-                      effort:
-                        typeof data.prompt?.effort === "string"
-                          ? data.prompt.effort
-                          : undefined,
-                      timestamp: Date.now(),
-                    });
-                  }
-                  completeAnalysis(cardId, data as AnalysisResultPayload);
-                  analysisCompleted = true;
-                  const resultEntry: LogEntry = {
-                    type: "status",
-                    content: `Analysis complete — ${(data as AnalysisResultPayload).proposals?.length ?? 0} proposals`,
-                    timestamp: Date.now(),
-                    stage,
-                  };
-                  appendLog(cardId, resultEntry);
-                  break;
-                }
+                const statusEntry: LogEntry = {
+                  type: "status",
+                  content: msg,
+                  timestamp: Date.now(),
+                  stage,
+                };
+                appendLog(cardId, statusEntry);
+                break;
               }
-              currentEvent = "";
+              case "prompt": {
+                const phase = parsePromptPhase(data.phase);
+                if (
+                  phase &&
+                  typeof data.systemPrompt === "string" &&
+                  typeof data.userPrompt === "string"
+                ) {
+                  appendPrompt(cardId, {
+                    stage: stage ?? "extract",
+                    phase,
+                    iteration:
+                      typeof data.iteration === "number" ? data.iteration : null,
+                    systemPrompt: data.systemPrompt,
+                    userPrompt: data.userPrompt,
+                    provider:
+                      typeof data.provider === "string"
+                        ? (data.provider as ProviderSelection["provider"])
+                        : undefined,
+                    model:
+                      typeof data.model === "string" ? data.model : undefined,
+                    effort:
+                      typeof data.effort === "string" ? data.effort : undefined,
+                    timestamp: Date.now(),
+                  });
+                }
+                break;
+              }
+              case "thinking": {
+                const thinkingEntry: LogEntry = {
+                  type: "thinking",
+                  content: data.text,
+                  timestamp: Date.now(),
+                  stage,
+                  streamKey:
+                    typeof data.streamKey === "string" ? data.streamKey : undefined,
+                };
+                appendLog(cardId, thinkingEntry);
+                break;
+              }
+              case "text": {
+                const textEntry: LogEntry = {
+                  type: "text",
+                  content: data.text,
+                  timestamp: Date.now(),
+                  stage,
+                  streamKey:
+                    typeof data.streamKey === "string" ? data.streamKey : undefined,
+                };
+                appendLog(cardId, textEntry);
+                break;
+              }
+              case "tool": {
+                const toolEntry: LogEntry = {
+                  type: "tool",
+                  content: `${data.name}(${typeof data.input === "string" ? data.input : JSON.stringify(data.input).slice(0, 200)})`,
+                  timestamp: Date.now(),
+                  stage,
+                };
+                appendLog(cardId, toolEntry);
+                break;
+              }
+              case "tool_result": {
+                const toolResultEntry: LogEntry = {
+                  type: "tool_result",
+                  content: data.preview,
+                  timestamp: Date.now(),
+                  stage,
+                };
+                appendLog(cardId, toolResultEntry);
+                break;
+              }
+              case "error": {
+                const errorMsg = data.error;
+                console.error("[extract/analyze] SSE error", {
+                  cardId,
+                  stage,
+                  error: data.error,
+                  raw: data.raw,
+                });
+                appendLog(cardId, {
+                  type: "error",
+                  content: errorMsg,
+                  timestamp: Date.now(),
+                  stage,
+                });
+                if (typeof data.raw === "string" && data.raw.trim()) {
+                  appendLog(cardId, {
+                    type: "tool_result",
+                    content: `Raw model output preview:\n${data.raw}`,
+                    timestamp: Date.now(),
+                    stage,
+                  });
+                }
+                failAnalysis(cardId, errorMsg);
+                // Clear timer on error
+                const errorTimer = timersRef.current.get(cardId);
+                if (errorTimer) {
+                  clearInterval(errorTimer);
+                  timersRef.current.delete(cardId);
+                }
+                return;
+              }
+              case "result": {
+                const phase = parsePromptPhase(data.prompt?.phase);
+                if (
+                  phase &&
+                  typeof data.prompt?.systemPrompt === "string" &&
+                  typeof data.prompt?.userPrompt === "string"
+                ) {
+                  appendPrompt(cardId, {
+                    stage: stage ?? "extract",
+                    phase,
+                    iteration:
+                      typeof data.prompt?.iteration === "number"
+                        ? data.prompt.iteration
+                        : null,
+                    systemPrompt: data.prompt.systemPrompt,
+                    userPrompt: data.prompt.userPrompt,
+                    provider:
+                      typeof data.prompt?.provider === "string"
+                        ? (data.prompt.provider as ProviderSelection["provider"])
+                        : undefined,
+                    model:
+                      typeof data.prompt?.model === "string"
+                        ? data.prompt.model
+                        : undefined,
+                    effort:
+                      typeof data.prompt?.effort === "string"
+                        ? data.prompt.effort
+                        : undefined,
+                    timestamp: Date.now(),
+                  });
+                }
+                completeAnalysis(cardId, data as AnalysisResultPayload);
+                analysisCompleted = true;
+                const resultEntry: LogEntry = {
+                  type: "status",
+                  content: `Analysis complete — ${(data as AnalysisResultPayload).proposals?.length ?? 0} proposals`,
+                  timestamp: Date.now(),
+                  stage,
+                };
+                appendLog(cardId, resultEntry);
+                break;
+              }
             }
           }
+
+          if (done) break;
         }
 
         if (!analysisCompleted) {

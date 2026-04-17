@@ -85,11 +85,14 @@ export function buildClaudeQueryOptions(
     throw new Error(`Unsupported Claude model: ${selection.model}`);
   }
 
+  // Opus 4.7 (and "Mythos Preview") default to display: "omitted" — no thinking
+  // blocks are streamed unless we explicitly opt in to "summarized". Opus 4.6 and
+  // earlier default to "summarized", but setting it explicitly is harmless there.
   const thinkingConfig = entry.effortMode === "adaptive"
-    ? { type: "adaptive" as const }
+    ? { type: "adaptive" as const, display: "summarized" as const }
     : { type: "enabled" as const, budget_tokens: parseInt(selection.effort, 10) || 10000 };
   const effortConfig = entry.effortMode === "adaptive"
-    ? (selection.effort as "low" | "medium" | "high" | "max")
+    ? (selection.effort as "low" | "medium" | "high" | "xhigh" | "max")
     : undefined;
 
   return {

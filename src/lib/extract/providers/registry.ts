@@ -3,11 +3,13 @@ import type { ProviderSelection } from "./shared";
 import type { ExtractModelProvider } from "./types";
 import { claudeCodeProvider } from "./claude-code";
 import { openAICodexProvider } from "./openai-codex";
+import { googleProvider } from "./google";
 import { mockProvider } from "@/lib/extract/mock-provider";
 
 const PROVIDERS: Record<ProviderSelection["provider"], ExtractModelProvider> = {
   "claude-code": claudeCodeProvider,
   "openai-codex": openAICodexProvider,
+  "google": googleProvider,
   mock: mockProvider,
 };
 
